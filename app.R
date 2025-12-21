@@ -299,6 +299,9 @@ server <- function(input, output, session) {
         stop("File appears to be empty or unreadable")
       }
 
+      # Debug: Log raw data dimensions
+      message("Raw data dimensions: ", nrow(raw_df), " rows x ", ncol(raw_df), " cols")
+
       # Detect frontmatter
       detection <- detect_data_start(
         raw_df,
@@ -306,8 +309,17 @@ server <- function(input, output, session) {
         manual_row = if (input$detection_mode == "manual") input$manual_header_row else NULL
       )
 
+      # Debug: Log detection results
+      message("Detection: method=", detection$method,
+              ", confidence=", detection$confidence,
+              ", header_row=", detection$header_row,
+              ", data_start=", detection$data_start_row)
+
       # Extract clean data
       clean_df <- extract_clean_data(raw_df, detection)
+
+      # Debug: Log after extraction
+      message("After extraction: ", nrow(clean_df), " rows x ", ncol(clean_df), " cols")
 
       # Handle merged cells
       clean_df <- handle_merged_cells(clean_df)
@@ -360,12 +372,29 @@ server <- function(input, output, session) {
       # Remove processing notification
       removeNotification(notification_id)
 
-      # Show error notification
+      # Provide more detailed error information
+      error_details <- conditionMessage(e)
+
+      # Show error notification with more context
       showNotification(
-        paste("Error reading file:", e$message),
+        div(
+          tags$strong("Error processing file:"),
+          tags$br(),
+          error_details,
+          tags$br(), tags$br(),
+          tags$em("Check the R console for detailed debug messages.")
+        ),
         type = "error",
-        duration = 10
+        duration = NULL  # Keep error visible until dismissed
       )
+
+      # Log full error to console for debugging
+      message("\n=== FILE UPLOAD ERROR ===")
+      message("File: ", input$file_upload$name)
+      message("Error: ", error_details)
+      message("Stack trace:")
+      print(e)
+      message("=========================\n")
 
       # Reset data store
       data_store$raw <- NULL

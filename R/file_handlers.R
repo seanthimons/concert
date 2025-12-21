@@ -8,88 +8,125 @@
 #' @return A tibble with the raw file contents (no header parsing)
 #' @export
 safely_read_file <- function(filepath, file_ext) {
+  # For CSV files, skip rio::import and use more robust reading
+  if (tolower(file_ext) == "csv") {
+    return(read_csv_robust(filepath))
+  }
+
+  # For Excel files, use specialized reading
+  if (tolower(file_ext) %in% c("xlsx", "xls")) {
+    return(read_excel_robust(filepath))
+  }
+
+  # Fallback to rio for other formats
   tryCatch({
-    # Primary method: rio::import
     df <- rio::import(filepath, setclass = "tibble")
 
-    # Validate result
-    if (!is.data.frame(df)) {
-      stop("File did not parse as a data frame")
-    }
-
-    if (nrow(df) == 0) {
-      stop("File is empty (0 rows)")
-    }
-
-    if (ncol(df) == 0) {
-      stop("File has no columns")
+    if (!is.data.frame(df) || nrow(df) == 0 || ncol(df) == 0) {
+      stop("Invalid data frame from rio::import")
     }
 
     return(df)
+  }, error = function(e) {
+    stop(paste("Unsupported file type or corrupt file:", file_ext))
+  })
+}
 
-  }, error = function(e_primary) {
-    # Try fallback methods based on extension
+#' Robust CSV reading with multiple fallback strategies
+#' @keywords internal
+read_csv_robust <- function(filepath) {
+  # Strategy 1: Try readr with auto-detection (most common)
+  df <- tryCatch({
+    readr::read_csv(
+      filepath,
+      col_names = FALSE,
+      show_col_types = FALSE,
+      name_repair = "minimal",
+      guess_max = 10000,
+      locale = readr::locale(encoding = "UTF-8")
+    )
+  }, error = function(e1) {
+    # Strategy 2: Try with Latin-1 encoding
     tryCatch({
-      if (tolower(file_ext) %in% c("xlsx", "xls")) {
-        # Excel fallback: readxl with no header parsing
-        df <- readxl::read_excel(
+      readr::read_csv(
+        filepath,
+        col_names = FALSE,
+        show_col_types = FALSE,
+        name_repair = "minimal",
+        guess_max = 10000,
+        locale = readr::locale(encoding = "Latin1")
+      )
+    }, error = function(e2) {
+      # Strategy 3: Try with semicolon delimiter (European format)
+      tryCatch({
+        readr::read_delim(
           filepath,
+          delim = ";",
           col_names = FALSE,
-          .name_repair = "minimal",
-          guess_max = Inf
+          show_col_types = FALSE,
+          name_repair = "minimal",
+          guess_max = 10000
         )
-
-        # Ensure column names are character
-        names(df) <- paste0("V", seq_len(ncol(df)))
-
-      } else if (tolower(file_ext) == "csv") {
-        # CSV fallback: Try UTF-8 first
-        df <- tryCatch(
-          {
-            readr::read_csv(
-              filepath,
-              col_names = FALSE,
-              show_col_types = FALSE,
-              name_repair = "minimal"
-            )
-          },
-          error = function(e_utf8) {
-            # Try Latin-1 encoding
-            readr::read_csv(
-              filepath,
-              col_names = FALSE,
-              locale = readr::locale(encoding = "Latin1"),
-              show_col_types = FALSE,
-              name_repair = "minimal"
-            )
-          }
-        )
-
-        # Ensure column names are character
-        names(df) <- paste0("V", seq_len(ncol(df)))
-
-      } else {
-        stop(paste("Unsupported file type:", file_ext))
-      }
-
-      # Validate fallback result
-      if (nrow(df) == 0) {
-        stop("File is empty (0 rows)")
-      }
-
-      # Convert to tibble
-      df <- tibble::as_tibble(df)
-
-      return(df)
-
-    }, error = function(e_fallback) {
-      # All methods failed
-      stop(paste(
-        "Failed to read file.",
-        "Primary error:", e_primary$message,
-        "Fallback error:", e_fallback$message
-      ))
+      }, error = function(e3) {
+        # Strategy 4: Try with tab delimiter
+        tryCatch({
+          readr::read_delim(
+            filepath,
+            delim = "\t",
+            col_names = FALSE,
+            show_col_types = FALSE,
+            name_repair = "minimal",
+            guess_max = 10000
+          )
+        }, error = function(e4) {
+          # Strategy 5: Last resort - base R read.csv
+          df_base <- read.csv(
+            filepath,
+            header = FALSE,
+            stringsAsFactors = FALSE,
+            check.names = FALSE
+          )
+          tibble::as_tibble(df_base)
+        })
+      })
     })
+  })
+
+  # Validate result
+  if (!is.data.frame(df) || nrow(df) == 0 || ncol(df) == 0) {
+    stop("CSV file is empty or could not be read")
+  }
+
+  # Ensure column names are standardized
+  names(df) <- paste0("V", seq_len(ncol(df)))
+
+  return(df)
+}
+
+#' Robust Excel reading
+#' @keywords internal
+read_excel_robust <- function(filepath) {
+  tryCatch({
+    df <- readxl::read_excel(
+      filepath,
+      col_names = FALSE,
+      .name_repair = "minimal",
+      guess_max = Inf
+    )
+
+    # Ensure column names are character
+    names(df) <- paste0("V", seq_len(ncol(df)))
+
+    # Validate result
+    if (!is.data.frame(df) || nrow(df) == 0 || ncol(df) == 0) {
+      stop("Excel file is empty or could not be read")
+    }
+
+    # Convert to tibble
+    tibble::as_tibble(df)
+
+  }, error = function(e) {
+    stop(paste("Failed to read Excel file:", e$message))
   })
 }
 
