@@ -107,10 +107,7 @@ ui <- page_sidebar(
       icon = bsicons::bs_icon("table"),
 
       # Summary cards
-      layout_columns(
-        col_widths = c(3, 3, 3, 3),
-        uiOutput("summary_cards")
-      ),
+      uiOutput("summary_cards"),
 
       # Data table
       card(
@@ -312,7 +309,8 @@ server <- function(input, output, session) {
     missing_pct <- round(sum(is.na(df)) / (total_rows * total_cols) * 100, 1)
     detection_conf <- round(data_store$detection$confidence * 100, 0)
 
-    list(
+    layout_columns(
+      col_widths = c(3, 3, 3, 3),
       value_box(
         title = "Total Rows",
         value = format(total_rows, big.mark = ","),
