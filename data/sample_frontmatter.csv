@@ -1,0 +1,11 @@
+Chemical Inventory Report
+Generated: 2024-01-15
+Laboratory: Organic Chemistry Lab
+Building: Science Center West
+
+Chemical Name,CAS Number,Formula,MW,Hazard,Qty,Storage
+Methanol,67-56-1,CH4O,32.04,Flammable/Toxic,2000,Flammable Cabinet
+Acetonitrile,75-05-8,C2H3N,41.05,Flammable,1500,Flammable Cabinet
+Sulfuric Acid,7664-93-9,H2SO4,98.08,Corrosive,500,Acid Storage
+Diethyl Ether,60-29-7,C4H10O,74.12,Flammable,300,Flammable Cabinet
+Sodium Hydroxide,1310-73-2,NaOH,40.00,Corrosive,750,Base Storage
