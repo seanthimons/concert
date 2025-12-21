@@ -160,30 +160,30 @@
   }
 
   # GitHub Packages ----
-  # github_packages <- c(
-  # 	"seanthimons/ComptoxR"
-  # )
+  github_packages <- c(
+  	"seanthimons/ComptoxR"
+  )
 
-  # # Ensure remotes is installed
-  # if (!requireNamespace("remotes", quietly = TRUE)) {
-  # 	install.packages("remotes")
-  # }
+  # Ensure remotes is installed
+  if (!requireNamespace("remotes", quietly = TRUE)) {
+  	install.packages("remotes")
+  }
 
-  # # Loop through each GitHub package
-  # for (pkg in github_packages) {
-  # 	# Extract package name from the "user/repo" string
-  # 	pkg_name <- sub(".*/", "", pkg)
+  # Loop through each GitHub package
+  for (pkg in github_packages) {
+  	# Extract package name from the "user/repo" string
+  	pkg_name <- sub(".*/", "", pkg)
 
-  # 	# Check if the package is installed
-  # 	if (!requireNamespace(pkg_name, quietly = TRUE)) {
-  # 		# If not installed, install the latest release from GitHub
-  # 		remotes::install_github(paste0(pkg, "@*release"))
-  # 	}
-  # 	# Load the package
-  # 	library(pkg_name, character.only = TRUE)
-  # }
+  	# Check if the package is installed
+  	if (!requireNamespace(pkg_name, quietly = TRUE)) {
+  		# If not installed, install the latest release from GitHub
+  		remotes::install_github(paste0(pkg, "@*release"))
+  	}
+  	# Load the package
+  	library(pkg_name, character.only = TRUE)
+  }
 
-  # rm(github_packages, pkg, pkg_name)
+  rm(github_packages, pkg, pkg_name)
 
 	# Custom Functions ----
 

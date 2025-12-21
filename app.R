@@ -7,6 +7,7 @@ source(here::here("load_packages.R"))
 # Load helper functions
 source(here::here("R", "file_handlers.R"))
 source(here::here("R", "data_detection.R"))
+source(here::here("R", "curation.R"))
 
 # Application configuration
 options(
@@ -94,6 +95,32 @@ ui <- page_sidebar(
           class = "btn-secondary btn-sm w-100 mt-2"
         )
       )
+    ),
+
+    # Column Selection Section
+    card(
+      card_header(
+        class = "bg-primary text-white",
+        "Column Selection"
+      ),
+      card_body(
+        conditionalPanel(
+          condition = "output.has_data",
+
+          checkboxGroupInput(
+            "selected_columns",
+            "Select Columns to Display:",
+            choices = NULL,
+            selected = NULL
+          ),
+
+          div(
+            class = "d-flex gap-1 mb-2",
+            actionButton("select_all_cols", "Select All", class = "btn-sm btn-outline-primary flex-fill"),
+            actionButton("deselect_all_cols", "Deselect All", class = "btn-sm btn-outline-secondary flex-fill")
+          )
+        )
+      )
     )
   ),
 
@@ -138,6 +165,84 @@ ui <- page_sidebar(
           DTOutput("raw_table")
         )
       )
+    ),
+
+    # Curation Tab
+    nav_panel(
+      title = "Curation",
+      icon = bsicons::bs_icon("funnel"),
+
+      # Step 1: Tag Columns
+      card(
+        card_header(
+          class = "bg-info text-white",
+          "Step 1: Tag Columns"
+        ),
+        card_body(
+          p("Categorize selected columns for chemical curation."),
+
+          uiOutput("column_tagging_ui"),
+
+          actionButton(
+            "apply_tags",
+            "Apply Tags",
+            class = "btn-primary w-100 mt-3",
+            icon = icon("tag")
+          )
+        )
+      ),
+
+      # Step 2: Run Curation
+      card(
+        card_header(
+          class = "bg-success text-white",
+          "Step 2: Run Curation"
+        ),
+        card_body(
+          p("Lookup and validate chemicals using EPA CompTox Dashboard."),
+
+          conditionalPanel(
+            condition = "output.tags_applied",
+
+            div(
+              class = "alert alert-info",
+              uiOutput("curation_summary")
+            ),
+
+            actionButton(
+              "run_curation",
+              "Start Curation",
+              class = "btn-success w-100",
+              icon = icon("play")
+            ),
+
+            uiOutput("curation_progress")
+          )
+        )
+      ),
+
+      # Step 3: Review Results
+      card(
+        card_header(
+          class = "bg-warning text-dark",
+          "Step 3: Review Results"
+        ),
+        card_body(
+          conditionalPanel(
+            condition = "output.curation_completed",
+
+            uiOutput("curation_stats"),
+
+            DTOutput("curation_table"),
+
+            downloadButton(
+              "download_curated",
+              "Download Curated Data",
+              class = "btn-primary w-100 mt-3"
+            )
+          )
+        )
+      )
     )
   )
 )
@@ -151,7 +256,14 @@ server <- function(input, output, session) {
     raw = NULL,
     clean = NULL,
     detection = NULL,
-    file_info = NULL
+    file_info = NULL,
+    # Column selection and tagging
+    selected_columns = NULL,
+    column_tags = NULL,
+    # Curation results
+    curation_results = NULL,
+    curation_report = NULL,
+    curation_status = NULL
   )
 
   # File upload handler
@@ -182,6 +294,11 @@ server <- function(input, output, session) {
       file_ext <- tools::file_ext(input$file_upload$name)
       raw_df <- safely_read_file(input$file_upload$datapath, file_ext)
 
+      # Validate raw data
+      if (is.null(raw_df) || nrow(raw_df) == 0 || ncol(raw_df) == 0) {
+        stop("File appears to be empty or unreadable")
+      }
+
       # Detect frontmatter
       detection <- detect_data_start(
         raw_df,
@@ -199,6 +316,22 @@ server <- function(input, output, session) {
       clean_df <- clean_df %>%
         janitor::clean_names() %>%
         janitor::remove_empty(which = c("rows", "cols"))
+
+      # Validate cleaned data
+      if (nrow(clean_df) == 0) {
+        showNotification(
+          paste0(
+            "Warning: No data rows found after cleaning. ",
+            "Try adjusting detection settings or using Manual mode."
+          ),
+          type = "warning",
+          duration = 10
+        )
+      }
+
+      if (ncol(clean_df) == 0) {
+        stop("No columns found after cleaning. File may not contain valid tabular data.")
+      }
 
       # Store results
       data_store$raw <- raw_df
@@ -261,6 +394,27 @@ server <- function(input, output, session) {
         janitor::clean_names() %>%
         janitor::remove_empty(which = c("rows", "cols"))
 
+      # Validate cleaned data
+      if (nrow(clean_df) == 0) {
+        showNotification(
+          paste0(
+            "Warning: No data rows found with current settings. ",
+            "Try a different header row or detection mode."
+          ),
+          type = "warning",
+          duration = 8
+        )
+      }
+
+      if (ncol(clean_df) == 0) {
+        showNotification(
+          "Warning: No columns found after cleaning.",
+          type = "warning",
+          duration = 8
+        )
+        return()
+      }
+
       # Update stored data
       data_store$clean <- clean_df
       data_store$detection <- detection
@@ -306,6 +460,7 @@ server <- function(input, output, session) {
     # Calculate statistics
     total_rows <- nrow(df)
     total_cols <- ncol(df)
+    selected_cols <- ncol(filtered_data())
     missing_pct <- round(sum(is.na(df)) / (total_rows * total_cols) * 100, 1)
     detection_conf <- round(data_store$detection$confidence * 100, 0)
 
@@ -318,8 +473,8 @@ server <- function(input, output, session) {
         theme = "primary"
       ),
       value_box(
-        title = "Total Columns",
-        value = total_cols,
+        title = "Columns (Selected/Total)",
+        value = paste0(selected_cols, " / ", total_cols),
         showcase = bsicons::bs_icon("grid-3x3"),
         theme = "info"
       ),
@@ -342,7 +497,17 @@ server <- function(input, output, session) {
   output$data_table <- renderDT({
     req(data_store$clean)
 
-    preview_data <- head(data_store$clean, input$preview_rows)
+    preview_data <- head(filtered_data(), input$preview_rows)
+
+    # Validate data before rendering
+    if (nrow(preview_data) == 0 || ncol(preview_data) == 0) {
+      # Return empty table with message
+      return(datatable(
+        data.frame(Message = "No data available after cleaning"),
+        options = list(dom = 't'),
+        rownames = FALSE
+      ))
+    }
 
     datatable(
       preview_data,
@@ -360,7 +525,7 @@ server <- function(input, output, session) {
       extensions = c('Buttons', 'FixedHeader'),
       class = 'cell-border stripe hover',
       rownames = FALSE,
-      filter = 'top'
+      filter = if (nrow(preview_data) > 0) 'top' else 'none'
     ) %>%
       formatStyle(
         columns = names(preview_data),
@@ -535,6 +700,341 @@ server <- function(input, output, session) {
       duration = 3
     )
   })
+
+  # Column Selection Logic ----
+
+  # Update checkbox choices when data loads
+  observe({
+    req(data_store$clean)
+    choices <- names(data_store$clean)
+
+    updateCheckboxGroupInput(
+      session,
+      "selected_columns",
+      choices = choices,
+      selected = choices  # All selected by default
+    )
+
+    # Store in reactive store
+    data_store$selected_columns <- choices
+  })
+
+  # Update selected columns when user changes selection
+  observeEvent(input$selected_columns, {
+    data_store$selected_columns <- input$selected_columns
+  })
+
+  # Select all button
+  observeEvent(input$select_all_cols, {
+    req(data_store$clean)
+    updateCheckboxGroupInput(session, "selected_columns", selected = names(data_store$clean))
+  })
+
+  # Deselect all button
+  observeEvent(input$deselect_all_cols, {
+    updateCheckboxGroupInput(session, "selected_columns", selected = character(0))
+  })
+
+  # Filtered data based on column selection
+  filtered_data <- reactive({
+    req(data_store$clean)
+    selected <- data_store$selected_columns
+
+    if (is.null(selected) || length(selected) == 0) {
+      return(data_store$clean)  # Show all if none selected
+    }
+
+    data_store$clean %>% select(all_of(selected))
+  })
+
+  # has_data output for conditionalPanel
+  output$has_data <- reactive({
+    !is.null(data_store$clean)
+  })
+  outputOptions(output, "has_data", suspendWhenHidden = FALSE)
+
+  # Column Tagging Logic ----
+
+  # Dynamic UI for column tagging
+  output$column_tagging_ui <- renderUI({
+    req(data_store$selected_columns)
+
+    selected_cols <- data_store$selected_columns
+
+    if (length(selected_cols) == 0) {
+      return(div(class = "alert alert-warning", "No columns selected. Please select columns in the sidebar."))
+    }
+
+    # Create dropdown for each selected column
+    tagList(
+      lapply(selected_cols, function(col) {
+        selectInput(
+          inputId = paste0("tag_", make.names(col)),
+          label = col,
+          choices = c(
+            "Select type..." = "",
+            "Chemical Name" = "Name",
+            "CASRN" = "CASRN",
+            "Other" = "Other"
+          ),
+          selected = "",
+          selectize = FALSE  # Disable selectize to avoid plugin errors
+        )
+      })
+    )
+  })
+
+  # Apply tags button
+  observeEvent(input$apply_tags, {
+    req(data_store$selected_columns)
+
+    tags <- list()
+    for (col in data_store$selected_columns) {
+      tag_input_id <- paste0("tag_", make.names(col))
+      tag_value <- input[[tag_input_id]]
+
+      if (!is.null(tag_value) && tag_value != "") {
+        tags[[col]] <- tag_value
+      }
+    }
+
+    if (length(tags) == 0) {
+      showNotification(
+        "Please select at least one column type before applying tags.",
+        type = "warning",
+        duration = 5
+      )
+      return()
+    }
+
+    data_store$column_tags <- tags
+
+    showNotification(
+      paste("Tagged", length(tags), "column(s) successfully!"),
+      type = "message",
+      duration = 3
+    )
+  })
+
+  # Tags applied indicator
+  output$tags_applied <- reactive({
+    !is.null(data_store$column_tags) && length(data_store$column_tags) > 0
+  })
+  outputOptions(output, "tags_applied", suspendWhenHidden = FALSE)
+
+  # Curation summary
+  output$curation_summary <- renderUI({
+    req(data_store$column_tags)
+
+    tags <- data_store$column_tags
+    name_count <- sum(tags == "Name")
+    cas_count <- sum(tags == "CASRN")
+    other_count <- sum(tags == "Other")
+
+    tagList(
+      p(strong("Tagged Columns:")),
+      tags$ul(
+        tags$li(paste(name_count, "Chemical Name column(s)")),
+        tags$li(paste(cas_count, "CASRN column(s)")),
+        if (other_count > 0) tags$li(paste(other_count, "Other column(s)"))
+      )
+    )
+  })
+
+  # Curation Execution Logic ----
+
+  # Run curation button
+  observeEvent(input$run_curation, {
+    req(data_store$clean, data_store$column_tags)
+
+    # Check for ComptoxR API key
+    if (Sys.getenv("ctx_api_key") == "") {
+      showNotification(
+        "ComptoxR API key not set. Please set 'ctx_api_key' environment variable and restart R session.",
+        type = "error",
+        duration = NULL
+      )
+      return()
+    }
+
+    # Check if there are Name or CASRN columns tagged
+    has_name <- any(data_store$column_tags == "Name")
+    has_cas <- any(data_store$column_tags == "CASRN")
+
+    if (!has_name && !has_cas) {
+      showNotification(
+        "Please tag at least one column as 'Chemical Name' or 'CASRN' before running curation.",
+        type = "warning",
+        duration = 5
+      )
+      return()
+    }
+
+    data_store$curation_status <- "in_progress"
+
+    # Show progress notification
+    notification_id <- showNotification(
+      "Curating chemical data... This may take a few moments.",
+      type = "message",
+      duration = NULL
+    )
+
+    # Run curation (with error handling)
+    curation_result <- purrr::safely(curate_chemical_data)(
+      clean_data = data_store$clean,
+      column_tags = data_store$column_tags
+    )
+
+    removeNotification(notification_id)
+
+    if (!is.null(curation_result$error)) {
+      showNotification(
+        paste("Curation failed:", curation_result$error$message),
+        type = "error",
+        duration = NULL
+      )
+      data_store$curation_status <- "failed"
+    } else {
+      data_store$curation_results <- curation_result$result$curated_data
+      data_store$curation_report <- curation_result$result$report
+      data_store$curation_status <- "completed"
+
+      showNotification(
+        "Curation completed successfully!",
+        type = "message",
+        duration = 5
+      )
+    }
+  })
+
+  # Curation completed indicator
+  output$curation_completed <- reactive({
+    !is.null(data_store$curation_status) && data_store$curation_status == "completed"
+  })
+  outputOptions(output, "curation_completed", suspendWhenHidden = FALSE)
+
+  # Curation statistics
+  output$curation_stats <- renderUI({
+    req(data_store$curation_report)
+
+    report <- data_store$curation_report
+
+    layout_columns(
+      col_widths = c(6, 6),
+      value_box(
+        title = "CAS Numbers Validated",
+        value = paste0(report$cas_validated, " / ", report$cas_validated + report$cas_invalid),
+        showcase = bsicons::bs_icon("check-circle"),
+        theme = "success"
+      ),
+      value_box(
+        title = "Chemical Names Matched",
+        value = paste0(report$names_exact_match + report$names_fuzzy_match, " / ",
+                       report$names_exact_match + report$names_fuzzy_match + report$names_no_match),
+        showcase = bsicons::bs_icon("search"),
+        theme = "info"
+      )
+    )
+  })
+
+  # Curation results table
+  output$curation_table <- renderDT({
+    req(data_store$curation_results)
+
+    datatable(
+      data_store$curation_results,
+      options = list(
+        pageLength = 25,
+        scrollX = TRUE,
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel')
+      ),
+      extensions = 'Buttons',
+      class = 'cell-border stripe hover compact',
+      rownames = FALSE,
+      filter = "top"
+    )
+  })
+
+  # Export Functionality ----
+
+  # Download curated data
+  output$download_curated <- downloadHandler(
+    filename = function() {
+      # Generate filename with timestamp
+      file_base <- if (!is.null(data_store$file_info)) {
+        tools::file_path_sans_ext(data_store$file_info$name)
+      } else {
+        "curated_data"
+      }
+      paste0(file_base, "_curated_", format(Sys.Date(), "%Y%m%d"), ".xlsx")
+    },
+    content = function(file) {
+      req(data_store$clean, data_store$curation_results)
+
+      # Prepare export: Original data with row_id
+      original_with_id <- data_store$clean %>%
+        dplyr::mutate(row_id = dplyr::row_number())
+
+      # Pivot curation results wider for joining
+      curated_wide <- data_store$curation_results %>%
+        dplyr::select(
+          row_id,
+          original_column,
+          validated_cas,
+          tidyselect::any_of(c("dtxsid", "preferredName", "casrn", "match_status", "is_valid"))
+        ) %>%
+        tidyr::pivot_wider(
+          names_from = original_column,
+          values_from = tidyselect::any_of(c("validated_cas", "dtxsid", "preferredName", "casrn", "match_status", "is_valid")),
+          names_sep = "_curated_"
+        )
+
+      # Join original and curated
+      export_data <- original_with_id %>%
+        dplyr::left_join(curated_wide, by = "row_id")
+
+      # Prepare curation report as tibble
+      report_df <- tibble::tibble(
+        Metric = c(
+          "Total Rows",
+          "CAS Columns Processed",
+          "Name Columns Processed",
+          "CAS Numbers Validated",
+          "CAS Numbers Invalid",
+          "Chemical Names - Exact Match",
+          "Chemical Names - Fuzzy Match",
+          "Chemical Names - No Match"
+        ),
+        Value = c(
+          data_store$curation_report$total_rows,
+          data_store$curation_report$cas_columns,
+          data_store$curation_report$name_columns,
+          data_store$curation_report$cas_validated,
+          data_store$curation_report$cas_invalid,
+          data_store$curation_report$names_exact_match,
+          data_store$curation_report$names_fuzzy_match,
+          data_store$curation_report$names_no_match
+        )
+      )
+
+      # Prepare column tags as tibble
+      tags_df <- tibble::tibble(
+        Column = names(data_store$column_tags),
+        Type = unlist(data_store$column_tags)
+      )
+
+      # Write to Excel with multiple sheets
+      writexl::write_xlsx(
+        list(
+          "Curated Data" = export_data,
+          "Curation Report" = report_df,
+          "Column Tags" = tags_df
+        ),
+        path = file
+      )
+    }
+  )
 }
 
 # Run application
