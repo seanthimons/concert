@@ -2,7 +2,30 @@
 # Upload CSV/XLSX files with intelligent frontmatter detection
 
 # Load packages
-source(here::here("load_packages.R"))
+{
+  library(shiny)
+  library(bslib)
+  library(bsicons)
+  library(DT)
+  library(shinyjs)
+  library(here)
+  library(janitor)
+  library(rio)
+  library(readxl)
+  library(writexl)
+  library(readr)
+  library(dplyr)
+  library(tidyr)
+  library(tibble)
+  library(purrr)
+  library(stringr)
+  library(tidyselect)
+  library(rlang)
+  library(ComptoxR)
+}
+
+# Custom operators
+`%ni%` <- Negate(`%in%`)
 
 # Load helper functions
 source(here::here("R", "file_handlers.R"))
@@ -11,8 +34,9 @@ source(here::here("R", "curation.R"))
 
 # Application configuration
 options(
-  shiny.maxRequestSize = 50 * 1024^2  # 50MB upload limit
+  shiny.maxRequestSize = 50 * 1024^2 # 50MB upload limit
 )
+
 
 # UI Definition
 ui <- page_sidebar(
@@ -250,7 +274,6 @@ ui <- page_sidebar(
 
 # Server Logic
 server <- function(input, output, session) {
-
   # Reactive values store
   data_store <- reactiveValues(
     raw = NULL,
@@ -289,172 +312,187 @@ server <- function(input, output, session) {
       duration = NULL
     )
 
-    tryCatch({
-      # Read file
-      file_ext <- tools::file_ext(input$file_upload$name)
-      raw_df <- safely_read_file(input$file_upload$datapath, file_ext)
+    tryCatch(
+      {
+        # Read file
+        file_ext <- tools::file_ext(input$file_upload$name)
+        raw_df <- safely_read_file(input$file_upload$datapath, file_ext)
 
-      # Validate raw data
-      if (is.null(raw_df) || nrow(raw_df) == 0 || ncol(raw_df) == 0) {
-        stop("File appears to be empty or unreadable")
-      }
+        # Validate raw data
+        if (is.null(raw_df) || nrow(raw_df) == 0 || ncol(raw_df) == 0) {
+          stop("File appears to be empty or unreadable")
+        }
 
-      # Debug: Log raw data dimensions
-      message("Raw data dimensions: ", nrow(raw_df), " rows x ", ncol(raw_df), " cols")
+        # Debug: Log raw data dimensions
+        message("Raw data dimensions: ", nrow(raw_df), " rows x ", ncol(raw_df), " cols")
 
-      # Detect frontmatter
-      detection <- detect_data_start(
-        raw_df,
-        mode = input$detection_mode,
-        manual_row = if (input$detection_mode == "manual") input$manual_header_row else NULL
-      )
+        # Detect frontmatter
+        detection <- detect_data_start(
+          raw_df,
+          mode = input$detection_mode,
+          manual_row = if (input$detection_mode == "manual") input$manual_header_row else NULL
+        )
 
-      # Debug: Log detection results
-      message("Detection: method=", detection$method,
-              ", confidence=", detection$confidence,
-              ", header_row=", detection$header_row,
-              ", data_start=", detection$data_start_row)
+        # Debug: Log detection results
+        message(
+          "Detection: method=",
+          detection$method,
+          ", confidence=",
+          detection$confidence,
+          ", header_row=",
+          detection$header_row,
+          ", data_start=",
+          detection$data_start_row
+        )
 
-      # Extract clean data
-      clean_df <- extract_clean_data(raw_df, detection)
+        # Extract clean data
+        clean_df <- extract_clean_data(raw_df, detection)
 
-      # Debug: Log after extraction
-      message("After extraction: ", nrow(clean_df), " rows x ", ncol(clean_df), " cols")
+        # Debug: Log after extraction
+        message("After extraction: ", nrow(clean_df), " rows x ", ncol(clean_df), " cols")
 
-      # Handle merged cells
-      clean_df <- handle_merged_cells(clean_df)
+        # Handle merged cells
+        clean_df <- handle_merged_cells(clean_df)
 
-      # Apply janitor cleaning
-      clean_df <- clean_df %>%
-        janitor::clean_names() %>%
-        janitor::remove_empty(which = c("rows", "cols"))
+        # Apply janitor cleaning
+        clean_df <- clean_df %>%
+          janitor::clean_names() %>%
+          janitor::remove_empty(which = c("rows", "cols"))
 
-      # Validate cleaned data
-      if (nrow(clean_df) == 0) {
+        # Validate cleaned data
+        if (nrow(clean_df) == 0) {
+          showNotification(
+            paste0(
+              "Warning: No data rows found after cleaning. ",
+              "Try adjusting detection settings or using Manual mode."
+            ),
+            type = "warning",
+            duration = 10
+          )
+        }
+
+        if (ncol(clean_df) == 0) {
+          stop("No columns found after cleaning. File may not contain valid tabular data.")
+        }
+
+        # Store results
+        data_store$raw <- raw_df
+        data_store$clean <- clean_df
+        data_store$detection <- detection
+        data_store$file_info <- input$file_upload
+
+        # Calculate smart preview rows
+        suggested_rows <- calculate_smart_preview_rows(clean_df)
+        updateSliderInput(session, "preview_rows", value = suggested_rows)
+
+        # Remove processing notification
+        removeNotification(notification_id)
+
+        # Show success notification
         showNotification(
           paste0(
-            "Warning: No data rows found after cleaning. ",
-            "Try adjusting detection settings or using Manual mode."
+            "File uploaded successfully! ",
+            "Detected ",
+            nrow(clean_df),
+            " rows and ",
+            ncol(clean_df),
+            " columns."
           ),
-          type = "warning",
-          duration = 10
+          type = "message",
+          duration = 5
         )
+      },
+      error = function(e) {
+        # Remove processing notification
+        removeNotification(notification_id)
+
+        # Provide more detailed error information
+        error_details <- conditionMessage(e)
+
+        # Show error notification with more context
+        showNotification(
+          div(
+            tags$strong("Error processing file:"),
+            tags$br(),
+            error_details,
+            tags$br(),
+            tags$br(),
+            tags$em("Check the R console for detailed debug messages.")
+          ),
+          type = "error",
+          duration = NULL # Keep error visible until dismissed
+        )
+
+        # Log full error to console for debugging
+        message("\n=== FILE UPLOAD ERROR ===")
+        message("File: ", input$file_upload$name)
+        message("Error: ", error_details)
+        message("Stack trace:")
+        print(e)
+        message("=========================\n")
+
+        # Reset data store
+        data_store$raw <- NULL
+        data_store$clean <- NULL
+        data_store$detection <- NULL
+        data_store$file_info <- NULL
       }
-
-      if (ncol(clean_df) == 0) {
-        stop("No columns found after cleaning. File may not contain valid tabular data.")
-      }
-
-      # Store results
-      data_store$raw <- raw_df
-      data_store$clean <- clean_df
-      data_store$detection <- detection
-      data_store$file_info <- input$file_upload
-
-      # Calculate smart preview rows
-      suggested_rows <- calculate_smart_preview_rows(clean_df)
-      updateSliderInput(session, "preview_rows", value = suggested_rows)
-
-      # Remove processing notification
-      removeNotification(notification_id)
-
-      # Show success notification
-      showNotification(
-        paste0(
-          "File uploaded successfully! ",
-          "Detected ", nrow(clean_df), " rows and ", ncol(clean_df), " columns."
-        ),
-        type = "message",
-        duration = 5
-      )
-
-    }, error = function(e) {
-      # Remove processing notification
-      removeNotification(notification_id)
-
-      # Provide more detailed error information
-      error_details <- conditionMessage(e)
-
-      # Show error notification with more context
-      showNotification(
-        div(
-          tags$strong("Error processing file:"),
-          tags$br(),
-          error_details,
-          tags$br(), tags$br(),
-          tags$em("Check the R console for detailed debug messages.")
-        ),
-        type = "error",
-        duration = NULL  # Keep error visible until dismissed
-      )
-
-      # Log full error to console for debugging
-      message("\n=== FILE UPLOAD ERROR ===")
-      message("File: ", input$file_upload$name)
-      message("Error: ", error_details)
-      message("Stack trace:")
-      print(e)
-      message("=========================\n")
-
-      # Reset data store
-      data_store$raw <- NULL
-      data_store$clean <- NULL
-      data_store$detection <- NULL
-      data_store$file_info <- NULL
-    })
+    )
   })
 
   # Update detection when mode or manual row changes
   observeEvent(c(input$detection_mode, input$manual_header_row), {
     req(data_store$raw)
 
-    tryCatch({
-      # Re-run detection
-      detection <- detect_data_start(
-        data_store$raw,
-        mode = input$detection_mode,
-        manual_row = if (input$detection_mode == "manual") input$manual_header_row else NULL
-      )
+    tryCatch(
+      {
+        # Re-run detection
+        detection <- detect_data_start(
+          data_store$raw,
+          mode = input$detection_mode,
+          manual_row = if (input$detection_mode == "manual") input$manual_header_row else NULL
+        )
 
-      # Re-extract clean data
-      clean_df <- extract_clean_data(data_store$raw, detection)
-      clean_df <- handle_merged_cells(clean_df)
-      clean_df <- clean_df %>%
-        janitor::clean_names() %>%
-        janitor::remove_empty(which = c("rows", "cols"))
+        # Re-extract clean data
+        clean_df <- extract_clean_data(data_store$raw, detection)
+        clean_df <- handle_merged_cells(clean_df)
+        clean_df <- clean_df %>%
+          janitor::clean_names() %>%
+          janitor::remove_empty(which = c("rows", "cols"))
 
-      # Validate cleaned data
-      if (nrow(clean_df) == 0) {
+        # Validate cleaned data
+        if (nrow(clean_df) == 0) {
+          showNotification(
+            paste0(
+              "Warning: No data rows found with current settings. ",
+              "Try a different header row or detection mode."
+            ),
+            type = "warning",
+            duration = 8
+          )
+        }
+
+        if (ncol(clean_df) == 0) {
+          showNotification(
+            "Warning: No columns found after cleaning.",
+            type = "warning",
+            duration = 8
+          )
+          return()
+        }
+
+        # Update stored data
+        data_store$clean <- clean_df
+        data_store$detection <- detection
+      },
+      error = function(e) {
         showNotification(
-          paste0(
-            "Warning: No data rows found with current settings. ",
-            "Try a different header row or detection mode."
-          ),
+          paste("Error updating detection:", e$message),
           type = "warning",
-          duration = 8
+          duration = 5
         )
       }
-
-      if (ncol(clean_df) == 0) {
-        showNotification(
-          "Warning: No columns found after cleaning.",
-          type = "warning",
-          duration = 8
-        )
-        return()
-      }
-
-      # Update stored data
-      data_store$clean <- clean_df
-      data_store$detection <- detection
-
-    }, error = function(e) {
-      showNotification(
-        paste("Error updating detection:", e$message),
-        type = "warning",
-        duration = 5
-      )
-    })
+    )
   })
 
   # Output: File info
@@ -517,7 +555,13 @@ server <- function(input, output, session) {
         title = "Detection Confidence",
         value = paste0(detection_conf, "%"),
         showcase = bsicons::bs_icon("bullseye"),
-        theme = if (detection_conf >= 70) "success" else if (detection_conf >= 50) "warning" else "danger"
+        theme = if (detection_conf >= 70) {
+          "success"
+        } else if (detection_conf >= 50) {
+          "warning"
+        } else {
+          "danger"
+        }
       )
     )
   })
@@ -741,7 +785,7 @@ server <- function(input, output, session) {
       session,
       "selected_columns",
       choices = choices,
-      selected = choices  # All selected by default
+      selected = choices # All selected by default
     )
 
     # Store in reactive store
@@ -770,7 +814,7 @@ server <- function(input, output, session) {
     selected <- data_store$selected_columns
 
     if (is.null(selected) || length(selected) == 0) {
-      return(data_store$clean)  # Show all if none selected
+      return(data_store$clean) # Show all if none selected
     }
 
     data_store$clean %>% select(all_of(selected))
@@ -807,7 +851,7 @@ server <- function(input, output, session) {
             "Other" = "Other"
           ),
           selected = "",
-          selectize = FALSE  # Disable selectize to avoid plugin errors
+          selectize = FALSE # Disable selectize to avoid plugin errors
         )
       })
     )
@@ -855,10 +899,10 @@ server <- function(input, output, session) {
   output$curation_summary <- renderUI({
     req(data_store$column_tags)
 
-    tags <- data_store$column_tags
-    name_count <- sum(tags == "Name")
-    cas_count <- sum(tags == "CASRN")
-    other_count <- sum(tags == "Other")
+    col_tags <- data_store$column_tags
+    name_count <- sum(col_tags == "Name")
+    cas_count <- sum(col_tags == "CASRN")
+    other_count <- sum(col_tags == "Other")
 
     tagList(
       p(strong("Tagged Columns:")),
@@ -958,8 +1002,11 @@ server <- function(input, output, session) {
       ),
       value_box(
         title = "Chemical Names Matched",
-        value = paste0(report$names_exact_match + report$names_fuzzy_match, " / ",
-                       report$names_exact_match + report$names_fuzzy_match + report$names_no_match),
+        value = paste0(
+          report$names_exact_match + report$names_fuzzy_match,
+          " / ",
+          report$names_exact_match + report$names_fuzzy_match + report$names_no_match
+        ),
         showcase = bsicons::bs_icon("search"),
         theme = "info"
       )
@@ -1015,7 +1062,14 @@ server <- function(input, output, session) {
         ) %>%
         tidyr::pivot_wider(
           names_from = original_column,
-          values_from = tidyselect::any_of(c("validated_cas", "dtxsid", "preferredName", "casrn", "match_status", "is_valid")),
+          values_from = tidyselect::any_of(c(
+            "validated_cas",
+            "dtxsid",
+            "preferredName",
+            "casrn",
+            "match_status",
+            "is_valid"
+          )),
           names_sep = "_curated_"
         )
 

@@ -11,8 +11,7 @@ validate_cas_numbers <- function(cas_vector) {
   tibble::tibble(
     original_cas = cas_vector,
     validated_cas = ComptoxR::as_cas(cas_vector),
-    is_valid = ComptoxR::is_cas(validated_cas),
-    validation_method = "ComptoxR::is_cas"
+    is_valid = ComptoxR::is_cas(validated_cas)
   )
 }
 
