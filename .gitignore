@@ -1,0 +1,31 @@
+# R
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.Renviron
+*.Rproj
+
+# Environment
+.env
+config.yml
+
+# DuckDB
+*.duckdb
+*.duckdb.wal
+
+# Storage
+storage/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dot folders
+.*/
+
+# Output/ Render files
+output/
+
+# Allow
+!.gitignore
