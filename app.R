@@ -1,4 +1,4 @@
-# ChemReg Shiny Data Upload & Preview Application
+# Chem-Janitor Shiny Data Upload & Preview Application
 # Upload CSV/XLSX files with intelligent frontmatter detection
 
 # Load packages
@@ -26,6 +26,9 @@
 
 # Custom operators
 `%ni%` <- Negate(`%in%`)
+`%||%` <- function(a, b) {
+	if (!is.null(a)) a else b
+}
 
 # Load helper functions
 source(here::here("R", "file_handlers.R"))
@@ -51,7 +54,7 @@ ui <- page_sidebar(
   ),
 
   # Title
-  title = "ChemReg Data Upload & Preview",
+  title = "Chem-Janitor Data Upload & Preview",
 
   # Sidebar
   sidebar = sidebar(

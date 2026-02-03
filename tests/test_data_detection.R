@@ -209,6 +209,6 @@ test_that("Smart preview calculates correct row counts", {
 })
 
 # Run all tests
-cat("\n=== Running ChemReg Data Detection Tests ===\n\n")
+cat("\n=== Running Chem-Janitor Data Detection Tests ===\n\n")
 test_dir(here::here("tests"))
 cat("\n=== Tests Complete ===\n")
