@@ -46,6 +46,18 @@ ui <- page_sidebar(
   # Enable shinyjs
   shinyjs::useShinyjs(),
 
+  # Tab pulse animation CSS
+  tags$head(tags$style("
+    @keyframes tab-pulse {
+      0% { background-color: transparent; }
+      50% { background-color: rgba(0, 123, 255, 0.15); }
+      100% { background-color: transparent; }
+    }
+    .tab-pulse > .nav-link {
+      animation: tab-pulse 0.5s ease-in-out 2;
+    }
+  ")),
+
   # Theme
   theme = bs_theme(
     version = 5,
@@ -58,6 +70,7 @@ ui <- page_sidebar(
 
   # Sidebar
   sidebar = sidebar(
+    id = "main_sidebar",
     width = 300,
 
     # File Upload Section
@@ -171,19 +184,19 @@ ui <- page_sidebar(
       )
     ),
 
-    # Detection Info Tab
-    nav_panel(
-      title = "Detection Info",
+    # Detection Info Tab (hidden until upload)
+    nav_panel_hidden(
       value = "detection_info",
+      title = "Detection Info",
       icon = bsicons::bs_icon("search"),
 
       uiOutput("detection_details")
     ),
 
-    # Raw Data Tab
-    nav_panel(
-      title = "Raw Data",
+    # Raw Data Tab (hidden until upload)
+    nav_panel_hidden(
       value = "raw_data",
+      title = "Raw Data",
       icon = bsicons::bs_icon("file-text"),
 
       h4("Raw File Contents (First 20 Rows)"),
@@ -193,10 +206,10 @@ ui <- page_sidebar(
       )
     ),
 
-    # Tag Columns Tab
-    nav_panel(
-      title = "Tag Columns",
+    # Tag Columns Tab (hidden until upload+detection)
+    nav_panel_hidden(
       value = "tag_columns",
+      title = "Tag Columns",
       icon = bsicons::bs_icon("tags"),
 
       # Empty state when no data uploaded
@@ -230,10 +243,10 @@ ui <- page_sidebar(
       )
     ),
 
-    # Run Curation Tab
-    nav_panel(
-      title = "Run Curation",
+    # Run Curation Tab (hidden until tags applied)
+    nav_panel_hidden(
       value = "run_curation_tab",
+      title = "Run Curation",
       icon = bsicons::bs_icon("play-circle"),
 
       # Content when tags are applied
@@ -269,10 +282,10 @@ ui <- page_sidebar(
       )
     ),
 
-    # Review Results Tab
-    nav_panel(
-      title = "Review Results",
+    # Review Results Tab (hidden until curation complete)
+    nav_panel_hidden(
       value = "review_results",
+      title = "Review Results",
       icon = bsicons::bs_icon("clipboard-check"),
 
       # Content when curation completed
@@ -332,15 +345,8 @@ server <- function(input, output, session) {
   # Hide sidebar on curation tabs, show on upload/detection tabs
   observeEvent(input$main_tabs, {
     curation_tabs <- c("tag_columns", "run_curation_tab", "review_results")
-    if (input$main_tabs %in% curation_tabs) {
-      # Hide sidebar on curation tabs for maximum space
-      shinyjs::runjs("$('.bslib-page-sidebar .sidebar').addClass('collapse').removeClass('show');")
-      shinyjs::runjs("$('.bslib-page-sidebar .sidebar-toggle').attr('aria-expanded', 'false');")
-    } else {
-      # Show sidebar on upload/detection tabs
-      shinyjs::runjs("$('.bslib-page-sidebar .sidebar').removeClass('collapse').addClass('show');")
-      shinyjs::runjs("$('.bslib-page-sidebar .sidebar-toggle').attr('aria-expanded', 'true');")
-    }
+    is_curation <- input$main_tabs %in% curation_tabs
+    toggle_sidebar("main_sidebar", open = !is_curation)
   })
 
   # Enable/disable Start Curation button based on prerequisites ----
