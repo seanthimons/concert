@@ -13,7 +13,7 @@ Transform ChemReg's curation workflow from a single stacked-card tab into a mult
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Multi-Tab Structure** - Extract curation cards into 3 separate tabs with full-width layouts
-- [ ] **Phase 2: Gated Navigation** - Implement conditional tab visibility based on workflow state
+- [x] **Phase 2: Gated Navigation** - Implement conditional tab visibility based on workflow state
 
 ## Phase Details
 
@@ -45,7 +45,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 02-01-PLAN.md -- Implement gated tab navigation with conditional visibility, cascade reset, and re-upload confirmation modal
+- [x] 02-01-PLAN.md -- Implement gated tab navigation with conditional visibility, cascade reset, and re-upload confirmation modal
 
 ## Progress
 
@@ -55,4 +55,4 @@ Phases execute in numeric order: 1 → 2
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Multi-Tab Structure | 1/1 | Complete | 2026-02-26 |
-| 2. Gated Navigation | 0/1 | Not started | - |
+| 2. Gated Navigation | 1/1 | Complete | 2026-02-26 |
