@@ -151,31 +151,30 @@ ui <- page_sidebar(
     )
   ),
 
-  # Main Content
-  navset_card_tab(
+  # Main Content — Full-width tabs (no card wrapper)
+  navset_underline(
     id = "main_tabs",
 
     # Data Preview Tab
     nav_panel(
       title = "Data Preview",
+      value = "data_preview",
       icon = bsicons::bs_icon("table"),
 
       # Summary cards
       uiOutput("summary_cards"),
 
-      # Data table
-      card(
-        card_header("Preview Data"),
-        card_body(
-          min_height = "500px",
-          DTOutput("data_table")
-        )
+      # Data table (full width, no card wrapper)
+      div(
+        class = "mt-3",
+        DTOutput("data_table")
       )
     ),
 
     # Detection Info Tab
     nav_panel(
       title = "Detection Info",
+      value = "detection_info",
       icon = bsicons::bs_icon("search"),
 
       uiOutput("detection_details")
@@ -184,90 +183,127 @@ ui <- page_sidebar(
     # Raw Data Tab
     nav_panel(
       title = "Raw Data",
+      value = "raw_data",
       icon = bsicons::bs_icon("file-text"),
 
-      card(
-        card_header("Raw File Contents (First 20 Rows)"),
-        card_body(
-          DTOutput("raw_table")
+      h4("Raw File Contents (First 20 Rows)"),
+      div(
+        class = "mt-3",
+        DTOutput("raw_table")
+      )
+    ),
+
+    # Tag Columns Tab
+    nav_panel(
+      title = "Tag Columns",
+      value = "tag_columns",
+      icon = bsicons::bs_icon("tags"),
+
+      # Empty state when no data uploaded
+      conditionalPanel(
+        condition = "!output.has_data",
+        div(
+          class = "text-center text-muted py-5",
+          bsicons::bs_icon("upload", size = "3em"),
+          h4("Upload a file to start tagging columns"),
+          p("Upload a CSV or XLSX file using the sidebar.")
+        )
+      ),
+
+      # Tagging interface when data exists
+      conditionalPanel(
+        condition = "output.has_data",
+
+        # Header with Apply Tags button top-right
+        div(
+          class = "d-flex justify-content-between align-items-center mb-3",
+          h4("Tag Columns"),
+          actionButton(
+            "apply_tags",
+            "Apply Tags",
+            class = "btn-primary",
+            icon = icon("tag")
+          )
+        ),
+        p("Categorize selected columns for chemical curation."),
+        uiOutput("column_tagging_ui")
+      )
+    ),
+
+    # Run Curation Tab
+    nav_panel(
+      title = "Run Curation",
+      value = "run_curation_tab",
+      icon = bsicons::bs_icon("play-circle"),
+
+      # Content when tags are applied
+      conditionalPanel(
+        condition = "output.tags_applied",
+
+        div(
+          class = "alert alert-info",
+          uiOutput("curation_summary")
+        ),
+
+        shinyjs::disabled(
+          actionButton(
+            "run_curation",
+            "Start Curation",
+            class = "btn-success btn-lg mt-3",
+            icon = icon("play")
+          )
+        ),
+
+        uiOutput("curation_progress")
+      ),
+
+      # Empty state when tags not applied
+      conditionalPanel(
+        condition = "!output.tags_applied",
+        div(
+          class = "text-center text-muted py-5",
+          bsicons::bs_icon("tags", size = "3em"),
+          h4("No columns tagged yet"),
+          p("Go to the Tag Columns tab and assign column types first.")
         )
       )
     ),
 
-    # Curation Tab
+    # Review Results Tab
     nav_panel(
-      title = "Curation",
-      icon = bsicons::bs_icon("funnel"),
+      title = "Review Results",
+      value = "review_results",
+      icon = bsicons::bs_icon("clipboard-check"),
 
-      # Step 1: Tag Columns
-      card(
-        card_header(
-          class = "bg-info text-white",
-          "Step 1: Tag Columns"
-        ),
-        card_body(
-          p("Categorize selected columns for chemical curation."),
+      # Content when curation completed
+      conditionalPanel(
+        condition = "output.curation_completed",
 
-          uiOutput("column_tagging_ui"),
+        # Statistics value boxes at top
+        uiOutput("curation_stats"),
 
-          actionButton(
-            "apply_tags",
-            "Apply Tags",
-            class = "btn-primary w-100 mt-3",
-            icon = icon("tag")
+        # Header with Download button top-right
+        div(
+          class = "d-flex justify-content-between align-items-center mb-3 mt-3",
+          h4("Curated Results"),
+          downloadButton(
+            "download_curated",
+            "Download Excel",
+            class = "btn-primary"
           )
-        )
+        ),
+
+        DTOutput("curation_table")
       ),
 
-      # Step 2: Run Curation
-      card(
-        card_header(
-          class = "bg-success text-white",
-          "Step 2: Run Curation"
-        ),
-        card_body(
-          p("Lookup and validate chemicals using EPA CompTox Dashboard."),
-
-          conditionalPanel(
-            condition = "output.tags_applied",
-
-            div(
-              class = "alert alert-info",
-              uiOutput("curation_summary")
-            ),
-
-            actionButton(
-              "run_curation",
-              "Start Curation",
-              class = "btn-success w-100",
-              icon = icon("play")
-            ),
-
-            uiOutput("curation_progress")
-          )
-        )
-      ),
-
-      # Step 3: Review Results
-      card(
-        card_header(
-          class = "bg-warning text-dark",
-          "Step 3: Review Results"
-        ),
-        card_body(
-          conditionalPanel(
-            condition = "output.curation_completed",
-
-            uiOutput("curation_stats"),
-
-            DTOutput("curation_table"),
-
-            downloadButton(
-              "download_curated",
-              "Download Curated Data",
-              class = "btn-primary w-100 mt-3"
-            )
-          )
+      # Empty state when curation not completed
+      conditionalPanel(
+        condition = "!output.curation_completed",
+        div(
+          class = "text-center text-muted py-5",
+          bsicons::bs_icon("hourglass-split", size = "3em"),
+          h4("No results yet"),
+          p("Run curation first to see results here.")
         )
       )
     )
@@ -291,6 +327,33 @@ server <- function(input, output, session) {
     curation_report = NULL,
     curation_status = NULL
   )
+
+  # Sidebar visibility based on active tab ----
+  # Hide sidebar on curation tabs, show on upload/detection tabs
+  observeEvent(input$main_tabs, {
+    curation_tabs <- c("tag_columns", "run_curation_tab", "review_results")
+    if (input$main_tabs %in% curation_tabs) {
+      # Hide sidebar on curation tabs for maximum space
+      shinyjs::runjs("$('.bslib-page-sidebar .sidebar').addClass('collapse').removeClass('show');")
+      shinyjs::runjs("$('.bslib-page-sidebar .sidebar-toggle').attr('aria-expanded', 'false');")
+    } else {
+      # Show sidebar on upload/detection tabs
+      shinyjs::runjs("$('.bslib-page-sidebar .sidebar').removeClass('collapse').addClass('show');")
+      shinyjs::runjs("$('.bslib-page-sidebar .sidebar-toggle').attr('aria-expanded', 'true');")
+    }
+  })
+
+  # Enable/disable Start Curation button based on prerequisites ----
+  observe({
+    has_tags <- !is.null(data_store$column_tags) && length(data_store$column_tags) > 0
+    has_api_key <- Sys.getenv("ctx_api_key") != ""
+
+    if (has_tags && has_api_key) {
+      shinyjs::enable("run_curation")
+    } else {
+      shinyjs::disable("run_curation")
+    }
+  })
 
   # File upload handler
   observeEvent(input$file_upload, {
@@ -831,7 +894,7 @@ server <- function(input, output, session) {
 
   # Column Tagging Logic ----
 
-  # Dynamic UI for column tagging
+  # Dynamic UI for column tagging — table-based layout
   output$column_tagging_ui <- renderUI({
     req(data_store$selected_columns)
 
@@ -841,22 +904,37 @@ server <- function(input, output, session) {
       return(div(class = "alert alert-warning", "No columns selected. Please select columns in the sidebar."))
     }
 
-    # Create dropdown for each selected column
-    tagList(
-      lapply(selected_cols, function(col) {
-        selectInput(
-          inputId = paste0("tag_", make.names(col)),
-          label = col,
-          choices = c(
-            "Select type..." = "",
-            "Chemical Name" = "Name",
-            "CASRN" = "CASRN",
-            "Other" = "Other"
-          ),
-          selected = "",
-          selectize = FALSE # Disable selectize to avoid plugin errors
+    # Table-based layout: one row per column
+    tags$table(
+      class = "table table-striped table-hover",
+      tags$thead(
+        tags$tr(
+          tags$th("Column Name"),
+          tags$th("Type", style = "width: 200px;")
         )
-      })
+      ),
+      tags$tbody(
+        lapply(selected_cols, function(col) {
+          tags$tr(
+            tags$td(tags$strong(col)),
+            tags$td(
+              selectInput(
+                inputId = paste0("tag_", make.names(col)),
+                label = NULL,
+                choices = c(
+                  "Select type..." = "",
+                  "Chemical Name" = "Name",
+                  "CASRN" = "CASRN",
+                  "Other" = "Other"
+                ),
+                selected = "",
+                selectize = FALSE,
+                width = "100%"
+              )
+            )
+          )
+        })
+      )
     )
   })
 
@@ -980,6 +1058,9 @@ server <- function(input, output, session) {
         type = "message",
         duration = 5
       )
+
+      # Auto-navigate to Review Results tab
+      nav_select("main_tabs", "review_results")
     }
   })
 
