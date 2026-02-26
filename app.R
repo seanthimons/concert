@@ -341,6 +341,47 @@ server <- function(input, output, session) {
     curation_status = NULL
   )
 
+  # --- Gated Navigation Helpers ---
+
+  # Show a tab with a brief pulse animation to draw attention
+  show_tab_with_pulse <- function(tab_value) {
+    nav_show("main_tabs", target = tab_value)
+    shinyjs::runjs(sprintf("
+      var tab = document.querySelector('[data-value=\"%s\"]');
+      if (tab) {
+        var li = tab.closest('li');
+        if (li) {
+          li.classList.add('tab-pulse');
+          setTimeout(function() { li.classList.remove('tab-pulse'); }, 1200);
+        }
+      }
+    ", tab_value))
+  }
+
+  # Full downstream reset: clear state, hide tabs, return to Data Preview
+  reset_all_downstream <- function() {
+    data_store$column_tags <- NULL
+    data_store$curation_results <- NULL
+    data_store$curation_report <- NULL
+    data_store$curation_status <- NULL
+    nav_hide("main_tabs", target = "detection_info")
+    nav_hide("main_tabs", target = "raw_data")
+    nav_hide("main_tabs", target = "tag_columns")
+    nav_hide("main_tabs", target = "run_curation_tab")
+    nav_hide("main_tabs", target = "review_results")
+    nav_select("main_tabs", "data_preview")
+  }
+
+  # --- Gated Navigation: Show tabs when prerequisites met ---
+
+  # After successful upload+detection: show Detection Info, Raw Data, Tag Columns
+  observe({
+    req(data_store$clean)
+    show_tab_with_pulse("detection_info")
+    show_tab_with_pulse("raw_data")
+    show_tab_with_pulse("tag_columns")
+  })
+
   # Sidebar visibility based on active tab ----
   # Hide sidebar on curation tabs, show on upload/detection tabs
   observeEvent(input$main_tabs, {
@@ -832,6 +873,9 @@ server <- function(input, output, session) {
     data_store$detection <- NULL
     data_store$file_info <- NULL
 
+    # Hide all downstream tabs and clear downstream state
+    reset_all_downstream()
+
     # Reset file input (using JavaScript)
     shinyjs::reset("file_upload")
 
@@ -969,6 +1013,15 @@ server <- function(input, output, session) {
 
     data_store$column_tags <- tags
 
+    # Cascade: hide downstream tabs and clear curation state (re-apply invalidates curation)
+    nav_hide("main_tabs", target = "review_results")
+    data_store$curation_results <- NULL
+    data_store$curation_report <- NULL
+    data_store$curation_status <- NULL
+
+    # Show Run Curation tab with pulse
+    show_tab_with_pulse("run_curation_tab")
+
     showNotification(
       paste("Tagged", length(tags), "column(s) successfully!"),
       type = "message",
@@ -1065,7 +1118,8 @@ server <- function(input, output, session) {
         duration = 5
       )
 
-      # Auto-navigate to Review Results tab
+      # Show Review Results tab and auto-navigate to it
+      nav_show("main_tabs", target = "review_results")
       nav_select("main_tabs", "review_results")
     }
   })
