@@ -402,12 +402,11 @@ server <- function(input, output, session) {
     }
   })
 
-  # File upload handler
-  observeEvent(input$file_upload, {
-    req(input$file_upload)
+  # --- File Upload Processing (extracted for re-use by modal confirm) ---
 
+  process_uploaded_file <- function(file_info) {
     # Validate file
-    validation <- validate_file(input$file_upload)
+    validation <- validate_file(file_info)
 
     if (!validation$success) {
       showNotification(
@@ -428,8 +427,8 @@ server <- function(input, output, session) {
     tryCatch(
       {
         # Read file
-        file_ext <- tools::file_ext(input$file_upload$name)
-        raw_df <- safely_read_file(input$file_upload$datapath, file_ext)
+        file_ext <- tools::file_ext(file_info$name)
+        raw_df <- safely_read_file(file_info$datapath, file_ext)
 
         # Validate raw data
         if (is.null(raw_df) || nrow(raw_df) == 0 || ncol(raw_df) == 0) {
@@ -492,7 +491,7 @@ server <- function(input, output, session) {
         data_store$raw <- raw_df
         data_store$clean <- clean_df
         data_store$detection <- detection
-        data_store$file_info <- input$file_upload
+        data_store$file_info <- file_info
 
         # Calculate smart preview rows
         suggested_rows <- calculate_smart_preview_rows(clean_df)
@@ -538,7 +537,7 @@ server <- function(input, output, session) {
 
         # Log full error to console for debugging
         message("\n=== FILE UPLOAD ERROR ===")
-        message("File: ", input$file_upload$name)
+        message("File: ", file_info$name)
         message("Error: ", error_details)
         message("Stack trace:")
         print(e)
@@ -551,6 +550,48 @@ server <- function(input, output, session) {
         data_store$file_info <- NULL
       }
     )
+  }
+
+  # File upload handler — with confirmation modal for re-uploads
+  observeEvent(input$file_upload, {
+    req(input$file_upload)
+
+    if (!is.null(data_store$clean)) {
+      # Re-upload: data already exists — show confirmation modal
+      showModal(modalDialog(
+        title = "Replace Current Data?",
+        p("Your column tags and curation results will be cleared."),
+        p("This action cannot be undone."),
+        footer = tagList(
+          actionButton("cancel_reupload", "Cancel", class = "btn-secondary"),
+          actionButton("confirm_reupload", "Replace Data", class = "btn-danger")
+        ),
+        easyClose = FALSE
+      ))
+    } else {
+      # First upload — process directly
+      process_uploaded_file(input$file_upload)
+    }
+  })
+
+  # Re-upload modal: Cancel — dismiss modal, reset file input to previous state
+  observeEvent(input$cancel_reupload, {
+    removeModal()
+    shinyjs::reset("file_upload")
+  })
+
+  # Re-upload modal: Confirm — reset all downstream state, process new file
+  observeEvent(input$confirm_reupload, {
+    removeModal()
+    # Full reset of downstream state and tabs
+    reset_all_downstream()
+    # Clear core data (reset_all_downstream doesn't clear raw/clean/detection)
+    data_store$raw <- NULL
+    data_store$clean <- NULL
+    data_store$detection <- NULL
+    data_store$file_info <- NULL
+    # Process the new file
+    process_uploaded_file(input$file_upload)
   })
 
   # Update detection when mode or manual row changes
