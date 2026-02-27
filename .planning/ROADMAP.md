@@ -53,11 +53,11 @@ Plans:
   3. User can select preferred column for individual disagreement rows
   4. User can set en masse column preference that applies to all disagreement rows
   5. Consensus logic runs on prototype output and produces classification results
-**Plans**: TBD
+**Plans**: 2 plans in 2 waves
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
+- [ ] 04-01-PLAN.md — Core consensus classification (compare DTXSIDs, assign status labels + QC tiers) via TDD
+- [ ] 04-02-PLAN.md — Conflict resolution functions (per-row override + en masse priority chain) via TDD
 
 ### Phase 5: Shiny Integration
 **Goal**: Production-ready pipeline orchestration integrated into app with consensus display
@@ -85,7 +85,7 @@ Phases execute in numeric order: 3 → 4 → 5
 | 1. Multi-Tab Structure | v1.0 | 1/1 | Complete | 2026-02-26 |
 | 2. Gated Navigation | v1.0 | 1/1 | Complete | 2026-02-26 |
 | 3. Prototype Pipeline | v1.1 | 0/2 | Not started | - |
-| 4. Consensus Logic | v1.1 | 0/? | Not started | - |
+| 4. Consensus Logic | v1.1 | 0/2 | Not started | - |
 | 5. Shiny Integration | v1.1 | 0/? | Not started | - |
 
 ---
