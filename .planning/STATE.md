@@ -1,5 +1,18 @@
 ---
 gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: Curation Process Update
+status: unknown
+last_updated: "2026-02-27T19:09:13.578Z"
+progress:
+  total_phases: 1
+  completed_phases: 1
+  total_plans: 2
+  completed_plans: 2
+---
+
+---
+gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Curation Process Update
 status: active
