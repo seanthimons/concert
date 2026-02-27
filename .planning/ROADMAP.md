@@ -64,21 +64,21 @@ Plans:
 **Depends on**: Phase 4
 **Requirements**: INTG-01, INTG-02, INTG-03
 **Success Criteria** (what must be TRUE):
-  1. Prototype pipeline orchestration logic (dedup → call CompToxR directly → heal misses → consensus) integrated into R/curation.R
+  1. Prototype pipeline orchestration logic (dedup -> call CompToxR directly -> heal misses -> consensus) integrated into R/curation.R
   2. Run Curation tab executes new pipeline and stores consensus results reactively
   3. Review Results tab displays consensus status per row with resolution controls (per-row and en masse selection)
-  4. User can run full workflow (upload → tag → curate → resolve → export) without errors
+  4. User can run full workflow (upload -> tag -> curate -> resolve -> export) without errors
   5. Curation results include DTXSID, search tier, and consensus classification for each row
-**Plans**: TBD
+**Plans**: 2 plans in 2 waves
 
 Plans:
-- [ ] 05-01: TBD
-- [ ] 05-02: TBD
+- [ ] 05-01-PLAN.md — Pipeline orchestrator + Run Curation tab wiring (dedup preview, progress, reactive execution)
+- [ ] 05-02-PLAN.md — Review Results tab (consensus display, resolution controls, export)
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 3 → 4 → 5
+Phases execute in numeric order: 3 -> 4 -> 5
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -86,7 +86,7 @@ Phases execute in numeric order: 3 → 4 → 5
 | 2. Gated Navigation | v1.0 | 1/1 | Complete | 2026-02-26 |
 | 3. Prototype Pipeline | v1.1 | 0/2 | Not started | - |
 | 4. Consensus Logic | v1.1 | 0/2 | Not started | - |
-| 5. Shiny Integration | v1.1 | 0/? | Not started | - |
+| 5. Shiny Integration | v1.1 | 0/2 | Not started | - |
 
 ---
-*Last updated: 2026-02-27 after roadmap revision*
+*Last updated: 2026-02-27 after phase 5 planning*
