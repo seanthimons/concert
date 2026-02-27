@@ -31,7 +31,24 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ### Active
 
-(No active requirements — next milestone TBD)
+- [ ] Deduplication of tagged column values before API calls
+- [ ] Tiered curation search (exact → starts-with → contains) via CompToxR
+- [ ] Healing workflow for unmatched chemicals (escalating search strategies)
+- [ ] DTXSID-based consensus across tagged columns per row
+- [ ] User resolution UI for disagreements (per-row or en masse column preference)
+- [ ] Standalone prototype script before Shiny integration
+
+## Current Milestone: v1.1 Curation Process Update
+
+**Goal:** Replace naive curation with a deduplicated, tiered-search pipeline that heals missing matches and provides DTXSID-based consensus across columns with user-driven conflict resolution.
+
+**Target features:**
+- Deduplicate unique values from tagged columns before API calls
+- Tiered CompToxR search: `ct_chemical_search_equal` → `_start_with` → `_contain`
+- Healing pipeline that escalates search strategy for misses
+- Row-level consensus comparing DTXSID across all tagged columns
+- Conflict resolution: per-row selection or en masse column preference
+- Prototype-first approach: standalone R script → Shiny integration
 
 ### Out of Scope
 
@@ -40,7 +57,6 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - Sub-tabs within a curation section — top-level tabs chosen
 - Auto-advance to next tab — disorienting, users should control navigation
 - Session persistence across browser refresh — high complexity, defer to future
-- New tag types or curation features — deferred to future iteration
 - Changes to upload, detection, or export logic — existing pipeline untouched
 
 ## Context
@@ -49,6 +65,18 @@ Shipped v1.0 Curation UI Iteration with 2,106 LOC R across 4 files.
 Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl.
 
 The app has 6 top-level tabs: Data Preview, Detection Info, Raw Data, Tag Columns, Run Curation, Review Results. On startup only Upload (sidebar) is visible; tabs appear progressively as the user advances through the workflow. Re-uploading triggers a confirmation modal; tag changes cascade-reset downstream tabs.
+
+Key CompToxR functions for v1.1:
+- `ct_chemical_search_equal` / `ct_chemical_search_equal_bulk` — exact match
+- `ct_chemical_search_start_with` — starts-with search
+- `ct_chemical_search_contain` — contains search
+- `is_cas` / `as_cas` — CAS validation
+- `ct_chemical_detail` — full chemical detail lookup
+
+Training data available:
+- `uncurated_chemicals_2023-05-16_12-43-41.csv` — 12K rows (raw_cas, raw_chem_name)
+- `cleaned_chemicals_for_curation-Jul-03-2023.xlsx` — 11K rows with pre-curated columns
+- `data/chemical_validation_test.csv` — 100-row test set
 
 Key files:
 - `app.R` — main UI/server definition (1,318 lines)
@@ -73,6 +101,9 @@ Key files:
 | nav_panel + session$onFlushed hide over nav_panel_hidden | nav_panel_hidden lacks title param; startup hide preserves titles | ✓ Good |
 | Cascade reset on tag changes | Strict invalidation prevents stale curation results | ✓ Good |
 | Confirmation modal on re-upload | Prevents accidental data loss; easyClose=FALSE forces explicit choice | ✓ Good |
+| Prototype script before Shiny integration | Prove pipeline logic works in isolation before wiring into reactive app | — Pending |
+| Tiered search (equal → starts-with → contains) | Maximizes match rate while keeping exact matches highest confidence | — Pending |
+| DTXSID as consensus key | Universal identifier from CompTox; most reliable cross-column comparison | — Pending |
 
 ---
-*Last updated: 2026-02-27 after v1.0 milestone*
+*Last updated: 2026-02-27 after v1.1 milestone start*

@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: Curation UI Iteration
-status: complete
+milestone: v1.1
+milestone_name: Curation Process Update
+status: active
 last_updated: "2026-02-27"
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 2
-  completed_plans: 2
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -18,17 +18,25 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, tag, curate, export.
-**Current focus:** v1.0 complete — planning next milestone
+**Current focus:** v1.1 Curation Process Update
 
 ## Current Position
 
-Milestone: v1.0 Curation UI Iteration — SHIPPED 2026-02-27
-All phases complete (2/2 phases, 2/2 plans)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-27 — Milestone v1.1 started
 
-Progress: [██████████] 100%
+## Accumulated Context
+
+- v1.0 shipped: 3 top-level curation tabs, gated flow, cascade reset, CompTox integration
+- Existing `R/curation.R` has basic `validate_cas_numbers()` and `lookup_chemical_names()` — will be replaced/extended
+- CompToxR tiered search: equal → starts-with → contains
+- Consensus key: DTXSID across tagged columns
+- Prototype-first approach: standalone script before Shiny integration
 
 ## Session Continuity
 
-Last session: 2026-02-27 (milestone completion)
-Stopped at: v1.0 milestone archived
+Last session: 2026-02-27 (milestone initialization)
+Stopped at: Defining requirements
 Resume file: None
