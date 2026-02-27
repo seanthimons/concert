@@ -29,3 +29,4 @@ output/
 
 # Allow
 !.gitignore
+!.planning/

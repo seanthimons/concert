@@ -37,11 +37,11 @@
   5. Script produces lookup results table with search tier (exact/starts-with/CAS) and confidence metadata
   6. Script runs successfully against `data/sample_messy.csv` (7 rows)
   7. Script validated against first 100 rows of `uncurated_chemicals_2023-05-16_12-43-41.csv` (12K row dataset)
-**Plans**: TBD
+**Plans**: 2 plans in 2 waves
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
+- [ ] 03-01-PLAN.md — Core pipeline functions (dedup + tiered search + CAS validation) via TDD
+- [ ] 03-02-PLAN.md — Validate pipeline against sample_messy.csv and uncurated_chemicals (100 rows)
 
 ### Phase 4: Consensus Logic
 **Goal**: Row-level DTXSID consensus comparison with conflict resolution controls
@@ -84,7 +84,7 @@ Phases execute in numeric order: 3 → 4 → 5
 |-------|-----------|----------------|--------|-----------|
 | 1. Multi-Tab Structure | v1.0 | 1/1 | Complete | 2026-02-26 |
 | 2. Gated Navigation | v1.0 | 1/1 | Complete | 2026-02-26 |
-| 3. Prototype Pipeline | v1.1 | 0/? | Not started | - |
+| 3. Prototype Pipeline | v1.1 | 0/2 | Not started | - |
 | 4. Consensus Logic | v1.1 | 0/? | Not started | - |
 | 5. Shiny Integration | v1.1 | 0/? | Not started | - |
 
