@@ -268,3 +268,266 @@ test_that("classify_consensus works with 4 tagged columns", {
   expect_equal(result$consensus_status[1], "agree")
   expect_equal(result$qc_tier[1], 1L)
 })
+
+# ============================================================================
+# Test Group 8: init_resolution_state
+# ============================================================================
+
+test_that("init_resolution_state adds .pinned column", {
+  df <- data.frame(Chemical = c("Toluene"), stringsAsFactors = FALSE)
+  result <- init_resolution_state(df)
+
+  expect_true(".pinned" %in% names(result))
+  expect_false(result$.pinned[1])
+})
+
+test_that("init_resolution_state preserves existing .pinned", {
+  df <- data.frame(Chemical = c("Toluene"), .pinned = TRUE, stringsAsFactors = FALSE)
+  result <- init_resolution_state(df)
+
+  expect_true(result$.pinned[1])
+})
+
+# ============================================================================
+# Test Group 9: get_resolution_options
+# ============================================================================
+
+test_that("get_resolution_options returns available columns for disagree row", {
+  df <- data.frame(
+    Chemical = c("Toluene"),
+    CAS = c("67-64-1"),
+    dtxsid_Chemical = c("DTXSID7021360"),
+    dtxsid_CAS = c("DTXSID1020001"),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  options <- get_resolution_options(df, 1, dtxsid_cols)
+
+  expect_type(options, "list")
+  expect_length(options, 2)
+  expect_equal(options[["dtxsid_Chemical"]], "DTXSID7021360")
+  expect_equal(options[["dtxsid_CAS"]], "DTXSID1020001")
+})
+
+test_that("get_resolution_options returns empty for non-disagree row", {
+  df <- data.frame(
+    dtxsid_Chemical = c("DTXSID7021360"),
+    dtxsid_CAS = c("DTXSID7021360"),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  options <- get_resolution_options(df, 1, dtxsid_cols)
+
+  expect_length(options, 0)
+})
+
+test_that("get_resolution_options excludes NA columns", {
+  df <- data.frame(
+    dtxsid_Chemical = c("DTXSID7021360"),
+    dtxsid_CAS = c("DTXSID1020001"),
+    dtxsid_Formula = c(NA_character_),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS", "dtxsid_Formula")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  options <- get_resolution_options(df, 1, dtxsid_cols)
+
+  expect_length(options, 2) # Formula excluded (NA)
+  expect_null(options[["dtxsid_Formula"]])
+})
+
+# ============================================================================
+# Test Group 10: resolve_row
+# ============================================================================
+
+test_that("resolve_row fills consensus for disagree row", {
+  df <- data.frame(
+    dtxsid_Chemical = c("DTXSID7021360"),
+    dtxsid_CAS = c("DTXSID1020001"),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  result <- resolve_row(df, 1, "dtxsid_Chemical", dtxsid_cols)
+
+  expect_equal(result$consensus_dtxsid[1], "DTXSID7021360")
+  expect_equal(result$consensus_source[1], "Chemical")
+  expect_true(result$.pinned[1])
+})
+
+test_that("resolve_row errors on non-disagree row", {
+  df <- data.frame(
+    dtxsid_Chemical = c("DTXSID7021360"),
+    dtxsid_CAS = c("DTXSID7021360"),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  expect_error(resolve_row(df, 1, "dtxsid_Chemical", dtxsid_cols))
+})
+
+test_that("resolve_row errors on invalid column", {
+  df <- data.frame(
+    dtxsid_Chemical = c("DTXSID7021360"),
+    dtxsid_CAS = c("DTXSID1020001"),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  expect_error(resolve_row(df, 1, "dtxsid_Formula", dtxsid_cols))
+})
+
+# ============================================================================
+# Test Group 11: apply_priority_chain
+# ============================================================================
+
+test_that("apply_priority_chain resolves all non-pinned disagree rows", {
+  df <- data.frame(
+    dtxsid_Chemical = c("DTXSID7021360", "DTXSID9020584"),
+    dtxsid_CAS = c("DTXSID1020001", "DTXSID1020002"),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  priority <- c("dtxsid_CAS", "dtxsid_Chemical")
+  result <- apply_priority_chain(df, priority, dtxsid_cols)
+
+  # CAS preferred, so both rows get CAS value
+  expect_equal(result$consensus_dtxsid[1], "DTXSID1020001")
+  expect_equal(result$consensus_dtxsid[2], "DTXSID1020002")
+  expect_equal(result$consensus_source[1], "CAS")
+  expect_equal(result$consensus_source[2], "CAS")
+})
+
+test_that("apply_priority_chain skips pinned rows", {
+  df <- data.frame(
+    dtxsid_Chemical = c("DTXSID7021360", "DTXSID9020584"),
+    dtxsid_CAS = c("DTXSID1020001", "DTXSID1020002"),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  # Pin row 1 to Chemical
+  df <- resolve_row(df, 1, "dtxsid_Chemical", dtxsid_cols)
+
+  # Now apply priority chain preferring CAS
+  priority <- c("dtxsid_CAS", "dtxsid_Chemical")
+  result <- apply_priority_chain(df, priority, dtxsid_cols)
+
+  # Row 1: pinned to Chemical, should NOT change
+  expect_equal(result$consensus_dtxsid[1], "DTXSID7021360")
+  expect_equal(result$consensus_source[1], "Chemical")
+  expect_true(result$.pinned[1])
+
+  # Row 2: not pinned, should get CAS
+  expect_equal(result$consensus_dtxsid[2], "DTXSID1020002")
+  expect_equal(result$consensus_source[2], "CAS")
+})
+
+test_that("apply_priority_chain with no disagree rows returns df unchanged", {
+  df <- data.frame(
+    dtxsid_Chemical = c("DTXSID7021360"),
+    dtxsid_CAS = c("DTXSID7021360"),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  priority <- c("dtxsid_CAS", "dtxsid_Chemical")
+  result <- apply_priority_chain(df, priority, dtxsid_cols)
+
+  # agree row unchanged
+  expect_equal(result$consensus_dtxsid[1], "DTXSID7021360")
+  expect_equal(result$consensus_source[1], "consensus")
+})
+
+test_that("apply_priority_chain falls through to next priority column", {
+  # Row where first priority column has NA
+  df <- data.frame(
+    dtxsid_Chemical = c("DTXSID7021360"),
+    dtxsid_CAS = c(NA_character_),
+    dtxsid_Formula = c("DTXSID1020001"),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS", "dtxsid_Formula")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  # This row is disagree (Chemical and Formula differ)
+  expect_equal(df$consensus_status[1], "disagree")
+
+  # Priority: CAS first (but it's NA), then Chemical
+  priority <- c("dtxsid_CAS", "dtxsid_Chemical", "dtxsid_Formula")
+  result <- apply_priority_chain(df, priority, dtxsid_cols)
+
+  # CAS is NA, falls to Chemical
+  expect_equal(result$consensus_dtxsid[1], "DTXSID7021360")
+  expect_equal(result$consensus_source[1], "Chemical")
+})
+
+test_that("re-applying priority chain with different order updates non-pinned rows", {
+  df <- data.frame(
+    dtxsid_Chemical = c("DTXSID7021360"),
+    dtxsid_CAS = c("DTXSID1020001"),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  # First: prefer CAS
+  result1 <- apply_priority_chain(df, c("dtxsid_CAS", "dtxsid_Chemical"), dtxsid_cols)
+  expect_equal(result1$consensus_dtxsid[1], "DTXSID1020001")
+
+  # Second: prefer Chemical (re-apply on original classified df)
+  result2 <- apply_priority_chain(df, c("dtxsid_Chemical", "dtxsid_CAS"), dtxsid_cols)
+  expect_equal(result2$consensus_dtxsid[1], "DTXSID7021360")
+})
+
+# ============================================================================
+# Test Group 12: End-to-end resolution flow
+# ============================================================================
+
+test_that("full flow: classify -> resolve_row -> apply_priority_chain", {
+  df <- data.frame(
+    Chemical = c("Toluene", "Ethanol", "Acetone"),
+    CAS = c("67-64-1", "64-17-5", NA),
+    dtxsid_Chemical = c("DTXSID7021360", "DTXSID9020584", "DTXSID1020001"),
+    dtxsid_CAS = c("DTXSID1020001", "DTXSID1020002", NA_character_),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+
+  # Step 1: Classify
+  df <- classify_consensus(df, dtxsid_cols)
+  expect_equal(df$consensus_status[1], "disagree")
+  expect_equal(df$consensus_status[2], "disagree")
+  expect_equal(df$consensus_status[3], "single")
+
+  # Step 2: Manually resolve row 1
+  df <- resolve_row(df, 1, "dtxsid_Chemical", dtxsid_cols)
+  expect_equal(df$consensus_dtxsid[1], "DTXSID7021360")
+  expect_true(df$.pinned[1])
+
+  # Step 3: Apply priority chain (CAS preferred)
+  df <- apply_priority_chain(df, c("dtxsid_CAS", "dtxsid_Chemical"), dtxsid_cols)
+
+  # Row 1: pinned, unchanged
+  expect_equal(df$consensus_dtxsid[1], "DTXSID7021360")
+  expect_equal(df$consensus_source[1], "Chemical")
+
+  # Row 2: not pinned, gets CAS value
+  expect_equal(df$consensus_dtxsid[2], "DTXSID1020002")
+  expect_equal(df$consensus_source[2], "CAS")
+
+  # Row 3: single, was already resolved during classification
+  expect_equal(df$consensus_dtxsid[3], "DTXSID1020001")
+})
