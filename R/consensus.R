@@ -113,3 +113,117 @@ classify_consensus <- function(df, dtxsid_cols) {
 
   df
 }
+
+# ============================================================================
+# init_resolution_state
+# ============================================================================
+
+#' Initialize resolution state on a classified data frame
+#'
+#' Adds .pinned column (FALSE) if not already present.
+#'
+#' @param df Data frame (typically output of classify_consensus)
+#' @return df with .pinned column
+init_resolution_state <- function(df) {
+  if (!".pinned" %in% names(df)) {
+    df$.pinned <- FALSE
+  }
+  df
+}
+
+# ============================================================================
+# get_resolution_options
+# ============================================================================
+
+#' Get available resolution options for a disagree row
+#'
+#' @param df Classified data frame
+#' @param row_idx Integer row index
+#' @param dtxsid_cols Character vector of DTXSID column names
+#' @return Named list of column_name = dtxsid_value for columns with data.
+#'         Empty list if row is not "disagree".
+get_resolution_options <- function(df, row_idx, dtxsid_cols) {
+  if (df$consensus_status[row_idx] != "disagree") {
+    return(list())
+  }
+
+  options <- list()
+  for (col in dtxsid_cols) {
+    val <- df[[col]][row_idx]
+    if (!is.na(val)) {
+      options[[col]] <- val
+    }
+  }
+  options
+}
+
+# ============================================================================
+# resolve_row
+# ============================================================================
+
+#' Resolve a single disagreement row by choosing a preferred column
+#'
+#' @param df Classified data frame
+#' @param row_idx Integer row index
+#' @param chosen_column Character: name of the dtxsid column to use
+#' @param dtxsid_cols Character vector of DTXSID column names
+#' @return Modified df with consensus filled and row pinned
+resolve_row <- function(df, row_idx, chosen_column, dtxsid_cols) {
+  # Validate row is disagree
+
+  if (df$consensus_status[row_idx] != "disagree") {
+    stop("Row ", row_idx, " is not a disagree row (status: ", df$consensus_status[row_idx], ")")
+  }
+
+  # Validate chosen_column exists and has data
+  if (!chosen_column %in% dtxsid_cols) {
+    stop("Column '", chosen_column, "' is not in dtxsid_cols")
+  }
+
+  val <- df[[chosen_column]][row_idx]
+  if (is.na(val)) {
+    stop("Column '", chosen_column, "' has NA value for row ", row_idx)
+  }
+
+  # Initialize resolution state
+  df <- init_resolution_state(df)
+
+  # Set consensus
+  df$consensus_dtxsid[row_idx] <- val
+  df$consensus_source[row_idx] <- sub("^dtxsid_", "", chosen_column)
+  df$.pinned[row_idx] <- TRUE
+
+  df
+}
+
+# ============================================================================
+# apply_priority_chain
+# ============================================================================
+
+#' Apply en masse column priority to resolve all non-pinned disagree rows
+#'
+#' @param df Classified data frame
+#' @param priority_order Character vector of dtxsid column names ranked by preference
+#' @param dtxsid_cols Character vector of all DTXSID column names
+#' @return Modified df with consensus filled for resolved rows
+apply_priority_chain <- function(df, priority_order, dtxsid_cols) {
+  df <- init_resolution_state(df)
+
+  for (i in seq_len(nrow(df))) {
+    # Only process disagree rows that are not pinned
+    if (df$consensus_status[i] != "disagree") next
+    if (isTRUE(df$.pinned[i])) next
+
+    # Walk priority order, pick first with non-NA value
+    for (col in priority_order) {
+      val <- df[[col]][i]
+      if (!is.na(val)) {
+        df$consensus_dtxsid[i] <- val
+        df$consensus_source[i] <- sub("^dtxsid_", "", col)
+        break
+      }
+    }
+  }
+
+  df
+}
