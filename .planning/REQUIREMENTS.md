@@ -28,8 +28,8 @@ Requirements for Curation Process Update milestone. Each maps to roadmap phases.
 
 - [x] **CONS-01**: Each row's DTXSID results compared across all tagged columns
 - [x] **CONS-02**: Rows classified as agree (same DTXSID), disagree (different DTXSIDs), or partial (some columns unmatched)
-- [ ] **CONS-03**: User can select preferred column per individual disagreement row
-- [ ] **CONS-04**: User can set column preference en masse for all disagreements
+- [x] **CONS-03**: User can select preferred column per individual disagreement row
+- [x] **CONS-04**: User can set column preference en masse for all disagreements
 
 ### Integration
 
@@ -78,8 +78,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CURE-04 | Phase 3 | Pending |
 | CONS-01 | Phase 4 | Complete |
 | CONS-02 | Phase 4 | Complete |
-| CONS-03 | Phase 4 | Pending |
-| CONS-04 | Phase 4 | Pending |
+| CONS-03 | Phase 4 | Complete |
+| CONS-04 | Phase 4 | Complete |
 | INTG-01 | Phase 5 | Pending |
 | INTG-02 | Phase 5 | Pending |
 | INTG-03 | Phase 5 | Pending |
