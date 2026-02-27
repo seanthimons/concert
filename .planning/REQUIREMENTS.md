@@ -9,8 +9,8 @@ Requirements for Curation Process Update milestone. Each maps to roadmap phases.
 
 ### Prototype
 
-- [ ] **PROTO-01**: Standalone R script demonstrates full curation pipeline (dedup → tiered search → consensus)
-- [ ] **PROTO-02**: Script runs against sample data and produces consensus output
+- [ ] **PROTO-01**: Standalone R script demonstrates full curation pipeline (dedup → tiered search → consensus) using `data/sample_messy.csv` (7 rows with Chemical, CAS, Formula columns)
+- [ ] **PROTO-02**: Script validated against subset (first 100 rows) of `uncurated_chemicals_2023-05-16_12-43-41.csv` (12K rows with raw_cas, raw_chem_name columns)
 
 ### Deduplication
 
@@ -19,10 +19,10 @@ Requirements for Curation Process Update milestone. Each maps to roadmap phases.
 
 ### Curation Search
 
-- [ ] **CURE-01**: Exact match search via ct_chemical_search_equal_bulk for chemical names
-- [ ] **CURE-02**: Starts-with fallback for names that fail exact match
-- [ ] **CURE-03**: CAS numbers validated via is_cas/as_cas and looked up for DTXSID
-- [ ] **CURE-04**: Each lookup result includes search tier used and confidence score
+- [ ] **CURE-01**: Script calls `ct_chemical_search_equal_bulk()` directly for exact match search on chemical names
+- [ ] **CURE-02**: Script calls `ct_chemical_search_start_with()` directly for starts-with fallback on names that fail exact match
+- [ ] **CURE-03**: Script calls `is_cas()` and `as_cas()` directly to validate CAS numbers, then looks up DTXSID via CompToxR
+- [ ] **CURE-04**: Lookup results include search tier used (exact/starts-with/CAS) and confidence metadata from CompToxR responses
 
 ### Consensus
 
@@ -33,9 +33,9 @@ Requirements for Curation Process Update milestone. Each maps to roadmap phases.
 
 ### Integration
 
-- [ ] **INTG-01**: Prototype pipeline refactored into R/curation.R
-- [ ] **INTG-02**: Shiny app wires new curation pipeline into Run Curation tab
-- [ ] **INTG-03**: Review Results tab displays consensus status and resolution controls
+- [ ] **INTG-01**: Prototype pipeline orchestration logic integrated into R/curation.R (dedup → call CompToxR directly → heal misses → consensus)
+- [ ] **INTG-02**: Shiny app wires new curation pipeline into Run Curation tab with reactive execution
+- [ ] **INTG-03**: Review Results tab displays consensus status and resolution controls (per-row and en masse selection)
 
 ## v2 Requirements
 
@@ -55,6 +55,7 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Feature | Reason |
 |---------|--------|
+| CompToxR wrapper functions | CompToxR functions are already vectorized and optimized — call them directly |
 | Contains search tier | Too fuzzy, may produce unreliable matches — deferred to v2 |
 | New tag types beyond Name/CASRN | Future milestone scope |
 | Changes to upload/detection flow | Existing pipeline untouched per v1.0 decision |
@@ -67,27 +68,27 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PROTO-01 | — | Pending |
-| PROTO-02 | — | Pending |
-| DEDUP-01 | — | Pending |
-| DEDUP-02 | — | Pending |
-| CURE-01 | — | Pending |
-| CURE-02 | — | Pending |
-| CURE-03 | — | Pending |
-| CURE-04 | — | Pending |
-| CONS-01 | — | Pending |
-| CONS-02 | — | Pending |
-| CONS-03 | — | Pending |
-| CONS-04 | — | Pending |
-| INTG-01 | — | Pending |
-| INTG-02 | — | Pending |
-| INTG-03 | — | Pending |
+| PROTO-01 | Phase 3 | Pending |
+| PROTO-02 | Phase 3 | Pending |
+| DEDUP-01 | Phase 3 | Pending |
+| DEDUP-02 | Phase 3 | Pending |
+| CURE-01 | Phase 3 | Pending |
+| CURE-02 | Phase 3 | Pending |
+| CURE-03 | Phase 3 | Pending |
+| CURE-04 | Phase 3 | Pending |
+| CONS-01 | Phase 4 | Pending |
+| CONS-02 | Phase 4 | Pending |
+| CONS-03 | Phase 4 | Pending |
+| CONS-04 | Phase 4 | Pending |
+| INTG-01 | Phase 5 | Pending |
+| INTG-02 | Phase 5 | Pending |
+| INTG-03 | Phase 5 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 15 total
-- Mapped to phases: 0
-- Unmapped: 15 ⚠️
+- Mapped to phases: 15 (100%)
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-27*
-*Last updated: 2026-02-27 after initial definition*
+*Last updated: 2026-02-27 after roadmap revision*
