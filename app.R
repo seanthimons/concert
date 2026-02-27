@@ -170,7 +170,7 @@ ui <- page_sidebar(
 
     # Data Preview Tab
     nav_panel(
-      title = "Data Preview",
+      "Data Preview",
       value = "data_preview",
       icon = bsicons::bs_icon("table"),
 
@@ -184,19 +184,19 @@ ui <- page_sidebar(
       )
     ),
 
-    # Detection Info Tab (hidden until upload)
-    nav_panel_hidden(
+    # Detection Info Tab (hidden on startup, shown after upload)
+    nav_panel(
+      "Detection Info",
       value = "detection_info",
-      title = "Detection Info",
       icon = bsicons::bs_icon("search"),
 
       uiOutput("detection_details")
     ),
 
-    # Raw Data Tab (hidden until upload)
-    nav_panel_hidden(
+    # Raw Data Tab (hidden on startup, shown after upload)
+    nav_panel(
+      "Raw Data",
       value = "raw_data",
-      title = "Raw Data",
       icon = bsicons::bs_icon("file-text"),
 
       h4("Raw File Contents (First 20 Rows)"),
@@ -206,10 +206,10 @@ ui <- page_sidebar(
       )
     ),
 
-    # Tag Columns Tab (hidden until upload+detection)
-    nav_panel_hidden(
+    # Tag Columns Tab (hidden on startup, shown after upload+detection)
+    nav_panel(
+      "Tag Columns",
       value = "tag_columns",
-      title = "Tag Columns",
       icon = bsicons::bs_icon("tags"),
 
       # Empty state when no data uploaded
@@ -243,10 +243,10 @@ ui <- page_sidebar(
       )
     ),
 
-    # Run Curation Tab (hidden until tags applied)
-    nav_panel_hidden(
+    # Run Curation Tab (hidden on startup, shown after tags applied)
+    nav_panel(
+      "Run Curation",
       value = "run_curation_tab",
-      title = "Run Curation",
       icon = bsicons::bs_icon("play-circle"),
 
       # Content when tags are applied
@@ -282,10 +282,10 @@ ui <- page_sidebar(
       )
     ),
 
-    # Review Results Tab (hidden until curation complete)
-    nav_panel_hidden(
+    # Review Results Tab (hidden on startup, shown after curation complete)
+    nav_panel(
+      "Review Results",
       value = "review_results",
-      title = "Review Results",
       icon = bsicons::bs_icon("clipboard-check"),
 
       # Content when curation completed
@@ -340,6 +340,15 @@ server <- function(input, output, session) {
     curation_report = NULL,
     curation_status = NULL
   )
+
+  # --- Gated Navigation: Hide tabs on startup ---
+  session$onFlushed(function() {
+    nav_hide("main_tabs", target = "detection_info")
+    nav_hide("main_tabs", target = "raw_data")
+    nav_hide("main_tabs", target = "tag_columns")
+    nav_hide("main_tabs", target = "run_curation_tab")
+    nav_hide("main_tabs", target = "review_results")
+  }, once = TRUE)
 
   # --- Gated Navigation Helpers ---
 
