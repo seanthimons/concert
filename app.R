@@ -59,6 +59,17 @@ ui <- page_sidebar(
     }
   ")),
 
+  # Resolution dropdown JavaScript
+  tags$script(HTML("
+    $(document).on('change', '.resolve-select', function() {
+      var row = $(this).data('row');
+      var column = $(this).val();
+      if (column && column !== '') {
+        Shiny.setInputValue('resolve_row_choice', {row: row, column: column}, {priority: 'event'});
+      }
+    });
+  ")),
+
   # Theme
   theme = bs_theme(
     version = 5,
@@ -295,6 +306,17 @@ ui <- page_sidebar(
 
         # Statistics value boxes at top
         uiOutput("curation_stats"),
+
+        # En masse priority controls
+        div(
+          class = "card mb-3",
+          div(class = "card-header", "Column Priority (En Masse Resolution)"),
+          div(
+            class = "card-body",
+            uiOutput("priority_controls"),
+            actionButton("apply_priority", "Apply Priority", class = "btn-warning btn-sm mt-2")
+          )
+        ),
 
         # Header with Download button top-right
         div(
@@ -1303,26 +1325,42 @@ server <- function(input, output, session) {
 
   # Curation statistics
   output$curation_stats <- renderUI({
-    req(data_store$curation_report)
+    req(data_store$consensus_summary, data_store$resolution_state)
 
-    report <- data_store$curation_report
+    summary <- data_store$consensus_summary
+
+    # Calculate match rate from resolution_state
+    total_rows <- nrow(data_store$resolution_state)
+    matched_rows <- sum(!is.na(data_store$resolution_state$consensus_dtxsid))
+    match_rate <- round((matched_rows / total_rows) * 100, 1)
+
+    # Needs Review = agree_caveat + single
+    needs_review <- summary$n_agree_caveat + summary$n_single
 
     layout_columns(
-      col_widths = c(6, 6),
+      col_widths = c(3, 3, 3, 3),
       value_box(
-        title = "CAS Numbers Validated",
-        value = paste0(report$cas_validated, " / ", report$cas_validated + report$cas_invalid),
-        showcase = bsicons::bs_icon("check-circle"),
+        title = "Agree",
+        value = summary$n_agree,
+        showcase = bsicons::bs_icon("check-circle-fill"),
         theme = "success"
       ),
       value_box(
-        title = "Chemical Names Matched",
-        value = paste0(
-          report$names_exact_match + report$names_fuzzy_match,
-          " / ",
-          report$names_exact_match + report$names_fuzzy_match + report$names_no_match
-        ),
-        showcase = bsicons::bs_icon("search"),
+        title = "Disagree",
+        value = summary$n_disagree,
+        showcase = bsicons::bs_icon("x-circle-fill"),
+        theme = "danger"
+      ),
+      value_box(
+        title = "Needs Review",
+        value = needs_review,
+        showcase = bsicons::bs_icon("exclamation-triangle-fill"),
+        theme = "warning"
+      ),
+      value_box(
+        title = "Match Rate",
+        value = paste0(match_rate, "%"),
+        showcase = bsicons::bs_icon("percent"),
         theme = "info"
       )
     )
@@ -1330,21 +1368,289 @@ server <- function(input, output, session) {
 
   # Curation results table
   output$curation_table <- renderDT({
-    req(data_store$curation_results)
+    req(data_store$resolution_state, data_store$dtxsid_cols)
 
-    datatable(
-      data_store$curation_results,
+    df <- data_store$resolution_state
+    dtxsid_cols <- data_store$dtxsid_cols
+
+    # Ensure consensus_status is a factor with ordered levels
+    df$consensus_status <- factor(
+      df$consensus_status,
+      levels = c("agree", "agree_caveat", "single", "disagree", "error")
+    )
+
+    # Build Resolution column
+    df$Resolution <- sapply(seq_len(nrow(df)), function(i) {
+      if (df$consensus_status[i] == "disagree") {
+        if (isTRUE(df$.pinned[i])) {
+          # Pinned row: show pin icon and resolved value
+          paste0('<span title="Pinned">\U0001F4CC</span> ', df$consensus_dtxsid[i])
+        } else {
+          # Not pinned: show dropdown
+          options <- get_resolution_options(df, i, dtxsid_cols)
+          if (length(options) > 0) {
+            options_html <- paste0(
+              '<option value="', names(options), '">',
+              sub("^dtxsid_", "", names(options)), ': ', options, '</option>',
+              collapse = ""
+            )
+            paste0(
+              '<select class="resolve-select form-select form-select-sm" data-row="', i, '">',
+              '<option value="">Select...</option>',
+              options_html,
+              '</select>'
+            )
+          } else {
+            ""
+          }
+        }
+      } else {
+        ""
+      }
+    })
+
+    # Identify columns to hide
+    hidden_cols <- c(
+      dtxsid_cols,
+      grep("^preferredName_", names(df), value = TRUE),
+      grep("^searchName_", names(df), value = TRUE),
+      grep("^rank_", names(df), value = TRUE),
+      grep("^source_tier_", names(df), value = TRUE),
+      ".pinned"
+    )
+
+    # Find indices of hidden columns (0-indexed for JavaScript)
+    hidden_indices <- which(names(df) %in% hidden_cols) - 1
+
+    # Prepare display dataframe
+    display_df <- df
+
+    # Create DT table
+    dt <- datatable(
+      display_df,
       options = list(
         pageLength = 25,
         scrollX = TRUE,
         dom = 'Bfrtip',
-        buttons = c('copy', 'csv', 'excel')
+        buttons = c('copy', 'csv'),
+        columnDefs = list(
+          list(visible = FALSE, targets = hidden_indices)
+        )
       ),
       extensions = 'Buttons',
       class = 'cell-border stripe hover compact',
       rownames = FALSE,
-      filter = "top"
+      filter = "top",
+      escape = FALSE  # Allow HTML in Resolution column
     )
+
+    # Add color-coded row backgrounds
+    dt <- dt %>% formatStyle(
+      'consensus_status',
+      target = 'row',
+      backgroundColor = styleEqual(
+        c("agree", "agree_caveat", "disagree", "single", "error"),
+        c(
+          "rgba(40, 167, 69, 0.08)",
+          "rgba(40, 167, 69, 0.05)",
+          "rgba(220, 53, 69, 0.08)",
+          "rgba(108, 117, 125, 0.05)",
+          "rgba(108, 117, 125, 0.08)"
+        )
+      )
+    )
+
+    # Add status badge styling to the consensus_status column
+    dt <- dt %>% formatStyle(
+      'consensus_status',
+      backgroundColor = styleEqual(
+        c("agree", "agree_caveat", "disagree", "single", "error"),
+        c(
+          "rgba(40, 167, 69, 0.9)",
+          "rgba(23, 162, 184, 0.7)",
+          "rgba(220, 53, 69, 0.9)",
+          "rgba(108, 117, 125, 0.6)",
+          "rgba(52, 58, 64, 0.8)"
+        )
+      ),
+      color = "white",
+      fontWeight = "bold",
+      textAlign = "center",
+      borderRadius = "4px",
+      padding = "2px 6px"
+    )
+
+    dt
+  })
+
+  # Priority Controls UI ----
+
+  output$priority_controls <- renderUI({
+    req(data_store$priority_order)
+
+    priority <- data_store$priority_order
+
+    # Generate UI for each column in priority order
+    controls <- lapply(seq_along(priority), function(i) {
+      col_name <- priority[i]
+      display_name <- sub("^dtxsid_", "", col_name)
+
+      div(
+        class = "d-flex align-items-center mb-2",
+        tags$span(
+          class = "badge bg-secondary me-2",
+          style = "width: 30px;",
+          i
+        ),
+        tags$span(
+          class = "flex-grow-1",
+          display_name
+        ),
+        actionButton(
+          paste0("priority_up_", i),
+          "",
+          icon = icon("arrow-up"),
+          class = "btn-sm btn-outline-secondary me-1",
+          disabled = if (i == 1) TRUE else NULL
+        ),
+        actionButton(
+          paste0("priority_down_", i),
+          "",
+          icon = icon("arrow-down"),
+          class = "btn-sm btn-outline-secondary",
+          disabled = if (i == length(priority)) TRUE else NULL
+        )
+      )
+    })
+
+    do.call(tagList, controls)
+  })
+
+  # Handle priority up/down buttons dynamically
+  observe({
+    req(data_store$priority_order)
+    priority <- data_store$priority_order
+
+    lapply(seq_along(priority), function(i) {
+      # Up button
+      observeEvent(input[[paste0("priority_up_", i)]], {
+        if (i > 1) {
+          new_priority <- data_store$priority_order
+          # Swap with previous
+          temp <- new_priority[i - 1]
+          new_priority[i - 1] <- new_priority[i]
+          new_priority[i] <- temp
+          data_store$priority_order <- new_priority
+        }
+      }, ignoreInit = TRUE)
+
+      # Down button
+      observeEvent(input[[paste0("priority_down_", i)]], {
+        if (i < length(data_store$priority_order)) {
+          new_priority <- data_store$priority_order
+          # Swap with next
+          temp <- new_priority[i + 1]
+          new_priority[i + 1] <- new_priority[i]
+          new_priority[i] <- temp
+          data_store$priority_order <- new_priority
+        }
+      }, ignoreInit = TRUE)
+    })
+  })
+
+  # Resolution Controls ----
+
+  # Handle per-row resolution dropdown
+  observeEvent(input$resolve_row_choice, {
+    req(data_store$resolution_state, data_store$dtxsid_cols)
+
+    choice <- input$resolve_row_choice
+    row_idx <- choice$row
+    chosen_column <- choice$column
+
+    tryCatch({
+      # Call resolve_row function
+      updated_df <- resolve_row(
+        data_store$resolution_state,
+        row_idx,
+        chosen_column,
+        data_store$dtxsid_cols
+      )
+
+      # Update state
+      data_store$resolution_state <- updated_df
+
+      # Recalculate consensus summary
+      data_store$consensus_summary <- list(
+        n_agree = sum(updated_df$consensus_status == "agree", na.rm = TRUE),
+        n_disagree = sum(updated_df$consensus_status == "disagree" & !isTRUE(updated_df$.pinned), na.rm = TRUE),
+        n_agree_caveat = sum(updated_df$consensus_status == "agree_caveat", na.rm = TRUE),
+        n_single = sum(updated_df$consensus_status == "single", na.rm = TRUE),
+        n_error = sum(updated_df$consensus_status == "error", na.rm = TRUE)
+      )
+
+      showNotification(
+        paste0("Row ", row_idx, " resolved using ", sub("^dtxsid_", "", chosen_column)),
+        type = "message"
+      )
+    }, error = function(e) {
+      showNotification(
+        paste0("Error resolving row: ", e$message),
+        type = "error"
+      )
+    })
+  })
+
+  # Handle en masse priority application
+  observeEvent(input$apply_priority, {
+    req(data_store$resolution_state, data_store$priority_order, data_store$dtxsid_cols)
+
+    tryCatch({
+      # Count disagree rows before
+      before_count <- sum(
+        data_store$resolution_state$consensus_status == "disagree" &
+        !isTRUE(data_store$resolution_state$.pinned),
+        na.rm = TRUE
+      )
+
+      # Apply priority chain
+      updated_df <- apply_priority_chain(
+        data_store$resolution_state,
+        data_store$priority_order,
+        data_store$dtxsid_cols
+      )
+
+      # Update state
+      data_store$resolution_state <- updated_df
+
+      # Count disagree rows after
+      after_count <- sum(
+        updated_df$consensus_status == "disagree" &
+        !isTRUE(updated_df$.pinned),
+        na.rm = TRUE
+      )
+
+      resolved_count <- before_count - after_count
+
+      # Recalculate consensus summary
+      data_store$consensus_summary <- list(
+        n_agree = sum(updated_df$consensus_status == "agree", na.rm = TRUE),
+        n_disagree = after_count,
+        n_agree_caveat = sum(updated_df$consensus_status == "agree_caveat", na.rm = TRUE),
+        n_single = sum(updated_df$consensus_status == "single", na.rm = TRUE),
+        n_error = sum(updated_df$consensus_status == "error", na.rm = TRUE)
+      )
+
+      showNotification(
+        paste0("Applied priority chain: ", resolved_count, " rows resolved"),
+        type = "message"
+      )
+    }, error = function(e) {
+      showNotification(
+        paste0("Error applying priority: ", e$message),
+        type = "error"
+      )
+    })
   })
 
   # Export Functionality ----
@@ -1361,62 +1667,36 @@ server <- function(input, output, session) {
       paste0(file_base, "_curated_", format(Sys.Date(), "%Y%m%d"), ".xlsx")
     },
     content = function(file) {
-      req(data_store$clean, data_store$curation_results)
+      req(data_store$resolution_state, data_store$consensus_summary)
 
-      # Prepare export: Original data with row_id
-      original_with_id <- data_store$clean %>%
-        dplyr::mutate(row_id = dplyr::row_number())
+      # Sheet 1: Curated Data with full audit trail
+      # Remove internal columns (.pinned) but keep all other columns
+      export_data <- data_store$resolution_state %>%
+        dplyr::select(-tidyselect::any_of(".pinned"))
 
-      # Pivot curation results wider for joining
-      curated_wide <- data_store$curation_results %>%
-        dplyr::select(
-          row_id,
-          original_column,
-          validated_cas,
-          tidyselect::any_of(c("dtxsid", "preferredName", "casrn", "match_status", "is_valid"))
-        ) %>%
-        tidyr::pivot_wider(
-          names_from = original_column,
-          values_from = tidyselect::any_of(c(
-            "validated_cas",
-            "dtxsid",
-            "preferredName",
-            "casrn",
-            "match_status",
-            "is_valid"
-          )),
-          names_sep = "_curated_"
-        )
-
-      # Join original and curated
-      export_data <- original_with_id %>%
-        dplyr::left_join(curated_wide, by = "row_id")
-
-      # Prepare curation report as tibble
-      report_df <- tibble::tibble(
+      # Sheet 2: Summary
+      summary_df <- tibble::tibble(
         Metric = c(
           "Total Rows",
-          "CAS Columns Processed",
-          "Name Columns Processed",
-          "CAS Numbers Validated",
-          "CAS Numbers Invalid",
-          "Chemical Names - Exact Match",
-          "Chemical Names - Fuzzy Match",
-          "Chemical Names - No Match"
+          "Consensus - Agree",
+          "Consensus - Disagree",
+          "Consensus - Agree (Caveat)",
+          "Consensus - Single Source",
+          "Consensus - Error",
+          "Match Rate (%)"
         ),
         Value = c(
-          data_store$curation_report$total_rows,
-          data_store$curation_report$cas_columns,
-          data_store$curation_report$name_columns,
-          data_store$curation_report$cas_validated,
-          data_store$curation_report$cas_invalid,
-          data_store$curation_report$names_exact_match,
-          data_store$curation_report$names_fuzzy_match,
-          data_store$curation_report$names_no_match
+          nrow(data_store$resolution_state),
+          data_store$consensus_summary$n_agree,
+          data_store$consensus_summary$n_disagree,
+          data_store$consensus_summary$n_agree_caveat,
+          data_store$consensus_summary$n_single,
+          data_store$consensus_summary$n_error,
+          round((sum(!is.na(data_store$resolution_state$consensus_dtxsid)) / nrow(data_store$resolution_state)) * 100, 1)
         )
       )
 
-      # Prepare column tags as tibble
+      # Sheet 3: Column Tags
       tags_df <- tibble::tibble(
         Column = names(data_store$column_tags),
         Type = unlist(data_store$column_tags)
@@ -1426,7 +1706,7 @@ server <- function(input, output, session) {
       writexl::write_xlsx(
         list(
           "Curated Data" = export_data,
-          "Curation Report" = report_df,
+          "Summary" = summary_df,
           "Column Tags" = tags_df
         ),
         path = file
