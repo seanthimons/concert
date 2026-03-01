@@ -1,5 +1,18 @@
 ---
 gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: Curation Refinement
+status: unknown
+last_updated: "2026-03-01T20:27:57.209Z"
+progress:
+  total_phases: 1
+  completed_phases: 1
+  total_plans: 2
+  completed_plans: 2
+---
+
+---
+gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Curation Refinement
 status: active
