@@ -1,0 +1,79 @@
+# Requirements: ChemReg
+
+**Defined:** 2026-03-01
+**Core Value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, tag, curate, resolve, export.
+
+## v1.2 Requirements
+
+Requirements for v1.2 Curation Refinement. Each maps to roadmap phases.
+
+### Search Pipeline
+
+- [ ] **SRCH-01**: Search tier order is exact → CAS → starts-with (starts-with moved to last resort)
+- [ ] **SRCH-02**: "Other" tagged columns are searched against CompTox using the full search chain (exact → CAS → starts-with)
+- [ ] **SRCH-03**: "Other" column DTXSID results participate equally in consensus classification (same vote weight as Name/CASRN)
+
+### Error Recovery
+
+- [ ] **RECV-01**: User can manually enter a DTXSID for any error-status row
+- [ ] **RECV-02**: User can bulk-validate all manually entered DTXSIDs against CompTox in one action
+- [ ] **RECV-03**: Validated manual DTXSIDs populate preferredName and update consensus status
+- [ ] **RECV-04**: User can select error rows, re-assign tag types, and re-curate just that subset
+- [ ] **RECV-05**: Re-curated results merge back into the main resolution state preserving existing .pinned rows and row order
+
+### UI/UX Polish
+
+- [ ] **UIPX-01**: Untagged columns are hidden from the Review Results table (still included in Excel export)
+- [ ] **UIPX-02**: User can toggle column visibility via a column visibility button in Review Results
+- [ ] **UIPX-03**: Resolution dropdown shows preferredName, rank, and QC level for informed decision-making
+- [ ] **UIPX-04**: Unresolved error rows are flagged in Excel export as "needs manual review"
+
+## Future Requirements
+
+Deferred to future release. Tracked but not in current roadmap.
+
+### Advanced Validation
+
+- **AVAL-01**: Session persistence across browser refresh
+- **AVAL-02**: Contains search tier for fuzzy matching
+
+## Out of Scope
+
+Explicitly excluded. Documented to prevent scope creep.
+
+| Feature | Reason |
+|---------|--------|
+| Drag-and-drop column tagging | Decided against in v1.0, keeping dropdowns simple |
+| Wizard-style navigation | Tabs preferred |
+| Contains search tier | Too fuzzy, may produce unreliable matches |
+| CompToxR wrapper functions | CompToxR functions already vectorized, call directly |
+| Inline cell editing in DT | High complexity, modal/dropdown approach sufficient |
+| Weighted consensus voting | Other columns vote equally per user decision |
+
+## Traceability
+
+Which phases cover which requirements. Updated during roadmap creation.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| SRCH-01 | — | Pending |
+| SRCH-02 | — | Pending |
+| SRCH-03 | — | Pending |
+| RECV-01 | — | Pending |
+| RECV-02 | — | Pending |
+| RECV-03 | — | Pending |
+| RECV-04 | — | Pending |
+| RECV-05 | — | Pending |
+| UIPX-01 | — | Pending |
+| UIPX-02 | — | Pending |
+| UIPX-03 | — | Pending |
+| UIPX-04 | — | Pending |
+
+**Coverage:**
+- v1.2 requirements: 12 total
+- Mapped to phases: 0
+- Unmapped: 12 ⚠️
+
+---
+*Requirements defined: 2026-03-01*
+*Last updated: 2026-03-01 after initial definition*
