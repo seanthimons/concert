@@ -1253,10 +1253,19 @@ server <- function(input, output, session) {
 
           data_store$curation_status <- "completed"
 
+          # Show tier breakdown notification
+          notification_msg <- sprintf(
+            "Search complete: %d exact, %d CAS, %d starts-with, %d no match",
+            pipeline_result$search_summary$n_exact,
+            pipeline_result$search_summary$n_cas_valid,
+            pipeline_result$search_summary$n_starts_with,
+            pipeline_result$search_summary$n_miss
+          )
+
           showNotification(
-            "Curation completed successfully!",
+            notification_msg,
             type = "message",
-            duration = 5
+            duration = 8
           )
 
           # Show Review Results tab and auto-navigate to it
@@ -1378,6 +1387,54 @@ server <- function(input, output, session) {
       df$consensus_status,
       levels = c("agree", "agree_caveat", "single", "disagree", "error")
     )
+
+    # Derive Match Type from source_tier columns
+    # Per user decision: show tier only, not which tagged column produced the match
+    tier_label_map <- c(
+      "exact" = "Exact Match",
+      "cas" = "CAS Lookup",
+      "starts_with" = "Starts-With",
+      "miss" = "No Match",
+      "cas_no_match" = "No Match",
+      "cas_invalid" = "No Match"
+    )
+
+    df$match_type <- sapply(seq_len(nrow(df)), function(i) {
+      # Strategy: find the source_tier of the column that provided consensus_dtxsid
+      tier_cols <- grep("^source_tier_", names(df), value = TRUE)
+
+      if (length(tier_cols) == 0) return("Unknown")
+
+      # If consensus_dtxsid exists, find which column provided it
+      if (!is.na(df$consensus_dtxsid[i])) {
+        # Check each source_tier column for a successful match
+        for (tc in tier_cols) {
+          tier_val <- df[[tc]][i]
+          if (!is.na(tier_val) && tier_val %in% c("exact", "cas", "starts_with")) {
+            label <- tier_label_map[tier_val]
+            if (!is.na(label)) return(label)
+          }
+        }
+      }
+
+      # No consensus_dtxsid: check if all tiers are miss/error
+      all_tiers <- sapply(tier_cols, function(tc) df[[tc]][i])
+      all_tiers <- all_tiers[!is.na(all_tiers)]
+
+      if (length(all_tiers) == 0) return("No Match")
+
+      # Pick first non-miss tier if any
+      for (tv in all_tiers) {
+        if (tv %in% c("exact", "cas", "starts_with")) {
+          return(tier_label_map[tv])
+        }
+      }
+
+      return("No Match")
+    })
+
+    # Position match_type after consensus columns but before Resolution
+    df <- dplyr::relocate(df, match_type, .after = consensus_status)
 
     # Build Resolution column
     df$Resolution <- sapply(seq_len(nrow(df)), function(i) {
