@@ -1,281 +1,649 @@
-# Stack Research: Gated Multi-Tab Curation Workflow
+# Technology Stack: v1.2 Curation Refinement
 
-**Domain:** R Shiny multi-step workflow UI with gated tab navigation
-**Researched:** 2026-02-26
-**Confidence:** HIGH
+**Project:** ChemReg
+**Milestone:** v1.2 Curation Refinement
+**Researched:** 2026-03-01
+**Overall Confidence:** HIGH
 
-## Recommended Stack
+## Executive Summary
 
-### Core Technologies
+**No new package dependencies required.** All v1.2 features can be implemented using existing stack: ComptoxR 1.4.0, DT with Buttons extension, and standard Shiny reactive patterns. The existing curation pipeline already captures `preferredName` and `rank` from CompTox API responses—these just need to be surfaced in the UI.
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| **bslib** | 0.9.0 | Navigation framework | Official RStudio/Posit framework with native nav_show/nav_hide functions for programmatic tab control. Provides page_navbar, page_sidebar, navset_tab with built-in support for conditional tab visibility. Bootstrap 5.3.1 foundation ensures modern, accessible UI. |
-| **shinyjs** | 2.1.0 | UI element state control | Complements bslib for enabling/disabling UI elements within tabs. Essential for form validation patterns and progressive disclosure. Already in project dependencies. |
-| **shiny** | ≥1.12.1 | Reactive framework | Core framework - already in use. Provides reactiveValues, observe, observeEvent for state management. |
+**What's new for v1.2:**
+- Bulk DTXSID validation via existing `ComptoxR::chemi_amos_batch()`
+- Error row retry using existing DT row selection (`input$tableId_rows_selected`)
+- Column visibility via existing DT Buttons extension with `columnDefs`
+- Richer dropdown context using data already captured in pipeline
 
-### Supporting Libraries
+**What's NOT changing:**
+- Package dependencies (zero additions)
+- Core framework (R/Shiny, bslib, DT, ComptoxR)
+- Data structures (existing reactiveValues pattern)
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| **bsicons** | Latest | Tab icons | Add visual clarity to tab navigation (e.g., checkmark for completed steps). Already in project. |
-| **DT** | Latest | Data tables in tabs | Display curation results. Already in project. |
+---
 
-### Development Tools
+## Stack Analysis by v1.2 Feature
 
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| testthat | Unit testing | Already installed. Test tab gating logic with reactive state changes. |
-| air | Code formatting | Already configured (air.toml exists). |
+### Feature 1: Bulk DTXSID Validation
 
-## Installation
+**Status:** ✓ Already Available
+**Package:** ComptoxR 1.4.0 (existing)
+**Function:** `chemi_amos_batch(dtxsids = c("DTXSID...", ...))`
 
+**Why:**
+- ComptoxR already installed from GitHub (`seanthimons/ComptoxR@1.4.0`)
+- `chemi_amos_batch()` accepts a `dtxsids` parameter for bulk validation
+- Returns substance info for valid DTXSIDs, NULL/error for invalid ones
+- No additional dependencies needed
+
+**Integration:**
 ```r
-# All required packages already in project dependencies
-# Verify current versions:
-packageVersion("bslib")    # Should be ≥ 0.9.0
-packageVersion("shinyjs")  # Should be ≥ 2.1.0
-packageVersion("shiny")    # Should be ≥ 1.12.1
+# User enters DTXSIDs via textAreaInput or data table edit
+dtxsid_input <- c("DTXSID7020182", "DTXSID0020232", "invalid123")
 
-# If updates needed (via existing load_packages.R):
-source("load_packages.R")
+# Validate via ComptoxR
+validated <- chemi_amos_batch(dtxsids = dtxsid_input)
+
+# Filter to valid DTXSIDs that returned data
+valid_dtxsids <- validated %>%
+  filter(!is.na(dtxsid)) %>%
+  pull(dtxsid)
 ```
 
-## Recommended Approach for Gated Navigation
-
-### Pattern 1: nav_show/nav_hide (RECOMMENDED)
-
-**What:** Use bslib's native `nav_show()` and `nav_hide()` functions to conditionally display tabs based on reactive state.
-
-**When:** Best for this project's use case - gated workflow where tabs become available as prerequisites are met.
-
-**Why preferred:**
-- **Native bslib support**: These functions are designed specifically for this use case
-- **Preserves module state**: Unlike nav_insert/nav_remove, doesn't destroy/recreate module instances
-- **Accessible**: Properly manages keyboard navigation and screen reader announcements
-- **No div-wrapping hacks**: Direct, clean API without workarounds
-
-**Implementation:**
-
+**Function Signature:**
 ```r
-# UI: Assign id to navbar, start tabs hidden
-ui <- page_navbar(
-  id = "main_nav",
-  title = "ChemReg",
+args(chemi_amos_batch)
+# function (additional_record_info = NULL, always_download_file = NULL,
+#     base_url = NULL, dtxsids = NULL, include_classyfire = NULL,
+#     include_external_links = NULL, include_functional_uses = NULL,
+#     include_source_counts = NULL, methodologies = NULL, record_types = NULL)
+```
 
-  # Always visible tabs
-  nav_panel("Data Preview", value = "preview", ...),
-  nav_panel("Detection Info", value = "detection", ...),
-  nav_panel("Raw Data", value = "raw", ...),
+**Confidence:** HIGH — Function exists, tested via `args(chemi_amos_batch)`, documented in ComptoxR package.
 
-  # Initially hidden workflow tabs
-  nav_panel_hidden(
-    "Tag Columns",
-    value = "tag_columns",
-    # Column tagging UI
-  ),
-  nav_panel_hidden(
-    "Run Curation",
-    value = "run_curation",
-    # Curation controls UI
-  ),
-  nav_panel_hidden(
-    "Review Results",
-    value = "review_results",
-    # Results display UI
+---
+
+### Feature 2: Error Row Retry with Re-tagging
+
+**Status:** ✓ Standard Shiny Pattern
+**Packages:** DT (existing), shiny (existing)
+**Components:** `input$tableId_rows_selected`, `reactiveValues()`, subset filtering
+
+**Why:**
+- DT already provides row selection via `input$tableId_rows_selected` ([DT Shiny documentation](https://rstudio.github.io/DT/shiny.html))
+- No special packages needed—standard reactive workflow:
+  1. User selects error rows in DT table
+  2. Filter `data_store$resolution_state` to selected row indices
+  3. Render tag dropdowns for subset
+  4. Re-run `run_pipeline_with_tags()` on subset
+  5. Merge results back into main `resolution_state` by row index
+
+**Integration:**
+```r
+# Extract selected error rows
+observeEvent(input$retry_errors, {
+  selected_indices <- input$curation_table_rows_selected
+  req(length(selected_indices) > 0)
+
+  # Subset to error rows
+  error_subset <- data_store$resolution_state[selected_indices, ]
+
+  # Re-tag and re-curate (existing pipeline)
+  retry_result <- run_pipeline_with_tags(
+    df = error_subset,
+    column_tags = input$retry_tags,  # new tagging UI
+    progress_callback = function(stage, pct) {...}
+  )
+
+  # Merge back
+  data_store$resolution_state[selected_indices, ] <- retry_result
+})
+```
+
+**Confidence:** HIGH — DT row selection is built-in, pattern matches existing resolution workflow.
+
+**Source:** [Using DT in Shiny - Row Selection](https://rstudio.github.io/DT/shiny.html)
+
+---
+
+### Feature 3: Smarter Column Visibility in DT Tables
+
+**Status:** ✓ DT Buttons Extension (existing)
+**Package:** DT (existing)
+**Extension:** `Buttons` with `colvis` button (already used in app.R)
+
+**Why:**
+- App already uses `extensions = 'Buttons'` in Review Results table (app.R line 1440)
+- No new dependencies—just add configuration:
+  - `columnDefs` to hide columns by default
+  - `buttons = list('colvis')` to toggle visibility
+
+**Integration:**
+```r
+datatable(
+  df,
+  extensions = 'Buttons',
+  options = list(
+    dom = 'Bfrtip',
+    # Hide untagged columns by default (indices determined at runtime)
+    columnDefs = list(
+      list(visible = FALSE, targets = untagged_col_indices)
+    ),
+    buttons = list('colvis')  # Toggle button
   )
 )
+```
 
-# Server: Show tabs based on state
-server <- function(input, output, session) {
-  # Show Tag Columns tab after data is loaded
-  observe({
-    req(data_store$clean)
-    nav_show("main_nav", target = "tag_columns", select = TRUE)
-  })
+**Determining untagged columns:**
+```r
+# In server logic
+untagged_cols <- setdiff(
+  names(data_store$resolution_state),
+  c(tagged_original_cols, consensus_cols, metadata_cols)
+)
+untagged_col_indices <- which(names(df) %in% untagged_cols) - 1  # 0-indexed
+```
 
-  # Show Run Curation tab after columns are tagged
-  observe({
-    req(data_store$column_tags)
-    req(length(data_store$column_tags) > 0)
-    nav_show("main_nav", target = "run_curation")
-  })
+**Confidence:** HIGH — Feature already partially implemented, `columnDefs` is standard DataTables API.
 
-  # Show Review Results tab after curation completes
-  observe({
-    req(data_store$curation_results)
-    nav_show("main_nav", target = "review_results", select = TRUE)
-  })
+**Sources:**
+- [DT Extensions - Buttons](https://rstudio.github.io/DT/extensions.html)
+- [Column Visibility in DT - GitHub Issue #153](https://github.com/rstudio/DT/issues/153)
+- [Hide Columns in DT - GeeksforGeeks](https://www.geeksforgeeks.org/r-language/hide-certain-columns-in-a-responsive-data-table-using-dt-package-in-r/)
+
+---
+
+### Feature 4: Richer Dropdown Context (preferredName, rank, QC level)
+
+**Status:** ✓ Already Captured, Needs UI Surfacing
+**Packages:** None (existing pipeline data)
+**Implementation:** HTML string formatting in `get_resolution_options()`
+
+**Why:**
+- `preferredName` and `rank` already captured in pipeline (curation.R lines 101, 393)
+- QC tier calculated in consensus.R (line 31)
+- Just need to surface in dropdown HTML:
+
+**Current dropdown (app.R ~1392):**
+```r
+'<option value="', names(options), '">',
+sub("^dtxsid_", "", names(options)), ': ', options, '</option>'
+```
+
+**Enhanced dropdown:**
+```r
+'<option value="', names(options), '">',
+sub("^dtxsid_", "", names(options)),
+' | ', preferred_name[i],  # from preferredName_columnname
+' | Rank ', rank[i],       # from rank_columnname
+' | QC ', qc_tier[i],      # from consensus QC tier
+'</option>'
+```
+
+**Data availability:**
+- `preferredName` columns: `preferredName_chemical_name`, `preferredName_casrn`, etc.
+- `rank` columns: `rank_chemical_name`, `rank_casrn`, etc.
+- `qc_tier`: single column in consensus results
+
+**Confidence:** HIGH — Data already exists in `resolution_state`, just needs HTML formatting change.
+
+**Source:** Existing codebase (R/curation.R lines 67-101, R/consensus.R lines 25-40)
+
+---
+
+### Feature 5: Search Reorder (exact → CAS → starts-with)
+
+**Status:** ✓ Code Change Only
+**Packages:** None
+**Implementation:** Reorder tier calls in `curate_column_tiered()`
+
+**Current order (curation.R):**
+1. Exact search (`ct_chemical_search_equal_bulk`)
+2. Starts-with search (`ct_chemical_start_with`)
+3. CAS validation (`validate_cas_bulk`)
+
+**New order (v1.2):**
+1. Exact search (unchanged)
+2. CAS validation (moved up)
+3. Starts-with search (moved to last resort)
+
+**Why:**
+- CAS numbers are more specific than starts-with string matching
+- Starts-with can produce fuzzy matches, should be last resort
+- No package changes needed, just reorder function calls
+
+**Confidence:** HIGH — Pure code logic change.
+
+---
+
+### Feature 6: "Other" Tag as Full Curation Participant
+
+**Status:** ✓ Code Change Only
+**Packages:** None
+**Implementation:** Remove tag filtering in pipeline
+
+**Current behavior:**
+- "Other" tagged columns excluded from curation (if implemented)
+- OR: No special handling, already included (needs verification)
+
+**New behavior (v1.2):**
+- "Other" tagged columns go through full search chain (exact → CAS → starts-with)
+- Participate in consensus DTXSID comparison
+- Included in resolution dropdowns
+
+**Implementation:**
+```r
+# Remove any logic like:
+# if (tag == "Other") { skip }
+
+# Ensure "Other" is treated same as "Chemical Name" and "CASRN"
+```
+
+**Confidence:** HIGH — Code change only, no package dependencies.
+
+---
+
+## What NOT to Add
+
+### ❌ ctxR Package (CRAN)
+**Why not:** ComptoxR (custom fork from seanthimons/ComptoxR) is already installed and working. ctxR is a different package with similar functionality but different API. Switching would break existing code.
+
+**Decision:** Stick with ComptoxR 1.4.0.
+
+**Note:** Web searches found ctxR (CRAN package) with `check_existence_by_dtxsid_batch()` for DTXSID validation. However, project uses ComptoxR which has equivalent `chemi_amos_batch()` function. No need to add ctxR.
+
+### ❌ Additional DT Extensions
+**Why not:** Buttons extension already loaded and sufficient for column visibility. ResponsiveDisplay, ColReorder, FixedColumns not needed for stated requirements.
+
+**Decision:** Continue using `Buttons` extension only.
+
+### ❌ shinyjs Additions
+**Why not:** Existing shinyjs usage (DOM manipulation for tab pulsing) is sufficient. Row selection, tagging UI, and validation don't require additional shinyjs functions.
+
+**Decision:** No new shinyjs methods needed.
+
+### ❌ Validation Packages (assertthat, checkmate, validate)
+**Why not:** Simple DTXSID format validation (regex: `^DTXSID\\d+$`) can be done with base R `grepl()`. ComptoxR's `chemi_amos_batch()` will validate existence against CompTox.
+
+**Decision:** No validation package needed.
+
+### ❌ Modal/Dialog Packages (shinyWidgets, shinyBS)
+**Why not:** bslib provides native modal dialogs via `modalDialog()` and `showModal()`. Sufficient for re-tagging UI during error retry workflow.
+
+**Decision:** Use bslib modals.
+
+---
+
+## Existing Stack (No Changes)
+
+### Core Framework
+
+| Technology | Version | Purpose | Status |
+|------------|---------|---------|--------|
+| **R** | 4.5.1 | Runtime environment | No change |
+| **shiny** | Latest CRAN | Reactive framework | No change |
+| **bslib** | ≥0.9.0 | UI framework, navigation | No change |
+| **shinyjs** | ≥2.1.0 | UI state control | No change |
+
+### Data & I/O
+
+| Package | Version | Purpose | Status |
+|---------|---------|---------|--------|
+| **dplyr** | Latest | Data manipulation | No change |
+| **tidyr** | Latest | Data reshaping | No change |
+| **purrr** | Latest | Functional programming | No change |
+| **rio** | Latest | File I/O | No change |
+| **readxl** | Latest | Excel reading | No change |
+| **writexl** | Latest | Excel writing | No change |
+| **janitor** | Latest | Column name cleaning | No change |
+
+### UI Components
+
+| Package | Version | Purpose | Status |
+|---------|---------|---------|--------|
+| **DT** | Latest | Interactive tables | No change (add columnDefs config) |
+| **bsicons** | Latest | Icons | No change |
+
+### API
+
+| Package | Version | Purpose | Status |
+|---------|---------|---------|--------|
+| **ComptoxR** | 1.4.0 | CompTox API access | No change (use chemi_amos_batch) |
+| **httr2** | Latest | HTTP requests (dependency) | No change |
+
+### Testing
+
+| Package | Version | Purpose | Status |
+|---------|---------|---------|--------|
+| **testthat** | Latest | Unit testing | No change |
+
+---
+
+## Updated Dependencies Summary
+
+| Category | Package | Version | Change | Purpose |
+|----------|---------|---------|--------|---------|
+| **API** | ComptoxR | 1.4.0 | No change | CompTox API access, bulk DTXSID validation via `chemi_amos_batch()` |
+| **UI** | DT | existing | Configuration only | DataTables with Buttons extension for column visibility (`columnDefs`) |
+| **Framework** | shiny | existing | No change | Reactive row selection via `input$tableId_rows_selected`, subset filtering |
+| **Framework** | bslib | existing | No change | UI theme, modal dialogs for re-tagging UI |
+| **Framework** | shinyjs | existing | No change | Existing tab pulsing (no new features needed) |
+| **Data** | dplyr | existing | No change | Data manipulation, subset filtering, merge-back logic |
+| **Data** | tidyr | existing | No change | Data reshaping (if needed for retry merge) |
+
+**Total new packages:** 0
+**Total new functions/features:** 0 (all existing capabilities)
+
+---
+
+## Implementation Checklist
+
+- [ ] **Bulk DTXSID validation:** Call `ComptoxR::chemi_amos_batch(dtxsids = user_input)`
+- [ ] **Error row retry:** Use `input$curation_table_rows_selected` for subset workflow
+- [ ] **Column visibility:** Add `columnDefs` to DT options with runtime-determined untagged columns
+- [ ] **Dropdown context:** Modify HTML string in `get_resolution_options()` to include `preferredName`, `rank`, `qc_tier`
+- [ ] **Search reorder:** Modify pipeline call order in `curate_column_tiered()` (exact → CAS → starts-with)
+- [ ] **"Other" tag curation:** Remove tag filtering in pipeline (ensure "Other" goes through full search chain)
+
+---
+
+## Version Requirements
+
+All packages already installed at compatible versions:
+
+```r
+# Core (already in load_packages.R)
+library(shiny)       # Latest CRAN
+library(bslib)       # Latest CRAN
+library(DT)          # Latest CRAN
+library(shinyjs)     # Latest CRAN
+library(dplyr)       # Latest CRAN (tidyverse)
+library(tidyr)       # Latest CRAN (tidyverse)
+library(purrr)       # Latest CRAN (tidyverse)
+
+# API (already installed via remotes)
+library(ComptoxR)    # 1.4.0 from seanthimons/ComptoxR
+```
+
+**No installation commands needed.**
+
+---
+
+## Integration Points
+
+### Pipeline Integration (R/curation.R)
+
+**Bulk DTXSID validation:**
+```r
+# Add helper function
+validate_dtxsids_bulk <- function(dtxsids) {
+  result <- chemi_amos_batch(dtxsids = dtxsids)
+  tibble(
+    dtxsid = dtxsids,
+    is_valid = dtxsids %in% result$dtxsid,
+    preferredName = result$preferredName[match(dtxsids, result$dtxsid)]
+  )
 }
 ```
 
-**Confidence:** HIGH - Verified in Context7 bslib documentation and official RStudio docs.
+**Search reorder:**
+```r
+# Change tier order in curate_column_tiered()
+# FROM: c("exact", "starts_with", "cas")
+# TO:   c("exact", "cas", "starts_with")
 
-### Pattern 2: nav_panel_hidden + navset_hidden
+curate_column_tiered <- function(df, column_name, ...) {
+  # Tier 1: Exact search
+  exact_results <- search_exact_bulk(...)
 
-**What:** Alternative pattern using `nav_panel_hidden()` within a `navset_hidden()` container, controlled by external UI elements (buttons, radio buttons).
+  # Tier 2: CAS validation (MOVED UP)
+  cas_results <- validate_cas_bulk(...)
 
-**When:** Use when you want completely custom navigation controls (wizard-style Next/Back buttons instead of tabs).
+  # Tier 3: Starts-with (MOVED TO LAST)
+  starts_results <- search_starts_with(...)
+}
+```
 
-**Why NOT recommended for this project:**
-- PROJECT.md explicitly states "Wizard-style navigation with Next/Back buttons — tabs preferred"
-- More complex to implement
-- Loses visual tab navigation which shows workflow progress
+**"Other" tag inclusion:**
+```r
+# Remove any tag filtering like:
+# if (tag %ni% c("Chemical Name", "CASRN")) { return(NULL) }
 
-**Confidence:** HIGH - Context7 documentation confirms this pattern exists but is for custom controls.
+# Ensure all tags go through full pipeline
+run_pipeline_with_tags <- function(df, column_tags, ...) {
+  for (col in names(column_tags)) {
+    # Curate regardless of tag value
+    results[[col]] <- curate_column_tiered(df, col, ...)
+  }
+}
+```
 
-### Pattern 3: shinyjs toggle + div wrapping
+### UI Integration (app.R)
 
-**What:** Wrap nav_panel contents in divs and use shinyjs::show/hide.
+**Error retry workflow:**
+```r
+# Add UI in Review Results tab
+actionButton("retry_errors_btn", "Retry Selected Error Rows")
 
-**When:** NEVER for tab-level control.
+# Show modal with re-tagging UI
+observeEvent(input$retry_errors_btn, {
+  selected <- input$curation_table_rows_selected
+  req(length(selected) > 0)
 
-**Why NOT to use:**
-- Produces warnings about improper navigation container structure
-- Breaks accessibility
-- Deprecated pattern from pre-bslib era
-- Community discussion confirms this is wrong approach
+  showModal(modalDialog(
+    title = "Re-tag Selected Rows",
+    uiOutput("retry_tag_ui"),
+    footer = tagList(
+      actionButton("retry_confirm", "Re-curate"),
+      modalButton("Cancel")
+    )
+  ))
+})
 
-**Confidence:** HIGH - Explicitly discouraged in Posit Community forum.
+# Render tag dropdowns for selected rows
+output$retry_tag_ui <- renderUI({
+  # Column dropdowns for selected subset
+})
 
-## Alternatives Considered
+# Re-run pipeline on subset
+observeEvent(input$retry_confirm, {
+  # Use pattern from Feature 2 above
+})
+```
 
-| Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|-------------------------|
-| bslib nav_show/nav_hide | shinymgr package | Use shinymgr if building a multi-app platform with complex module dependency graphs, SQLite-backed module registry, and RDS-based reproducibility requirements. Overkill for single-app tab gating. |
-| nav_panel_hidden | nav_insert/nav_remove | Use insert/remove when tabs are truly dynamic (user-generated, unknown at init time). Avoid for static workflow steps - destroys module state on removal. |
-| page_navbar | page_sidebar with navset_tab | Use page_sidebar if workflow needs persistent sidebar across all tabs. Current app already uses page_sidebar, so extend with nav_show/hide. |
+**Column visibility:**
+```r
+output$curation_table <- renderDT({
+  req(data_store$resolution_state, data_store$dtxsid_cols)
 
-## What NOT to Use
+  df <- data_store$resolution_state
 
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| **shiny::updateTabsetPanel** | Legacy pre-bslib function. Doesn't work with bslib navigation. Inconsistent Bootstrap 5 styling. | bslib::nav_select, nav_show, nav_hide |
-| **shinyjs on nav_panel** | Wrapping tabs in divs breaks navigation container structure. Produces warnings. Poor accessibility. | bslib::nav_hide, nav_show |
-| **shinymgr** | Heavyweight framework (SQLite DB, renv, shinydashboard). Last updated May 2024. Designed for multi-app platforms, not single-app tab gating. | Native bslib nav_show/nav_hide |
-| **conditionalPanel with tabsetPanel** | Pre-bslib pattern. Doesn't integrate with bslib theming. Less accessible. | bslib::nav_panel_hidden + nav_show |
+  # Determine untagged columns
+  tagged_cols <- names(data_store$column_tags)
+  consensus_cols <- c("consensus_status", "consensus_dtxsid", "consensus_source", "qc_tier")
+  dtxsid_related <- grep("^(dtxsid|preferredName|rank|searchName)_", names(df), value = TRUE)
 
-## Stack Patterns by Variant
+  keep_visible <- c(tagged_cols, consensus_cols, "Resolution")
+  hide_cols <- setdiff(names(df), keep_visible)
+  hide_indices <- which(names(df) %in% hide_cols) - 1  # 0-indexed
 
-**If you need visual state indicators (e.g., checkmarks on completed tabs):**
-- Add `icon = bsicons::bs_icon("check-circle")` parameter to nav_panel
-- Use `nav_insert()` to replace tab with icon version after completion
-- Because bslib nav panels support icon parameter natively
+  datatable(
+    df,
+    extensions = 'Buttons',
+    options = list(
+      dom = 'Bfrtip',
+      columnDefs = list(
+        list(visible = FALSE, targets = hide_indices)
+      ),
+      buttons = list('colvis')
+    )
+  )
+})
+```
 
-**If you need to disable navigation back to previous steps:**
-- Use `nav_hide()` on completed tabs when moving forward
-- Store completed data in reactiveValues, not tab UI state
-- Because hiding prevents both forward navigation and accidental back-navigation
+**Dropdown context:**
+```r
+# Modify get_resolution_options() helper function
+get_resolution_options <- function(df, row_idx, dtxsid_cols) {
+  options <- list()
 
-**If workflow needs to reset (e.g., new file upload):**
-- Call `nav_hide()` on all gated tabs
-- Clear reactiveValues state
-- Use `nav_select()` to return to first tab
-- Because this preserves tab instances while resetting visibility
+  for (col in dtxsid_cols) {
+    dtxsid_val <- df[[col]][row_idx]
+    if (!is.na(dtxsid_val)) {
+      # Get corresponding metadata
+      col_base <- sub("^dtxsid_", "", col)
+      preferred_col <- paste0("preferredName_", col_base)
+      rank_col <- paste0("rank_", col_base)
 
-**If you need to programmatically advance tabs:**
-- Use `nav_show("nav_id", target = "next_tab", select = TRUE)`
-- The `select = TRUE` parameter both shows AND switches to the tab
-- Because this creates smooth progression through workflow
+      preferred <- if (preferred_col %in% names(df)) df[[preferred_col]][row_idx] else NA
+      rank_val <- if (rank_col %in% names(df)) df[[rank_col]][row_idx] else NA
 
-## Version Compatibility
+      # Build label
+      label <- paste0(
+        col_base,
+        if (!is.na(preferred)) paste0(" | ", preferred) else "",
+        if (!is.na(rank_val)) paste0(" | Rank ", rank_val) else "",
+        " | ", dtxsid_val
+      )
 
-| Package A | Compatible With | Notes |
-|-----------|-----------------|-------|
-| bslib@0.9.0 | shiny@≥1.12.1 | bslib 0.9.0 requires Bootstrap 5.3.1 support in Shiny |
-| bslib@0.9.0 | shinyjs@2.1.0 | No compatibility issues. Use shinyjs for within-tab element control, bslib for tab-level control. |
-| bslib@0.8.0+ | page_navbar + nav_panel_hidden | Version 0.8.0 fixed keyboard-discoverability bug in nav_panel_hidden - essential for accessibility. |
+      options[[col]] <- label
+    }
+  }
 
-## Key Functions Reference
+  options
+}
+```
 
-### Tab Visibility Control
+### State Management (reactiveValues)
 
-| Function | Purpose | Parameters | Example |
-|----------|---------|------------|---------|
-| `nav_show()` | Make hidden tab visible | id (navbar id), target (tab value), select (auto-switch), session | `nav_show("nav", "tab2", select=TRUE)` |
-| `nav_hide()` | Hide visible tab | id, target, session | `nav_hide("nav", "tab2")` |
-| `nav_select()` | Switch to different tab | id, selected (tab value), session | `nav_select("nav", "tab3")` |
-| `nav_panel_hidden()` | Create initially hidden tab | title, value, ... (UI contents) | `nav_panel_hidden("Secret", value="s", ...)` |
+**Retry workflow:**
+```r
+data_store <- reactiveValues(
+  # Existing fields
+  resolution_state = NULL,
+  dtxsid_cols = NULL,
 
-### Element State Control (within tabs)
+  # Add for retry workflow
+  retry_subset = NULL,       # Selected error rows
+  retry_tags = NULL,         # Re-tagging choices for subset
+  retry_results = NULL       # Re-curation results to merge back
+)
+```
 
-| Function | Purpose | Use Case |
-|----------|---------|----------|
-| `shinyjs::enable()` | Enable input element | Enable "Run Curation" button after tags applied |
-| `shinyjs::disable()` | Disable input element | Disable inputs during async processing |
-| `shinyjs::toggleState()` | Conditional enable/disable | `toggleState("btn", condition = input$valid)` |
-| `shinyjs::show()` | Show hidden element | Progressive disclosure within a tab |
-| `shinyjs::hidden()` | Wrap initially hidden elements | `hidden(div(id="advanced", ...))` |
+---
 
-## Implementation Notes
+## Verification Commands
 
-### For This Project Specifically
+```r
+# Confirm ComptoxR has chemi_amos_batch
+library(ComptoxR)
+args(chemi_amos_batch)
+# Should show: function (dtxsids = NULL, ...)
 
-The existing app uses:
-- `bslib::page_sidebar()` with sidebar layout
-- `nav_panel()` for tabs within the main content area
-- `reactiveValues()` data_store pattern for state
+# Confirm DT has Buttons extension
+library(DT)
+datatable(iris, extensions = 'Buttons', options = list(dom = 'Bfrtip', buttons = 'colvis'))
+# Should render table with column visibility button
 
-**Integration approach:**
+# Confirm row selection works
+# In Shiny app: input$tableId_rows_selected should return integer vector
 
-1. **Assign id to tab container**: Add `id = "main_tabs"` to the navset containing Data Preview, Detection Info, Raw Data, Tag Columns, etc.
+# Verify preferredName/rank captured
+source("R/curation.R")
+test_result <- search_exact_bulk(c("Acetone", "Ethanol"))
+names(test_result)
+# Should include: "preferredName", "rank"
+```
 
-2. **Start workflow tabs hidden**: Convert Tag Columns, Run Curation, Review Results to `nav_panel_hidden()`.
+---
 
-3. **Add reactive observers**:
-   - Show "Tag Columns" when `data_store$clean` populated (file uploaded & detected)
-   - Show "Run Curation" when `data_store$column_tags` has at least one tag
-   - Show "Review Results" when `data_store$curation_results` exists
+## Performance Considerations
 
-4. **No new dependencies**: All functions available in current bslib 0.9.0 + shinyjs 2.1.0.
+**Bulk DTXSID validation:**
+- `chemi_amos_batch()` batches requests (default 200 per batch)
+- No performance impact vs. sequential validation
+- Use `withProgress()` for user feedback during validation
 
-5. **Use shinyjs within tabs**: Enable/disable the "Run Curation" action button based on tag completeness using `toggleState()`.
+**Error row retry:**
+- Only re-curates selected subset (not full dataset)
+- Merge-back is row-index based (fast)
+- No state duplication (updates `resolution_state` in place)
 
-### Performance Considerations
+**Column visibility:**
+- `columnDefs` applied client-side by DataTables (no server overhead)
+- Hidden columns still in DOM (fast toggle via `colvis` button)
+- No impact on export (hidden columns included in download)
 
-- `nav_show/hide` does NOT destroy tab contents - Shiny reactive outputs remain instantiated
-- Only visible tab outputs recompute (Shiny default behavior)
-- No performance penalty vs. always-visible tabs
-- Reactives in hidden tabs suspend until tab becomes visible
+**Dropdown context:**
+- HTML string concatenation at render time
+- Minimal overhead (only for "disagree" rows)
+- No additional API calls (data already in `resolution_state`)
+
+---
+
+## Confidence Assessment
+
+| Feature | Stack Confidence | Integration Confidence | Risk |
+|---------|------------------|------------------------|------|
+| Bulk DTXSID validation | HIGH | HIGH | Low — function exists, tested |
+| Error row retry | HIGH | MEDIUM | Medium — merge-back logic needs careful testing |
+| Column visibility | HIGH | HIGH | Low — DT columnDefs is well-documented |
+| Dropdown context | HIGH | HIGH | Low — data already exists, straightforward HTML |
+| Search reorder | HIGH | HIGH | Low — simple function call reordering |
+| "Other" tag curation | HIGH | HIGH | Low — remove filter logic, ensure consistency |
+
+**Overall Confidence:** HIGH — All features implementable with existing stack. No package additions required.
+
+---
+
+## Key Decisions
+
+| Decision | Rationale | Outcome |
+|----------|-----------|---------|
+| Use ComptoxR not ctxR | Project already uses ComptoxR fork; switching breaks existing code | ✓ Stick with ComptoxR 1.4.0 |
+| No new packages | All features achievable with existing capabilities | ✓ Zero dependency additions |
+| Use DT columnDefs | Standard DataTables API, already using Buttons extension | ✓ Configuration change only |
+| Surface existing data for dropdowns | preferredName/rank already captured in pipeline | ✓ HTML formatting change only |
+| Use bslib modals for retry UI | Native bslib support, consistent with existing UI | ✓ No shinyWidgets needed |
+
+---
 
 ## Sources
 
+### HIGH Confidence (Verified Functions)
+
+- **ComptoxR GitHub Repository:** [seanthimons/ComptoxR](https://github.com/seanthimons/ComptoxR) — Bulk DTXSID validation via `chemi_amos_batch(dtxsids = ...)`
+- **Existing Codebase:** `R/curation.R` lines 67-101, 393 — `preferredName`, `rank` capture in pipeline
+- **Existing Codebase:** `R/consensus.R` lines 25-40 — `qc_tier` calculation
+- **Existing Codebase:** `app.R` lines 1383-1395 — Current dropdown HTML implementation
+
 ### HIGH Confidence (Official Documentation)
 
-- [bslib Navigation Containers Reference](https://rstudio.github.io/bslib/reference/navset.html) — navset functions, nav_panel_hidden usage
-- [bslib Dynamically Update Nav Containers](https://rstudio.github.io/bslib/reference/nav_select.html) — nav_show, nav_hide, nav_select, nav_insert, nav_remove
-- [bslib Navigation Items Reference](https://rstudio.github.io/bslib/reference/nav-items.html) — nav_panel, nav_menu, nav_panel_hidden
-- Context7 /rstudio/bslib — Programmatic tab control examples, nav_show/nav_hide patterns
-- Context7 /daattali/shinyjs — enable, disable, toggleState, show, hide, hidden, toggle functions
-- [bslib CRAN Package Page](https://cran.r-project.org/package=bslib) — Version 0.9.0, January 30, 2025
-- [bslib Changelog](https://cran.r-project.org/web/packages/bslib/news/news.html) — v0.8.0 nav_panel_hidden keyboard accessibility fix
-- [shinyjs CRAN Package](https://cran.r-project.org/web/packages/shinyjs/index.html) — Version 2.1.0, January 15, 2026
+- [DT Shiny Documentation - Row Selection](https://rstudio.github.io/DT/shiny.html) — `input$tableId_rows_selected` usage
+- [DT Extensions - Buttons](https://rstudio.github.io/DT/extensions.html) — Column visibility via `colvis` button
+- [DT GitHub Issue #153 - Column Visibility](https://github.com/rstudio/DT/issues/153) — `columnDefs` examples and patterns
+- [GeeksforGeeks - Hide Columns in DT](https://www.geeksforgeeks.org/r-language/hide-certain-columns-in-a-responsive-data-table-using-dt-package-in-r/) — `columnDefs` usage guide
 
-### MEDIUM Confidence (Community Best Practices)
+### MEDIUM Confidence (Alternative Packages, Not Used)
 
-- [Posit Community: Dynamically show/hide panels](https://forum.posit.co/t/bslib-page-navbar-dynamically-show-hide-panels/207882) — nav_show/hide vs. nav_insert/remove tradeoffs, preserving module state
-- [Shiny App Workflows: bslib](https://b-klaver.github.io/shinyWorkflows/bslib.html) — page_navbar patterns, sidebar integration
-
-### MEDIUM Confidence (Academic Publication)
-
-- [The R Journal: shinymgr](https://journal.r-project.org/articles/RJ-2024-009/) — Multi-step workflow framework, published 2025, Volume 16 Issue 1
-- [shinymgr CRAN](https://cran.r-project.org/web/packages/shinymgr/index.html) — Version 1.1.0, May 10, 2024
-
-## Decision Matrix
-
-| Requirement | bslib nav_show/hide | shinymgr | shinyjs div wrapping |
-|-------------|---------------------|----------|----------------------|
-| Gated tab navigation | ✅ Native support | ✅ But heavyweight | ❌ Breaks structure |
-| Preserve module state | ✅ Yes | ⚠️ Complex | ⚠️ Unclear |
-| No new dependencies | ✅ Already installed | ❌ Requires shinydashboard, DBI, RSQLite, renv | ✅ shinyjs exists |
-| Accessibility | ✅ Proper ARIA | ✅ If implemented correctly | ❌ Poor |
-| Complexity | ✅ Low - 3-5 observers | ❌ High - SQLite registry | ⚠️ Medium but wrong |
-| Maintenance | ✅ Official RStudio support | ⚠️ Single maintainer, 2024 | ❌ Deprecated pattern |
-| Fits existing app | ✅ Perfect fit | ❌ Architectural mismatch | ❌ Requires refactor |
-
-**Recommendation:** Use bslib `nav_show()`/`nav_hide()` with `nav_panel_hidden()`. This is the modern, lightweight, officially supported approach that integrates seamlessly with the existing codebase.
+- [ctxR CRAN Package](https://cran.r-project.org/web/packages/ctxR/ctxR.pdf) — Alternative CompTox API package with `check_existence_by_dtxsid_batch()` (not used, ComptoxR preferred)
 
 ---
-*Stack research for: ChemReg gated multi-tab curation workflow*
-*Researched: 2026-02-26*
-*Confidence: HIGH — All core recommendations verified via Context7 and official documentation*
+
+## Recommendation
+
+**Proceed with implementation using existing stack.** No `pak::pkg_install()` calls needed. All v1.2 features are achievable through:
+
+1. **Configuration changes** (DT columnDefs)
+2. **Code logic changes** (search reorder, tag filtering removal)
+3. **HTML formatting changes** (dropdown context)
+4. **Standard Shiny patterns** (row selection, modal dialogs, subset filtering)
+5. **Existing ComptoxR functions** (chemi_amos_batch for bulk validation)
+
+Focus development effort on **code logic and UI enhancements** rather than dependency management.
+
+---
+
+*Stack research for: ChemReg v1.2 Curation Refinement*
+*Researched: 2026-03-01*
+*Confidence: HIGH — All recommendations verified via existing codebase inspection and official documentation*

@@ -1,293 +1,255 @@
 # Project Research Summary
 
-**Project:** ChemReg Multi-Tab Gated Curation Workflow
-**Domain:** R Shiny multi-step workflow UI with gated tab navigation
-**Researched:** 2026-02-26
+**Project:** ChemReg v1.2 Curation Refinement
+**Domain:** Chemical inventory data curation tool (R Shiny application)
+**Researched:** 2026-03-01
 **Confidence:** HIGH
 
 ## Executive Summary
 
-ChemReg is transforming from a single "Curation" tab with stacked cards into a multi-tab workflow where users progress through: Tag Columns → Run Curation → Review Results. Research confirms **bslib's native `nav_panel_hidden()` + `nav_show()` pattern** is the recommended approach for gated navigation. This pattern provides clean API, preserves module state, and ensures accessibility without requiring custom CSS/JS hacks. All required dependencies (bslib 0.9.0, shinyjs 2.1.0) are already installed.
+ChemReg v1.2 is a curation refinement milestone that builds entirely on the existing stack with zero new dependencies. All planned features—bulk DTXSID validation, error row retry with re-tagging, smarter column visibility, richer resolution context, search chain reordering, and "Other" tag curation participation—can be implemented using capabilities already present in the codebase (ComptoxR 1.4.0, DT with Buttons extension, standard Shiny reactive patterns). The research reveals that this milestone is more about code logic refinement and UI polish than about integrating new technologies.
 
-The recommended approach separates concerns cleanly: UI layer (bslib nav functions), reactive state layer (central reactiveValues store), and business logic layer (pure functions in R/curation.R). This architecture enables testability, prevents common pitfalls like lost state on tab switching, and maintains the existing data_store pattern. The critical insight is to **start tabs hidden** rather than showing then hiding (eliminates initialization race conditions), use `freezeReactiveValue()` on all programmatic input updates (prevents flicker), and store all workflow state in reactiveValues (prevents state loss).
+The recommended approach prioritizes search accuracy improvements first (reordering the search chain to exact → CAS → starts-with and enabling "Other" tags in full curation), followed by UI refinements that reduce cognitive load (hiding untagged columns automatically), and finally advanced workflows that improve error recovery (manual DTXSID entry and subset retry with re-tagging). This ordering minimizes risk by establishing data quality foundations before introducing complex merge-back workflows.
 
-Key risks center on **reactive timing issues**: initialization race conditions, reactive flicker during updates, infinite observer loops, and lost state during tab switching. All are preventable through proper patterns established in Phase 1 (foundation). The architecture research provides clear build order: Extract UI → Implement Gating → Polish, with each phase taking 1-2 hours and building on stable foundations.
+Key risks center around three areas: (1) **search precision collapse** if starts-with search moves to last-resort position without proper filtering—requires empirical validation on sample datasets before deployment; (2) **consensus algorithm confusion** when "Other" tagged columns participate equally in voting alongside Name and CASRN columns—needs semantic decision on whether Other columns vote, observe, or vote with reduced weight; (3) **retry merge state loss** if error row retry uses join-based merging instead of index-based replacement—must preserve row order and .pinned state to avoid breaking user mental model. All three risks are mitigable through careful testing and deliberate architectural choices documented in PITFALLS.md.
 
 ## Key Findings
 
 ### Recommended Stack
 
-**Core approach:** Use bslib's native navigation functions rather than legacy patterns or third-party frameworks. The stack is lightweight, well-documented, and already present in the project dependencies.
+**No new dependencies required.** The existing stack (R 4.5.1, Shiny, bslib, DT, ComptoxR 1.4.0, tidyverse) already provides all capabilities needed for v1.2 features. ComptoxR's `chemi_amos_batch()` function supports bulk DTXSID validation, DT's Buttons extension provides column visibility controls via `columnDefs`, and standard Shiny reactive patterns handle row selection and subset workflows. The pipeline already captures `preferredName` and `rank` from CompTox API responses—these just need to be surfaced in the resolution dropdown HTML.
 
 **Core technologies:**
-- **bslib 0.9.0**: Navigation framework with native `nav_show()`/`nav_hide()` functions for programmatic tab control. Provides Bootstrap 5.3.1 foundation, proper accessibility with ARIA roles, and state preservation across visibility changes.
-- **shinyjs 2.1.0**: Complements bslib for enabling/disabling UI elements within tabs. Essential for form validation (disable "Run Curation" button until tags applied) and progressive disclosure.
-- **shiny ≥1.12.1**: Core reactive framework already in use. Provides `reactiveValues()` for state management, `freezeReactiveValue()` for preventing flicker, and `observe()` patterns for tab gating.
-
-**Key insight:** The `nav_panel_hidden()` + `nav_show()` pattern is superior to alternatives because it preserves module state (unlike `nav_insert()`/`nav_remove()`), avoids div-wrapping hacks that break accessibility, and provides direct clean API designed specifically for this use case. The alternative shinymgr package is heavyweight overkill (requires SQLite, renv, shinydashboard) for single-app tab gating.
+- **ComptoxR 1.4.0** (existing): CompTox API access — `chemi_amos_batch()` function enables bulk DTXSID validation without additional packages
+- **DT with Buttons extension** (existing): Interactive tables with column visibility — `columnDefs: list(visible = FALSE)` and `colvis` button already in use, just needs configuration expansion
+- **Shiny reactiveValues pattern** (existing): State management — `input$tableId_rows_selected` provides row selection for subset workflows, no special packages needed
+- **bslib modals** (existing): UI dialogs — native `modalDialog()` and `showModal()` sufficient for re-tagging UI during error retry
 
 ### Expected Features
 
-Research identified clear table stakes vs. differentiators for multi-step workflow UIs. ChemReg's existing functionality (reactive data store, smart preview calculation) already covers several differentiators.
+The v1.2 feature landscape reveals a mix of table stakes (error row filtering, column visibility, manual identifier entry) and differentiators (smart auto-hiding of untagged columns, re-tag before retry, contextual resolution dropdowns with preferredName + rank). Research shows that bulk validation and subset retry are industry-standard patterns in data curation tools (AWS DMS, Databricks CDC pipelines) and users expect them for large datasets.
 
 **Must have (table stakes):**
-- Gated navigation enforcement (tabs appear only when prerequisites met)
-- Completion state feedback (visual indicators that step is done)
-- Clear step labels (action-oriented: "Tag Columns" not "Step 1")
-- Empty state messaging (helpful explanation why content unavailable)
-- Action button state management (disabled when prerequisites unmet)
-- Data persistence across steps (reactiveValues pattern already in place)
-- Back navigation allowed (users can revisit earlier tabs)
+- **Error row filtering** — users expect ability to focus on problems (complexity: LOW, already exists via consensus_status filter)
+- **Column visibility toggle** — universal table feature for messy multi-column data (complexity: LOW, DT colvis extension)
+- **Manual identifier entry** — standard fallback when automated matching fails (complexity: MEDIUM, requires validation API + reactive handling)
+- **Bulk validation** — avoid round-trip API calls for each manual entry (complexity: MEDIUM, CompTox Batch Search supports thousands at once)
+- **Subset retry** — industry standard for large datasets, re-run failed items without full reprocess (complexity: MEDIUM, filter → modify → re-run → merge back pattern)
 
-**Should have (competitive advantage):**
-- Step validation summary ("2 columns still need tags" before proceeding)
-- Inline help/tooltips (explain tagging options without leaving workflow)
-- Auto-save indicators (reassure users work is saved)
-- Undo/reset step (clear tags without restarting entire workflow)
-- Export at any stage (download partial results for iterative refinement)
+**Should have (differentiators):**
+- **Smart column hiding (auto-hide untagged)** — reduces cognitive load, most tools require manual toggle (complexity: LOW, single checkbox + reactive filter)
+- **Re-tag before retry** — unique workflow: fix tag assignment and retry just errors (complexity: MEDIUM, subset-only tag invalidation vs. full cascade)
+- **Contextual resolution dropdown** — show preferredName + QC level + rank, not just DTXSID (complexity: LOW-MEDIUM, data already available from pipeline)
+- **Search chain reordering** — prioritize CAS validation over starts-with fuzzy matching (complexity: LOW, reorder function calls in `run_tiered_search()`)
 
-**Defer (v2+ or different project):**
-- Real-time validation preview (live count of detected chemicals while tagging)
-- Progress persistence across sessions (resume after browser refresh)
-- Batch tagging operations ("tag all numeric columns as CASRN")
-- Custom tag types (beyond Chemical Name/CASRN/Other)
-
-**Anti-features to explicitly avoid:**
-- Next/Previous buttons instead of tabs (hides workflow structure, increases form abandonment)
-- Auto-advance to next tab (disorienting, users lose control)
-- Modal wizards (claustrophobic for data-heavy workflows)
-- Mandatory linear progression (frustrates users who want to review earlier steps)
+**Defer (v2+):**
+- **Inline editing of all cells** — scope creep, this is curation not general spreadsheet editing (complexity: HIGH, DT editable cells + validation loop)
+- **Retry with search tier override** — power user feature, defer until demand proven (complexity: HIGH, per-row search strategy parameters)
+- **Persistent preferences across sessions** — complexity not justified by value for single-file workflow (complexity: MEDIUM-HIGH, session state management across page refresh)
 
 ### Architecture Approach
 
-The recommended architecture maintains ChemReg's existing patterns while adding explicit tab gating. Three-layer separation: UI (bslib navigation), reactive state (single reactiveValues store), and business logic (pure functions). This approach prioritizes testability, state preservation, and clear data flow.
+The curation refinement features integrate cleanly into the existing pipeline architecture without requiring structural changes. The current system uses a four-stage pipeline (deduplicate → search → map → classify) that processes tagged columns through tiered CompTox API searches (exact → starts-with → CAS) and produces consensus results with resolution dropdowns for conflicts. New features either modify the pipeline order (search chain reordering), expand input scope (Other tags as searchable), or add parallel workflows that reuse pipeline components (subset retry).
 
 **Major components:**
+1. **Pipeline modifications** (R/curation.R) — reorder search tiers in `run_tiered_search()`, expand `deduplicate_tagged_columns()` to include Other tags, add `validate_dtxsid_bulk()` and `run_curation_subset()` helper functions
+2. **Resolution state updates** (app.R) — extend `output$curation_table` hidden columns logic to include untagged original columns, modify `get_resolution_options()` to format dropdown HTML with preferredName/rank/qc_tier metadata
+3. **Subset retry workflow** (app.R + R/curation.R) — new UI elements (retry button, modal dialog with tag dropdowns), new server observers for subset execution and merge-back logic using index-based replacement to preserve row order and .pinned state
 
-1. **Hidden Tabs with Reactive Gating** — Start tabs hidden using `nav_panel_hidden()`, reveal conditionally with `nav_show()` based on reactive state flags. Prevents user confusion from empty states, enforces correct workflow order, uses native bslib pattern.
-
-2. **Reactive State Store with Workflow Flags** — Single `reactiveValues()` object as central state store (already exists as `data_store`). Add `tabs_unlocked` tracking to prevent redundant `nav_show()` calls, use explicit status enums ("idle", "running", "complete") over scattered boolean flags.
-
-3. **Separation of Business Logic from Reactivity** — Keep pure functions (curation API calls, validation) in R/curation.R, called from reactive observers. This makes functions testable without Shiny session, reusable across contexts, and easier to refactor.
-
-4. **Conditional UI with `conditionalPanel`** — Use for fine-grained control within tabs (show/hide elements based on state), not for tab-level control. Provides smooth browser-side animations without server round-trips for simple show/hide logic.
-
-**Data flow:** File Upload → Detection → Clean Data → Tag Columns → [nav_show("run_curation")] → Run Curation → [nav_show("review_results")] → Review Results → Export. State flows through central `data_store` reactiveValues, with observers triggering tab visibility changes at workflow milestones.
+**Key integration patterns:**
+- **Function composition**: Subset retry reuses existing pipeline functions (deduplicate → search → map → classify) on filtered data
+- **Reactive data store extensions**: Add `selected_rows` and `subset_tags` to reactiveValues for retry workflow state
+- **Progressive disclosure**: Show manual entry and retry UI only when appropriate rows selected (error rows for manual entry, selected rows for retry)
 
 ### Critical Pitfalls
 
-Research identified six critical pitfalls, all preventable through patterns established during Phase 1 foundation work.
+Research identified six critical pitfalls across the feature set, with clear prevention strategies documented:
 
-1. **Tab Initialization Timing Race Conditions** — Tabs briefly visible before server-side `hideTab()` executes, allowing users to click gated tabs during startup. **Prevention:** Use `nav_panel_hidden()` from the start instead of showing then hiding. Eliminates the visibility window entirely.
+1. **DT Column Index Drift After Hiding Columns** — When hiding columns via `columnDefs: list(visible = FALSE)`, JS callbacks using `data-row` attributes for R-side row indices (1-based) can misalign if mixing with DT column indices (0-based, visible only). Prevention: Always use R-side row indices in `data-row` attributes, never mix with DT column indices in callbacks, test with 0/1/10+ hidden columns scenarios.
 
-2. **Reactive State Flicker During Input Updates** — Outputs briefly show stale data when switching tabs because `updateTabsetPanel()` takes effect after observer flush cycle. **Prevention:** ALWAYS use `freezeReactiveValue(input, "field_name")` before any `update*()` call. This prevents downstream reactives from seeing old values during transition.
+2. **Starts-With Search Precision Collapse** — Moving starts-with to last-resort position (exact → CAS → starts-with) may degrade match quality because starts-with returns ALL prefix matches with no relevance filtering. For short queries like "Acet" or "Prop", this produces 100+ matches and `slice_min(rank, n=1)` arbitrarily picks top-ranked, which may not be user's intended chemical. Prevention: Run empirical validation on sample datasets with both tier orders, add length-based filtering (only use starts-with for queries 6+ characters), log tier attribution to audit match quality.
 
-3. **Infinite Reactive Loops with Gated Navigation** — Observer watches reactive value while also modifying it, creating feedback loop. **Prevention:** Use `isolate()` to read values without creating dependencies, prefer `observeEvent()` over `observe()` for explicit triggers, separate "trigger" reactives from "state storage" reactives.
+3. **Consensus Algorithm Breaks with Three Column Types** — The consensus logic assumes all dtxsid_* columns are semantically equivalent (Name or CASRN tags). When "Other" columns become curation participants, you have three tag types with different reliability levels, but consensus counts them equally. A 2-name + 1-CAS agreement gets the same QC tier as 3-name agreement, even though CAS is more reliable. Prevention: Decide Other's consensus role (vote equally vs. reduced weight vs. observe-only), update `find_dtxsid_cols` with tag awareness, revise QC tier calculation to be tag-type aware.
 
-4. **Lost Reactive State When Switching Tabs** — State stored only in UI outputs or temporary reactives is lost when tabs become invisible. **Prevention:** Store ALL workflow state in `reactiveValues()` or `reactiveVal()` objects, never rely on input values alone for state, prefer static UI with conditional visibility over `renderUI()`.
+4. **Retry Merge Loses Resolution State** — Using `left_join()` to merge retried subset back into original data creates duplicated columns (dtxsid_Name.x, dtxsid_Name.y) and loses .pinned state or row order. Prevention: Use row index-based replacement `original[indices, cols] <- retried[match(...), cols]` instead of join, preserve .pinned explicitly before merge, validate row count invariant (nrow unchanged).
 
-5. **Wrong Tab ID References with nav_show/nav_hide** — Functions fail silently because developers confuse container id vs. tab value. The API requires `nav_show(id = "container_id", target = "tab_value")` where id is the navset container and target is the specific tab. **Prevention:** Document tab structure clearly, set explicit `id` on navset and `value` on each nav_panel, test interactively before embedding in observers.
+5. **Manual DTXSID Entry Bypasses Validation** — Manual entry creates a new path that bypasses the pipeline's guaranteed API-validated IDs. Invalid DTXSIDs (typos, wrong format, non-existent) flow into consensus_dtxsid, breaking downstream assumptions. Prevention: Validate via `ComptoxR::ct_get_dtxsid_details()` before storing, batch validation for bulk paste, store `consensus_source = "manual"` and `manual_validated = TRUE/FALSE` columns, provide instant feedback with green checkmark/red X.
 
-6. **Observer Execution on Hidden Tab Content** — Observers and reactives in hidden tabs continue executing even when not visible, wasting resources and potentially triggering unwanted side effects. **Prevention:** Use `req(input$main_tabs == "target_tab")` at start of tab-specific observers, scope expensive operations inside outputs (which auto-suspend), use `bindEvent()` to control when reactives execute.
+6. **Hidden Column Filter Breaks DT Filtering** — DT's `filter = "top"` generates filter inputs for ALL columns including hidden ones. Invisible filters accumulate state (browser autocomplete, user typing before hiding), causing mysterious empty table states. Prevention: Remove hidden columns from display_df before passing to datatable(), or disable filtering on hidden columns via `searchable: FALSE` in columnDefs.
 
 ## Implications for Roadmap
 
-Based on research, the work naturally divides into three sequential phases following the architecture's recommended build order. Each phase builds on stable foundations, minimizing rework and ensuring validation at each step.
+Based on research, suggested phase structure prioritizes foundational accuracy improvements, then UI polish, then advanced workflows:
 
-### Phase 1: Extract UI and Implement Foundation (1-2 hours)
+### Phase 1: Search Chain Foundations
+**Rationale:** Lowest risk, highest immediate value. Improves data quality without introducing new UI complexity or merge-back workflows. Search chain reordering (exact → CAS → starts-with) prioritizes specific identifiers over fuzzy matching, and enabling Other tags expands curation coverage. Both are self-contained backend changes with no new state management.
 
-**Rationale:** Separate the monolithic "Curation" tab into three independent tabs while establishing proper state management patterns. This creates stable foundation before adding gating behavior. Architecture research shows this "safe refactor" approach prevents breaking existing functionality while restructuring.
+**Delivers:** More accurate chemical matching via CAS-prioritized search tier order, full curation participation for "Other" tagged columns
 
-**Delivers:**
-- Three separate top-level tabs (Tag Columns, Run Curation, Review Results) replacing stacked cards
-- `tabs_unlocked` tracking added to `data_store` reactiveValues
-- All tabs visible initially (gating comes in Phase 2)
-- Full-width layouts using available space (cards removed)
-- Existing functionality preserved (tagging, curation, download)
+**Addresses:**
+- Search chain reordering (FEATURES.md: differentiator, code change only)
+- "Other" tag as full curation participant (FEATURES.md: differentiator, code change only)
 
-**Addresses features:**
-- Clear step labels (table stakes)
-- Full-width responsive layouts (table stakes)
-- Data persistence across steps (table stakes, already present)
+**Avoids:**
+- Starts-With Search Precision Collapse (PITFALLS.md #2): Empirical validation on sample datasets before deployment
+- Consensus Algorithm Breaks with Three Column Types (PITFALLS.md #3): Decide Other's consensus role and update logic before enabling Other search
 
-**Avoids pitfalls:**
-- Lost reactive state (by establishing reactiveValues pattern from start)
-- Wrong tab ID references (by documenting structure and setting explicit ids)
-- Business logic in observers (by maintaining separation from existing R/curation.R)
+**Research flag:** NEEDS empirical validation — test tier order (exact → CAS → starts vs. exact → starts → CAS) on 100-row sample dataset with known ground truth. Compare consensus_status distribution (agree/disagree/error percentages) to choose optimal order.
 
-**Research flags:** Standard refactoring, no additional research needed. Architecture patterns are well-documented in bslib reference.
+### Phase 2: UI Refinements (Column Visibility)
+**Rationale:** Medium complexity, high polish value. Reduces cognitive load for users reviewing messy chemical data with 20+ original columns. Standard DT configuration change with no backend modifications. Establishes clean UI foundation before adding manual entry and retry workflows.
 
-### Phase 2: Implement Tab Gating Logic (1 hour)
+**Delivers:** Automatically hide untagged columns in Review Results table, user toggle to show/hide via colvis button
 
-**Rationale:** Add conditional tab visibility now that structure is stable. Starting tabs hidden prevents initialization race conditions (Pitfall #1). Using `nav_panel_hidden()` + `nav_show()` provides clean API without timing hacks.
+**Addresses:**
+- Smart column hiding (FEATURES.md: differentiator, LOW complexity)
+- Column visibility toggle (FEATURES.md: table stakes, LOW complexity)
 
-**Delivers:**
-- Tab 2 (Run Curation) starts hidden, revealed when tags applied
-- Tab 3 (Review Results) starts hidden, revealed when curation completes
-- User notifications guide workflow ("Tags applied! Proceed to Run Curation.")
-- `freezeReactiveValue()` used on all programmatic updates
-- State validation before showing tabs
+**Avoids:**
+- DT Column Index Drift (PITFALLS.md #1): Test resolution dropdown with 0, 1, 10+ hidden columns to verify data-row attribute correctness
+- Hidden Column Filter Breaks DT Filtering (PITFALLS.md #6): Disable filtering on hidden columns via `searchable: FALSE` or remove from display_df
 
-**Addresses features:**
-- Gated navigation enforcement (table stakes)
-- Completion state feedback (table stakes)
-- Empty state messaging (table stakes)
-- Action button state management (table stakes)
+**Research flag:** STANDARD pattern — DT columnDefs well-documented, skip research-phase. Follow existing implementation in app.R lines 1413-1437.
 
-**Avoids pitfalls:**
-- Tab initialization race conditions (using nav_panel_hidden from start)
-- Reactive flicker (using freezeReactiveValue on updates)
-- Infinite loops (using observeEvent with explicit triggers)
-- Observer waste (adding req() guards for tab-specific logic)
+### Phase 3: Manual DTXSID Entry with Validation
+**Rationale:** Highest table-stakes priority from FEATURES.md. Enables users to fix errors that API can't resolve (chemicals not in CompTox, ambiguous names). Single-direction workflow (user → validation → update) is simpler than bidirectional retry with merge-back. Establishes validation patterns before subset retry complexity.
 
-**Uses stack:**
-- bslib `nav_panel_hidden()`, `nav_show()`
-- shinyjs `disable()`/`enable()` for button states
-- Shiny `freezeReactiveValue()`, `observeEvent()`, `req()`
+**Delivers:** Modal dialog for manual DTXSID entry on selected error rows, bulk validation via ComptoxR, preview of proposed changes before commit
 
-**Research flags:** Standard gating pattern, no additional research needed. Stack research verified all functions available and documented implementation.
+**Addresses:**
+- Manual DTXSID entry (FEATURES.md: table stakes, MEDIUM complexity)
+- Bulk validation (FEATURES.md: table stakes, MEDIUM complexity)
+- Validation preview (FEATURES.md: differentiator, MEDIUM complexity)
 
-### Phase 3: UI Polish and Enhancements (1-2 hours)
+**Avoids:**
+- Manual DTXSID Entry Bypasses Validation (PITFALLS.md #5): Implement validation API call before storing, batch validation for bulk paste, instant feedback UI
 
-**Rationale:** With core gating working, use freed-up space for better layouts and add user-facing polish. Features research identified step validation summary and inline help as high-value, medium-complexity additions.
+**Research flag:** STANDARD pattern — modal dialogs + API validation well-documented in Shiny ecosystem. Follow existing `showModal()` usage in codebase.
 
-**Delivers:**
-- Validation summary ("2 columns still need tags" guidance)
-- Layout improvements using bslib `layout_columns()` and `value_box()`
-- Inline help tooltips explaining tag types
-- Auto-save indicators (timestamp after tag changes)
-- Visual completion indicators (checkmarks or status badges)
-- Whitespace and typography improvements
+### Phase 4: Error Row Retry with Re-tagging
+**Rationale:** Most complex feature, requires subset pipeline + merge logic + modal UX. Builds on validation patterns from Phase 3 (modal dialog, bulk operations). Delivers high value for users who mis-tagged columns initially—retry just errors without full reprocess. Should come last to avoid risking earlier phases with merge-back complexity.
 
-**Addresses features:**
-- Step validation summary (differentiator)
-- Inline help/tooltips (differentiator)
-- Auto-save indicators (differentiator)
-- Visual progress indicator (table stakes)
+**Delivers:** Subset retry workflow (filter error rows → re-tag in modal → re-curate subset → merge back), preserves row order and .pinned state
 
-**Implements architecture:**
-- `conditionalPanel()` for within-tab show/hide
-- `bslib::tooltip()` for inline help
-- `value_box()` for summary statistics in Review Results
+**Addresses:**
+- Subset retry (FEATURES.md: table stakes, MEDIUM complexity)
+- Re-tag before retry (FEATURES.md: differentiator, MEDIUM complexity)
 
-**Research flags:** Standard UI patterns, no additional research needed. Features research provided clear implementation guidance for tooltips and validation summaries.
+**Avoids:**
+- Retry Merge Loses Resolution State (PITFALLS.md #4): Use index-based replacement not join, preserve .pinned explicitly, validate row count invariant
+- Redundant consensus classification (PITFALLS.md performance trap): Only classify retried rows, replace in original without re-classifying all
 
-### Phase 4: Testing and Documentation (Optional - 1 hour)
+**Research flag:** NEEDS careful testing — merge-back logic requires thorough unit tests for row order preservation, .pinned state, column count validation. Test scenarios: retry with same tags, retry with new tag added, retry with tag removed.
 
-**Rationale:** Validate all tab gating edge cases and document new workflow patterns. Pitfalls research identified specific failure modes to test.
+### Phase 5: Contextual Resolution Dropdown
+**Rationale:** Final polish feature. Data (preferredName, rank, qc_tier) already exists in resolution_state, just needs HTML formatting change in `get_resolution_options()`. Low risk, high UX value. Should come after retry workflow to avoid complicating testing (retry + new dropdown format = two variables changing).
 
-**Delivers:**
-- Test: Tab visibility changes correctly based on prerequisites
-- Test: State persists across all tab navigation sequences
-- Test: No flicker when switching tabs or updating inputs
-- Test: Observers don't fire for hidden tabs unnecessarily
-- Documentation: Tab structure (container ids, panel values)
-- Documentation: State management patterns (tabs_unlocked usage)
+**Delivers:** Resolution dropdown shows "DTXSID - PreferredName (Rank X, QC Tier)" instead of raw DTXSID
 
-**Avoids pitfalls:**
-- Security bypass (verify server-side guards prevent premature access)
-- UX feedback gaps (verify all gated states have clear messaging)
+**Addresses:**
+- Contextual resolution dropdown (FEATURES.md: differentiator, LOW-MEDIUM complexity)
 
-**Research flags:** No additional research needed. Pitfalls research provided comprehensive testing checklist.
+**Avoids:**
+- No major pitfalls—straightforward HTML string concatenation
+
+**Research flag:** STANDARD pattern — HTML formatting in Shiny, skip research-phase. Follow existing `get_resolution_options()` pattern in app.R lines 1383-1409.
 
 ### Phase Ordering Rationale
 
-**Sequential dependencies:**
-1. Phase 1 establishes structure → Phase 2 requires stable tab structure to add gating
-2. Phase 2 implements gating → Phase 3 requires working gating to polish UX
-3. Phase 3 adds polish → Phase 4 validates complete system
+- **Phase 1 → 2**: Search reordering and Other tag enablement should stabilize before UI changes (both affect consensus results, want stable data before adding column hiding)
+- **Phase 2 → 3**: Column hiding polish before manual entry reduces visual clutter for error resolution workflow
+- **Phase 3 → 4**: Manual entry establishes validation patterns (modal dialog, bulk API calls) before subset retry complexity
+- **Phase 4 → 5**: Retry workflow should work with existing dropdown format before adding richer context (reduces test matrix: retry + old dropdown, then add new dropdown)
 
-**Why this prevents rework:**
-- Extracting UI first (Phase 1) proves structure works before changing behavior
-- Implementing gating second (Phase 2) validates pattern before adding complexity
-- Polishing last (Phase 3) avoids redoing layouts if gating requires structural changes
-
-**Architecture alignment:**
-- Follows architecture's recommended "Extract UI → Implement Gating → Polish" order
-- Each phase has clear validation criteria before proceeding
-- No parallel work possible (each phase depends on previous completion)
+**Dependency chain discovered:**
+- Search tier order affects consensus distribution → affects which rows need manual entry/retry → affects UX priorities
+- Other tag participation affects consensus algorithm → must resolve voting semantics before enabling search
+- Column hiding affects visible columns → must not break resolution dropdown indices (PITFALLS #1)
+- Subset retry merge strategy → must preserve .pinned state from manual entry (Phase 3 creates pinned rows, Phase 4 must preserve them)
 
 ### Research Flags
 
-**Phases with standard patterns (skip research-phase):**
-- **Phase 1**: UI extraction is standard refactoring, bslib nav patterns well-documented
-- **Phase 2**: Tab gating is standard bslib pattern with official examples
-- **Phase 3**: UI polish uses standard bslib components (layout_columns, value_box, tooltip)
-- **Phase 4**: Testing follows standard Shiny testing patterns
+**Phases needing deeper research during planning:**
+- **Phase 1 (Search Foundations)**: Empirical tier order validation — run curation on 100-row sample with both orders, compare match quality metrics (precision, recall, consensus rate)
+- **Phase 1 (Other Tag)**: Consensus semantics decision — document whether Other columns vote equally, vote reduced, or observe-only; update consensus logic accordingly
+- **Phase 4 (Error Retry)**: Merge-back testing — create comprehensive test suite for index-based replacement: same-tag retry, new-tag addition, tag removal, row order preservation, .pinned state preservation
 
-**No phases require deeper research.** All patterns are well-documented in official bslib/Shiny documentation, verified via Context7 and official reference materials.
+**Phases with standard patterns (skip research-phase):**
+- **Phase 2 (Column Visibility)**: DT columnDefs well-documented, existing implementation in codebase to follow
+- **Phase 3 (Manual Entry)**: Modal dialogs and API validation standard Shiny patterns, follow existing `showModal()` usage
+- **Phase 5 (Dropdown Context)**: HTML formatting in Shiny, straightforward extension of existing `get_resolution_options()` function
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All recommendations verified via Context7 bslib documentation and official RStudio docs. Versions confirmed in CRAN. All dependencies already installed. |
-| Features | HIGH | Table stakes identified from multiple UX research sources (NN/g, WAI guidance, form best practices). Differentiators validated against community Shiny patterns. Anti-features confirmed via usability research. |
-| Architecture | HIGH | Patterns verified in official bslib documentation with working examples. Build order validated against Posit Community discussions. Reactive patterns standard Shiny best practices. |
-| Pitfalls | HIGH | All six critical pitfalls documented in official Shiny/bslib sources or GitHub issues. Prevention strategies tested in community. Recovery costs validated through engineering-shiny resources. |
+| Stack | HIGH | All required capabilities verified in existing codebase (ComptoxR `chemi_amos_batch()`, DT Buttons extension, Shiny reactive row selection). Zero new dependencies confirmed via function signature inspection and package documentation. |
+| Features | HIGH | Table stakes and differentiators validated against industry patterns (AWS DMS, Databricks CDC for subset retry; DataTables, MUI for column visibility). FEATURES.md correctly identifies bulk validation and manual entry as expected, re-tagging as unique differentiator. |
+| Architecture | HIGH | Integration points clearly defined via codebase analysis (app.R 1,719 lines, R/curation.R 624 lines, R/consensus.R 229 lines). All new features map to existing patterns (function composition for subset retry, reactive store extensions, progressive disclosure). |
+| Pitfalls | MEDIUM-HIGH | Critical pitfalls identified via codebase inspection (column index drift, consensus voting) and official documentation (CompTox search behavior, DT filter state). Starts-with precision collapse is MEDIUM confidence—requires empirical validation. Recovery strategies documented with cost estimates. |
 
-**Overall confidence:** HIGH
-
-All core recommendations come from official documentation (bslib reference, Shiny guides) or well-established community consensus (Mastering Shiny, Engineering Production-Grade Shiny Apps). No experimental techniques or unproven patterns. The recommended approach (`nav_panel_hidden` + `nav_show`) is explicitly designed for this use case per bslib 0.8.0+ documentation.
+**Overall confidence:** HIGH — All v1.2 features implementable with existing stack and standard patterns. Main uncertainty is empirical tier order validation (needs real data testing) and Other tag consensus semantics (needs product decision, not research).
 
 ### Gaps to Address
 
-**Minor gaps requiring validation during implementation:**
+**Search tier order optimization:**
+- **Gap**: No empirical data on match quality for exact → CAS → starts vs. exact → starts → CAS
+- **How to handle**: During Phase 1 planning, run curation on 100-row sample dataset (50 exact matches, 30 CAS-only, 20 typos) with both orders. Compare consensus_status distribution. Choose order that maximizes agree rate while minimizing false positives.
+- **Validation needed**: Test with short queries (2-3 letters like "Pb", "Hg") vs. long queries (8+ letters) to ensure starts-with filtering works across query length spectrum
 
-1. **Performance with large datasets:** Research covered general patterns but didn't quantify thresholds. Validate with actual ChemReg data sizes (number of columns to tag, size of curation results). Likely non-issue given DT already handles large tables well, but worth profiling in Phase 3.
+**Other tag consensus voting semantics:**
+- **Gap**: No product decision on whether Other columns should vote equally with Name/CASRN, vote reduced weight, or observe-only
+- **How to handle**: During Phase 1 planning, document decision in ARCHITECTURE.md based on user intent for Other tag (if Other = supplier codes/batch IDs, should be observe-only; if Other = alternate names, should vote equally)
+- **Implementation**: Update `classify_consensus()` with tag-aware logic before enabling Other search—test scenarios: 1 Name + 1 CAS + 1 Other all agree; 1 Name + 1 Other agree, CAS NA; 2 Other + 1 Name
 
-2. **CompTox API integration specifics:** Stack research verified ComptoxR package exists and uses ctx_api_key environment variable. Didn't deep-dive on rate limiting behavior or error handling patterns. Validate error states during Phase 2 implementation (what happens if API key invalid, rate limit hit, network timeout). Existing code likely handles this, but document explicitly.
-
-3. **Mobile/tablet responsiveness:** Features research noted tabs are desktop-focused pattern. Current app uses bslib which is responsive by default, but didn't validate tab switching UX on mobile specifically. Test on tablet during Phase 3 polish if mobile users are expected. Defer mobile optimization to v2 if not critical.
-
-**How to handle:**
-- Performance: Profile with `profvis` during Phase 3, add `req()` guards if render times >500ms
-- API integration: Test error states manually during Phase 2, add explicit error notifications
-- Mobile: Test on tablet if users expected, otherwise document as known limitation
-
-**No gaps that block implementation.** All core patterns validated and ready to implement.
+**Retry merge-back edge cases:**
+- **Gap**: No test coverage for subset retry with new tag addition (adds new dtxsid_* columns to resolution_state)
+- **How to handle**: During Phase 4 planning, create comprehensive unit tests for merge_subset_results() function: (1) same-tag retry preserves column count, (2) new-tag retry adds columns without .x/.y suffixes, (3) tag-removal retry removes columns, (4) all scenarios preserve row order and .pinned state
+- **Validation needed**: Test with edge case: retry 3 error rows, user adds "Other" tag to one column → verify dtxsid_Other column appears for retried rows, NA for non-retried rows
 
 ## Sources
 
 ### Primary (HIGH confidence)
 
-**Official Documentation:**
-- [bslib Navigation Containers Reference](https://rstudio.github.io/bslib/reference/navset.html) — navset functions, nav_panel_hidden usage
-- [bslib Dynamically Update Nav Containers](https://rstudio.github.io/bslib/reference/nav_select.html) — nav_show, nav_hide, nav_select, nav_insert, nav_remove
-- [bslib Navigation Items Reference](https://rstudio.github.io/bslib/reference/nav-items.html) — nav_panel, nav_menu, nav_panel_hidden
-- [Context7 /rstudio/bslib](https://context7.com/rstudio/bslib) — Programmatic tab control examples, nav_show/nav_hide patterns
-- [Context7 /daattali/shinyjs](https://context7.com/rstudio/shinyjs) — enable, disable, toggleState, show, hide functions
-- [Shiny freezeReactiveValue](https://shiny.posit.co/r/reference/shiny/1.7.0/freezereactivevalue.html) — Preventing reactive flicker
-- [Shiny hideTab/showTab](https://shiny.posit.co/r/reference/shiny/latest/showtab.html) — Legacy tab control functions
+**Existing Codebase (verified via source inspection):**
+- `app.R` (1,719 lines) — DT table rendering (lines 1370-1484), resolution dropdown HTML (lines 1383-1409), hidden columns via columnDefs (line 1437), current .pinned state handling
+- `R/curation.R` (624 lines) — `run_tiered_search()` tier order (lines 274-363), `deduplicate_tagged_columns()` tag filtering (lines 16-58), preferredName/rank capture (lines 67-101, 393)
+- `R/consensus.R` (229 lines) — `classify_consensus()` logic (lines 25-40), `find_dtxsid_cols()` pattern matching (line 53), QC tier calculation (line 31)
 
-**CRAN Package Pages:**
-- [bslib CRAN Package](https://cran.r-project.org/package=bslib) — Version 0.9.0, January 30, 2025
-- [shinyjs CRAN Package](https://cran.r-project.org/web/packages/shinyjs/index.html) — Version 2.1.0, January 15, 2026
+**Official Documentation:**
+- [ComptoxR GitHub Repository](https://github.com/seanthimons/ComptoxR) — `chemi_amos_batch(dtxsids = ...)` function signature verified via `args()`, bulk DTXSID validation capability confirmed
+- [DT Package Documentation - Extensions](https://rstudio.github.io/DT/extensions.html) — Buttons extension with colvis support, column visibility API via columnDefs
+- [DT Shiny Documentation - Row Selection](https://rstudio.github.io/DT/shiny.html) — `input$tableId_rows_selected` usage for subset workflows
+- [US EPA CompTox Dashboard - Batch Search](https://www.epa.gov/comptox-tools/chemicals-dashboard-help-batch-search) — Batch search supports exact matches, bulk validation for DTXSIDs/CASRNs
+- [US EPA CompTox Dashboard - Basic Search](https://www.epa.gov/comptox-tools/chemicals-dashboard-help-basic-search) — Exact vs. substring search behavior, starts-with returns all prefix matches
 
 ### Secondary (MEDIUM confidence)
 
-**Community Best Practices:**
-- [Posit Community: Dynamically show/hide panels](https://forum.posit.co/t/bslib-page-navbar-dynamically-show-hide-panels/207882) — nav_show/hide vs. nav_insert/remove tradeoffs
-- [Mastering Shiny: Reactive Building Blocks](https://mastering-shiny.org/reactivity-objects.html) — reactiveValues patterns
-- [Mastering Shiny: Dynamic UI](https://mastering-shiny.org/action-dynamic.html) — conditional UI patterns
-- [Engineering Production-Grade Shiny Apps: Common Caveats](https://engineering-shiny.org/common-app-caveats.html) — Pitfall identification
-- [Dean Attali: Advanced Shiny Tips](https://deanattali.com/blog/advanced-shiny-tips/) — Best practices
+**Industry Patterns and Best Practices:**
+- [AWS DMS Data Validation](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Validating.html) — Subset retry patterns for ETL pipelines, idempotent merge via unique key validation
+- [Databricks Blog - Late Arriving Dimensions](https://www.databricks.com/blog/2020/12/15/handling-late-arriving-dimensions-using-a-reconciliation-pattern.html) — Retry and merge-back patterns for CDC pipelines
+- [Data Validation in ETL - Integrate.io](https://www.integrate.io/blog/data-validation-etl/) — Bulk validation patterns, error recovery workflows
+- [Bulk Action UX Guidelines - Eleken](https://www.eleken.co/blog-posts/bulk-actions-ux) — UI patterns for multi-row selection, bulk operations feedback
+- [DataTables Column Visibility Examples](https://datatables.net/examples/api/show_hide.html) — Official examples for columnDefs and colvis button configuration
 
-**UX Research:**
-- [Nielsen Norman Group: Wizards](https://www.nngroup.com/articles/wizards/) — Multi-step flow design
-- [WebStacks: Multi-Step Form Best Practices](https://www.webstacks.com/blog/multi-step-form) — 3-7 steps optimal, progress indicators
-- [Progress Indicator Design](https://lollypop.design/blog/2025/november/progress-indicator-design/) — Stepper patterns
-- [WAI: Progress Trackers](https://userguiding.com/blog/progress-trackers-and-indicators) — Accessibility guidance
+**UI Framework Documentation:**
+- [DT GitHub Issue #153 - Column Visibility](https://github.com/rstudio/DT/issues/153) — Community patterns for hiding columns, pitfall discussions on filter state
+- [MUI X Data Grid - Column Visibility](https://mui.com/x/react-data-grid/column-visibility/) — Priority-based defaults, user override patterns
+- [Mastering Shiny - Reactivity Objects](https://mastering-shiny.org/reactivity-objects.html) — Reference semantics of reactiveValues, state preservation patterns
 
-**GitHub Issues:**
-- [shinyjs #43: Tab Hiding Timing](https://github.com/daattali/shinyjs/issues/43) — Initialization race conditions
-- [Shiny #2865: Request to freeze observers on input updates](https://github.com/rstudio/shiny/issues/2865) — freezeReactiveValue background
+### Tertiary (LOW confidence - needs validation)
 
-### Tertiary (LOW confidence, not used for core recommendations)
+**Search Strategy Tradeoffs:**
+- [Enabling High-Throughput Searches - PMC](https://pmc.ncbi.nlm.nih.gov/articles/PMC8630643/) — CompTox current search limitations, future fuzzy matching plans (confirms starts-with has no relevance scoring, supports precision collapse concern)
+- [Sourcing Chemical Data from CompTox - ScienceDirect](https://www.sciencedirect.com/science/article/pii/S0160412021001914) — Identifier search exact match requirement, spelling issues (confirms tier order affects match quality, needs empirical validation)
 
-- [shinymgr Academic Publication](https://journal.r-project.org/articles/RJ-2024-009/) — Alternative framework (rejected as overkill)
-- [Shiny Loading Skeleton GitHub](https://github.com/nanxstats/shiny-loading-skeleton) — Community template (deferred to v2+)
+**Join and Merge Behavior:**
+- [dplyr Mutating Joins Documentation](https://dplyr.tidyverse.org/reference/mutate-joins.html) — Official join documentation (confirms join doesn't preserve attributes like .pinned, validates anti-pattern concern)
+- [How to Merge Data in R - InfoWorld](https://www.infoworld.com/article/2264570/how-to-merge-data-in-r-using-r-merge-dplyr-or-datatable.html) — Join mechanics and attribute preservation (no guarantees for custom attributes)
 
 ---
-*Research completed: 2026-02-26*
+
+*Research completed: 2026-03-01*
 *Ready for roadmap: yes*
+*Phase count estimate: 5 phases*
+*Research flags: 3 needs-validation items, 3 standard-pattern items*
