@@ -460,7 +460,7 @@ run_curation_pipeline <- function(clean_data, column_tags, progress_callback = N
   # Stage 1: Deduplication
   dedup_result <- deduplicate_tagged_columns(clean_data, column_tags)
 
-  n_other <- sum(tag_map == "Other")
+  n_other <- sum(column_tags == "Other")
   dedup_msg <- sprintf(
     "Deduplicated: %d unique names (including %d Other columns), %d unique CAS",
     length(dedup_result$unique_names),
