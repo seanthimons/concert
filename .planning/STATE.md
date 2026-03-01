@@ -1,5 +1,18 @@
 ---
 gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: Curation Process Update
+status: unknown
+last_updated: "2026-03-01T17:05:54.739Z"
+progress:
+  total_phases: 3
+  completed_phases: 3
+  total_plans: 6
+  completed_plans: 6
+---
+
+---
+gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Curation Process Update
 status: complete
@@ -17,15 +30,15 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-03-01)
 
-**Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, tag, curate, export.
-**Current focus:** v1.1 milestone complete — all phases shipped
+**Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, tag, curate, resolve, export.
+**Current focus:** v1.1 shipped — planning next milestone
 
 ## Current Position
 
 Phase: 5 of 5 (Shiny Integration) — COMPLETE
 Plan: All plans complete
-Status: Milestone v1.1 complete
-Last activity: 2026-03-01 — Phase 5 executed and verified
+Status: Milestone v1.1 archived — ready for next milestone
+Last activity: 2026-03-01 — v1.1 milestone archived and tagged
 
 Progress: [████████████████████] 100% (6/6 plans across 3 phases)
 
