@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Curation Process Update
 status: unknown
-last_updated: "2026-03-01T04:59:46.994Z"
+last_updated: "2026-03-01T05:06:25.790Z"
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 ---
@@ -60,6 +60,7 @@ Progress: [██░░░░░░░░] 0% (0/3 phases)
 
 *Updated after each plan completion*
 | Phase 05 P01 | 257 | 2 tasks | 2 files |
+| Phase 05 P02 | 170 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,9 @@ Recent decisions affecting current work:
 - [Phase 05]: Migrate pipeline functions into R/curation.R instead of sourcing R/prototype_pipeline.R (self-contained module)
 - [Phase 05]: Use Shiny withProgress() for pipeline stage tracking (built-in UX with incremental updates)
 - [Phase 05]: Generate backward-compatible curation_report from new pipeline summaries (keeps existing Review tab working)
+- [Phase 05]: Use DT escape=FALSE with HTML select elements for per-row resolution dropdown (inline UX, JS callback)
+- [Phase 05]: Dynamic observeEvent generation for priority up/down buttons (handles variable-length priority_order)
+- [Phase 05]: Export resolution_state directly with all audit columns (full trail for Excel analysis)
 
 ### Pending Todos
 

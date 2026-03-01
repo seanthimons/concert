@@ -35,7 +35,7 @@ Requirements for Curation Process Update milestone. Each maps to roadmap phases.
 
 - [x] **INTG-01**: Prototype pipeline orchestration logic integrated into R/curation.R (dedup → call CompToxR directly → heal misses → consensus)
 - [x] **INTG-02**: Shiny app wires new curation pipeline into Run Curation tab with reactive execution
-- [ ] **INTG-03**: Review Results tab displays consensus status and resolution controls (per-row and en masse selection)
+- [x] **INTG-03**: Review Results tab displays consensus status and resolution controls (per-row and en masse selection)
 
 ## v2 Requirements
 
@@ -82,7 +82,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONS-04 | Phase 4 | Complete |
 | INTG-01 | Phase 5 | Complete |
 | INTG-02 | Phase 5 | Complete |
-| INTG-03 | Phase 5 | Pending |
+| INTG-03 | Phase 5 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 15 total
