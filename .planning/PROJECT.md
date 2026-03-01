@@ -31,12 +31,16 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ### Active
 
-- [ ] Deduplication of tagged column values before API calls
-- [ ] Tiered curation search (exact → starts-with → contains) via CompToxR
-- [ ] Healing workflow for unmatched chemicals (escalating search strategies)
-- [ ] DTXSID-based consensus across tagged columns per row
-- [ ] User resolution UI for disagreements (per-row or en masse column preference)
-- [ ] Standalone prototype script before Shiny integration
+(No active requirements — v1.1 milestone complete)
+
+### Validated (v1.1)
+
+- ✓ Deduplication of tagged column values before API calls — Phase 3
+- ✓ Tiered curation search (exact → starts-with) via CompToxR — Phase 3
+- ✓ Healing workflow for unmatched chemicals (escalating search strategies) — Phase 3
+- ✓ DTXSID-based consensus across tagged columns per row — Phase 4
+- ✓ User resolution UI for disagreements (per-row or en masse column preference) — Phase 5
+- ✓ Standalone prototype script before Shiny integration — Phase 3
 
 ## Current Milestone: v1.1 Curation Process Update
 
@@ -101,9 +105,12 @@ Key files:
 | nav_panel + session$onFlushed hide over nav_panel_hidden | nav_panel_hidden lacks title param; startup hide preserves titles | ✓ Good |
 | Cascade reset on tag changes | Strict invalidation prevents stale curation results | ✓ Good |
 | Confirmation modal on re-upload | Prevents accidental data loss; easyClose=FALSE forces explicit choice | ✓ Good |
-| Prototype script before Shiny integration | Prove pipeline logic works in isolation before wiring into reactive app | — Pending |
-| Tiered search (equal → starts-with → contains) | Maximizes match rate while keeping exact matches highest confidence | — Pending |
-| DTXSID as consensus key | Universal identifier from CompTox; most reliable cross-column comparison | — Pending |
+| Prototype script before Shiny integration | Prove pipeline logic works in isolation before wiring into reactive app | ✓ Good — Phase 3 |
+| Tiered search (equal → starts-with) | Maximizes match rate while keeping exact matches highest confidence | ✓ Good — Phase 3 |
+| DTXSID as consensus key | Universal identifier from CompTox; most reliable cross-column comparison | ✓ Good — Phase 4 |
+| Migrate pipeline into R/curation.R | Self-contained module, prototype kept as historical reference | ✓ Good — Phase 5 |
+| withProgress() for pipeline UX | Built-in Shiny progress with per-tier callbacks | ✓ Good — Phase 5 |
+| DT inline select for resolution | escape=FALSE + JS callback for immediate resolution UX | ✓ Good — Phase 5 |
 
 ---
-*Last updated: 2026-02-27 after v1.1 milestone start*
+*Last updated: 2026-03-01 after Phase 5 (v1.1 milestone complete)*
