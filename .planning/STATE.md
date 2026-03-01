@@ -62,7 +62,8 @@ Key decisions from v1.1 milestone:
 
 ### Pending Todos
 
-None — v1.1 milestone complete.
+1. Revisit Review Results table column visibility (ui) — user wants to adjust after seeing messy data results
+2. Add richer context to resolution dropdown (ui) — preferredName, rank, EPA QC level needed for informed decisions
 
 ### Blockers/Concerns
 
