@@ -44,10 +44,11 @@
   2. User can tag columns as "Other" and those values participate in CompTox search with full tier chain
   3. User sees DTXSID results from "Other" tagged columns counted equally in consensus classification
   4. User observes improved match rate for chemical identifiers (CAS validation catches exact IDs before fuzzy search dilutes accuracy)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 06-01: TBD
+- [ ] 06-01-PLAN.md -- Tier reorder (exact->CAS->starts-with) and Other tag expansion in R/curation.R
+- [ ] 06-02-PLAN.md -- Match Type column and search summary notification in app.R
 
 ### Phase 7: UI Polish
 **Goal**: Reduce cognitive load and provide richer context for curation decisions
