@@ -37,8 +37,10 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ### Active
 
-- [ ] Reorder search chain: exact → CAS → starts-with (move starts-with to last resort)
-- [ ] "Other" tagged columns searched against CompTox (full chain, participates in consensus)
+- ✓ Reorder search chain: exact → CAS → starts-with (move starts-with to last resort) — v1.2 Phase 6
+- ✓ "Other" tagged columns searched against CompTox (full chain, participates in consensus) — v1.2 Phase 6
+- ✓ Match Type column in Review Results showing which tier resolved each row — v1.2 Phase 6
+- ✓ Search tier breakdown notification after curation — v1.2 Phase 6
 - [ ] Untagged columns hidden from Review Results UI (still included in Excel export)
 - [ ] Review Results table column visibility improvements for messy data
 - [ ] Richer context in resolution dropdown (preferredName, rank, QC level)
@@ -107,6 +109,10 @@ Key files:
 | DT inline select for resolution | escape=FALSE + JS callback for immediate resolution UX | ✓ Good — v1.1 |
 | TDD for pipeline and consensus functions | Tests written first, ensuring reliable functions before Shiny integration | ✓ Good — v1.1 |
 | Direct CompToxR calls (no wrappers) | CompToxR functions already vectorized and optimized | ✓ Good — v1.1 |
+| Tier reorder: exact → CAS → starts-with | CAS validation before fuzzy search increases precision | ✓ Good — v1.2 |
+| 3-char minimum on starts-with | Reduces API noise from short strings | ✓ Good — v1.2 |
+| Other tags as full tier chain participants | Enables curation of arbitrary identifier columns | ✓ Good — v1.2 |
+| match_type derived in app.R not curation.R | Keeps UI transformations in UI layer | ✓ Good — v1.2 |
 
 ---
-*Last updated: 2026-03-01 after v1.2 milestone started*
+*Last updated: 2026-03-01 after Phase 6*

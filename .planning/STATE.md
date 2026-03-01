@@ -31,16 +31,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, tag, curate, resolve, export.
-**Current focus:** Phase 6 - Search Pipeline Refinement
+**Current focus:** Phase 7 - UI Polish
 
 ## Current Position
 
-Phase: 6 of 8 (Search Pipeline Refinement)
-Plan: 2 of 2 complete
-Status: Complete
-Last activity: 2026-03-01 — Completed plan 06-02 (Match Type column, search notification)
+Phase: 7 of 8 (UI Polish)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-03-01 — Phase 6 complete, transitioning to Phase 7
 
-Progress: [■■■■■■■□□□] 62% (5 of 8 phases complete across all milestones)
+Progress: [■■■■■■■■□□] 75% (6 of 8 phases complete across all milestones)
 
 ## Performance Metrics
 
@@ -90,17 +90,13 @@ Key decisions from previous milestones:
 
 ### Blockers/Concerns
 
-**Phase 6 Research Flags:**
-- Search tier order needs empirical validation — run curation on 100-row sample with both orders (exact → CAS → starts vs. exact → starts → CAS), compare consensus_status distribution
-- Other tag consensus semantics needs product decision — should Other columns vote equally with Name/CASRN, vote reduced weight, or observe-only? Update classify_consensus() logic accordingly
-
 **Phase 8 Research Flags:**
 - Retry merge-back logic needs comprehensive unit tests — test row order preservation, .pinned state, column count validation for same-tag retry, new-tag addition, tag removal scenarios
 
 ## Session Continuity
 
-Last session: 2026-03-01 (plan 06-02 execution)
-Stopped at: Completed 06-02-PLAN.md, SUMMARY.md created, STATE.md updated
+Last session: 2026-03-01
+Stopped at: Phase 6 complete, ready to plan Phase 7
 Resume file: None
 
-**Next step:** Continue with phase 07 (Review Results UI improvements)
+**Next step:** `/gsd:discuss-phase 7` or `/gsd:plan-phase 7`
