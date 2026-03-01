@@ -37,7 +37,13 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ### Active
 
-(No active requirements — plan next milestone)
+- [ ] Reorder search chain: exact → CAS → starts-with (move starts-with to last resort)
+- [ ] "Other" tagged columns searched against CompTox (full chain, participates in consensus)
+- [ ] Untagged columns hidden from Review Results UI (still included in Excel export)
+- [ ] Review Results table column visibility improvements for messy data
+- [ ] Richer context in resolution dropdown (preferredName, rank, QC level)
+- [ ] Manual DTXSID entry for error rows with bulk validation against CompTox
+- [ ] Error row retry: select error rows → re-tag → re-curate subset → merge back
 
 ### Out of Scope
 
@@ -48,6 +54,18 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - Session persistence across browser refresh — high complexity, defer to future
 - Contains search tier — too fuzzy, may produce unreliable matches
 - CompToxR wrapper functions — CompToxR functions already vectorized, call directly
+
+## Current Milestone: v1.2 Curation Refinement
+
+**Goal:** Improve curation accuracy, error recovery, and result presentation — reorder search tiers, enable "Other" column curation, add manual DTXSID entry, and error row retry workflow.
+
+**Target features:**
+- Search chain reorder (exact → CAS → starts-with)
+- "Other" tag as full curation participant
+- Untagged column hiding in Review Results
+- Manual DTXSID entry with bulk validation
+- Error row retry with re-tagging
+- UX polish (column visibility, dropdown context)
 
 ## Context
 
@@ -63,10 +81,6 @@ Key files:
 - `R/prototype_pipeline.R` — historical reference, not sourced at runtime (417 lines)
 - `R/file_handlers.R` — file reading/validation (218 lines)
 - `R/data_detection.R` — frontmatter detection algorithms (405 lines)
-
-Pending UX improvements (captured as todos):
-- Revisit Review Results table column visibility for messy data
-- Add richer context (preferredName, rank, QC level) to resolution dropdown
 
 ## Constraints
 
@@ -95,4 +109,4 @@ Pending UX improvements (captured as todos):
 | Direct CompToxR calls (no wrappers) | CompToxR functions already vectorized and optimized | ✓ Good — v1.1 |
 
 ---
-*Last updated: 2026-03-01 after v1.1 milestone complete*
+*Last updated: 2026-03-01 after v1.2 milestone started*
