@@ -8,7 +8,7 @@ progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -23,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 6 of 8 (Search Pipeline Refinement)
-Plan: 1 of 2 complete
-Status: In progress
-Last activity: 2026-03-01 — Completed plan 06-01 (tier reorder, Other tag support)
+Plan: 2 of 2 complete
+Status: Complete
+Last activity: 2026-03-01 — Completed plan 06-02 (Match Type column, search notification)
 
 Progress: [■■■■■■■□□□] 62% (5 of 8 phases complete across all milestones)
 
@@ -68,6 +68,7 @@ Key decisions from previous milestones:
 - 3-character minimum filter applied to starts-with tier to reduce API noise (06-01)
 - Other tagged columns participate in full tier chain alongside Name columns (06-01)
 - CAS-from-names and CAS-from-columns tracked separately for visibility (06-01)
+- [Phase 06]: Derive match_type in app.R rather than R/curation.R — keeps UI transformations in UI layer
 
 ### Pending Todos
 
@@ -85,8 +86,8 @@ Key decisions from previous milestones:
 
 ## Session Continuity
 
-Last session: 2026-03-01 (plan 06-01 execution)
-Stopped at: Completed 06-01-PLAN.md, SUMMARY.md created, STATE.md updated
+Last session: 2026-03-01 (plan 06-02 execution)
+Stopped at: Completed 06-02-PLAN.md, SUMMARY.md created, STATE.md updated
 Resume file: None
 
-**Next step:** Execute plan 06-02 (UI Refinement) or continue with phase 07
+**Next step:** Continue with phase 07 (Review Results UI improvements)
