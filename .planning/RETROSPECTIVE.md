@@ -2,6 +2,49 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
+## Milestone: v1.1 — Curation Process Update
+
+**Shipped:** 2026-03-01
+**Phases:** 3 | **Plans:** 6 | **Sessions:** ~4
+
+### What Was Built
+- TDD-built pipeline with 6 modular functions: dedup, tiered CompTox search (exact/starts-with/CAS), result mapping
+- Consensus classification with 5 status labels (agree/agree_caveat/disagree/single/error) and QC tier scoring
+- Per-row override and en masse priority chain resolution with pinning protection
+- Self-contained R/curation.R orchestrator with Shiny progress tracking
+- Review Results UI with value boxes, color-coded rows, resolution dropdowns, and 3-sheet Excel export
+
+### What Worked
+- TDD approach for Phases 3-4 (write failing tests → implement → pass) produced reliable, testable functions
+- Prototype-first approach validated pipeline logic in isolation before Shiny wiring
+- Migrating functions into R/curation.R (self-contained) eliminated fragile cross-file sourcing
+- Phase 5 auto-advance executed both plans and verification cleanly
+- UAT passed 12/12 on first attempt — no rework needed
+
+### What Was Inefficient
+- ROADMAP.md and REQUIREMENTS.md traceability tracking didn't update during Phases 3-4 execution (same issue as v1.0) — phase checkboxes and requirement status lagged behind actual completion
+- Phase 5 executor generated ~600 lines in curation.R but the plan specified "copy verbatim" for 6 functions — migration could have been more mechanical
+- Two separate sessions for Phases 3-4 vs Phase 5 due to context limits — could have been one with better context management
+
+### Patterns Established
+- `progress_callback` pattern for Shiny: `withProgress()` + `incProgress()` with a callback function passed to long-running pipeline
+- DT `escape=FALSE` + JS `Shiny.setInputValue` for inline interactive controls in data tables
+- Dynamic `observeEvent` generation inside `observe()` for variable-length UI controls
+- `resolution_state` reactive pattern: resolution updates flow through a single reactive df, UI re-renders automatically
+
+### Key Lessons
+1. TDD for pipeline functions pays off — tests from Phase 3 continued to validate through Phase 5 integration
+2. Self-contained modules (migrating functions in) are better than cross-file `source()` chains for Shiny apps
+3. Traceability tracking (requirements, roadmap checkboxes) must be updated atomically with plan completion — not deferred
+4. User feedback during UAT reveals UX needs (richer dropdown context, column visibility) that specs don't anticipate
+
+### Cost Observations
+- Model mix: sonnet for all execution and verification, opus for orchestration
+- Sessions: ~4 (Phase 3+4 execution, Phase 5 planning, Phase 5 execution + UAT, milestone completion)
+- Notable: Phase 5 execution completed 2 plans in ~7 minutes total (257s + 170s)
+
+---
+
 ## Milestone: v1.0 — Curation UI Iteration
 
 **Shipped:** 2026-02-27
@@ -46,8 +89,11 @@
 
 | Milestone | Sessions | Phases | Key Change |
 |-----------|----------|--------|------------|
-| v1.0 | ~3 | 2 | First milestone — established GSD workflow |
+| v1.0 | ~3 | 2 | Established GSD workflow, learned bslib API |
+| v1.1 | ~4 | 3 | Added TDD, prototype-first approach, UAT verification |
 
 ### Top Lessons (Verified Across Milestones)
 
-1. (Pending — need multiple milestones to verify cross-cutting lessons)
+1. **Traceability must update atomically** — Both v1.0 and v1.1 had requirements/roadmap tracking lag behind actual work. Fix: update traceability in the same commit as plan completion.
+2. **Verify framework APIs before implementing** — v1.0 had nav_panel_hidden bug, v1.1 avoided similar issues by reading actual function implementations. Research → verify → implement.
+3. **UAT reveals needs that specs miss** — v1.0 bugfix came from manual testing, v1.1 UAT surfaced dropdown UX gap. Always run UAT before milestone close.

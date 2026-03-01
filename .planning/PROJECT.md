@@ -2,11 +2,11 @@
 
 ## What This Is
 
-A Shiny application for uploading, cleaning, and validating chemical inventory data. Users upload messy CSV/XLSX files, the app detects where actual data begins (filtering out report headers and frontmatter), then provides tools to tag columns and curate chemical identifiers against EPA's CompTox Dashboard via the ComptoxR package. The workflow is guided through gated tabs that appear as prerequisites are met.
+A Shiny application for uploading, cleaning, and validating chemical inventory data with intelligent frontmatter detection and DTXSID-based consensus curation. Users upload messy CSV/XLSX files, the app detects where actual data begins, then provides tools to tag columns and curate chemical identifiers against EPA's CompTox Dashboard via tiered search (exact, starts-with, CAS validation). Results are classified by consensus across tagged columns with per-row and en masse conflict resolution.
 
 ## Core Value
 
-Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, tag, curate, export.
+Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, tag, curate, resolve, export.
 
 ## Requirements
 
@@ -28,31 +28,16 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - ✓ Gated tab access enforcing linear workflow — v1.0
 - ✓ Full-width tab layouts without nested cards — v1.0
 - ✓ Dropdown-per-column tagging with table layout — v1.0
+- ✓ Deduplication of tagged column values before API calls — v1.1
+- ✓ Tiered curation search (exact → starts-with) via CompToxR — v1.1
+- ✓ Healing workflow for unmatched chemicals (escalating search strategies) — v1.1
+- ✓ DTXSID-based consensus across tagged columns per row — v1.1
+- ✓ User resolution UI for disagreements (per-row or en masse column preference) — v1.1
+- ✓ Standalone prototype script before Shiny integration — v1.1
 
 ### Active
 
-(No active requirements — v1.1 milestone complete)
-
-### Validated (v1.1)
-
-- ✓ Deduplication of tagged column values before API calls — Phase 3
-- ✓ Tiered curation search (exact → starts-with) via CompToxR — Phase 3
-- ✓ Healing workflow for unmatched chemicals (escalating search strategies) — Phase 3
-- ✓ DTXSID-based consensus across tagged columns per row — Phase 4
-- ✓ User resolution UI for disagreements (per-row or en masse column preference) — Phase 5
-- ✓ Standalone prototype script before Shiny integration — Phase 3
-
-## Current Milestone: v1.1 Curation Process Update
-
-**Goal:** Replace naive curation with a deduplicated, tiered-search pipeline that heals missing matches and provides DTXSID-based consensus across columns with user-driven conflict resolution.
-
-**Target features:**
-- Deduplicate unique values from tagged columns before API calls
-- Tiered CompToxR search: `ct_chemical_search_equal` → `_start_with` → `_contain`
-- Healing pipeline that escalates search strategy for misses
-- Row-level consensus comparing DTXSID across all tagged columns
-- Conflict resolution: per-row selection or en masse column preference
-- Prototype-first approach: standalone R script → Shiny integration
+(No active requirements — plan next milestone)
 
 ### Out of Scope
 
@@ -61,32 +46,27 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - Sub-tabs within a curation section — top-level tabs chosen
 - Auto-advance to next tab — disorienting, users should control navigation
 - Session persistence across browser refresh — high complexity, defer to future
-- Changes to upload, detection, or export logic — existing pipeline untouched
+- Contains search tier — too fuzzy, may produce unreliable matches
+- CompToxR wrapper functions — CompToxR functions already vectorized, call directly
 
 ## Context
 
-Shipped v1.0 Curation UI Iteration with 2,106 LOC R across 4 files.
-Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl.
+Shipped v1.1 Curation Process Update with 3,612 LOC R across 6 files.
+Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, writexl.
 
-The app has 6 top-level tabs: Data Preview, Detection Info, Raw Data, Tag Columns, Run Curation, Review Results. On startup only Upload (sidebar) is visible; tabs appear progressively as the user advances through the workflow. Re-uploading triggers a confirmation modal; tag changes cascade-reset downstream tabs.
-
-Key CompToxR functions for v1.1:
-- `ct_chemical_search_equal` / `ct_chemical_search_equal_bulk` — exact match
-- `ct_chemical_search_start_with` — starts-with search
-- `ct_chemical_search_contain` — contains search
-- `is_cas` / `as_cas` — CAS validation
-- `ct_chemical_detail` — full chemical detail lookup
-
-Training data available:
-- `uncurated_chemicals_2023-05-16_12-43-41.csv` — 12K rows (raw_cas, raw_chem_name)
-- `cleaned_chemicals_for_curation-Jul-03-2023.xlsx` — 11K rows with pre-curated columns
-- `data/chemical_validation_test.csv` — 100-row test set
+The app has 6 top-level tabs: Data Preview, Detection Info, Raw Data, Tag Columns, Run Curation, Review Results. On startup only Upload (sidebar) is visible; tabs appear progressively as the user advances through the workflow.
 
 Key files:
-- `app.R` — main UI/server definition (1,318 lines)
-- `R/curation.R` — curation logic (165 lines)
+- `app.R` — main UI/server definition (1,719 lines)
+- `R/curation.R` — self-contained pipeline orchestrator with migrated functions (624 lines)
+- `R/consensus.R` — consensus classification and resolution functions (229 lines)
+- `R/prototype_pipeline.R` — historical reference, not sourced at runtime (417 lines)
 - `R/file_handlers.R` — file reading/validation (218 lines)
 - `R/data_detection.R` — frontmatter detection algorithms (405 lines)
+
+Pending UX improvements (captured as todos):
+- Revisit Review Results table column visibility for messy data
+- Add richer context (preferredName, rank, QC level) to resolution dropdown
 
 ## Constraints
 
@@ -105,12 +85,14 @@ Key files:
 | nav_panel + session$onFlushed hide over nav_panel_hidden | nav_panel_hidden lacks title param; startup hide preserves titles | ✓ Good |
 | Cascade reset on tag changes | Strict invalidation prevents stale curation results | ✓ Good |
 | Confirmation modal on re-upload | Prevents accidental data loss; easyClose=FALSE forces explicit choice | ✓ Good |
-| Prototype script before Shiny integration | Prove pipeline logic works in isolation before wiring into reactive app | ✓ Good — Phase 3 |
-| Tiered search (equal → starts-with) | Maximizes match rate while keeping exact matches highest confidence | ✓ Good — Phase 3 |
-| DTXSID as consensus key | Universal identifier from CompTox; most reliable cross-column comparison | ✓ Good — Phase 4 |
-| Migrate pipeline into R/curation.R | Self-contained module, prototype kept as historical reference | ✓ Good — Phase 5 |
-| withProgress() for pipeline UX | Built-in Shiny progress with per-tier callbacks | ✓ Good — Phase 5 |
-| DT inline select for resolution | escape=FALSE + JS callback for immediate resolution UX | ✓ Good — Phase 5 |
+| Prototype script before Shiny integration | Prove pipeline logic works in isolation before wiring into reactive app | ✓ Good — v1.1 |
+| Tiered search (equal → starts-with) | Maximizes match rate while keeping exact matches highest confidence | ✓ Good — v1.1 |
+| DTXSID as consensus key | Universal identifier from CompTox; most reliable cross-column comparison | ✓ Good — v1.1 |
+| Migrate pipeline into R/curation.R | Self-contained module, prototype kept as historical reference | ✓ Good — v1.1 |
+| withProgress() for pipeline UX | Built-in Shiny progress with per-tier callbacks | ✓ Good — v1.1 |
+| DT inline select for resolution | escape=FALSE + JS callback for immediate resolution UX | ✓ Good — v1.1 |
+| TDD for pipeline and consensus functions | Tests written first, ensuring reliable functions before Shiny integration | ✓ Good — v1.1 |
+| Direct CompToxR calls (no wrappers) | CompToxR functions already vectorized and optimized | ✓ Good — v1.1 |
 
 ---
-*Last updated: 2026-03-01 after Phase 5 (v1.1 milestone complete)*
+*Last updated: 2026-03-01 after v1.1 milestone complete*
