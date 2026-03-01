@@ -1,7 +1,8 @@
 library(testthat)
 
-# Source the pipeline functions
-source(file.path(here::here(), "R", "prototype_pipeline.R"))
+# Source the pipeline functions (now in R/curation.R, not prototype_pipeline.R)
+source(file.path(here::here(), "R", "consensus.R"))
+source(file.path(here::here(), "R", "curation.R"))
 
 # ============================================================================
 # Test Group 1: deduplicate_tagged_columns
@@ -261,4 +262,67 @@ test_that("map_results_to_rows handles NA/missing lookups", {
   unknown_row <- result[result$Chemical == "UnknownChemical", ]
   dtxsid_col <- grep("dtxsid", names(result), value = TRUE)[1]
   expect_true(is.na(unknown_row[[dtxsid_col]]))
+})
+
+# ============================================================================
+# Test Group 7: Other tag support (SRCH-02)
+# ============================================================================
+
+test_that("deduplicate_tagged_columns includes Other tag in unique_names", {
+  df <- tibble::tibble(
+    chem_name = c("Acetone", "Ethanol"),
+    supplier_code = c("ACE-001", "ETH-002"),
+    cas = c("67-64-1", "64-17-5")
+  )
+  tag_map <- list(chem_name = "Name", supplier_code = "Other", cas = "CASRN")
+
+  result <- deduplicate_tagged_columns(df, tag_map)
+
+  expect_true("Acetone" %in% result$unique_names)
+  expect_true("ACE-001" %in% result$unique_names)  # Other values included
+  expect_true("ETH-002" %in% result$unique_names)  # Other values included
+  expect_equal(length(result$unique_cas), 2)
+  # dedup_key_map should have entries for all 3 tag types
+  expect_true("Other" %in% result$dedup_key_map$tag_type)
+})
+
+test_that("deduplicate_tagged_columns handles multiple Other columns", {
+  df <- tibble::tibble(
+    chem_name = c("Acetone"),
+    synonym = c("2-Propanone"),
+    supplier = c("Sigma")
+  )
+  tag_map <- list(chem_name = "Name", synonym = "Other", supplier = "Other")
+
+  result <- deduplicate_tagged_columns(df, tag_map)
+
+  expect_true("2-Propanone" %in% result$unique_names)
+  expect_true("Sigma" %in% result$unique_names)
+  expect_true("Acetone" %in% result$unique_names)
+})
+
+test_that("deduplicate_tagged_columns handles CAS-only tags", {
+  df <- tibble::tibble(cas = c("67-64-1", "64-17-5"))
+  tag_map <- list(cas = "CASRN")
+
+  result <- deduplicate_tagged_columns(df, tag_map)
+
+  expect_equal(length(result$unique_names), 0)
+  expect_equal(length(result$unique_cas), 2)
+})
+
+# ============================================================================
+# Test Group 8: Tier reorder and 3-char minimum (SRCH-01)
+# ============================================================================
+
+test_that("starts-with 3-char minimum filter excludes short strings", {
+  # Simulate the filter logic from run_curation_pipeline
+  still_missed <- c("AB", "Ac", "Acetone", "Et", "Ethanol", "X")
+  sw_candidates <- still_missed[nchar(still_missed) >= 3]
+
+  expect_equal(sw_candidates, c("Acetone", "Ethanol"))
+  expect_false("AB" %in% sw_candidates)
+  expect_false("Ac" %in% sw_candidates)
+  expect_false("Et" %in% sw_candidates)
+  expect_false("X" %in% sw_candidates)
 })
