@@ -7,8 +7,8 @@ last_updated: "2026-03-01"
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
 ---
 
 # Project State
@@ -23,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 6 of 8 (Search Pipeline Refinement)
-Plan: Ready to plan
-Status: Not started
-Last activity: 2026-03-01 — v1.2 roadmap created (3 phases, 12 requirements mapped)
+Plan: 1 of 2 complete
+Status: In progress
+Last activity: 2026-03-01 — Completed plan 06-01 (tier reorder, Other tag support)
 
 Progress: [■■■■■■■□□□] 62% (5 of 8 phases complete across all milestones)
 
@@ -63,7 +63,11 @@ Key decisions from previous milestones:
 - v1.1: No CompToxR wrappers — call CompToxR functions directly
 - v1.1: Migrate pipeline functions into R/curation.R (self-contained module)
 
-**v1.2 Phase 6 Note:** Research suggests reordering to exact → CAS → starts-with. Needs empirical validation on sample dataset during planning.
+**v1.2 Phase 6 Decisions:**
+- Tier chain reordered to exact → CAS → starts-with based on research (06-01)
+- 3-character minimum filter applied to starts-with tier to reduce API noise (06-01)
+- Other tagged columns participate in full tier chain alongside Name columns (06-01)
+- CAS-from-names and CAS-from-columns tracked separately for visibility (06-01)
 
 ### Pending Todos
 
@@ -81,8 +85,8 @@ Key decisions from previous milestones:
 
 ## Session Continuity
 
-Last session: 2026-03-01 (roadmap creation)
-Stopped at: ROADMAP.md, STATE.md created; REQUIREMENTS.md traceability updated
+Last session: 2026-03-01 (plan 06-01 execution)
+Stopped at: Completed 06-01-PLAN.md, SUMMARY.md created, STATE.md updated
 Resume file: None
 
-**Next step:** `/gsd:plan-phase 6` to begin Search Pipeline Refinement planning
+**Next step:** Execute plan 06-02 (UI Refinement) or continue with phase 07

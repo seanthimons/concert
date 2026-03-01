@@ -9,9 +9,9 @@ Requirements for v1.2 Curation Refinement. Each maps to roadmap phases.
 
 ### Search Pipeline
 
-- [ ] **SRCH-01**: Search tier order is exact → CAS → starts-with (starts-with moved to last resort)
-- [ ] **SRCH-02**: "Other" tagged columns are searched against CompTox using the full search chain (exact → CAS → starts-with)
-- [ ] **SRCH-03**: "Other" column DTXSID results participate equally in consensus classification (same vote weight as Name/CASRN)
+- [x] **SRCH-01**: Search tier order is exact → CAS → starts-with (starts-with moved to last resort) — completed 06-01
+- [x] **SRCH-02**: "Other" tagged columns are searched against CompTox using the full search chain (exact → CAS → starts-with) — completed 06-01
+- [x] **SRCH-03**: "Other" column DTXSID results participate equally in consensus classification (same vote weight as Name/CASRN) — completed 06-01
 
 ### Error Recovery
 
@@ -56,9 +56,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SRCH-01 | Phase 6 | Pending |
-| SRCH-02 | Phase 6 | Pending |
-| SRCH-03 | Phase 6 | Pending |
+| SRCH-01 | Phase 6 | Complete (06-01) |
+| SRCH-02 | Phase 6 | Complete (06-01) |
+| SRCH-03 | Phase 6 | Complete (06-01) |
 | RECV-01 | Phase 8 | Pending |
 | RECV-02 | Phase 8 | Pending |
 | RECV-03 | Phase 8 | Pending |
@@ -76,4 +76,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-01*
-*Last updated: 2026-03-01 after roadmap creation*
+*Last updated: 2026-03-01 after plan 06-01 completion*
