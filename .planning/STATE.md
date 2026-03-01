@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Curation Process Update
 status: unknown
-last_updated: "2026-02-27T21:00:51.073Z"
+last_updated: "2026-03-01T04:59:46.994Z"
 progress:
-  total_phases: 2
+  total_phases: 3
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 6
+  completed_plans: 5
 ---
 
 ---
@@ -59,6 +59,7 @@ Progress: [██░░░░░░░░] 0% (0/3 phases)
 - No plans completed yet
 
 *Updated after each plan completion*
+| Phase 05 P01 | 257 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,9 @@ Recent decisions affecting current work:
 - v1.1: DTXSID as consensus key across tagged columns
 - v1.1: **No CompToxR wrappers** — call `ct_chemical_search_equal_bulk()`, `ct_chemical_search_start_with()`, `is_cas()`, `as_cas()` directly
 - v1.1: **Test data strategy** — start with `data/sample_messy.csv` (7 rows), then validate against first 100 rows of `uncurated_chemicals_2023-05-16_12-43-41.csv`
+- [Phase 05]: Migrate pipeline functions into R/curation.R instead of sourcing R/prototype_pipeline.R (self-contained module)
+- [Phase 05]: Use Shiny withProgress() for pipeline stage tracking (built-in UX with incremental updates)
+- [Phase 05]: Generate backward-compatible curation_report from new pipeline summaries (keeps existing Review tab working)
 
 ### Pending Todos
 
