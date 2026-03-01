@@ -1,656 +1,563 @@
-# Architecture Research: Tab Gating in Shiny Workflow Apps
+# Architecture Research: Curation Refinement Integration
 
-**Domain:** R Shiny bslib multi-step workflow with gated tab access
-**Researched:** 2026-02-26
+**Domain:** Shiny Chemical Curation Application
+**Researched:** 2026-03-01
 **Confidence:** HIGH
 
-## Problem Statement
-
-How should a Shiny app be restructured when breaking a monolithic tab (with 3 stacked cards) into 3 separate top-level tabs with gated access? Specifically: transforming a single "Curation" tab containing Tag Columns → Run Curation → Review Results into 3 independent top-level tabs where users cannot access downstream tabs until upstream actions complete.
-
-## Recommended Architecture
-
-### System Overview
+## Current System Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        UI Layer (bslib)                      │
-├─────────────────────────────────────────────────────────────┤
+│                          UI Layer (app.R)                    │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
-│  │  Data    │  │ Detection│  │   Raw    │  │ Curation │    │
-│  │ Preview  │  │   Info   │  │   Data   │  │  Tabs    │    │
-│  │  (base)  │  │  (base)  │  │  (base)  │  │ (gated)  │    │
-│  └──────────┘  └──────────┘  └──────────┘  └────┬─────┘    │
-│                                                   │          │
-│  ┌───────────────────────────────────────────────┘          │
-│  │                                                           │
-│  ├──► Tab 1: Tag Columns (nav_panel)                        │
-│  │    - Always visible after data upload                    │
-│  │    - Enables: tags_applied = TRUE                        │
-│  │                                                           │
-│  ├──► Tab 2: Run Curation (nav_panel_hidden initially)      │
-│  │    - Shown via nav_show() when tags_applied == TRUE      │
-│  │    - Enables: curation_completed = TRUE                  │
-│  │                                                           │
-│  └──► Tab 3: Review Results (nav_panel_hidden initially)    │
-│       - Shown via nav_show() when curation_completed == TRUE│
-│                                                              │
-├──────────────────────────────────────────────────────────────┤
-│                    Reactive State Layer                      │
-├──────────────────────────────────────────────────────────────┤
-│  reactiveValues(                                             │
-│    raw, clean, detection, file_info,  # Existing state      │
-│    selected_columns, column_tags,     # Tag step state      │
-│    curation_results, curation_report, # Curation state      │
-│    curation_status,                   # Status tracking     │
-│    tabs_unlocked                      # NEW: Tab gate state │
-│  )                                                           │
-├──────────────────────────────────────────────────────────────┤
-│                    Business Logic Layer                      │
-├──────────────────────────────────────────────────────────────┤
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │  R/curation.R: Pure Functions                          │  │
-│  │  - validate_cas_numbers()                              │  │
-│  │  - lookup_chemical_names()                             │  │
-│  │  - curate_chemical_data()                              │  │
-│  └────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────┘
+│  │ Upload   │  │ Tag Cols │  │ Run Cure │  │ Review   │    │
+│  │ Tab      │  │ Tab      │  │ Tab      │  │ Results  │    │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘    │
+│       │             │              │             │           │
+│       ├─────────────┴──────────────┴─────────────┤           │
+│       │         reactiveValues(data_store)       │           │
+│       └──────────────────┬────────────────────────┘           │
+├──────────────────────────┼──────────────────────────────────┤
+│                  Processing Layer                            │
+│  ┌────────────────────────┴──────────────────────────────┐   │
+│  │                R/curation.R (624 lines)                │   │
+│  │  deduplicate_tagged_columns → run_tiered_search       │   │
+│  │  → map_results_to_rows → (calls consensus.R)          │   │
+│  └───────────────────────┬────────────────────────────────┘   │
+│                          │                                    │
+│  ┌───────────────────────┴────────────────────────────────┐   │
+│  │              R/consensus.R (229 lines)                  │   │
+│  │  classify_consensus → init_resolution_state            │   │
+│  │  resolve_row → apply_priority_chain                    │   │
+│  └─────────────────────────────────────────────────────────┘   │
+├─────────────────────────────────────────────────────────────┤
+│                      External API                            │
+│  ┌─────────────────────────────────────────────────────┐     │
+│  │   CompToxR (ComptoxR:: calls via curation.R)        │     │
+│  │   - ct_chemical_search_equal_bulk                   │     │
+│  │   - ct_chemical_search_start_with                   │     │
+│  │   - as_cas / is_cas                                 │     │
+│  └─────────────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Component Responsibilities
+## New Features Integration Analysis
 
-| Component | Responsibility | Communicates With |
-|-----------|----------------|-------------------|
-| **Base Tabs** (Data Preview, Detection Info, Raw Data) | Display uploaded data, detection metadata, raw file contents | Shared `data_store` reactiveValues |
-| **Tag Columns Tab** | Column tagging UI, apply tags action | `data_store$column_tags`, enables Run Curation tab |
-| **Run Curation Tab** | Initiate curation API calls, show progress | `R/curation.R` functions, `data_store$curation_results` |
-| **Review Results Tab** | Display curated data, export controls | `data_store$curation_results`, download handler |
-| **reactiveValues Store** | Central state container | All observers and reactive expressions |
-| **Tab Gate Observers** | Control tab visibility via `nav_show()` | `data_store$tabs_unlocked`, bslib nav functions |
-| **Business Logic** (R/curation.R) | Pure data transformations, API calls | Server observers (called with `data_store` values) |
+### Feature 1: Search Chain Reordering (exact → CAS → starts-with)
 
-## Architectural Patterns
+**Current:** `run_tiered_search()` runs exact → starts-with → CAS (lines 274-363 in curation.R)
 
-### Pattern 1: Hidden Tabs with Reactive Gating
+**Integration Point:** Modify `run_tiered_search()` tier execution order
 
-**What:** Start tabs hidden using `nav_panel_hidden()`, then reveal them conditionally with `nav_show()` based on reactive state flags.
+**Components Modified:**
+- `R/curation.R::run_tiered_search()` (main orchestrator)
+- `R/curation.R::run_curation_pipeline()` (inline tier execution with progress callbacks, lines 451-540)
 
-**When to use:** Multi-step workflows where downstream steps require upstream completion (e.g., can't run curation until tags applied).
+**Data Flow Change:**
+```
+BEFORE: unique_names → exact → (misses) → starts-with → [separate] unique_cas → CAS
+AFTER:  unique_names → exact → (misses) → [check CAS] → (misses) → starts-with
+```
 
-**Trade-offs:**
-- ✅ Prevents user confusion from empty states
-- ✅ Enforces correct workflow order
-- ✅ Native bslib pattern (no custom CSS/JS)
-- ⚠️ Requires careful state tracking to prevent "stuck" UI
-- ⚠️ Once shown, tabs remain visible (can't re-hide without `nav_hide()` logic)
+**Key Considerations:**
+- CAS columns are currently in `unique_cas` — need to treat them as name search candidates first
+- Progress callbacks need reordering (lines 471-539)
+- Source tier labels (`source_tier` column) remain stable (already has "cas" tier)
+- Summary message (line 357-360) needs reordering
 
-**Example:**
+**New vs Modified:**
+- **MODIFIED:** `run_tiered_search()` — reorder tier 2 and tier 3 blocks
+- **MODIFIED:** `run_curation_pipeline()` — reorder inline tier execution
+- **NEW:** None
+
+---
+
+### Feature 2: Other Tags as Full Curation Participants
+
+**Current:** `deduplicate_tagged_columns()` only processes Name and CASRN tags (lines 16-58 in curation.R)
+
+**Integration Point:** Expand deduplication and search to include "Other" tag type
+
+**Components Modified:**
+- `R/curation.R::deduplicate_tagged_columns()` — extract Other values into unique_names set
+- `R/curation.R::map_results_to_rows()` — already handles all tagged columns via `dedup_key_map` (line 390)
+- `R/consensus.R::classify_consensus()` — already uses `find_dtxsid_cols()` to auto-detect all dtxsid_* columns (line 53)
+
+**Data Flow Change:**
+```
+BEFORE:
+  Name cols → unique_names → search
+  CASRN cols → unique_cas → validate
+  Other cols → dedup_key_map only (no search)
+
+AFTER:
+  Name cols → unique_names → search
+  CASRN cols → unique_cas → validate (then search if reordering)
+  Other cols → unique_names → search (full chain participation)
+```
+
+**Key Considerations:**
+- `dedup_key_map` already tracks all tag types (line 38)
+- `map_results_to_rows()` already joins back ALL tagged columns (line 390: `tag_cols <- unique(enriched_keys$column_name)`)
+- Consensus already auto-detects dtxsid_* columns via `find_dtxsid_cols()`
+- **Minimal change:** Just add Other values to `unique_names` in deduplicate step
+
+**New vs Modified:**
+- **MODIFIED:** `deduplicate_tagged_columns()` — add Other to unique_names extraction (lines 43-46)
+- **NEW:** None
+
+---
+
+### Feature 3: Hide Untagged Columns in Review Results
+
+**Current:** `output$curation_table` (app.R lines 1370-1484) hides dtxsid_*, preferredName_*, searchName_*, rank_*, source_tier_*, and .pinned columns via `columnDefs: list(visible = FALSE, targets = hidden_indices)` (line 1437)
+
+**Integration Point:** Add original untagged columns to `hidden_cols` vector
+
+**Components Modified:**
+- `app.R::output$curation_table` — extend `hidden_cols` to include original columns NOT in `data_store$column_tags`
+
+**Data Flow Change:**
+```
+BEFORE: All original columns visible in DT, only lookup columns hidden
+AFTER:  Only tagged original columns + consensus columns visible, untagged + lookup hidden
+```
+
+**Key Considerations:**
+- Excel export (`output$download_curated`, lines 1659-1715) should still include ALL columns except `.pinned` (line 1675)
+- `data_store$column_tags` is available (set in apply_tags observer, line 1100)
+- Need to compute: `untagged_cols <- setdiff(names(df), names(data_store$column_tags))`
+- Exclude consensus/resolution columns from hiding: `consensus_status`, `consensus_dtxsid`, `consensus_source`, `qc_tier`, `Resolution`
+
+**New vs Modified:**
+- **MODIFIED:** `app.R::output$curation_table` — expand `hidden_cols` logic (line 1413-1420)
+- **NEW:** None
+
+---
+
+### Feature 4: Manual DTXSID Entry with Bulk Validation
+
+**Integration Point:** Add UI and server logic to Review Results tab
+
+**New Components:**
+```
+UI (app.R):
+- Checkbox column in DT for row selection (error rows only)
+- Input field for manual DTXSID entry
+- "Validate & Apply" button
+
+Server (app.R):
+- observeEvent(input$validate_manual_dtxsid)
+- Call new function: validate_dtxsid_bulk()
+- Update resolution_state with validated DTXSID
+```
+
+**New Functions (R/curation.R):**
 ```r
-# UI Definition
-ui <- page_sidebar(
-  navset_card_tab(
-    id = "main_tabs",
+validate_dtxsid_bulk <- function(dtxsid_vector) {
+  # Call ComptoxR::ct_chemical_search_equal_bulk(dtxsid_vector)
+  # Return tibble(input_dtxsid, is_valid, preferredName)
+}
 
-    # Always visible
-    nav_panel(
-      title = "Tag Columns",
-      value = "tag_columns",
-      icon = bs_icon("tag"),
-      # ... tagging UI ...
-      actionButton("apply_tags", "Apply Tags")
-    ),
-
-    # Hidden until tags applied
-    nav_panel_hidden(
-      title = "Run Curation",
-      value = "run_curation",
-      icon = bs_icon("play"),
-      # ... curation UI ...
-      actionButton("run_curation", "Start Curation")
-    ),
-
-    # Hidden until curation completes
-    nav_panel_hidden(
-      title = "Review Results",
-      value = "review_results",
-      icon = bs_icon("check-circle"),
-      # ... results UI ...
-    )
-  )
-)
-
-# Server Logic
-server <- function(input, output, session) {
-  data_store <- reactiveValues(
-    column_tags = NULL,
-    curation_results = NULL,
-    tabs_unlocked = list(
-      run_curation = FALSE,
-      review_results = FALSE
-    )
-  )
-
-  # Gate 1: Unlock Run Curation after tags applied
-  observeEvent(input$apply_tags, {
-    req(input$selected_columns)
-
-    # Apply tags logic...
-    data_store$column_tags <- # ... tag data ...
-
-    # Unlock tab
-    if (!data_store$tabs_unlocked$run_curation) {
-      nav_show("main_tabs", target = "run_curation", select = TRUE)
-      data_store$tabs_unlocked$run_curation <- TRUE
-
-      showNotification("Tags applied! Proceed to Run Curation.", type = "success")
-    }
-  })
-
-  # Gate 2: Unlock Review Results after curation completes
-  observeEvent(input$run_curation, {
-    req(data_store$column_tags)
-
-    # Run curation logic...
-    data_store$curation_results <- curate_chemical_data(...)
-
-    # Unlock tab
-    if (!data_store$tabs_unlocked$review_results) {
-      nav_show("main_tabs", target = "review_results", select = TRUE)
-      data_store$tabs_unlocked$review_results <- TRUE
-
-      showNotification("Curation complete! Review results.", type = "success")
-    }
-  })
+apply_manual_dtxsid <- function(df, row_indices, dtxsid, dtxsid_cols) {
+  # Set consensus_dtxsid, consensus_status = "agree" (manual override)
+  # Set .pinned = TRUE, consensus_source = "manual"
+  # Return modified df
 }
 ```
 
-**Key Implementation Details:**
-- `nav_panel_hidden()` takes same parameters as `nav_panel()` but starts invisible
-- `nav_show(id, target, select = TRUE)` reveals tab and optionally switches to it
-- Track unlock state in `data_store$tabs_unlocked` to prevent redundant `nav_show()` calls
-- Use `value` parameter on nav panels for programmatic reference (not just title)
+**Data Flow:**
+```
+User selects error rows → enters DTXSID → Validate button
+  → validate_dtxsid_bulk() → CompToxR exact search
+  → apply_manual_dtxsid() → update resolution_state
+  → Recalculate consensus_summary
+  → DT re-renders with updated status
+```
 
-### Pattern 2: Reactive State Store with Workflow Flags
+**Key Considerations:**
+- Error rows: `df$consensus_status == "error"` (line 1379)
+- DT checkbox extension: `extensions = c('Buttons', 'Select')` and `select = 'multi'`
+- Bulk validation via `ct_chemical_search_equal_bulk()` (same function as exact search)
+- Manual entries should set `consensus_source = "manual"` to distinguish from API results
+- Should allow overriding ANY row (not just error), but default UI to error rows only
 
-**What:** Use a single `reactiveValues()` object as central state store, including explicit workflow stage flags.
+**New vs Modified:**
+- **NEW:** `R/curation.R::validate_dtxsid_bulk()` (~20 lines)
+- **NEW:** `R/curation.R::apply_manual_dtxsid()` (~25 lines)
+- **MODIFIED:** `app.R::nav_panel("Review Results")` — add manual entry UI (lines 298-345)
+- **NEW:** `app.R::observeEvent(input$validate_manual_dtxsid)` (~50 lines)
 
-**When to use:** Any multi-step Shiny workflow where multiple observers/outputs need to coordinate.
+---
 
-**Trade-offs:**
-- ✅ Single source of truth for all state
-- ✅ Easy to debug (inspect `data_store` in debugger)
-- ✅ Prevents scattered reactive state across multiple `reactiveVal()` objects
-- ⚠️ Can become large; consider grouping related state into nested lists
-- ⚠️ No automatic change detection for nested lists (must replace entire list to trigger reactivity)
+### Feature 5: Error Row Retry with Re-tagging and Result Merging
 
-**Example:**
+**Integration Point:** Add workflow to Review Results tab that reruns curation on subset
+
+**New Components:**
+```
+UI (app.R):
+- "Retry Selected Rows" button (visible when error rows selected in DT)
+- Modal dialog with column tagging interface for selected rows only
+- "Re-curate Subset" button in modal
+
+Server (app.R):
+- observeEvent(input$retry_error_rows) — show modal with mini tag UI
+- observeEvent(input$run_subset_curation) — run pipeline on subset
+- Merge results back into resolution_state
+```
+
+**New Functions (R/curation.R):**
+```r
+run_curation_subset <- function(clean_data, row_indices, column_tags, progress_callback = NULL) {
+  # Extract subset: clean_data[row_indices, ]
+  # Run deduplicate → search → map → classify on subset
+  # Return subset results with original row indices preserved
+}
+
+merge_subset_results <- function(original_df, subset_df, row_indices, dtxsid_cols) {
+  # Replace rows in original_df with subset_df results
+  # Preserve original columns, update dtxsid_* and consensus_* columns
+  # Recalculate consensus_summary
+  # Return modified original_df
+}
+```
+
+**Data Flow:**
+```
+User selects error rows in DT → Retry button
+  → Modal with tag dropdowns (pre-filled from data_store$column_tags)
+  → User adjusts tags → Re-curate button
+  → run_curation_subset(clean_data, row_indices, new_tags)
+    → deduplicate → search → map → classify (on subset only)
+  → merge_subset_results(resolution_state, subset_results, row_indices)
+  → Update data_store$resolution_state
+  → Recalculate consensus_summary
+  → Close modal, DT re-renders
+```
+
+**Key Considerations:**
+- Need original `data_store$clean` data (preserved throughout session, line 537)
+- Row indices must be preserved through subset pipeline (`clean_data$.row_idx <- row_indices` before processing)
+- Tag changes only apply to subset, not global `data_store$column_tags`
+- Merged results may change consensus_status from "error" → "agree"/"disagree"/"single"
+- Progress callback should work with subset (smaller n)
+
+**New vs Modified:**
+- **NEW:** `R/curation.R::run_curation_subset()` (~60 lines, adapted from run_curation_pipeline)
+- **NEW:** `R/curation.R::merge_subset_results()` (~40 lines)
+- **MODIFIED:** `app.R::nav_panel("Review Results")` — add retry UI elements
+- **NEW:** `app.R::observeEvent(input$retry_error_rows)` — show modal (~30 lines)
+- **NEW:** `app.R::observeEvent(input$run_subset_curation)` — execute subset pipeline (~70 lines)
+
+---
+
+## Suggested Build Order
+
+### Phase 1: Search Chain Foundations (lowest risk, high value)
+1. **Feature 1: Reorder search chain** (exact → CAS → starts-with)
+   - Modify `run_tiered_search()` tier order
+   - Update progress messages
+   - Test with existing data
+   - **Rationale:** Self-contained, no new UI, improves accuracy immediately
+
+2. **Feature 2: Other tags as searchable**
+   - Modify `deduplicate_tagged_columns()` to include Other in unique_names
+   - Test consensus still auto-detects dtxsid_* columns
+   - **Rationale:** Leverages existing map/classify logic, minimal change
+
+### Phase 2: UI Refinements (medium complexity, polish)
+3. **Feature 3: Hide untagged columns**
+   - Extend `hidden_cols` logic in `output$curation_table`
+   - Verify Excel export still includes all columns
+   - **Rationale:** Simple DT configuration change, no backend changes
+
+### Phase 3: Advanced Features (highest complexity, new workflows)
+4. **Feature 4: Manual DTXSID entry**
+   - Add `validate_dtxsid_bulk()` and `apply_manual_dtxsid()` functions
+   - Add manual entry UI to Review Results
+   - Add observeEvent for validation
+   - Test with invalid/valid DTXSIDs
+   - **Rationale:** New workflow, but single-direction (user → validation → update)
+
+5. **Feature 5: Error row retry**
+   - Add `run_curation_subset()` and `merge_subset_results()` functions
+   - Add retry UI and modal dialog
+   - Add subset curation observeEvent
+   - Test merging logic thoroughly
+   - **Rationale:** Most complex, requires subset pipeline + merge logic + modal UX
+
+### Dependency Rationale
+
+- **1 → 2:** Search reordering should stabilize before adding Other tags (both affect search tier distribution)
+- **2 → 3:** Other tags need to work before hiding untagged (validates that tagged columns show correct consensus)
+- **3 → 4:** Column hiding polish before adding manual entry (reduces visual clutter for manual workflow)
+- **4 → 5:** Manual entry is simpler workflow (no modal, no merge), test before subset retry complexity
+
+---
+
+## Integration Patterns
+
+### Pattern 1: Reactive Data Store Extensions
+
+**What:** Adding new fields to `reactiveValues(data_store)` to support new features
+
+**Current fields:**
 ```r
 data_store <- reactiveValues(
-  # Existing state (from upload/detection)
-  raw = NULL,
-  clean = NULL,
-  detection = NULL,
-  file_info = NULL,
-
-  # Step 1: Tag Columns
-  selected_columns = NULL,
-  column_tags = NULL,          # Named list: col_name -> "Name"|"CASRN"|"Other"
-
-  # Step 2: Run Curation
-  curation_results = NULL,     # Output from curate_chemical_data()
-  curation_report = NULL,      # Summary stats
-  curation_status = NULL,      # "idle", "running", "complete", "error"
-
-  # Workflow control
-  tabs_unlocked = list(
-    run_curation = FALSE,
-    review_results = FALSE
-  )
+  raw, clean, detection, file_info,       # Upload/detection
+  selected_columns, column_tags,           # Tagging
+  curation_results, curation_report, curation_status,  # Legacy
+  dedup_preview, consensus_data, consensus_summary,    # Pipeline
+  resolution_state, dtxsid_cols, priority_order        # Resolution
 )
 ```
 
-**Best Practices:**
-- Group related state (e.g., `tabs_unlocked` as a list)
-- Use explicit status enums (`"idle"`, `"running"`, `"complete"`) over boolean flags
-- Initialize all fields in `reactiveValues()` to avoid NULL checks everywhere
-- Document expected data structures in comments
+**New fields needed:**
+- `selected_rows` (for manual DTXSID entry and retry workflows)
+- `subset_tags` (for retry workflow, scoped to selected rows)
 
-### Pattern 3: Conditional UI with `conditionalPanel`
-
-**What:** Use `conditionalPanel()` to show/hide UI elements within a tab based on reactive outputs.
-
-**When to use:** For fine-grained control within a single tab (e.g., hiding "Start Curation" button until tags applied).
+**When to use:** Any time a new workflow needs to preserve state between UI interactions
 
 **Trade-offs:**
-- ✅ No server-side logic needed for simple show/hide
-- ✅ Animates in browser (smoother than `uiOutput`/`renderUI`)
-- ⚠️ Uses JavaScript conditions (must expose reactive value via `outputOptions(suspendWhenHidden = FALSE)`)
-- ⚠️ Can become verbose with complex conditions
+- **Pro:** Centralized state, survives tab switches
+- **Con:** Large reactiveValues can trigger unnecessary re-renders (use `isolate()` when reading for non-reactive operations)
+
+---
+
+### Pattern 2: Function Composition in Curation Pipeline
+
+**What:** New features reuse existing pipeline functions (deduplicate → search → map → classify)
 
 **Example:**
 ```r
-# UI
-nav_panel(
-  title = "Run Curation",
+# Existing full pipeline
+run_curation_pipeline(clean_data, column_tags, progress_callback)
+  → deduplicate_tagged_columns()
+  → run_tiered_search()
+  → map_results_to_rows()
+  → classify_consensus()
 
-  conditionalPanel(
-    condition = "output.tags_applied",
-
-    actionButton("run_curation", "Start Curation"),
-    uiOutput("curation_progress")
-  ),
-
-  conditionalPanel(
-    condition = "!output.tags_applied",
-
-    div(
-      class = "alert alert-warning",
-      "Apply column tags before running curation."
-    )
-  )
-)
-
-# Server
-output$tags_applied <- reactive({
-  !is.null(data_store$column_tags) && length(data_store$column_tags) > 0
-})
-outputOptions(output, "tags_applied", suspendWhenHidden = FALSE)
+# New subset pipeline (Feature 5)
+run_curation_subset(clean_data, row_indices, column_tags, progress_callback)
+  → subset_data <- clean_data[row_indices, ]
+  → deduplicate_tagged_columns(subset_data, column_tags)  # REUSE
+  → run_tiered_search()                                    # REUSE
+  → map_results_to_rows()                                  # REUSE
+  → classify_consensus()                                   # REUSE
+  → add original row_indices to result
 ```
 
-**When to Prefer Over `nav_panel_hidden()`:**
-- Showing/hiding elements **within** a tab (not the tab itself)
-- Simple conditions (e.g., "show if not null")
-- Need smooth CSS transitions (browser-rendered)
-
-**When to Use `nav_panel_hidden()` Instead:**
-- Hiding entire tabs from tab bar
-- Multi-step workflows with sequential unlocking
-- Server-side authorization logic (e.g., role-based access)
-
-### Pattern 4: Separation of Business Logic from Reactivity
-
-**What:** Keep pure business functions (data transformations, API calls) in separate R files, called from reactive observers.
-
-**When to use:** Always, for any non-trivial Shiny app.
+**When to use:** When new workflow is a variant of existing pipeline (different input scope, same logic)
 
 **Trade-offs:**
-- ✅ Testable without Shiny session
-- ✅ Reusable across apps
-- ✅ Clear separation of concerns
-- ⚠️ Requires discipline (easy to put logic in observers)
+- **Pro:** DRY, reuses tested logic, consistent behavior
+- **Con:** Functions must be pure (no side effects) to safely reuse in subset context
 
-**Example:**
+---
+
+### Pattern 3: Progressive Disclosure in DT
+
+**What:** Show/hide UI elements based on row selection and consensus_status
+
+**Current usage:**
+- Resolution dropdowns only appear for `consensus_status == "disagree"` rows (line 1384-1409)
+- Pinned rows show pin icon instead of dropdown (line 1385-1388)
+
+**New usage:**
+- Manual DTXSID entry UI only enabled when error rows selected
+- Retry workflow button only visible when rows selected in DT
+
+**Implementation:**
 ```r
-# R/curation.R (Pure functions, no reactivity)
-curate_chemical_data <- function(clean_data, column_tags) {
-  # ... business logic ...
-  list(
-    curated_data = curated_df,
-    report = report_stats
-  )
-}
-
-# app.R (Server observers call pure functions)
-observeEvent(input$run_curation, {
-  req(data_store$clean, data_store$column_tags)
-
-  data_store$curation_status <- "running"
-
-  tryCatch({
-    # Call pure function
-    result <- curate_chemical_data(
-      clean_data = data_store$clean,
-      column_tags = data_store$column_tags
-    )
-
-    # Store results
-    data_store$curation_results <- result$curated_data
-    data_store$curation_report <- result$report
-    data_store$curation_status <- "complete"
-
-    # Unlock next tab
-    nav_show("main_tabs", target = "review_results", select = TRUE)
-
-  }, error = function(e) {
-    data_store$curation_status <- "error"
-    showNotification(paste("Curation failed:", e$message), type = "error")
-  })
-})
-```
-
-**Benefits:**
-- Unit test `curate_chemical_data()` with test fixtures
-- Use in RMarkdown reports or other scripts
-- Easier to refactor (no Shiny-specific code)
-
-## Data Flow
-
-### Upload → Detection → Tagging → Curation → Review
-
-```
-[File Upload]
-    ↓
-[safely_read_file()] → data_store$raw
-    ↓
-[detect_data_start()] → data_store$detection
-    ↓
-[extract_clean_data()] → data_store$clean
-    ↓
-[User: Select Columns] → data_store$selected_columns
-    ↓
-[User: Apply Tags] → data_store$column_tags
-    ↓ (triggers nav_show("run_curation"))
-[User: Start Curation]
-    ↓
-[curate_chemical_data()] → data_store$curation_results
-    ↓ (triggers nav_show("review_results"))
-[User: Download Curated Data]
-    ↓
-[Excel Export with sheets]
-```
-
-### Reactive Dependency Chain
-
-```
-data_store$raw
-    ↓
-data_store$clean (filtered by selected_columns)
-    ↓
-filtered_data (reactive expression)
-    ↓
-output$data_table (DT table)
-
-data_store$column_tags
-    ↓
-output$tags_applied (reactive boolean)
-    ↓
-conditionalPanel visibility
-    ↓
-nav_show("run_curation") observer
-
-data_store$curation_results
-    ↓
-output$curation_completed (reactive boolean)
-    ↓
-nav_show("review_results") observer
-    ↓
-output$curation_table (DT table)
-```
-
-### State Transitions
-
-```
-State 1: Initial
-- All tabs: Data Preview, Detection Info, Raw Data visible
-- Tag Columns: visible
-- Run Curation: hidden
-- Review Results: hidden
-
-↓ [Apply Tags Button]
-
-State 2: Tags Applied
-- Run Curation: revealed via nav_show(), auto-selected
-- data_store$tabs_unlocked$run_curation = TRUE
-
-↓ [Start Curation Button]
-
-State 3: Curation Running
-- data_store$curation_status = "running"
-- Progress indicator shown
-
-↓ [Curation API completes]
-
-State 4: Curation Complete
-- Review Results: revealed via nav_show(), auto-selected
-- data_store$tabs_unlocked$review_results = TRUE
-- Download button enabled
-```
-
-## Component Boundaries (What Moves Where)
-
-### Current Structure (app.R, lines 197-273)
-```r
-nav_panel(
-  title = "Curation",
-
-  # Card 1: Tag Columns
-  card(...),
-
-  # Card 2: Run Curation
-  card(...),
-
-  # Card 3: Review Results
-  card(...)
+# In UI
+conditionalPanel(
+  condition = "output.has_selected_rows && output.all_selected_are_errors",
+  actionButton("retry_error_rows", "Retry Selected Rows")
 )
+
+# In server
+output$has_selected_rows <- reactive({
+  length(input$curation_table_rows_selected) > 0
+})
+outputOptions(output, "has_selected_rows", suspendWhenHidden = FALSE)
+
+output$all_selected_are_errors <- reactive({
+  req(data_store$resolution_state, input$curation_table_rows_selected)
+  selected_statuses <- data_store$resolution_state$consensus_status[input$curation_table_rows_selected]
+  all(selected_statuses == "error")
+})
+outputOptions(output, "all_selected_are_errors", suspendWhenHidden = FALSE)
 ```
 
-### New Structure
+**Trade-offs:**
+- **Pro:** Reduces UI clutter, guides user to valid actions
+- **Con:** Requires reactive outputs for conditionalPanel (can't use `req()` in condition string)
 
-**Tab 1: Tag Columns (lines ~197-245)**
-- **Move:** Card 1 body content → `nav_panel(value = "tag_columns")`
-- **Keep:** `uiOutput("column_tagging_ui")`, `actionButton("apply_tags")`
-- **Remove:** Card wrapper (card is redundant when tab uses full space)
-- **Add:** Instructions text at top, more whitespace
+---
 
-**Tab 2: Run Curation (lines ~246-265)**
-- **Move:** Card 2 body content → `nav_panel_hidden(value = "run_curation")`
-- **Keep:** `conditionalPanel(output.tags_applied)`, `uiOutput("curation_summary")`, `actionButton("run_curation")`
-- **Remove:** Card wrapper
-- **Add:** Progress bar, estimated time, cancel button (future enhancement)
+## Data Flow: New Features
 
-**Tab 3: Review Results (lines ~266-273)**
-- **Move:** Card 3 body content → `nav_panel_hidden(value = "review_results")`
-- **Keep:** `conditionalPanel(output.curation_completed)`, `uiOutput("curation_stats")`, `DTOutput("curation_table")`, `downloadButton`
-- **Remove:** Card wrapper
-- **Add:** Summary statistics cards at top (value boxes), filter controls
-
-**Server Changes (app.R, lines 864-1100)**
-- **Modify:** `observeEvent(input$apply_tags)` → add `nav_show("run_curation")` call
-- **Modify:** `observeEvent(input$run_curation)` completion → add `nav_show("review_results")` call
-- **Add:** `data_store$tabs_unlocked` tracking
-- **Keep:** All existing reactive logic, outputs, business function calls
-
-**No Changes:**
-- `R/curation.R` (pure business logic remains untouched)
-- `R/file_handlers.R` (upload logic remains untouched)
-- `R/data_detection.R` (detection logic remains untouched)
-
-## Build Order and Dependencies
-
-### Phase 1: Extract and Refactor Tab UI (1-2 hours)
-**Goal:** Split monolithic tab into 3 separate tabs, no gating yet.
-
-**Steps:**
-1. Add `tabs_unlocked` field to `data_store` reactiveValues
-2. Convert Card 1 → `nav_panel(value = "tag_columns", ...)`
-3. Convert Card 2 → `nav_panel(value = "run_curation", ...)`
-4. Convert Card 3 → `nav_panel(value = "review_results", ...)`
-5. Test: All 3 tabs visible, existing functionality works
-
-**Validation:**
-- All existing outputs render correctly
-- No JavaScript console errors
-- Tab switching works
-- Column tagging, curation, download still functional
-
-### Phase 2: Implement Tab Gating (1 hour)
-**Goal:** Hide tabs 2 and 3 initially, reveal conditionally.
-
-**Steps:**
-1. Change `nav_panel()` → `nav_panel_hidden()` for Run Curation and Review Results
-2. Add `nav_show("main_tabs", "run_curation", select = TRUE)` to `observeEvent(input$apply_tags)`
-3. Add `nav_show("main_tabs", "review_results", select = TRUE)` to curation completion logic
-4. Add `tabs_unlocked` state tracking to prevent redundant `nav_show()` calls
-5. Test: Tabs unlock in sequence, can't access downstream tabs prematurely
-
-**Validation:**
-- Tab 2 hidden until Apply Tags clicked
-- Tab 3 hidden until curation completes
-- User notifications guide workflow ("Tags applied! Proceed to Run Curation.")
-- State persists on tab switches (don't lose data)
-
-### Phase 3: UI Polish (1-2 hours)
-**Goal:** Use freed-up space for better layouts.
-
-**Steps:**
-1. Remove unnecessary nested cards (tabs provide structure)
-2. Add `layout_columns()` for side-by-side layouts in wider tabs
-3. Add `value_box()` for key stats in Review Results
-4. Increase whitespace, improve typography
-5. Test: Layout responsive, readable on different screen sizes
-
-**Validation:**
-- No excessive scrolling within tabs
-- Key actions (buttons) easily discoverable
-- Stats/summaries visually prominent
-
-### Dependencies
+### Manual DTXSID Entry Flow
 
 ```
-Phase 1 (Extract UI)
-    ↓ (Must complete before Phase 2)
-Phase 2 (Implement Gating)
-    ↓ (Must complete before Phase 3)
-Phase 3 (UI Polish)
+Review Results DT
+  → User selects error rows (DT select extension)
+  → User enters DTXSID in text input
+  → Click "Validate & Apply"
+    ↓
+observeEvent(input$validate_manual_dtxsid)
+  → dtxsid <- input$manual_dtxsid_input
+  → selected_rows <- input$curation_table_rows_selected
+    ↓
+validate_dtxsid_bulk(dtxsid)
+  → ComptoxR::ct_chemical_search_equal_bulk(dtxsid)
+  → Returns: is_valid, preferredName
+    ↓
+If valid:
+  apply_manual_dtxsid(data_store$resolution_state, selected_rows, dtxsid, dtxsid_cols)
+    → Set consensus_dtxsid = dtxsid
+    → Set consensus_status = "agree"
+    → Set consensus_source = "manual"
+    → Set .pinned = TRUE
+    ↓
+  Update data_store$resolution_state
+  Update data_store$consensus_summary
+  DT re-renders (updated row shows "agree" status)
 ```
 
-**Why this order:**
-1. **Phase 1 first:** Establish new tab structure without breaking existing functionality (safe refactor)
-2. **Phase 2 second:** Add gating logic once tabs are working independently (behavior change)
-3. **Phase 3 last:** Polish UI after core functionality proven (avoid rework)
+### Subset Retry Flow
 
-**Parallel work (optional):**
-- Can write unit tests for pure functions (R/curation.R) anytime
-- Can document curation logic separately
+```
+Review Results DT
+  → User selects error rows
+  → Click "Retry Selected Rows"
+    ↓
+showModal(modalDialog(
+  title = "Re-tag and Re-curate Selected Rows",
+  uiOutput("subset_tagging_ui"),  # Column tag dropdowns pre-filled
+  actionButton("run_subset_curation", "Re-curate Subset")
+))
+    ↓
+User adjusts tags in modal
+  → Click "Re-curate Subset"
+    ↓
+observeEvent(input$run_subset_curation)
+  → selected_rows <- input$curation_table_rows_selected
+  → subset_tags <- collect tags from modal inputs
+  → subset_data <- data_store$clean[selected_rows, ]
+    ↓
+run_curation_subset(subset_data, selected_rows, subset_tags, progress_callback)
+  → deduplicate → search → map → classify (on subset only)
+  → Returns: subset_results with .row_idx preserved
+    ↓
+merge_subset_results(data_store$resolution_state, subset_results, selected_rows, dtxsid_cols)
+  → Replace dtxsid_*, preferredName_*, consensus_* columns for selected rows
+  → Recalculate consensus_summary
+  → Return updated df
+    ↓
+Update data_store$resolution_state
+Update data_store$consensus_summary
+removeModal()
+DT re-renders (updated rows show new consensus)
+```
+
+---
 
 ## Anti-Patterns
 
-### Anti-Pattern 1: Using `uiOutput`/`renderUI` for Tab Gating
+### Anti-Pattern 1: Modifying Global column_tags in Subset Workflow
 
-**What people do:** Conditionally render entire tabs with `uiOutput()` and `renderUI()` based on reactive flags.
-
-**Why it's wrong:**
-- Destroys/recreates entire UI tree (loses scroll position, input state)
-- Slower than `nav_panel_hidden()` + `nav_show()` (server round-trip)
-- Breaks browser back/forward navigation
-- No smooth transitions
-
-**Do this instead:** Use `nav_panel_hidden()` with `nav_show()` for programmatic tab control (native bslib pattern).
-
-### Anti-Pattern 2: Multiple `reactiveVal()` for Workflow State
-
-**What people do:** Track workflow state with separate `reactiveVal()` objects:
-```r
-tags_applied <- reactiveVal(FALSE)
-curation_running <- reactiveVal(FALSE)
-curation_complete <- reactiveVal(FALSE)
-```
+**What people might do:** Update `data_store$column_tags` when user re-tags subset rows
 
 **Why it's wrong:**
-- State scattered across server function
-- Hard to debug (can't inspect all state at once)
-- Easy to introduce inconsistencies (forgot to update one flag)
-
-**Do this instead:** Use a single `reactiveValues()` object with structured fields:
-```r
-data_store <- reactiveValues(
-  column_tags = NULL,
-  curation_status = "idle",  # "idle", "running", "complete", "error"
-  tabs_unlocked = list(...)
-)
-```
-
-### Anti-Pattern 3: Re-hiding Tabs on Reset
-
-**What people do:** Try to "reset" workflow by calling `nav_hide()` on all gated tabs.
-
-**Why it's wrong:**
-- Confusing UX (tabs disappear unexpectedly)
-- User loses context of what they already completed
-- Can't review earlier steps without restarting
+- Global tags apply to ALL rows in next full curation run
+- Subset re-tagging is row-specific override, not global preference change
+- Would confuse users if they re-run full curation and see unexpected tags
 
 **Do this instead:**
-- Keep tabs visible once unlocked (allows revisiting steps)
-- Use "Reset" button to clear data and restart workflow (full app reload or clear `data_store`)
-- Show status indicators (checkmarks) on completed tabs
+- Store subset tags in local variable or `data_store$subset_tags` (ephemeral)
+- Pass subset tags ONLY to `run_curation_subset()`
+- Do NOT update `data_store$column_tags`
 
-### Anti-Pattern 4: Business Logic in observeEvent
+---
 
-**What people do:** Put complex data transformations, API calls, validation logic inside `observeEvent()` blocks.
+### Anti-Pattern 2: Rerunning Full Pipeline for Manual DTXSID Entry
 
-```r
-observeEvent(input$run_curation, {
-  # 50 lines of CAS validation, API calls, data munging...
-})
-```
+**What people might do:** Call `run_curation_pipeline()` after manual DTXSID entry to "refresh" results
 
 **Why it's wrong:**
-- Can't unit test without Shiny session
-- Can't reuse in other contexts (scripts, reports)
-- Hard to refactor (mixed concerns)
+- Wastes API calls (re-searches all rows)
+- Slow UX (user sees progress spinner for simple update)
+- Overwrites manual entries (pipeline would re-classify and lose manual override)
 
-**Do this instead:** Extract pure functions to separate files (e.g., `R/curation.R`), call from observers:
+**Do this instead:**
+- Directly update `data_store$resolution_state` with manual DTXSID
+- Set `.pinned = TRUE` to preserve manual entry
+- Recalculate `consensus_summary` counts without re-running pipeline
+- Only call API for validation (`validate_dtxsid_bulk()`), not full search
+
+---
+
+### Anti-Pattern 3: Losing Row Indices in Subset Pipeline
+
+**What people might do:** Run pipeline on `clean_data[selected_rows, ]` without preserving original row indices
+
+**Why it's wrong:**
+- Subset results have row indices 1:n (where n = number of selected rows)
+- Original data has row indices that may not be contiguous (e.g., c(5, 12, 47))
+- Merge function needs original indices to update correct rows
+
+**Do this instead:**
 ```r
-observeEvent(input$run_curation, {
-  result <- curate_chemical_data(data_store$clean, data_store$column_tags)
-  data_store$curation_results <- result
-})
+# Before pipeline
+subset_data <- clean_data[selected_rows, ]
+subset_data$.original_row_idx <- selected_rows
+
+# After pipeline
+merge_subset_results(original_df, subset_df, subset_df$.original_row_idx, dtxsid_cols)
 ```
 
-## Integration Points
-
-### Internal Boundaries
-
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| **UI ↔ Server** | Input bindings (`input$*`), reactive outputs (`output$*`) | Standard Shiny pattern |
-| **Server ↔ Business Logic** | Function calls with plain data structures | `R/curation.R` functions accept data frames, return lists |
-| **Tab Gating ↔ State** | `observeEvent()` watching `data_store` flags, calling `nav_show()` | `tabs_unlocked` prevents redundant `nav_show()` calls |
-| **Tabs ↔ Shared State** | All tabs read/write to same `data_store` reactiveValues | No tab-specific state isolation |
-
-### External Services
-
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| **EPA CompTox API** | Via `ComptoxR` package functions | Requires `ctx_api_key` env var, handles rate limiting internally |
-| **File System** | `rio`, `readxl`, `writexl` for CSV/XLSX I/O | Uploads via `fileInput()`, downloads via `downloadHandler()` |
+---
 
 ## Scaling Considerations
 
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| **Current (single user, local)** | Existing architecture is sufficient. Single `reactiveValues()` store, synchronous API calls. |
-| **10-50 concurrent users (Shiny Server)** | Add async API calls with `promises`/`future` to prevent blocking. Add session-level caching of API results. |
-| **100+ concurrent users (ShinyProxy/K8s)** | Move to stateless design: store `data_store` in database (PostgreSQL) or Redis, keyed by session ID. Use Shiny modules for better code organization. |
+### Current Scale (v1.2)
+- **Rows:** 10-10,000 rows per file (typical chemical inventory)
+- **Columns:** 5-50 columns (1-10 tagged for curation)
+- **API calls:** Deduplicated, typically 100-5,000 unique names/CAS per file
 
-### Scaling Priorities
+**Architecture is appropriate for scale:**
+- Single-file uploads (no batch processing needed)
+- In-memory processing (reactiveValues, no database)
+- Synchronous API calls with progress feedback
 
-1. **First bottleneck:** CompTox API rate limits
-   - **Solution:** Implement caching layer (DuckDB or SQLite) for previously curated chemicals
-   - **When:** If >50 unique chemicals/day being re-curated
+### Future Bottlenecks (if scaling to 100k+ rows)
 
-2. **Second bottleneck:** Large file uploads (>50MB) blocking UI
-   - **Solution:** Add async file processing with `future`, show real-time progress bar
-   - **When:** If users complain of UI freezing during upload
+1. **DT rendering:** Large DT tables (>10k rows) may lag in browser
+   - **Mitigation:** Server-side processing (`DT::renderDT(..., server = TRUE)`)
+   - **When:** If users upload files with >10k rows regularly
+
+2. **API rate limits:** CompToxR bulk endpoints may throttle
+   - **Mitigation:** Batch API calls (already doing via `_bulk()` functions)
+   - **When:** If unique names exceed API rate limits (check ComptoxR docs)
+
+3. **Memory:** reactiveValues stores full dataset + results in session
+   - **Mitigation:** Switch to database backend (DuckDB, SQLite)
+   - **When:** If file sizes exceed 100MB or concurrent users stress server RAM
+
+**Current v1.2 scope:** No scaling changes needed. Features 1-5 maintain current architecture.
+
+---
 
 ## Sources
 
-**High Confidence:**
-- [bslib Navigation Containers (Context7)](https://context7.com/rstudio/bslib/llms.txt) — nav_panel_hidden, nav_show, nav_select patterns
-- [Dynamically Update Nav Containers (bslib docs)](https://rstudio.github.io/bslib/reference/nav_select.html) — official nav_select, nav_show, nav_hide documentation
-- [Navigation Items Reference (bslib docs)](https://rstudio.github.io/bslib/reference/nav-items.html) — nav_panel_hidden usage
-
-**Medium Confidence:**
-- [Shiny Reactive Values Guide (datanovia)](https://www.datanovia.com/learn/tools/shiny-apps/server-logic/reactive-values.html) — reactiveValues patterns and best practices
-- [Mastering Shiny Chapter 15 (Hadley Wickham)](https://mastering-shiny.org/reactivity-objects.html) — reactive building blocks
-- [Shiny App Structure Guide (datanovia)](https://www.datanovia.com/learn/tools/shiny-apps/fundamentals/app-structure.html) — UI-server architecture patterns
-- [Conditional Panel Guide (Posit Community)](https://forum.posit.co/t/conditional-tabbox-with-shinydashboard/1991) — conditional tab patterns
-- [Mastering Shiny Chapter 10 (Hadley Wickham)](https://mastering-shiny.org/action-dynamic.html) — dynamic UI patterns
-
-**Low Confidence (verification recommended):**
-- [Effective State Management in Shiny Modules (Jakub Sobolewski)](https://jakubsobolewski.com/blog/the-other-way-of-lifting-state-up-from-shiny-modules/) — advanced module patterns (not needed for this project, but useful reference)
+- **Existing codebase:** app.R (1,719 lines), R/curation.R (624 lines), R/consensus.R (229 lines)
+- **Shiny patterns:** [Mastering Shiny - Reactivity](https://mastering-shiny.org/basic-reactivity.html) (MEDIUM confidence, year 2025)
+- **DT extensions:** [DT package documentation - Select extension](https://rstudio.github.io/DT/extensions.html) (HIGH confidence, official docs)
+- **ComptoxR API:** [ComptoxR GitHub](https://github.com/cran/ComptoxR) (HIGH confidence, package source)
 
 ---
-*Architecture research for: ChemReg tab refactoring*
-*Researched: 2026-02-26*
-*Next: This informs phase structure in roadmap (3 phases: Extract UI → Implement Gating → Polish)*
+
+*Architecture research for: ChemReg v1.2 Curation Refinement*
+*Researched: 2026-03-01*

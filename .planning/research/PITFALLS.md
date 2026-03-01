@@ -1,189 +1,194 @@
 # Pitfalls Research
 
-**Domain:** Shiny Multi-Tab Gated Workflows
-**Researched:** 2026-02-26
+**Domain:** Curation refinement features for existing chemical inventory app
+**Researched:** 2026-03-01
 **Confidence:** HIGH
 
 ## Critical Pitfalls
 
-### Pitfall 1: Tab Initialization Timing Race Conditions
+### Pitfall 1: DT Column Index Drift After Hiding Columns
 
 **What goes wrong:**
-When using `nav_hide()` or `hideTab()` to gate tabs on app startup, tabs are briefly visible before the hide command executes. During this loading time (before the hideTab instruction gets run), users can see and click on tabs that should be hidden, especially if those tabs contain many widgets, uiOutputs, plots, or images that slow down initial page render.
+When hiding columns via `columnDefs: list(visible = FALSE, targets = hidden_indices)`, JavaScript callbacks using `data-row` attributes refer to R-side row indices (1-based), but DT's internal column indices (0-based) shift when columns are hidden. If you hide dtxsid_* columns but formatStyle or JS callbacks assume original column positions, they target the wrong columns or fail silently.
 
 **Why it happens:**
-Server-side `nav_hide()` and `hideTab()` commands only execute after the initial UI has been sent to the client and the Shiny session has started. The time gap between DOM rendering and server commands executing creates this visibility window.
+The DT package maintains separate R-side (1-based with all columns) and JS-side (0-based, visible columns only) indexing. When `escape=FALSE` is used with dynamically generated HTML (like resolution dropdowns), the `data-row` attribute captures the R row index, but if your JS callback tries to read column values using visible column positions, it gets misaligned data.
 
 **How to avoid:**
-1. Use `nav_panel_hidden()` for tabs that should start hidden, then programmatically show them with `nav_show()` when conditions are met
-2. For legacy `tabsetPanel()`, use CSS to hide tabs initially: add custom CSS that hides specific tabs by default
-3. Use `tabsetPanel(type = "hidden")` with separate UI controls for navigation instead of visible tabs
+1. Always use R-side row indices (from `seq_len(nrow(df))`) in `data-row` attributes
+2. Never mix R row indices with DT column indices in the same callback
+3. When hiding columns, compute `hidden_indices` as `which(names(df) %in% hidden_cols) - 1` (0-indexed for JS)
+4. Test callbacks with both minimum (1 column hidden) and maximum (10+ columns hidden) scenarios
+5. Use formatStyle's `target = 'row'` instead of column-specific styling when possible to avoid index issues
 
 **Warning signs:**
-- Users report clicking on tabs they "shouldn't be able to access"
-- Tabs briefly flash during app initialization
-- Console shows server code executing after user interactions
-- Large tab content causes longer initialization delays
+- Resolution dropdown appears in the wrong column after hiding dtxsid_* columns
+- `Shiny.setInputValue` receives row indices that don't match consensus_status values
+- formatStyle applies to wrong column (e.g., consensus_status styling appears on consensus_dtxsid)
+- Console errors like "cannot read property of undefined" in browser DevTools
 
 **Phase to address:**
-Phase 1 (Foundation/Architecture) — Set up proper tab hiding pattern from the start to avoid refactoring reactivity chains later.
+Phase 1 (Untagged Column Hiding) — validate that hiding columns doesn't break existing resolution dropdown indices
 
 ---
 
-### Pitfall 2: Reactive State Flicker During Input Updates
+### Pitfall 2: Starts-With Search Precision Collapse
 
 **What goes wrong:**
-When switching tabs or changing inputs that affect tab visibility, outputs briefly flicker showing stale/incorrect data because `updateTabsetPanel()`, `updateSelectInput()`, and similar update functions only take effect after all outputs and observers have run. This creates a temporary inconsistent state where you might have "dataset B" displayed with "variable from dataset A".
+Moving starts-with to the end of the search chain (exact → CAS → starts-with) seems logical for prioritizing exact matches, but starts-with has no precision control — it returns all chemicals starting with the query string. For short queries like "Acet" or "Prop", this produces 100+ matches per query, and `slice_min(rank, n=1)` arbitrarily picks the top-ranked one, which may not be the user's intended chemical. This degrades match quality compared to exact-then-starts-with order.
 
 **Why it happens:**
-Shiny's reactive flush cycle processes all outputs and observers before updating client-side inputs. During this window, downstream reactives and outputs read the old input value and render, then immediately re-render when the update completes.
+The CompTox API's starts-with search is "identifier substring search" and returns all matching substances with no fuzzy matching score. According to EPA documentation, exact searches are already implemented, but "fuzzy matching" to account for spelling differences is a future plan. The current starts-with implementation ranks results but doesn't filter by relevance beyond alphabetical/system ordering. When CAS search runs before starts-with, CAS failures (invalid format, no DTXSID mapping) fall through to starts-with, polluting results with unintended prefix matches.
 
 **How to avoid:**
-1. **ALWAYS use `freezeReactiveValue()` when programmatically updating inputs:**
+1. **Test match quality empirically** — run curation on sample data with both orders (exact → starts → CAS vs exact → CAS → starts) and compare consensus_status distributions
+2. **Add starts-with filtering** — if moving to last-resort position, add length-based filtering (e.g., only use starts-with if query is 6+ characters) to reduce false positives
+3. **Consider CAS-first only for CAS-tagged columns** — keep Name columns on exact → starts chain, use exact → CAS → starts only for CASRN-tagged columns
+4. **Log tier attribution** — ensure `source_tier` column distinguishes exact, cas, starts_with so you can audit match quality post-curation
+5. **Document the tradeoff** — exact → starts → CAS maximizes recall for typos; exact → CAS → starts maximizes precision for valid CAS numbers
+
+**Warning signs:**
+- Consensus rate drops after reordering (e.g., from 85% agree to 75% agree)
+- Review Results shows chemicals with names completely different from uploaded data (e.g., uploaded "Acetone" matched to "Acetonitrile")
+- Tier attribution shows unexpected starts_with dominance for columns tagged as CASRN
+- User feedback: "The matches are wrong now"
+
+**Phase to address:**
+Phase 2 (Search Chain Reorder) — run comparative analysis on sample datasets before finalizing tier order
+
+---
+
+### Pitfall 3: Consensus Algorithm Breaks with Three Column Types
+
+**What goes wrong:**
+The consensus logic (`find_dtxsid_cols`) assumes all dtxsid_* columns are semantically equivalent (all from Name or CASRN tags). When "Other" columns become curation participants, you now have dtxsid_Name, dtxsid_CASRN, and dtxsid_Other columns. The consensus algorithm counts `k = length(dtxsid_cols)` for QC tier calculation but doesn't weight by tag type — a 2-name + 1-CAS agreement gets the same QC tier as a 3-name agreement, even though CAS is more reliable. Worse, if Other columns contain supplier codes or batch IDs that shouldn't participate in consensus, the algorithm treats them as equal voters.
+
+**Why it happens:**
+The original design assumed two tag types (Name, CASRN) and that all tagged columns should vote equally. Adding Other as a third type without revising consensus logic creates semantic ambiguity: should Other columns count toward `k`? Should they have lower weight? The current implementation has no tag-type awareness in `classify_consensus()`.
+
+**How to avoid:**
+1. **Decide Other's consensus role** — should Other columns:
+   - Vote equally (current behavior, simple but potentially wrong)
+   - Vote with reduced weight (requires consensus refactor)
+   - Not vote (filter out dtxsid_Other before consensus, report separately)
+2. **Update `find_dtxsid_cols` with tag awareness** — change signature to `find_dtxsid_cols(df, tag_map)` so it can filter by tag type
+3. **Revise QC tier calculation** — if Other participates, consider tier = f(n_matched, n_name_cols, n_cas_cols, n_other_cols) instead of just n_total
+4. **Add consensus mode parameter** — `classify_consensus(df, dtxsid_cols, mode = c("equal_vote", "name_cas_only", "weighted"))`
+5. **Test with mixed tag scenarios** — 1 Name + 1 CAS + 1 Other, all agree; 1 Name + 1 CAS + 1 Other, Other disagrees; 2 Other + 1 Name
+
+**Warning signs:**
+- QC tiers look wrong (e.g., 1 Name + 1 Other agreement gets qc_tier=1 like 3-column full consensus)
+- Consensus status "agree" for rows where Other column has garbage data but Name/CAS agree
+- User confusion: "Why is my supplier code affecting chemical ID consensus?"
+- Test failures when Other columns added to curation pipeline
+
+**Phase to address:**
+Phase 3 (Other Tag Curation) — refactor consensus logic before enabling Other search
+
+---
+
+### Pitfall 4: Retry Merge Loses Resolution State
+
+**What goes wrong:**
+The error row retry workflow subsets error rows, re-tags them, re-curates, then merges back via `left_join(original, retried, by = "row_id")` or similar. But `left_join` drops columns not present in the join key, and if the retry produces new dtxsid_* columns (e.g., user adds a new tag), the merge creates duplicated columns (dtxsid_Name.x, dtxsid_Name.y). Even if column names match, join operations don't preserve `.pinned` state or row order — retried rows may reappear at the end of the table, breaking the user's mental model.
+
+**Why it happens:**
+R's join functions (dplyr, base merge) are designed for relational data, not stateful UI objects. The `.pinned` attribute is a UI-layer concept stored in the resolution_state data frame. When you subset error rows, re-curate, and join back, you're merging two different "versions" of the same rows. Standard joins don't have semantics for "replace these rows in-place while preserving surrounding state".
+
+**How to avoid:**
+1. **Use row index-based replacement, not join** — instead of `left_join`, do:
    ```r
-   observeEvent(input$dataset_switch, {
-     freezeReactiveValue(input, "variable_select")
-     updateSelectInput(session, "variable_select", choices = new_vars)
-   })
+   retried_indices <- which(original$consensus_status == "error" & original$row_id %in% retried$row_id)
+   original[retried_indices, updated_cols] <- retried[match(original$row_id[retried_indices], retried$row_id), updated_cols]
    ```
-2. Use `req()` to prevent outputs from rendering during transition states
-3. Consider using `isolate()` to prevent unnecessary reactive dependencies during updates
-
-**Warning signs:**
-- Outputs flash/flicker when changing tabs
-- Brief error messages appear then disappear
-- Users see "impossible" data combinations for a split second
-- Multiple rapid re-renders in browser developer tools
-
-**Phase to address:**
-Phase 1 (Foundation/Architecture) — Implement `freezeReactiveValue()` pattern for all programmatic input updates from the start.
-
----
-
-### Pitfall 3: Infinite Reactive Loops with Gated Navigation
-
-**What goes wrong:**
-An observer that controls tab visibility takes a reactive dependency on a value while also modifying that same value, creating an infinite loop. For example, an observer that watches `input$data_ready` and shows a tab, but the tab's content modifies `input$data_ready`, causing the observer to fire again indefinitely.
-
-**Why it happens:**
-Shiny's reactive graph automatically creates dependencies when observers read reactive values. Without explicit control, reading and writing the same reactive value creates a feedback loop. This is particularly common in gated workflows where tab visibility depends on state that tabs themselves can modify.
-
-**How to avoid:**
-1. Use `isolate()` to read reactive values without taking dependencies:
+2. **Preserve .pinned explicitly** — before merge, save `.pinned` state, then restore:
    ```r
-   observeEvent(input$tags_applied, {
-     # Read current tab without creating dependency
-     current_data <- isolate(data_store$clean)
-     nav_show("main_tabs", "run_curation")
-   })
+   pinned_state <- original$.pinned
+   merged <- merge_retry_results(original, retried)
+   merged$.pinned <- pinned_state
    ```
-2. Prefer `observeEvent()` over `observe()` for explicit event-driven updates
-3. Use `reactiveVal()` or `reactiveValues()` for state management instead of circular input dependencies
-4. Separate "trigger" reactives from "state storage" reactives
+3. **Validate row count invariant** — `nrow(merged) == nrow(original)` must be TRUE (no row duplication)
+4. **Validate column count** — after merge, no .x/.y suffixes in names(merged)
+5. **Test with subset re-tagging** — retry 3 error rows, add 1 new tag (adds dtxsid_Other), verify original dtxsid_Name/CASRN preserved for non-retried rows
 
 **Warning signs:**
-- App becomes unresponsive or freezes
-- Console shows repeated execution of the same observer
-- Browser developer tools show rapid WebSocket messages
-- CPU usage spikes on server
+- `nrow(resolution_state)` increases after retry (row duplication)
+- Column names contain .x or .y suffixes after merge
+- Previously pinned rows become unpinned after retry
+- Row order changes (error rows move to bottom)
+- DT table shows duplicate rows or missing rows after retry merge
 
 **Phase to address:**
-Phase 1 (Foundation/Architecture) — Design reactive graph with clear data flow direction before implementing gating logic.
+Phase 5 (Error Row Retry) — design merge strategy before implementing retry workflow
 
 ---
 
-### Pitfall 4: Lost Reactive State When Switching Tabs
+### Pitfall 5: Manual DTXSID Entry Bypasses Validation
 
 **What goes wrong:**
-Reactive values or computed data are lost or reset when users switch between tabs. For example, a user tags columns in the "Tag Columns" tab, switches to "Detection Info" to check something, then returns to find their tags reset or the UI state cleared.
+Users enter DTXSIDs manually (e.g., "DTXSID7020001" for acetone), but the UI doesn't validate against CompTox before storing. Invalid DTXSIDs (typos, wrong format, non-existent IDs) flow into consensus_dtxsid, breaking downstream assumptions that all DTXSIDs are valid. Bulk validation via CompTox API after entry can fail silently (API returns 404 for invalid IDs), leaving garbage data in the consensus column. Worse, if manual entry creates consensus_dtxsid without corresponding dtxsid_* columns, the consensus source becomes ambiguous ("manual" vs column name).
 
 **Why it happens:**
-Outputs in non-visible tabs stop executing (Shiny's optimization). If state is stored only in UI outputs (`renderUI`, `renderText`) or temporary reactive expressions instead of persistent `reactiveValues()`, it's lost when the tab becomes invisible. Additionally, using `uiOutput()` to render tab content on-demand can re-initialize state each time.
+The current pipeline assumes all DTXSIDs come from API lookups (search_exact, search_starts_with, validate_and_lookup_cas), which guarantee API-validated IDs. Manual entry is a new path that bypasses this validation. The consensus logic expects `consensus_source` to map to a column name (e.g., "Name" from "dtxsid_Name"), but manual entry has no originating column.
 
 **How to avoid:**
-1. **Store all workflow state in `reactiveValues()` or `reactiveVal()` objects:**
+1. **Validate before storing** — on manual DTXSID entry, call `ComptoxR::ct_get_dtxsid_details(dtxsid)` to verify ID exists
+2. **Batch validation with progress** — for bulk manual entry (paste list of DTXSIDs), validate all at once with `withProgress()` feedback
+3. **Store validation metadata** — add `consensus_source = "manual"` and `manual_validated = TRUE/FALSE` columns
+4. **Provide instant feedback** — show green checkmark for valid DTXSID, red X for invalid, with preferredName preview
+5. **Allow invalid-but-flagged** — don't block manual entry of invalid IDs (user may have external knowledge), but flag them clearly in Review Results
+6. **Test edge cases**:
+   - Valid DTXSID format but non-existent ID
+   - Invalid format (missing "DTXSID", wrong length)
+   - Case sensitivity (dtxsid7020001 vs DTXSID7020001)
+   - Deprecated DTXSIDs (redirected to active ID)
+
+**Warning signs:**
+- Review Results shows rows with consensus_dtxsid but no corresponding preferredName
+- Excel export contains DTXSIDs that don't resolve in CompTox Dashboard
+- consensus_source column contains "NA" or empty strings for manually entered rows
+- API rate limit errors from validation attempts on large manual entry batches
+
+**Phase to address:**
+Phase 4 (Manual DTXSID Entry) — implement validation before exposing manual entry UI
+
+---
+
+### Pitfall 6: Hidden Column Filter Breaks DT Filtering
+
+**What goes wrong:**
+When you hide untagged columns via `columnDefs: list(visible = FALSE)`, DT's `filter = "top"` still generates filter inputs for hidden columns. These invisible filters accumulate user state (if a user types in them before hiding or via browser autocomplete), causing mysterious empty table states where the user sees no data but can't understand why. Additionally, hiding columns doesn't remove them from CSV export (`buttons = c('csv')`) — users export "cleaned" data but get all original columns.
+
+**Why it happens:**
+DT's column hiding is CSS-based (`display: none`), not structural removal. Filter widgets are generated for all columns, then hidden columns have their headers hidden, but the filter inputs remain in the DOM and active in the filtering logic. Similarly, DataTables' export buttons operate on the underlying data structure, not the visible columns.
+
+**How to avoid:**
+1. **Remove hidden columns from display_df** — instead of hiding via columnDefs, remove them before passing to datatable():
    ```r
-   curation_state <- reactiveValues(
-     tags_applied = FALSE,
-     column_tags = list(),
-     curation_results = NULL
+   display_df <- df[, !names(df) %in% hidden_cols, drop = FALSE]
+   ```
+2. **If using columnDefs, disable filtering on hidden columns**:
+   ```r
+   columnDefs = list(
+     list(visible = FALSE, targets = hidden_indices),
+     list(searchable = FALSE, targets = hidden_indices)
    )
    ```
-2. Never rely on input values alone for state — copy them to reactive values
-3. Use persistent storage patterns (reactiveValues in global scope, not inside observers)
-4. For UI-heavy state, prefer static UI with conditional visibility over `renderUI()`
-
-**Warning signs:**
-- Users complain about "losing their work" when navigating
-- Input values reset unexpectedly
-- Tab content re-initializes when revisited
-- Progress indicators restart from zero
-
-**Phase to address:**
-Phase 1 (Foundation/Architecture) — Design central state management with `reactiveValues()` before building tab-specific logic.
-
----
-
-### Pitfall 5: Wrong Tab ID References with nav_show/nav_hide
-
-**What goes wrong:**
-`nav_show()`, `nav_hide()`, `nav_select()` fail silently or throw cryptic errors because the `id` parameter refers to the wrong element. For `nav_*` functions, the `id` must be the **container's id** (the `navset_*` id), not the individual tab's value. The `target` parameter specifies which tab to affect.
-
-**Why it happens:**
-The API is counterintuitive — developers naturally think `nav_show(id = "my_tab")` will show `my_tab`, but it actually needs `nav_show(id = "tab_container", target = "my_tab")`. Legacy Shiny's `showTab()` uses different parameter names (`inputId` vs `id`, `target` vs `select`), causing confusion when migrating to bslib.
-
-**How to avoid:**
-1. **Remember: `id` = container, `target` = specific tab:**
+3. **Customize export buttons** — use DT extensions to export only visible columns:
    ```r
-   # WRONG
-   nav_show(id = "curation_tab")
-
-   # CORRECT
-   nav_show(id = "main_tabs", target = "curation_tab")
+   buttons = list(list(extend = 'csv', exportOptions = list(columns = ':visible')))
    ```
-2. Set container `id` explicitly on `navset_card_tab()` or `page_navbar()`
-3. Set `value` parameter on each `nav_panel()` for reliable targeting
-4. Test tab manipulation functions interactively before embedding in observers
+4. **Test filter state persistence** — hide columns, filter on a visible column, unhide columns, verify filters reset correctly
+5. **Document export behavior** — if hidden columns ARE included in export (for Excel with full data), document this clearly in UI
 
 **Warning signs:**
-- `nav_show()` / `nav_hide()` have no effect
-- Console errors: "could not find nav container with id..."
-- Functions work in some contexts but not others
-- Different behavior between `navset_card_tab()` and `navbarPage()`
+- Table appears empty but row count shows non-zero
+- Clearing visible filters doesn't restore rows (hidden column filter is active)
+- CSV export contains columns user thought were hidden
+- Browser DevTools shows filter inputs with `display: none` but non-empty values
 
 **Phase to address:**
-Phase 1 (Foundation/Architecture) — Document tab structure and ID scheme before implementing gating logic.
-
----
-
-### Pitfall 6: Observer Execution on Hidden Tab Content
-
-**What goes wrong:**
-Observers and reactive expressions in hidden tabs continue executing even when tabs are not visible, wasting computational resources and potentially causing side effects (API calls, database writes, file operations) when users aren't viewing the results.
-
-**Why it happens:**
-Shiny's tab visibility optimization only applies to **outputs** (`renderPlot`, `renderTable`, etc.). Observers (`observe()`, `observeEvent()`) and non-output reactives (`reactive()`, `eventReactive()`) run regardless of tab visibility unless explicitly controlled.
-
-**How to avoid:**
-1. Use `req(input$main_tabs == "target_tab")` at the start of observers that should only run when tab is active
-2. Scope expensive operations inside outputs when possible (they auto-suspend)
-3. Use `conditionalPanel()` for UI that triggers observers
-4. Consider `bindEvent()` pattern (Shiny 1.6+) to control when reactives execute:
-   ```r
-   expensive_data <- reactive({
-     req(input$main_tabs == "data_tab")
-     # expensive computation
-   }) %>% bindEvent(input$run_button)
-   ```
-
-**Warning signs:**
-- API rate limits hit even when users aren't on API-dependent tabs
-- Database queries execute continuously in background
-- High server CPU usage when users are idle on other tabs
-- Logs show operations for tabs user never visited
-
-**Phase to address:**
-Phase 2 (Implementation) — Add tab-aware guards to observers during initial development.
+Phase 1 (Untagged Column Hiding) — decide structural removal vs. CSS hiding before implementing
 
 ---
 
@@ -191,12 +196,11 @@ Phase 2 (Implementation) — Add tab-aware guards to observers during initial de
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Using `conditionalPanel()` instead of `nav_hide()`/`nav_show()` | Easier to implement, no server-side logic | Tabs always visible in DOM, users can inspect/hack via browser console, no programmatic control | Never for security-sensitive gating; acceptable for simple UI convenience |
-| Storing state in `input$` values only | Simpler mental model, fewer reactive objects | State lost on tab switches, no programmatic state manipulation, hard to debug | Never for multi-tab workflows; acceptable for single-screen apps |
-| Using `updateTabsetPanel(selected = ...)` without `freezeReactiveValue()` | Fewer lines of code, faster initial development | Output flicker, race conditions, poor UX | Never; always use `freezeReactiveValue()` |
-| Relying on `renderUI()` for entire tab content | Dynamic, flexible UI generation | State resets on re-render, timing issues with bslib initialization, poor performance | Use sparingly for truly dynamic content; prefer static UI with `conditionalPanel` or visibility toggles |
-| Using `observe()` instead of `observeEvent()` | Less verbose, auto-detects dependencies | Hard to reason about, prone to infinite loops, executes on ANY dependency change | Never for gating logic; acceptable only for simple logging/debugging |
-| Sharing `reactiveValues()` across modules without clear ownership | Easy state sharing between components | Mutation from many sources, hard to debug, unclear data flow | Acceptable for MVP; refactor to explicit state management pattern before production |
+| Hiding columns via CSS instead of removing from data | Preserves data for Excel export, simpler implementation | Filter state bugs, export confusion, accessibility issues | Only if Excel export must include hidden columns AND filters disabled on hidden columns |
+| Equal-weight consensus for all tag types | No refactor needed for Other tag | QC tiers meaningless when mixing reliable (CAS) and unreliable (Other) columns | Never — consensus quality is core value prop |
+| Row-index-based retry merge instead of proper state management | Fast implementation, avoids join complexity | Fragile to future changes (add/remove rows), hard to test | MVP only — refactor to row_id-based merge in next phase |
+| Skip validation on manual DTXSID entry | Faster UX, no API calls | Garbage data in consensus, user trust loss | Never — validation is essential for data quality |
+| Hard-code search tier order instead of making it configurable | Avoids UI complexity | Can't A/B test tier order, harder to optimize per dataset | Acceptable until user feedback proves tier order needs tuning |
 
 ---
 
@@ -204,12 +208,11 @@ Phase 2 (Implementation) — Add tab-aware guards to observers during initial de
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| **bslib + DT (DataTables)** | Putting `DTOutput()` inside `renderUI()` on gated tabs | Use static `DTOutput()` with `req()` in `renderDT()` to prevent rendering until tab is accessible |
-| **bslib + shinyjs** | Mixing `shinyjs::hide()` with `nav_hide()` | Use only `nav_hide()` for nav panels; reserve `shinyjs` for non-nav elements |
-| **bslib + conditionalPanel** | Using JavaScript conditions with reactive values | Use `output.` prefix for server-side conditionals: `condition = "output.tags_applied"` |
-| **navset_card_tab + sidebar** | Expecting sidebar to change per-tab | Use `layout()` with tab-specific sidebars, or `conditionalPanel()` inside global sidebar |
-| **nav_panel + uiOutput** | Wrapping entire tab in `uiOutput()` | Use static structure with targeted `uiOutput()` for dynamic pieces only |
-| **page_navbar + modules** | Passing wrong namespace context to nav_* functions | Call `nav_show(session, ...)` with module session object, not parent session |
+| CompTox API starts-with search | Assuming starts-with returns "best match" like fuzzy search | Starts-with returns all prefix matches ranked by system order; always filter by query length (6+ chars) or manually verify top result |
+| DT datatable with escape=FALSE | Using R row indices in JS column lookups | Use `data-row` for R row index (1-based), never mix with DT column index (0-based, visible only) |
+| Shiny reactiveValues merge | Using dplyr::left_join to merge retried subset back | Use index-based replacement `df[indices, cols] <- new_values` to preserve row order and attributes |
+| ComptoxR bulk validation | Assuming failed API calls return empty results | `ct_chemical_search_equal_bulk` returns NULL on total failure, empty tibble on zero matches; wrap in tryCatch and check both |
+| DT column hiding | Hiding columns after creating DT with `filter = "top"` | Disable filtering on hidden columns via `searchable = FALSE` in columnDefs or remove columns from display_df |
 
 ---
 
@@ -217,22 +220,11 @@ Phase 2 (Implementation) — Add tab-aware guards to observers during initial de
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| **Rendering all tabs on load** | Slow initial page load, high memory usage | Use `nav_panel_hidden()` for tabs not needed immediately; lazy-load data when tab accessed | >3 tabs with large datasets or complex visualizations |
-| **Observers firing for all tabs** | High CPU usage when user idles on one tab | Add `req(input$main_tabs == "target")` guards in observers | >5 active observers across multiple tabs |
-| **Re-executing detection on tab switches** | Noticeable delay when switching tabs | Cache results in `reactiveValues()`, not in tab-scoped reactives | Data processing >500ms |
-| **Rendering entire dataset in hidden tabs** | Memory usage grows as user visits tabs | Use `DT::renderDataTable()` instead of `renderTable()` for large data; add `req()` guards | Datasets >10k rows across multiple tabs |
-| **Multiple reactive chains for same computation** | Redundant API calls or data processing | Create shared `reactive()` at app level, consumed by multiple tabs | >2 tabs using same data source |
-
----
-
-## Security Mistakes
-
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| Using `conditionalPanel()` alone for access control | Users can bypass via browser console; sensitive data sent to client even when hidden | Use server-side `nav_hide()` + `req()` guards; never rely on client-side hiding for security |
-| Storing sensitive state in input values | Input values visible in browser dev tools and WebSocket traffic | Use `reactiveValues()` on server; never store credentials or PII in `input$` |
-| Not validating state before showing tabs | Users can manipulate URL or session state to access gated tabs prematurely | Always check prerequisites with `req()` in observers AND in render functions |
-| Rendering sensitive data in hidden tabs | Data sent to client even if tab hidden; accessible via DOM inspection | Only render sensitive content after `req(input$main_tabs == "target")` check |
+| Bulk starts-with search on short queries | API timeout, 100+ results per query, UI freezes | Filter queries to length >= 6 characters before calling starts-with | 50+ chemicals with 2-3 letter names (e.g., "Pb", "Hg", "NaCl") |
+| Re-rendering entire DT on every resolution | Table flashes, pagination resets, user loses scroll position | Use DT::replaceData() to update data without recreating table | 500+ row tables with frequent resolutions |
+| Computing resolution options for all rows on every render | `get_resolution_options` called 1000+ times per render | Cache resolution options in a list column during classify_consensus | 200+ rows with 10+ tagged columns |
+| Redundant consensus classification after merge | Classify original, classify retried subset, classify merged (3x work) | Only classify retried rows, then replace in original without re-classifying | Retry workflow with 100+ error rows |
+| Hidden column iteration in renderDT | formatStyle loops over all columns including hidden ones | Apply formatStyle only to visible columns: `!names(df) %in% hidden_cols` | 20+ columns, 10+ hidden |
 
 ---
 
@@ -240,25 +232,28 @@ Phase 2 (Implementation) — Add tab-aware guards to observers during initial de
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| **No feedback when gate conditions unmet** | Users click disabled tabs, nothing happens, confusion | Show locked icon + tooltip explaining requirements |
-| **Losing work when tab switching** | Frustration, re-entering data, abandonment | Store all form state in `reactiveValues()`, persist across navigation |
-| **No indication of workflow progress** | Users unsure which tab to visit next | Add visual indicators (checkmarks, progress bar) to show completed steps |
-| **Tabs appear then immediately hide** | Jarring flash, feels broken | Use `nav_panel_hidden()` + `nav_show()` pattern instead of late `nav_hide()` |
-| **No validation feedback before gating** | Users try to proceed, hit silent gate, confusion | Show validation errors inline BEFORE hiding "next step" button/tab |
-| **Gated tabs visible but disabled** | Users click, nothing happens, unclear why | Use `nav_hide()` instead of `shinyjs::disable()` to remove from view entirely |
+| No visual diff between CAS-sourced and Name-sourced consensus | User can't assess match reliability | Add consensus_source badge in table (e.g., "CAS ✓", "Name ~") with color coding |
+| Hiding untagged columns without explanation | User confused why columns disappeared | Add toggle "Show untagged columns" with default OFF and tooltip explanation |
+| Manual DTXSID entry without format hints | User enters invalid format, sees error, gives up | Provide format example ("DTXSID7020001") and auto-uppercase + validate on blur |
+| Error row retry with no success feedback | User re-tags errors, clicks retry, sees table refresh, unsure if it worked | Show notification: "3 rows re-curated: 2 resolved, 1 still error" with before/after counts |
+| Dropdown context shows only DTXSID | User picks "DTXSID7020001" vs "DTXSID8021234" with no idea which is which | Include preferredName in dropdown: "DTXSID7020001 - Acetone (Rank 1, CAS tier)" |
+| No undo for en masse resolution | User clicks wrong priority column, 100 rows resolved incorrectly, no undo | Add "Reset all unpinned" button or confirmation modal before mass resolution |
+| Search tier reorder with no migration guide | User re-curates same data, gets different results, loses trust | Show warning on first run after upgrade: "Search order changed, results may differ. Re-run curation on all datasets." |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Tab gating:** Often missing edge case handling — verify state validation on EVERY tab access, not just button clicks
-- [ ] **State persistence:** Often missing reactiveValues initialization — verify state survives tab switches, app reload (if needed)
-- [ ] **Input freeze:** Often missing `freezeReactiveValue()` on updates — verify no output flicker when changing tabs or updating inputs
-- [ ] **Observer guards:** Often missing tab-awareness — verify observers don't fire for hidden tabs unless intended
-- [ ] **Error handling:** Often missing `req()` / `validate()` on gated content — verify graceful failure when prerequisites unmet
-- [ ] **Module namespacing:** Often missing session scoping — verify `nav_*` functions use correct session in modules
-- [ ] **Tab IDs:** Often mixing `id` vs `value` — verify container `id` and panel `value` set explicitly and documented
-- [ ] **Progress indicators:** Often reset on tab switch — verify progress stored in `reactiveValues()`, not UI state
+- [ ] **Untagged column hiding:** Often missing filter state cleanup — verify hidden columns have `searchable: FALSE` and no active filters
+- [ ] **Search tier reorder:** Often missing empirical validation — verify match quality doesn't degrade on sample datasets (exact → CAS → starts vs exact → starts → CAS)
+- [ ] **Other tag curation:** Often missing consensus logic update — verify `k` calculation and QC tier still meaningful with three tag types
+- [ ] **Manual DTXSID entry:** Often missing bulk validation — verify API validation works for 100+ manual entries without timeout
+- [ ] **Error row retry:** Often missing row order preservation — verify retried rows stay in original position, not appended to end
+- [ ] **Resolution dropdown context:** Often missing rank and tier info — verify dropdown shows preferredName, rank, and source_tier, not just DTXSID
+- [ ] **DT column index mapping:** Often missing edge case tests — verify resolution dropdown works with 1 hidden column, 10 hidden columns, 0 hidden columns
+- [ ] **Retry merge logic:** Often missing .pinned state preservation — verify manual resolutions before retry are not lost after merge
+- [ ] **CompTox API error handling:** Often missing silent failure detection — verify NULL vs empty tibble distinction in tryCatch blocks
+- [ ] **Consensus mode selection:** Often missing user documentation — verify SUMMARY.md explains when Other columns vote vs observe-only
 
 ---
 
@@ -266,14 +261,13 @@ Phase 2 (Implementation) — Add tab-aware guards to observers during initial de
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| **Initialization race condition** | LOW | Wrap startup `nav_hide()` in `shinyjs::delay()`, or refactor to use `nav_panel_hidden()` |
-| **Reactive flicker** | LOW | Add `freezeReactiveValue()` calls before all `update*()` functions |
-| **Infinite loop** | LOW | Add `isolate()` to one side of the circular dependency; use browser's "stop script" to regain control |
-| **Lost state** | MEDIUM | Refactor to use `reactiveValues()` for all state; may require re-testing all tab transitions |
-| **Wrong tab IDs** | LOW | Check documentation, fix `id` vs `target` parameters; test interactively before re-deploying |
-| **Observer waste** | MEDIUM | Add `req(input$tabs == "x")` guards to each observer; benchmark to verify improvement |
-| **Security bypass** | HIGH | Refactor all access control to server-side; audit all `conditionalPanel()` usage; may require architecture changes |
-| **renderUI() timing issues** | MEDIUM to HIGH | Replace `renderUI()` with static UI + `conditionalPanel()` or visibility toggles; may affect layout significantly |
+| DT column index drift | LOW | Add browser DevTools check, validate `data-row` matches consensus_status, adjust `hidden_indices` calculation |
+| Starts-with precision collapse | MEDIUM | Revert search order to exact → starts → CAS, re-run curation on affected datasets, compare consensus rate |
+| Consensus breaks with three types | HIGH | Refactor `classify_consensus` with tag-aware logic, re-classify all datasets with Other columns, update tests |
+| Retry merge loses state | MEDIUM | Replace join with index-based update, restore `.pinned` from backup, re-apply any lost manual resolutions |
+| Manual DTXSID bypasses validation | LOW | Add validation API call on blur, flag existing invalid DTXSIDs in Review Results with warning badge |
+| Hidden column filter state | LOW | Clear all filters via `DT::clearSearch()`, remove columns from display_df instead of CSS hiding |
+| Search tier order breaks existing data | MEDIUM | Provide migration script to re-curate old datasets with new tier order, document in CHANGELOG |
 
 ---
 
@@ -281,45 +275,52 @@ Phase 2 (Implementation) — Add tab-aware guards to observers during initial de
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Tab initialization race | Phase 1: Foundation | Test app startup with network throttling; no tabs should flash |
-| Reactive flicker | Phase 1: Foundation | Verify `freezeReactiveValue()` before all `update*()` calls; no visual flicker on tab change |
-| Infinite loops | Phase 1: Foundation | Code review all observers for read+write of same reactive; test with `options(shiny.reactlog=TRUE)` |
-| Lost state | Phase 1: Foundation | Switch between all tab combinations; verify state persists (automated tests recommended) |
-| Wrong tab IDs | Phase 1: Foundation | Test all `nav_*()` calls interactively; document tab ID structure |
-| Observer waste | Phase 2: Implementation | Profile app with `profvis`; verify observers only fire when tab active |
-| Security bypass | Phase 1: Foundation + Phase 3: Testing | Attempt to bypass gating via browser console; verify server-side guards prevent access |
-| UX feedback gaps | Phase 2: Implementation + Phase 3: Polish | User testing; verify all gated states have clear feedback |
+| DT column index drift | Phase 1 (Untagged Hiding) | Test resolution dropdown with 0, 1, 5, 10+ hidden columns; verify `data-row` matches expected row in data_store |
+| Hidden column filter state | Phase 1 (Untagged Hiding) | Filter on visible column, hide/unhide columns, verify filters persist correctly and no ghost filters |
+| Starts-with precision collapse | Phase 2 (Search Reorder) | Run curation on same dataset with both orders, compare consensus_status distribution (agree/disagree/error) |
+| Search tier empirical validation | Phase 2 (Search Reorder) | Test with 100-row sample: 50 exact matches, 30 CAS-only, 20 typos; verify tier order maximizes agree rate |
+| Consensus breaks with three types | Phase 3 (Other Tag) | Unit test: 1 Name + 1 CAS + 1 Other all agree → qc_tier=1; 1 Name + 1 Other agree, CAS NA → appropriate tier |
+| Other tag consensus semantics | Phase 3 (Other Tag) | Document in SUMMARY.md: does Other vote equally, vote reduced, or observe-only? Test all three scenarios |
+| Manual DTXSID validation | Phase 4 (Manual Entry) | Enter invalid DTXSID, verify red X and error message; enter valid DTXSID, verify green check and preferredName |
+| Manual entry bulk validation | Phase 4 (Manual Entry) | Paste 100 DTXSIDs (90 valid, 10 invalid), verify validation completes in <10s and flags 10 invalid |
+| Retry merge loses state | Phase 5 (Error Retry) | Pin 3 rows, retry 2 error rows, verify pinned state preserved and row order unchanged |
+| Retry row order preservation | Phase 5 (Error Retry) | Retry error rows at indices 5, 10, 15; verify they remain at indices 5, 10, 15 after merge |
+| Dropdown context clarity | Phase 6 (UX Polish) | Review Results with disagree rows → verify dropdown shows "DTXSID - PreferredName (Rank X, Tier)" |
+| Column visibility UX | Phase 6 (UX Polish) | Add toggle to show/unhide untagged columns; verify toggle state persists within session |
 
 ---
 
 ## Sources
 
-### Official Documentation (HIGH confidence)
-- [bslib Navigation Containers](https://rstudio.github.io/bslib/reference/navset.html)
-- [bslib Dynamic Nav Updates](https://rstudio.github.io/bslib/reference/nav_select.html)
-- [Shiny hideTab/showTab](https://shiny.posit.co/r/reference/shiny/latest/showtab.html)
-- [Shiny freezeReactiveValue](https://shiny.posit.co/r/reference/shiny/1.7.0/freezereactivevalue.html)
-- [Context7: bslib Tab Control](https://context7.com/rstudio/bslib/llms.txt)
+### DT Datatable and Shiny Integration
+- [Using DT in Shiny](https://rstudio.github.io/DT/shiny.html) — Official DT documentation on Shiny integration
+- [DT, formatters and hidden columns](https://groups.google.com/g/shiny-discuss/c/TcztuHs-GBQ) — Community discussion on column hiding bugs
+- [Intro to Shiny: Packages II](https://psrc.github.io/intro-shiny-guide/packages_ii.html) — DT column indexing (0-based vs 1-based)
+- [columnDefs - visible false not working — DataTables forums](https://datatables.net/forums/discussion/24035/columndefs-visible-false-not-working) — Known issues with hidden columns
 
-### Community Resources (MEDIUM confidence)
-- [Mastering Shiny: Reactive Building Blocks](https://mastering-shiny.org/reactivity-objects.html)
-- [Mastering Shiny: Dynamic UI](https://mastering-shiny.org/action-dynamic.html)
-- [Engineering Production-Grade Shiny Apps: Common Caveats](https://engineering-shiny.org/common-app-caveats.html)
-- [Dean Attali: Advanced Shiny Tips](https://deanattali.com/blog/advanced-shiny-tips/)
-- [shinyjs Issue #43: Tab Hiding Timing](https://github.com/daattali/shinyjs/issues/43)
+### Shiny Reactive State Management
+- [Subsetting dataframe and storing in reactiveValues() seems inconsistant · Issue #958 · rstudio/shiny](https://github.com/rstudio/shiny/issues/958) — Subset behavior quirks
+- [reactiveValues inconsistent/unclear behaviour in regards to order of items · Issue #2629 · rstudio/shiny](https://github.com/rstudio/shiny/issues/2629) — Row order preservation issues
+- [Chapter 15 Reactive building blocks | Mastering Shiny](https://mastering-shiny.org/reactivity-objects.html) — Reference semantics of reactiveValues
 
-### GitHub Issues & Discussions (MEDIUM confidence)
-- [Shiny #2865: Request to freeze observers on input updates](https://github.com/rstudio/shiny/issues/2865)
-- [Shiny #3068: updateTabsetPanel fails silently with multiple selected values](https://github.com/rstudio/shiny/issues/3068)
-- [bslib #585: Sidebar navigation patterns](https://github.com/rstudio/bslib/issues/585)
-- [bslib #938: Conditional card discussion](https://github.com/rstudio/bslib/discussions/938)
+### CompTox API and Search Strategies
+- [Chemicals Dashboard Help: Basic Search | US EPA](https://www.epa.gov/comptox-tools/chemicals-dashboard-help-basic-search) — Exact vs substring search behavior
+- [Chemicals Dashboard Help: Batch Search | US EPA](https://www.epa.gov/comptox-tools/chemicals-dashboard-help-batch-search) — Batch search limitations (exact matches only)
+- [Enabling High-Throughput Searches for Multiple Chemical Data using the US-EPA CompTox Chemicals Dashboard - PMC](https://pmc.ncbi.nlm.nih.gov/articles/PMC8630643/) — Current search limitations and future fuzzy matching plans
+- [Sourcing data on chemical properties and hazard data from the US-EPA CompTox Chemicals Dashboard: A practical guide for human risk assessment](https://www.sciencedirect.com/science/article/pii/S0160412021001914) — Identifier search exact match requirement, spelling issues
 
-### Technical Articles (MEDIUM confidence)
-- [ArData: Share Reactive Among Modules](https://www.ardata.fr/en/post/2019/04/26/share-reactive-among-shiny-modules/)
-- [ThinkR: Communication Between Modules](https://rtask.thinkr.fr/communication-between-modules-and-its-whims/)
-- [Datanovia: Shiny Reactive Values Guide](https://www.datanovia.com/learn/tools/shiny-apps/server-logic/reactive-values.html)
+### dplyr Joins and Data Merging
+- [Mutating joins — mutate-joins • dplyr](https://dplyr.tidyverse.org/reference/mutate-joins.html) — Official join documentation
+- [How to merge data in R using R merge, dplyr, or data.table | InfoWorld](https://www.infoworld.com/article/2264570/how-to-merge-data-in-r-using-r-merge-dplyr-or-datatable.html) — Join mechanics (no attribute preservation guarantees)
+
+### Codebase-Specific Knowledge
+- `R/consensus.R` — `find_dtxsid_cols` uses `grep("^dtxsid_", names(df))` pattern matching (HIGH confidence, source code)
+- `R/curation.R` — Current tier order: exact → starts-with → CAS (lines 470-540) (HIGH confidence, source code)
+- `app.R` — DT table with `escape=FALSE` and `data-row` JS callback (lines 1398, 1564) (HIGH confidence, source code)
+- `app.R` — Hidden columns via `columnDefs: list(visible = FALSE, targets = hidden_indices)` (line 1437) (HIGH confidence, source code)
 
 ---
 
-*Pitfalls research for: Shiny tab refactoring and gated workflows for ChemReg chemical inventory app*
-*Researched: 2026-02-26*
+*Pitfalls research for: ChemReg v1.2 Curation Refinement*
+*Researched: 2026-03-01*
+*Confidence: HIGH (codebase analysis) / MEDIUM (CompTox API behavior) / LOW (empirical tier order comparison)*
