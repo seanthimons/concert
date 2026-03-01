@@ -33,6 +33,7 @@
 # Load helper functions
 source(here::here("R", "file_handlers.R"))
 source(here::here("R", "data_detection.R"))
+source(here::here("R", "consensus.R"))
 source(here::here("R", "curation.R"))
 
 # Application configuration
@@ -338,7 +339,14 @@ server <- function(input, output, session) {
     # Curation results
     curation_results = NULL,
     curation_report = NULL,
-    curation_status = NULL
+    curation_status = NULL,
+    # New pipeline fields
+    dedup_preview = NULL,
+    consensus_data = NULL,
+    consensus_summary = NULL,
+    resolution_state = NULL,
+    dtxsid_cols = NULL,
+    priority_order = NULL
   )
 
   # --- Gated Navigation: Hide tabs on startup ---
@@ -373,6 +381,12 @@ server <- function(input, output, session) {
     data_store$curation_results <- NULL
     data_store$curation_report <- NULL
     data_store$curation_status <- NULL
+    data_store$dedup_preview <- NULL
+    data_store$consensus_data <- NULL
+    data_store$consensus_summary <- NULL
+    data_store$resolution_state <- NULL
+    data_store$dtxsid_cols <- NULL
+    data_store$priority_order <- NULL
     nav_hide("main_tabs", target = "detection_info")
     nav_hide("main_tabs", target = "raw_data")
     nav_hide("main_tabs", target = "tag_columns")
@@ -1063,11 +1077,27 @@ server <- function(input, output, session) {
 
     data_store$column_tags <- tags
 
+    # Generate dedup preview immediately
+    tryCatch(
+      {
+        data_store$dedup_preview <- get_dedup_preview(data_store$clean, tags)
+      },
+      error = function(e) {
+        message("Dedup preview generation failed: ", e$message)
+        data_store$dedup_preview <- NULL
+      }
+    )
+
     # Cascade: hide downstream tabs and clear curation state (re-apply invalidates curation)
     nav_hide("main_tabs", target = "review_results")
     data_store$curation_results <- NULL
     data_store$curation_report <- NULL
     data_store$curation_status <- NULL
+    data_store$consensus_data <- NULL
+    data_store$consensus_summary <- NULL
+    data_store$resolution_state <- NULL
+    data_store$dtxsid_cols <- NULL
+    data_store$priority_order <- NULL
 
     # Show Run Curation tab with pulse
     show_tab_with_pulse("run_curation_tab")
@@ -1094,13 +1124,35 @@ server <- function(input, output, session) {
     cas_count <- sum(col_tags == "CASRN")
     other_count <- sum(col_tags == "Other")
 
+    # API key check
+    has_api_key <- Sys.getenv("ctx_api_key") != ""
+    api_status <- if (has_api_key) {
+      tags$span(class = "badge bg-success", "API Key Configured")
+    } else {
+      tags$span(class = "badge bg-danger", "API Key Missing")
+    }
+
     tagList(
       p(strong("Tagged Columns:")),
       tags$ul(
         tags$li(paste(name_count, "Chemical Name column(s)")),
         tags$li(paste(cas_count, "CASRN column(s)")),
         if (other_count > 0) tags$li(paste(other_count, "Other column(s)"))
-      )
+      ),
+
+      # Dedup preview
+      if (!is.null(data_store$dedup_preview)) {
+        tagList(
+          p(strong("Deduplication Preview:")),
+          tags$ul(
+            tags$li(paste(data_store$dedup_preview$n_names, "unique chemical names to look up")),
+            tags$li(paste(data_store$dedup_preview$n_cas, "unique CAS numbers to validate"))
+          )
+        )
+      },
+
+      # API key status
+      p(strong("API Status:"), " ", api_status)
     )
   })
 
@@ -1133,45 +1185,76 @@ server <- function(input, output, session) {
       return()
     }
 
+    # Disable the button during execution
+    shinyjs::disable("run_curation")
     data_store$curation_status <- "in_progress"
 
-    # Show progress notification
-    notification_id <- showNotification(
-      "Curating chemical data... This may take a few moments.",
-      type = "message",
-      duration = NULL
+    # Run curation with progress tracking via withProgress
+    tryCatch(
+      {
+        withProgress(message = "Running curation pipeline...", value = 0, {
+          # Progress callback to update both withProgress and status field
+          progress_callback <- function(stage, msg) {
+            data_store$curation_status <- msg
+            incProgress(0.2, detail = msg)
+          }
+
+          # Run the new pipeline
+          pipeline_result <- run_curation_pipeline(
+            clean_data = data_store$clean,
+            column_tags = data_store$column_tags,
+            progress_callback = progress_callback,
+            dedup_only = FALSE
+          )
+
+          # Store results
+          data_store$consensus_data <- pipeline_result$results
+          data_store$consensus_summary <- pipeline_result$consensus_summary
+          data_store$resolution_state <- pipeline_result$results
+          data_store$dtxsid_cols <- find_dtxsid_cols(pipeline_result$results)
+          data_store$priority_order <- data_store$dtxsid_cols
+
+          # Store in curation_results for backward compatibility with Review tab
+          data_store$curation_results <- pipeline_result$results
+
+          # Generate backward-compatible report from new summaries
+          data_store$curation_report <- list(
+            total_rows = nrow(pipeline_result$results),
+            cas_columns = sum(data_store$column_tags == "CASRN"),
+            name_columns = sum(data_store$column_tags == "Name"),
+            cas_validated = pipeline_result$search_summary$n_cas_valid,
+            cas_invalid = pipeline_result$dedup_summary$n_cas - pipeline_result$search_summary$n_cas_valid,
+            names_exact_match = pipeline_result$search_summary$n_exact,
+            names_fuzzy_match = pipeline_result$search_summary$n_starts_with,
+            names_no_match = pipeline_result$search_summary$n_miss
+          )
+
+          data_store$curation_status <- "completed"
+
+          showNotification(
+            "Curation completed successfully!",
+            type = "message",
+            duration = 5
+          )
+
+          # Show Review Results tab and auto-navigate to it
+          nav_show("main_tabs", target = "review_results")
+          nav_select("main_tabs", "review_results")
+        })
+      },
+      error = function(e) {
+        showNotification(
+          paste("Curation failed:", e$message),
+          type = "error",
+          duration = NULL
+        )
+        data_store$curation_status <- "failed"
+      },
+      finally = {
+        # Re-enable button
+        shinyjs::enable("run_curation")
+      }
     )
-
-    # Run curation (with error handling)
-    curation_result <- purrr::safely(curate_chemical_data)(
-      clean_data = data_store$clean,
-      column_tags = data_store$column_tags
-    )
-
-    removeNotification(notification_id)
-
-    if (!is.null(curation_result$error)) {
-      showNotification(
-        paste("Curation failed:", curation_result$error$message),
-        type = "error",
-        duration = NULL
-      )
-      data_store$curation_status <- "failed"
-    } else {
-      data_store$curation_results <- curation_result$result$curated_data
-      data_store$curation_report <- curation_result$result$report
-      data_store$curation_status <- "completed"
-
-      showNotification(
-        "Curation completed successfully!",
-        type = "message",
-        duration = 5
-      )
-
-      # Show Review Results tab and auto-navigate to it
-      nav_show("main_tabs", target = "review_results")
-      nav_select("main_tabs", "review_results")
-    }
   })
 
   # Curation completed indicator
@@ -1179,6 +1262,44 @@ server <- function(input, output, session) {
     !is.null(data_store$curation_status) && data_store$curation_status == "completed"
   })
   outputOptions(output, "curation_completed", suspendWhenHidden = FALSE)
+
+  # Curation progress display
+  output$curation_progress <- renderUI({
+    status <- data_store$curation_status
+
+    if (is.null(status) || status == "") {
+      return(NULL)
+    }
+
+    if (status == "in_progress") {
+      tagList(
+        div(
+          class = "mt-3 text-muted small",
+          tags$span(class = "spinner-border spinner-border-sm me-2", role = "status"),
+          tags$span(status)
+        )
+      )
+    } else if (status == "completed") {
+      div(
+        class = "mt-3 alert alert-success small",
+        bsicons::bs_icon("check-circle"),
+        " Pipeline completed successfully!"
+      )
+    } else if (status == "failed") {
+      div(
+        class = "mt-3 alert alert-danger small",
+        bsicons::bs_icon("exclamation-triangle"),
+        " Pipeline failed. Check notifications for details."
+      )
+    } else {
+      # Show progress message
+      div(
+        class = "mt-3 text-muted small",
+        tags$span(class = "spinner-border spinner-border-sm me-2", role = "status"),
+        tags$span(status)
+      )
+    }
+  })
 
   # Curation statistics
   output$curation_stats <- renderUI({
