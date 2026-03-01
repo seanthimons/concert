@@ -29,7 +29,7 @@
 
 **Milestone Goal:** Improve curation accuracy, error recovery, and result presentation
 
-- 🚧 **Phase 6: Search Pipeline Refinement** (1/2 plans) - Reorder search tiers and enable Other tag curation
+- ✅ **Phase 6: Search Pipeline Refinement** (2/2 plans) - Reorder search tiers and enable Other tag curation
 - [ ] **Phase 7: UI Polish** - Column visibility improvements and richer resolution context
 - [ ] **Phase 8: Error Recovery Workflows** - Manual DTXSID entry and error row retry
 
@@ -48,7 +48,7 @@
 
 Plans:
 - [x] 06-01-PLAN.md -- Tier reorder (exact->CAS->starts-with) and Other tag expansion in R/curation.R (completed 2026-03-01)
-- [ ] 06-02-PLAN.md -- Match Type column and search summary notification in app.R
+- [x] 06-02-PLAN.md -- Match Type column and search summary notification in app.R (completed 2026-03-01)
 
 ### Phase 7: UI Polish
 **Goal**: Reduce cognitive load and provide richer context for curation decisions
@@ -91,9 +91,9 @@ Phases execute in numeric order: 6 → 7 → 8
 | 3. Prototype Pipeline | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 4. Consensus Logic | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 5. Shiny Integration | v1.1 | 2/2 | Complete | 2026-03-01 |
-| 6. Search Pipeline Refinement | v1.2 | 1/2 | In progress | - |
+| 6. Search Pipeline Refinement | 2/2 | Complete   | 2026-03-01 | - |
 | 7. UI Polish | v1.2 | 0/? | Not started | - |
 | 8. Error Recovery Workflows | v1.2 | 0/? | Not started | - |
 
 ---
-*Last updated: 2026-03-01 after plan 06-01 completion*
+*Last updated: 2026-03-01 after plan 06-02 completion*
