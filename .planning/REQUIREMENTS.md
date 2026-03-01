@@ -56,24 +56,24 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SRCH-01 | — | Pending |
-| SRCH-02 | — | Pending |
-| SRCH-03 | — | Pending |
-| RECV-01 | — | Pending |
-| RECV-02 | — | Pending |
-| RECV-03 | — | Pending |
-| RECV-04 | — | Pending |
-| RECV-05 | — | Pending |
-| UIPX-01 | — | Pending |
-| UIPX-02 | — | Pending |
-| UIPX-03 | — | Pending |
-| UIPX-04 | — | Pending |
+| SRCH-01 | Phase 6 | Pending |
+| SRCH-02 | Phase 6 | Pending |
+| SRCH-03 | Phase 6 | Pending |
+| RECV-01 | Phase 8 | Pending |
+| RECV-02 | Phase 8 | Pending |
+| RECV-03 | Phase 8 | Pending |
+| RECV-04 | Phase 8 | Pending |
+| RECV-05 | Phase 8 | Pending |
+| UIPX-01 | Phase 7 | Pending |
+| UIPX-02 | Phase 7 | Pending |
+| UIPX-03 | Phase 7 | Pending |
+| UIPX-04 | Phase 7 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 12 total
-- Mapped to phases: 0
-- Unmapped: 12 ⚠️
+- Mapped to phases: 12
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-01*
-*Last updated: 2026-03-01 after initial definition*
+*Last updated: 2026-03-01 after roadmap creation*
