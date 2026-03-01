@@ -11,11 +11,12 @@
 #' Deduplicate tagged column values before API calls
 #'
 #' @param df Data frame with chemical data
-#' @param tag_map Named list mapping column names to tag types ("Name" or "CASRN")
+#' @param tag_map Named list mapping column names to tag types ("Name", "CASRN", or "Other")
 #' @return List with unique_names, unique_cas, and dedup_key_map
 deduplicate_tagged_columns <- function(df, tag_map) {
   name_cols <- names(tag_map)[tag_map == "Name"]
   cas_cols <- names(tag_map)[tag_map == "CASRN"]
+  other_cols <- names(tag_map)[tag_map == "Other"]
 
   # Build dedup key map: one row per original row+column combination
   key_rows <- list()
@@ -40,8 +41,9 @@ deduplicate_tagged_columns <- function(df, tag_map) {
   unique_names <- character(0)
   unique_cas <- character(0)
 
-  if (length(name_cols) > 0) {
-    all_names <- unlist(lapply(name_cols, function(col) df[[col]]))
+  searchable_cols <- c(name_cols, other_cols)
+  if (length(searchable_cols) > 0) {
+    all_names <- unlist(lapply(searchable_cols, function(col) df[[col]]))
     unique_names <- unique(all_names[!is.na(all_names) & all_names != ""])
   }
 
@@ -267,7 +269,7 @@ validate_and_lookup_cas <- function(unique_cas) {
 # run_tiered_search
 # ============================================================================
 
-#' Run tiered search: exact → starts-with → CAS validation
+#' Run tiered search: exact → CAS → starts-with (3-char min)
 #'
 #' @param dedup_result Output of deduplicate_tagged_columns
 #' @return Tibble of all lookup results with source_tier column
@@ -287,34 +289,64 @@ run_tiered_search <- function(dedup_result) {
     matched_names <- exact_results$searchValue[!is.na(exact_results$dtxsid)]
     missed_names <- setdiff(dedup_result$unique_names, matched_names)
 
-    # Tier 2: Starts-with fallback on misses
+    # Tier 2: CAS validation on exact misses
     if (length(missed_names) > 0) {
-      sw_results <- search_starts_with(missed_names)
-      if (nrow(sw_results) > 0) {
-        sw_results$source_tier <- "starts_with"
-        all_results[[length(all_results) + 1]] <- sw_results
+      cas_from_names <- validate_and_lookup_cas(missed_names)
+
+      if (nrow(cas_from_names) > 0) {
+        cas_name_common <- tibble::tibble(
+          searchValue = cas_from_names$original_cas,
+          dtxsid = cas_from_names$dtxsid,
+          preferredName = cas_from_names$preferredName,
+          searchName = dplyr::if_else(!is.na(cas_from_names$dtxsid), "CAS-RN", NA_character_),
+          rank = cas_from_names$rank,
+          source_tier = dplyr::case_when(
+            !is.na(cas_from_names$dtxsid) ~ "cas",
+            cas_from_names$is_valid == TRUE ~ "cas_no_match",
+            TRUE ~ "cas_invalid"
+          )
+        )
+        all_results[[length(all_results) + 1]] <- cas_name_common
       }
 
-      # Find remaining misses after starts-with
-      sw_matched <- sw_results$searchValue[!is.na(sw_results$dtxsid)]
-      still_missed <- setdiff(missed_names, sw_matched)
+      cas_matched <- cas_from_names$original_cas[!is.na(cas_from_names$dtxsid)]
+      still_missed <- setdiff(missed_names, cas_matched)
 
-      # Add all-tier misses for names
+      # Tier 3: Starts-with on remaining misses (3-char minimum)
       if (length(still_missed) > 0) {
-        miss_rows <- tibble::tibble(
-          searchValue = still_missed,
-          dtxsid = NA_character_,
-          preferredName = NA_character_,
-          searchName = NA_character_,
-          rank = NA_integer_,
-          source_tier = "miss"
-        )
-        all_results[[length(all_results) + 1]] <- miss_rows
+        sw_candidates <- still_missed[nchar(still_missed) >= 3]
+
+        if (length(sw_candidates) > 0) {
+          sw_results <- search_starts_with(sw_candidates)
+          if (nrow(sw_results) > 0) {
+            sw_results$source_tier <- "starts_with"
+            all_results[[length(all_results) + 1]] <- sw_results
+          }
+
+          # Find remaining misses after starts-with
+          sw_matched <- sw_results$searchValue[!is.na(sw_results$dtxsid)]
+          final_missed <- setdiff(still_missed, sw_matched)
+        } else {
+          final_missed <- still_missed
+        }
+
+        # Add all-tier misses for names
+        if (length(final_missed) > 0) {
+          miss_rows <- tibble::tibble(
+            searchValue = final_missed,
+            dtxsid = NA_character_,
+            preferredName = NA_character_,
+            searchName = NA_character_,
+            rank = NA_integer_,
+            source_tier = "miss"
+          )
+          all_results[[length(all_results) + 1]] <- miss_rows
+        }
       }
     }
   }
 
-  # Tier 3: CAS validation and lookup
+  # Tier 4: CAS validation for CASRN-tagged columns (separate path)
   if (length(dedup_result$unique_cas) > 0) {
     cas_results <- validate_and_lookup_cas(dedup_result$unique_cas)
 
@@ -428,9 +460,11 @@ run_curation_pipeline <- function(clean_data, column_tags, progress_callback = N
   # Stage 1: Deduplication
   dedup_result <- deduplicate_tagged_columns(clean_data, column_tags)
 
+  n_other <- sum(tag_map == "Other")
   dedup_msg <- sprintf(
-    "Deduplicated: %d unique names, %d unique CAS",
+    "Deduplicated: %d unique names (including %d Other columns), %d unique CAS",
     length(dedup_result$unique_names),
+    n_other,
     length(dedup_result$unique_cas)
   )
 
@@ -452,7 +486,8 @@ run_curation_pipeline <- function(clean_data, column_tags, progress_callback = N
   all_results <- list()
   n_exact <- 0
   n_starts_with <- 0
-  n_cas_valid <- 0
+  n_cas_from_names <- 0
+  n_cas_from_columns <- 0
   n_miss <- 0
 
   # Tier 1: Exact match on names
@@ -475,45 +510,80 @@ run_curation_pipeline <- function(clean_data, column_tags, progress_callback = N
       )
     }
 
-    # Tier 2: Starts-with fallback
+    # Tier 2: CAS validation on exact misses (NEW POSITION)
     if (length(missed_names) > 0) {
-      sw_results <- search_starts_with(missed_names)
-      if (nrow(sw_results) > 0) {
-        sw_results$source_tier <- "starts_with"
-        all_results[[length(all_results) + 1]] <- sw_results
-        n_starts_with <- sum(!is.na(sw_results$dtxsid))
+      cas_from_names <- validate_and_lookup_cas(missed_names)
+
+      if (nrow(cas_from_names) > 0) {
+        n_cas_from_names <- sum(!is.na(cas_from_names$dtxsid))
+
+        cas_name_common <- tibble::tibble(
+          searchValue = cas_from_names$original_cas,
+          dtxsid = cas_from_names$dtxsid,
+          preferredName = cas_from_names$preferredName,
+          searchName = dplyr::if_else(!is.na(cas_from_names$dtxsid), "CAS-RN", NA_character_),
+          rank = cas_from_names$rank,
+          source_tier = dplyr::case_when(
+            !is.na(cas_from_names$dtxsid) ~ "cas",
+            cas_from_names$is_valid == TRUE ~ "cas_no_match",
+            TRUE ~ "cas_invalid"
+          )
+        )
+        all_results[[length(all_results) + 1]] <- cas_name_common
       }
+
+      cas_matched <- cas_from_names$original_cas[!is.na(cas_from_names$dtxsid)]
+      still_missed <- setdiff(missed_names, cas_matched)
 
       if (!is.null(progress_callback)) {
-        progress_callback("starts_with", sprintf("Starts-with: %d more found...", n_starts_with))
+        progress_callback("cas_names", sprintf("CAS fallback on names: %d resolved...", length(cas_matched)))
       }
 
-      # Find remaining misses
-      sw_matched <- sw_results$searchValue[!is.na(sw_results$dtxsid)]
-      still_missed <- setdiff(missed_names, sw_matched)
-      n_miss <- length(still_missed)
-
-      # Add all-tier misses
+      # Tier 3: Starts-with on remaining misses (MOVED TO LAST, with 3-char minimum)
       if (length(still_missed) > 0) {
-        miss_rows <- tibble::tibble(
-          searchValue = still_missed,
-          dtxsid = NA_character_,
-          preferredName = NA_character_,
-          searchName = NA_character_,
-          rank = NA_integer_,
-          source_tier = "miss"
-        )
-        all_results[[length(all_results) + 1]] <- miss_rows
+        sw_candidates <- still_missed[nchar(still_missed) >= 3]
+
+        if (length(sw_candidates) > 0) {
+          sw_results <- search_starts_with(sw_candidates)
+          if (nrow(sw_results) > 0) {
+            sw_results$source_tier <- "starts_with"
+            all_results[[length(all_results) + 1]] <- sw_results
+            n_starts_with <- sum(!is.na(sw_results$dtxsid))
+          }
+
+          if (!is.null(progress_callback)) {
+            progress_callback("starts_with", sprintf("Starts-with: %d more found...", n_starts_with))
+          }
+
+          sw_matched <- sw_results$searchValue[!is.na(sw_results$dtxsid)]
+          final_missed <- setdiff(still_missed, sw_matched)
+        } else {
+          final_missed <- still_missed
+        }
+
+        n_miss <- length(final_missed)
+
+        if (length(final_missed) > 0) {
+          miss_rows <- tibble::tibble(
+            searchValue = final_missed,
+            dtxsid = NA_character_,
+            preferredName = NA_character_,
+            searchName = NA_character_,
+            rank = NA_integer_,
+            source_tier = "miss"
+          )
+          all_results[[length(all_results) + 1]] <- miss_rows
+        }
       }
     }
   }
 
-  # Tier 3: CAS validation and lookup
+  # Tier 4: CAS validation for CASRN-tagged columns (separate path)
   if (length(dedup_result$unique_cas) > 0) {
     cas_results <- validate_and_lookup_cas(dedup_result$unique_cas)
 
     if (nrow(cas_results) > 0) {
-      n_cas_valid <- sum(!is.na(cas_results$dtxsid))
+      n_cas_from_columns <- sum(!is.na(cas_results$dtxsid))
 
       # Convert to common format
       cas_common <- tibble::tibble(
@@ -533,8 +603,8 @@ run_curation_pipeline <- function(clean_data, column_tags, progress_callback = N
 
     if (!is.null(progress_callback)) {
       progress_callback(
-        "cas",
-        sprintf("CAS validated: %d valid, %d invalid...", n_cas_valid, length(dedup_result$unique_cas) - n_cas_valid)
+        "cas_columns",
+        sprintf("CAS columns: %d valid, %d invalid...", n_cas_from_columns, length(dedup_result$unique_cas) - n_cas_from_columns)
       )
     }
   }
@@ -592,7 +662,7 @@ run_curation_pipeline <- function(clean_data, column_tags, progress_callback = N
     search_summary = list(
       n_exact = n_exact,
       n_starts_with = n_starts_with,
-      n_cas_valid = n_cas_valid,
+      n_cas_valid = n_cas_from_columns + n_cas_from_names,
       n_miss = n_miss
     ),
     consensus_summary = list(
