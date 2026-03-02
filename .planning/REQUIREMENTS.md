@@ -23,10 +23,10 @@ Requirements for v1.2 Curation Refinement. Each maps to roadmap phases.
 
 ### UI/UX Polish
 
-- [ ] **UIPX-01**: Untagged columns are hidden from the Review Results table (still included in Excel export)
-- [ ] **UIPX-02**: User can toggle column visibility via a column visibility button in Review Results
-- [ ] **UIPX-03**: Resolution dropdown shows preferredName, rank, and QC level for informed decision-making
-- [ ] **UIPX-04**: Unresolved error rows are flagged in Excel export as "needs manual review"
+- [x] **UIPX-01**: Untagged columns are hidden from the Review Results table (still included in Excel export)
+- [x] **UIPX-02**: User can toggle column visibility via a column visibility button in Review Results
+- [x] **UIPX-03**: Resolution dropdown shows preferredName, rank, and QC level for informed decision-making
+- [x] **UIPX-04**: Unresolved error rows are flagged in Excel export as "needs manual review"
 
 ## Future Requirements
 
@@ -64,10 +64,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RECV-03 | Phase 8 | Pending |
 | RECV-04 | Phase 8 | Pending |
 | RECV-05 | Phase 8 | Pending |
-| UIPX-01 | Phase 7 | Pending |
-| UIPX-02 | Phase 7 | Pending |
-| UIPX-03 | Phase 7 | Pending |
-| UIPX-04 | Phase 7 | Pending |
+| UIPX-01 | Phase 7 | Complete |
+| UIPX-02 | Phase 7 | Complete |
+| UIPX-03 | Phase 7 | Complete |
+| UIPX-04 | Phase 7 | Complete |
 
 **Coverage:**
 - v1.2 requirements: 12 total
