@@ -1382,7 +1382,7 @@ server <- function(input, output, session) {
     df <- data_store$resolution_state
     dtxsid_cols <- data_store$dtxsid_cols
 
-    # Ensure consensus_status is a factor with ordered levels
+    # Ensure consensus_status is a factor with ordered levels (enables dropdown filter)
     df$consensus_status <- factor(
       df$consensus_status,
       levels = c("agree", "agree_caveat", "single", "disagree", "error")
@@ -1433,28 +1433,74 @@ server <- function(input, output, session) {
       return("No Match")
     })
 
+    # Convert match_type to factor for dropdown filter
+    df$match_type <- factor(df$match_type, levels = c("Exact Match", "CAS Lookup", "Starts-With", "No Match"))
+
     # Position match_type after consensus columns but before Resolution
     df <- dplyr::relocate(df, match_type, .after = consensus_status)
 
-    # Build Resolution column
+    # Build Resolution column with enhanced context
     df$Resolution <- sapply(seq_len(nrow(df)), function(i) {
-      if (df$consensus_status[i] == "disagree") {
-        if (isTRUE(df$.pinned[i])) {
-          # Pinned row: show pin icon and resolved value
-          paste0('<span title="Pinned">\U0001F4CC</span> ', df$consensus_dtxsid[i])
+      status <- as.character(df$consensus_status[i])
+
+      if (status %in% c("agree", "agree_caveat", "single")) {
+        # Static display with checkmark for rows that have a DTXSID
+        dtxsid <- df$consensus_dtxsid[i]
+        if (!is.na(dtxsid)) {
+          # Find preferredName from any available column
+          pref_cols <- grep("^preferredName_", names(df), value = TRUE)
+          pref_name <- NA_character_
+          for (pc in pref_cols) {
+            if (!is.na(df[[pc]][i])) { pref_name <- df[[pc]][i]; break }
+          }
+          if (!is.na(pref_name)) {
+            paste0("\u2705 ", htmltools::htmlEscape(dtxsid), " \u2014 ", htmltools::htmlEscape(pref_name))
+          } else {
+            paste0("\u2705 ", htmltools::htmlEscape(dtxsid))
+          }
         } else {
-          # Not pinned: show dropdown
+          ""
+        }
+      } else if (status == "disagree") {
+        if (isTRUE(df$.pinned[i])) {
+          # Pinned: show pin icon with resolved value and name
+          dtxsid <- df$consensus_dtxsid[i]
+          if (!is.na(dtxsid)) {
+            pref_cols <- grep("^preferredName_", names(df), value = TRUE)
+            pref_name <- NA_character_
+            for (pc in pref_cols) {
+              if (!is.na(df[[pc]][i])) { pref_name <- df[[pc]][i]; break }
+            }
+            if (!is.na(pref_name)) {
+              paste0("\U0001F4CC ", htmltools::htmlEscape(dtxsid), " \u2014 ", htmltools::htmlEscape(pref_name))
+            } else {
+              paste0("\U0001F4CC ", htmltools::htmlEscape(dtxsid))
+            }
+          } else {
+            paste0("\U0001F4CC (None selected)")
+          }
+        } else {
+          # Unpinned disagree: dropdown with enhanced options
           options <- get_resolution_options(df, i, dtxsid_cols)
           if (length(options) > 0) {
+            # Options already sorted by rank from get_resolution_options
             options_html <- paste0(
-              '<option value="', names(options), '">',
-              sub("^dtxsid_", "", names(options)), ': ', options, '</option>',
+              sapply(names(options), function(col) {
+                opt <- options[[col]]
+                label <- if (!is.na(opt$preferredName)) {
+                  paste0(htmltools::htmlEscape(opt$dtxsid), " \u2014 ", htmltools::htmlEscape(opt$preferredName))
+                } else {
+                  htmltools::htmlEscape(opt$dtxsid)
+                }
+                paste0('<option value="', htmltools::htmlEscape(col), '">', label, '</option>')
+              }),
               collapse = ""
             )
             paste0(
               '<select class="resolve-select form-select form-select-sm" data-row="', i, '">',
               '<option value="">Select...</option>',
               options_html,
+              '<option value="__none__">None (skip this row)</option>',
               '</select>'
             )
           } else {
@@ -1462,12 +1508,15 @@ server <- function(input, output, session) {
           }
         }
       } else {
+        # error or other status
         ""
       }
     })
 
-    # Identify columns to hide
-    hidden_cols <- c(
+    # --- Three-tier column visibility ---
+
+    # Tier 1: Always hidden (permanently, excluded from colvis menu)
+    always_hidden <- c(
       dtxsid_cols,
       grep("^preferredName_", names(df), value = TRUE),
       grep("^searchName_", names(df), value = TRUE),
@@ -1475,23 +1524,84 @@ server <- function(input, output, session) {
       grep("^source_tier_", names(df), value = TRUE),
       ".pinned"
     )
+    always_hidden_idx <- which(names(df) %in% always_hidden) - 1
 
-    # Find indices of hidden columns (0-indexed for JavaScript)
-    hidden_indices <- which(names(df) %in% hidden_cols) - 1
+    # Tier 2: Hidden by default, toggleable via colvis (untagged original columns)
+    tagged_col_names <- names(data_store$column_tags)
+    all_original_cols <- names(data_store$clean)
+    untagged_cols <- setdiff(
+      all_original_cols[all_original_cols %in% names(df)],
+      tagged_col_names
+    )
+    untagged_idx <- which(names(df) %in% untagged_cols) - 1
+
+    # Combined: both tiers hidden initially
+    all_hidden_idx <- unique(c(always_hidden_idx, untagged_idx))
+
+    # Column indices for badge rendering (0-indexed)
+    match_type_idx <- which(names(df) == "match_type") - 1
+    consensus_idx <- which(names(df) == "consensus_status") - 1
 
     # Prepare display dataframe
     display_df <- df
 
-    # Create DT table
+    # Create DT table with colvis, badges, and column visibility
     dt <- datatable(
       display_df,
       options = list(
         pageLength = 25,
         scrollX = TRUE,
         dom = 'Bfrtip',
-        buttons = c('copy', 'csv'),
+        buttons = list(
+          'copy', 'csv',
+          list(
+            extend = 'colvis',
+            text = 'Toggle Columns',
+            columns = as.list(untagged_idx)
+          )
+        ),
         columnDefs = list(
-          list(visible = FALSE, targets = hidden_indices)
+          list(visible = FALSE, targets = as.list(all_hidden_idx)),
+          # Match type badge rendering via JS callback
+          list(
+            targets = match_type_idx,
+            render = JS(
+              "function(data, type, row, meta) {",
+              "  if (type !== 'display') return data;",
+              "  var colors = {",
+              "    'Exact Match': '#28a745',",
+              "    'CAS Lookup': '#007bff',",
+              "    'Starts-With': '#ffc107',",
+              "    'No Match': '#dc3545'",
+              "  };",
+              "  var textColors = { 'Starts-With': '#212529' };",
+              "  var bg = colors[data] || '#6c757d';",
+              "  var fg = textColors[data] || '#fff';",
+              "  return '<span style=\"background:' + bg + ';color:' + fg +",
+              "    ';padding:2px 8px;border-radius:4px;font-weight:600;font-size:0.85em;display:inline-block;\">' +",
+              "    data + '</span>';",
+              "}"
+            )
+          ),
+          # Consensus status badge rendering via JS callback
+          list(
+            targets = consensus_idx,
+            render = JS(
+              "function(data, type, row, meta) {",
+              "  if (type !== 'display') return data;",
+              "  var colors = {",
+              "    'agree': '#28a745',",
+              "    'agree_caveat': '#17a2b8',",
+              "    'single': '#6c757d',",
+              "    'disagree': '#fd7e14',",
+              "    'error': '#343a40'",
+              "  };",
+              "  var bg = colors[data] || '#6c757d';",
+              "  return '<span style=\"background:' + bg + ';color:#fff;padding:2px 8px;border-radius:4px;font-weight:600;font-size:0.85em;display:inline-block;\">' +",
+              "    data + '</span>';",
+              "}"
+            )
+          )
         )
       ),
       extensions = 'Buttons',
@@ -1501,7 +1611,7 @@ server <- function(input, output, session) {
       escape = FALSE  # Allow HTML in Resolution column
     )
 
-    # Add color-coded row backgrounds
+    # Add color-coded row backgrounds (error rows get light pink)
     dt <- dt %>% formatStyle(
       'consensus_status',
       target = 'row',
@@ -1512,29 +1622,9 @@ server <- function(input, output, session) {
           "rgba(40, 167, 69, 0.05)",
           "rgba(220, 53, 69, 0.08)",
           "rgba(108, 117, 125, 0.05)",
-          "rgba(108, 117, 125, 0.08)"
+          "rgba(220, 53, 69, 0.12)"
         )
       )
-    )
-
-    # Add status badge styling to the consensus_status column
-    dt <- dt %>% formatStyle(
-      'consensus_status',
-      backgroundColor = styleEqual(
-        c("agree", "agree_caveat", "disagree", "single", "error"),
-        c(
-          "rgba(40, 167, 69, 0.9)",
-          "rgba(23, 162, 184, 0.7)",
-          "rgba(220, 53, 69, 0.9)",
-          "rgba(108, 117, 125, 0.6)",
-          "rgba(52, 58, 64, 0.8)"
-        )
-      ),
-      color = "white",
-      fontWeight = "bold",
-      textAlign = "center",
-      borderRadius = "4px",
-      padding = "2px 6px"
     )
 
     dt
@@ -1626,29 +1716,44 @@ server <- function(input, output, session) {
     chosen_column <- choice$column
 
     tryCatch({
-      # Call resolve_row function
-      updated_df <- resolve_row(
-        data_store$resolution_state,
-        row_idx,
-        chosen_column,
-        data_store$dtxsid_cols
-      )
+      if (chosen_column == "__none__") {
+        # "None" selected: pin the row without setting a DTXSID
+        updated_df <- data_store$resolution_state
+        updated_df <- init_resolution_state(updated_df)
+        updated_df$.pinned[row_idx] <- TRUE
+        # Leave consensus_dtxsid as-is (NA)
+        data_store$resolution_state <- updated_df
 
-      # Update state
-      data_store$resolution_state <- updated_df
+        showNotification(
+          paste0("Row ", row_idx, " marked as skipped (None)"),
+          type = "message"
+        )
+      } else {
+        # Normal resolution: call resolve_row function
+        updated_df <- resolve_row(
+          data_store$resolution_state,
+          row_idx,
+          chosen_column,
+          data_store$dtxsid_cols
+        )
+
+        # Update state
+        data_store$resolution_state <- updated_df
+
+        showNotification(
+          paste0("Row ", row_idx, " resolved using ", sub("^dtxsid_", "", chosen_column)),
+          type = "message"
+        )
+      }
 
       # Recalculate consensus summary
+      updated_df <- data_store$resolution_state
       data_store$consensus_summary <- list(
         n_agree = sum(updated_df$consensus_status == "agree", na.rm = TRUE),
         n_disagree = sum(updated_df$consensus_status == "disagree" & !isTRUE(updated_df$.pinned), na.rm = TRUE),
         n_agree_caveat = sum(updated_df$consensus_status == "agree_caveat", na.rm = TRUE),
         n_single = sum(updated_df$consensus_status == "single", na.rm = TRUE),
         n_error = sum(updated_df$consensus_status == "error", na.rm = TRUE)
-      )
-
-      showNotification(
-        paste0("Row ", row_idx, " resolved using ", sub("^dtxsid_", "", chosen_column)),
-        type = "message"
       )
     }, error = function(e) {
       showNotification(
@@ -1727,9 +1832,13 @@ server <- function(input, output, session) {
       req(data_store$resolution_state, data_store$consensus_summary)
 
       # Sheet 1: Curated Data with full audit trail
-      # Remove internal columns (.pinned) but keep all other columns
+      # Add needs_review flag (TRUE for error/No Match rows only), remove .pinned
       export_data <- data_store$resolution_state %>%
-        dplyr::select(-tidyselect::any_of(".pinned"))
+        dplyr::mutate(
+          needs_review = (consensus_status == "error")
+        ) %>%
+        dplyr::select(-tidyselect::any_of(".pinned")) %>%
+        dplyr::relocate(needs_review, .after = tidyselect::last_col())
 
       # Sheet 2: Summary
       summary_df <- tibble::tibble(
