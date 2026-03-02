@@ -137,11 +137,14 @@ init_resolution_state <- function(df) {
 
 #' Get available resolution options for a disagree row
 #'
+#' Returns rich metadata for each option including DTXSID, preferredName, and rank.
+#' Options are sorted by rank (best match first, lowest rank number).
+#'
 #' @param df Classified data frame
 #' @param row_idx Integer row index
 #' @param dtxsid_cols Character vector of DTXSID column names
-#' @return Named list of column_name = dtxsid_value for columns with data.
-#'         Empty list if row is not "disagree".
+#' @return Named list of column_name = list(dtxsid, preferredName, rank) for columns with data.
+#'         Sorted by rank (best first). Empty list if row is not "disagree".
 get_resolution_options <- function(df, row_idx, dtxsid_cols) {
   if (df$consensus_status[row_idx] != "disagree") {
     return(list())
@@ -151,9 +154,26 @@ get_resolution_options <- function(df, row_idx, dtxsid_cols) {
   for (col in dtxsid_cols) {
     val <- df[[col]][row_idx]
     if (!is.na(val)) {
-      options[[col]] <- val
+      # Get corresponding preferredName and rank
+      pref_col <- sub("^dtxsid_", "preferredName_", col)
+      rank_col <- sub("^dtxsid_", "rank_", col)
+      pref_name <- if (pref_col %in% names(df)) df[[pref_col]][row_idx] else NA_character_
+      rank_val <- if (rank_col %in% names(df)) df[[rank_col]][row_idx] else NA_real_
+
+      options[[col]] <- list(
+        dtxsid = val,
+        preferredName = pref_name,
+        rank = rank_val
+      )
     }
   }
+
+  # Sort by rank (lowest/best first), NAs last
+  if (length(options) > 1) {
+    ranks <- sapply(options, function(o) if (is.na(o$rank)) Inf else as.numeric(o$rank))
+    options <- options[order(ranks)]
+  }
+
   options
 }
 

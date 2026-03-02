@@ -307,8 +307,9 @@ test_that("get_resolution_options returns available columns for disagree row", {
 
   expect_type(options, "list")
   expect_length(options, 2)
-  expect_equal(options[["dtxsid_Chemical"]], "DTXSID7021360")
-  expect_equal(options[["dtxsid_CAS"]], "DTXSID1020001")
+  # New return format: each option is a list with dtxsid, preferredName, rank
+  expect_equal(options[["dtxsid_Chemical"]]$dtxsid, "DTXSID7021360")
+  expect_equal(options[["dtxsid_CAS"]]$dtxsid, "DTXSID1020001")
 })
 
 test_that("get_resolution_options returns empty for non-disagree row", {
@@ -339,6 +340,9 @@ test_that("get_resolution_options excludes NA columns", {
 
   expect_length(options, 2) # Formula excluded (NA)
   expect_null(options[["dtxsid_Formula"]])
+  # Verify new return format
+  expect_equal(options[["dtxsid_Chemical"]]$dtxsid, "DTXSID7021360")
+  expect_equal(options[["dtxsid_CAS"]]$dtxsid, "DTXSID1020001")
 })
 
 # ============================================================================
