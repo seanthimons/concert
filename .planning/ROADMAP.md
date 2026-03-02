@@ -59,10 +59,10 @@ Plans:
   2. User can toggle column visibility via colvis button to show/hide specific columns
   3. User sees preferredName, rank, and QC level in resolution dropdown (not just raw DTXSID)
   4. User receives Excel export with error rows flagged as "needs manual review" in dedicated column
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 07-01: TBD
+- [ ] 07-01-PLAN.md -- Column visibility, colvis toggle, badges, enhanced dropdown, error flagging
 
 ### Phase 8: Error Recovery Workflows
 **Goal**: Enable users to manually resolve curation errors and retry failed rows
@@ -92,7 +92,7 @@ Phases execute in numeric order: 6 → 7 → 8
 | 4. Consensus Logic | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 5. Shiny Integration | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 6. Search Pipeline Refinement | 2/2 | Complete   | 2026-03-01 | - |
-| 7. UI Polish | v1.2 | 0/? | Not started | - |
+| 7. UI Polish | v1.2 | 0/1 | Planned | - |
 | 8. Error Recovery Workflows | v1.2 | 0/? | Not started | - |
 
 ---
