@@ -497,7 +497,247 @@ test_that("re-applying priority chain with different order updates non-pinned ro
 })
 
 # ============================================================================
-# Test Group 12: End-to-end resolution flow
+# Test Group 11.1: init_resolution_state - manual_entry column
+# ============================================================================
+
+test_that("init_resolution_state adds .manual_entry column", {
+  df <- data.frame(Chemical = c("Toluene", "Ethanol"), stringsAsFactors = FALSE)
+  result <- init_resolution_state(df)
+
+  expect_true(".manual_entry" %in% names(result))
+  expect_false(result$.manual_entry[1])
+  expect_false(result$.manual_entry[2])
+})
+
+test_that("init_resolution_state preserves existing .manual_entry", {
+  df <- data.frame(
+    Chemical = c("Toluene"),
+    .manual_entry = TRUE,
+    stringsAsFactors = FALSE
+  )
+  result <- init_resolution_state(df)
+
+  expect_true(result$.manual_entry[1])
+})
+
+# ============================================================================
+# Test Group 12: merge_retry_results
+# ============================================================================
+
+# Source the curation module (needed for merge_retry_results)
+source(file.path(here::here(), "R", "curation.R"))
+
+test_that("merge_retry_results: basic merge updates selected rows only", {
+  # Original state: 5 rows, rows 2 and 4 have error status
+  original <- data.frame(
+    Chemical = c("Toluene", "Unknown1", "Ethanol", "Unknown2", "Acetone"),
+    consensus_status = c("agree", "error", "single", "error", "agree_caveat"),
+    consensus_dtxsid = c("DTXSID7021360", NA, "DTXSID9020584", NA, "DTXSID1020001"),
+    consensus_source = c("consensus", NA, "Chemical", NA, "consensus"),
+    qc_tier = c(1L, 4L, 2L, 4L, 2L),
+    dtxsid_Chemical = c("DTXSID7021360", NA, "DTXSID9020584", NA, "DTXSID1020001"),
+    preferredName_Chemical = c("Toluene", NA, "Ethanol", NA, "Acetone"),
+    .pinned = c(FALSE, FALSE, FALSE, FALSE, FALSE),
+    stringsAsFactors = FALSE
+  )
+
+  # Retry results: 2 rows (for original rows 2 and 4)
+  # Row 2: now resolved to "agree"
+  # Row 4: still error
+  retry <- data.frame(
+    Chemical = c("Unknown1", "Unknown2"),
+    consensus_status = c("agree", "error"),
+    consensus_dtxsid = c("DTXSID1020002", NA),
+    consensus_source = c("consensus", NA),
+    qc_tier = c(1L, 4L),
+    dtxsid_Chemical = c("DTXSID1020002", NA),
+    preferredName_Chemical = c("Unknown1_resolved", NA),
+    stringsAsFactors = FALSE
+  )
+
+  result <- merge_retry_results(original, retry, c(2, 4), tags_changed = FALSE)
+
+  # Rows 1, 3, 5: unchanged
+  expect_equal(result$consensus_status[1], "agree")
+  expect_equal(result$consensus_dtxsid[1], "DTXSID7021360")
+  expect_equal(result$consensus_status[3], "single")
+  expect_equal(result$consensus_status[5], "agree_caveat")
+
+  # Row 2: updated from error to agree
+  expect_equal(result$consensus_status[2], "agree")
+  expect_equal(result$consensus_dtxsid[2], "DTXSID1020002")
+  expect_equal(result$dtxsid_Chemical[2], "DTXSID1020002")
+  expect_equal(result$preferredName_Chemical[2], "Unknown1_resolved")
+
+  # Row 4: still error, but should be marked unresolvable (error before and after)
+  expect_equal(result$consensus_status[4], "unresolvable")
+  expect_true(is.na(result$consensus_dtxsid[4]))
+})
+
+test_that("merge_retry_results: pin preservation", {
+  # Original with row 2 pinned
+  original <- data.frame(
+    Chemical = c("Toluene", "Ethanol"),
+    consensus_status = c("disagree", "disagree"),
+    consensus_dtxsid = c(NA, "DTXSID9020584"),
+    consensus_source = c(NA, "Chemical"),
+    qc_tier = c(3L, 3L),
+    dtxsid_Chemical = c("DTXSID7021360", "DTXSID9020584"),
+    dtxsid_CAS = c("DTXSID1020001", "DTXSID1020002"),
+    .pinned = c(FALSE, TRUE),
+    stringsAsFactors = FALSE
+  )
+
+  # Retry results for both rows
+  retry <- data.frame(
+    Chemical = c("Toluene", "Ethanol"),
+    consensus_status = c("agree", "agree"),
+    consensus_dtxsid = c("DTXSID7021360", "DTXSID1020002"),
+    consensus_source = c("consensus", "consensus"),
+    qc_tier = c(1L, 1L),
+    dtxsid_Chemical = c("DTXSID7021360", "DTXSID1020002"),
+    dtxsid_CAS = c("DTXSID7021360", "DTXSID1020002"),
+    stringsAsFactors = FALSE
+  )
+
+  # Include row 2 in selected indices, but it should be skipped
+  result <- merge_retry_results(original, retry, c(1, 2), tags_changed = FALSE)
+
+  # Row 1: should be updated
+  expect_equal(result$consensus_status[1], "agree")
+  expect_equal(result$consensus_dtxsid[1], "DTXSID7021360")
+
+  # Row 2: should NOT be updated (was pinned)
+  expect_equal(result$consensus_status[2], "disagree")
+  expect_equal(result$consensus_dtxsid[2], "DTXSID9020584")
+  expect_equal(result$consensus_source[2], "Chemical")
+  expect_true(result$.pinned[2])
+})
+
+test_that("merge_retry_results: row order preservation", {
+  # Create original with unique identifier
+  original <- data.frame(
+    id = 1:5,
+    Chemical = c("A", "B", "C", "D", "E"),
+    consensus_status = c("error", "error", "error", "error", "error"),
+    consensus_dtxsid = rep(NA_character_, 5),
+    consensus_source = rep(NA_character_, 5),
+    qc_tier = rep(4L, 5),
+    .pinned = rep(FALSE, 5),
+    stringsAsFactors = FALSE
+  )
+
+  # Retry for rows 5, 3, 1 (non-sequential)
+  retry <- data.frame(
+    id = c(5, 3, 1),
+    Chemical = c("E", "C", "A"),
+    consensus_status = c("agree", "agree", "agree"),
+    consensus_dtxsid = c("DTXSID5", "DTXSID3", "DTXSID1"),
+    consensus_source = c("consensus", "consensus", "consensus"),
+    qc_tier = c(1L, 1L, 1L),
+    stringsAsFactors = FALSE
+  )
+
+  result <- merge_retry_results(original, retry, c(5, 3, 1), tags_changed = FALSE)
+
+  # Check row order preserved (by id)
+  expect_equal(result$id, 1:5)
+  expect_equal(nrow(result), 5)
+
+  # Check updates applied correctly by index
+  expect_equal(result$consensus_status[1], "agree")
+  expect_equal(result$consensus_dtxsid[1], "DTXSID1")
+  expect_equal(result$consensus_status[3], "agree")
+  expect_equal(result$consensus_dtxsid[3], "DTXSID3")
+  expect_equal(result$consensus_status[5], "agree")
+  expect_equal(result$consensus_dtxsid[5], "DTXSID5")
+
+  # Rows 2, 4 unchanged
+  expect_equal(result$consensus_status[2], "error")
+  expect_equal(result$consensus_status[4], "error")
+})
+
+test_that("merge_retry_results: unresolvable marking", {
+  # Original with all errors
+  original <- data.frame(
+    Chemical = c("Unknown1", "Unknown2", "Unknown3"),
+    consensus_status = c("error", "error", "error"),
+    consensus_dtxsid = rep(NA_character_, 3),
+    consensus_source = rep(NA_character_, 3),
+    qc_tier = rep(4L, 3),
+    .pinned = rep(FALSE, 3),
+    stringsAsFactors = FALSE
+  )
+
+  # Retry: row 1 resolved, rows 2 and 3 still error
+  retry <- data.frame(
+    Chemical = c("Unknown1", "Unknown2", "Unknown3"),
+    consensus_status = c("agree", "error", "error"),
+    consensus_dtxsid = c("DTXSID1020001", NA, NA),
+    consensus_source = c("consensus", NA, NA),
+    qc_tier = c(1L, 4L, 4L),
+    stringsAsFactors = FALSE
+  )
+
+  result <- merge_retry_results(original, retry, c(1, 2, 3), tags_changed = FALSE)
+
+  # Row 1: error → agree (not unresolvable)
+  expect_equal(result$consensus_status[1], "agree")
+
+  # Rows 2, 3: error → error (should be marked unresolvable)
+  expect_equal(result$consensus_status[2], "unresolvable")
+  expect_equal(result$consensus_status[3], "unresolvable")
+})
+
+test_that("merge_retry_results: new column handling with tags_changed", {
+  # Original: only dtxsid_Chemical column
+  original <- data.frame(
+    Chemical = c("Toluene", "Ethanol"),
+    consensus_status = c("error", "error"),
+    consensus_dtxsid = rep(NA_character_, 2),
+    consensus_source = rep(NA_character_, 2),
+    qc_tier = rep(4L, 2),
+    dtxsid_Chemical = rep(NA_character_, 2),
+    preferredName_Chemical = rep(NA_character_, 2),
+    .pinned = rep(FALSE, 2),
+    stringsAsFactors = FALSE
+  )
+
+  # Retry: now has dtxsid_Other column (new tag added)
+  retry <- data.frame(
+    Chemical = c("Toluene"),
+    consensus_status = c("agree"),
+    consensus_dtxsid = c("DTXSID7021360"),
+    consensus_source = c("consensus"),
+    qc_tier = c(1L),
+    dtxsid_Chemical = c("DTXSID7021360"),
+    preferredName_Chemical = c("Toluene"),
+    dtxsid_Other = c("DTXSID7021360"),
+    preferredName_Other = c("Toluene_other"),
+    rank_Other = c(1L),
+    source_tier_Other = c("exact"),
+    stringsAsFactors = FALSE
+  )
+
+  result <- merge_retry_results(original, retry, c(1), tags_changed = TRUE)
+
+  # New columns should exist
+  expect_true("dtxsid_Other" %in% names(result))
+  expect_true("preferredName_Other" %in% names(result))
+  expect_true("rank_Other" %in% names(result))
+  expect_true("source_tier_Other" %in% names(result))
+
+  # Row 1: updated with new column data
+  expect_equal(result$dtxsid_Other[1], "DTXSID7021360")
+  expect_equal(result$preferredName_Other[1], "Toluene_other")
+
+  # Row 2: new columns are NA (not selected for retry)
+  expect_true(is.na(result$dtxsid_Other[2]))
+  expect_true(is.na(result$preferredName_Other[2]))
+})
+
+# ============================================================================
+# Test Group 13: End-to-end resolution flow
 # ============================================================================
 
 test_that("full flow: classify -> resolve_row -> apply_priority_chain", {
