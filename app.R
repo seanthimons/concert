@@ -2164,7 +2164,11 @@ server <- function(input, output, session) {
       title = sprintf("Re-tag %d Selected Rows", n_selected),
       modal_content,
       footer = tagList(
-        actionButton("apply_retag", "Apply & Re-curate", class = "btn-primary"),
+        tags$button(
+          "Apply & Re-curate",
+          class = "btn btn-primary",
+          onclick = "Shiny.setInputValue('apply_retag_trigger', Math.random())"
+        ),
         modalButton("Cancel")
       ),
       size = "l",
@@ -2173,7 +2177,7 @@ server <- function(input, output, session) {
   })
 
   # Apply re-tag and re-curate handler
-  observeEvent(input$apply_retag, {
+  observeEvent(input$apply_retag_trigger, {
     selected_rows <- data_store$selected_error_rows
 
     if (is.null(selected_rows) || length(selected_rows) == 0) {
@@ -2207,9 +2211,7 @@ server <- function(input, output, session) {
     # Extract subset of clean data for selected rows
     subset_data <- data_store$clean[selected_rows, , drop = FALSE]
 
-    # Run full curation pipeline on subset
-    shinyjs::disable("apply_retag")
-    on.exit(shinyjs::enable("apply_retag"))
+    # Run full curation pipeline on subset (button is in modal which is already closed)
 
     withProgress(message = "Re-curating selected rows...", value = 0, {
       retry_result <- tryCatch({
