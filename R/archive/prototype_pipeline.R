@@ -189,7 +189,8 @@ validate_and_lookup_cas <- function(unique_cas) {
     validated_cas = character(0),
     is_valid = logical(0),
     dtxsid = character(0),
-    preferredName = character(0)
+    preferredName = character(0),
+    rank = integer(0)
   )
 
   if (length(unique_cas) == 0) {
@@ -211,7 +212,8 @@ validate_and_lookup_cas <- function(unique_cas) {
     validated_cas = validated,
     is_valid = valid_flags,
     dtxsid = NA_character_,
-    preferredName = NA_character_
+    preferredName = NA_character_,
+    rank = NA_integer_
   )
 
   # Lookup DTXSID for valid CAS numbers
@@ -230,23 +232,28 @@ validate_and_lookup_cas <- function(unique_cas) {
           pn_col <- grep("^preferred.?name$", names(cas_lookup), ignore.case = TRUE, value = TRUE)
 
           if (length(sv_col) > 0 && length(dtx_col) > 0) {
+            rk_col <- grep("^rank$", names(cas_lookup), ignore.case = TRUE, value = TRUE)
+
             lookup_map <- tibble::tibble(
               validated_cas = cas_lookup[[sv_col[1]]],
               looked_up_dtxsid = cas_lookup[[dtx_col[1]]],
-              looked_up_name = if (length(pn_col) > 0) cas_lookup[[pn_col[1]]] else NA_character_
+              looked_up_name = if (length(pn_col) > 0) cas_lookup[[pn_col[1]]] else NA_character_,
+              looked_up_rank = if (length(rk_col) > 0) as.integer(cas_lookup[[rk_col[1]]]) else NA_integer_
             )
 
-            # Keep first (lowest rank) per CAS
+            # Keep lowest rank (top result) per CAS
             lookup_map <- lookup_map |>
+              dplyr::arrange(looked_up_rank) |>
               dplyr::distinct(validated_cas, .keep_all = TRUE)
 
             result <- result |>
               dplyr::left_join(lookup_map, by = "validated_cas") |>
               dplyr::mutate(
                 dtxsid = dplyr::coalesce(looked_up_dtxsid, dtxsid),
-                preferredName = dplyr::coalesce(looked_up_name, preferredName)
+                preferredName = dplyr::coalesce(looked_up_name, preferredName),
+                rank = looked_up_rank
               ) |>
-              dplyr::select(-looked_up_dtxsid, -looked_up_name)
+              dplyr::select(-looked_up_dtxsid, -looked_up_name, -looked_up_rank)
           }
         }
       },
@@ -321,7 +328,7 @@ run_tiered_search <- function(dedup_result) {
         dtxsid = cas_results$dtxsid,
         preferredName = cas_results$preferredName,
         searchName = dplyr::if_else(!is.na(cas_results$dtxsid), "CAS-RN", NA_character_),
-        rank = NA_integer_,
+        rank = cas_results$rank,
         source_tier = dplyr::case_when(
           !is.na(cas_results$dtxsid) ~ "cas",
           cas_results$is_valid == TRUE ~ "cas_no_match",
@@ -376,7 +383,8 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results) {
   enriched_keys <- dedup_key_map |>
     dplyr::left_join(
       lookup_results,
-      by = c("dedup_key" = "searchValue")
+      by = c("dedup_key" = "searchValue"),
+      relationship = "many-to-many"
     )
 
   # For each tagged column, create a set of lookup columns
