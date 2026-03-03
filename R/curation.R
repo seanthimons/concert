@@ -141,7 +141,7 @@ search_starts_with <- function(missed_names) {
   for (name in missed_names) {
     tryCatch(
       {
-        raw <- ComptoxR::ct_chemical_search_start_with(name)
+        raw <- ComptoxR::ct_chemical_start_with(name)
         if (!is.null(raw) && nrow(raw) > 0) {
           # Standardize columns
           col_map <- list(
@@ -691,4 +691,225 @@ get_dedup_preview <- function(clean_data, column_tags) {
     n_names = length(dedup_result$unique_names),
     n_cas = length(dedup_result$unique_cas)
   )
+}
+
+# ============================================================================
+# validate_manual_dtxsids
+# ============================================================================
+
+#' Validate manually-entered DTXSIDs via CompTox bulk API
+#'
+#' @param dtxsids Character vector of DTXSID strings (e.g., "DTXSID7020182")
+#' @param batch_size Integer batch size for API calls (default 20)
+#' @param delay_sec Numeric delay in seconds between batches (default 1)
+#' @return Tibble with columns: searchValue, dtxsid, preferredName, rank, is_valid
+validate_manual_dtxsids <- function(dtxsids, batch_size = 20, delay_sec = 1) {
+  empty_result <- tibble::tibble(
+    searchValue = character(0),
+    dtxsid = character(0),
+    preferredName = character(0),
+    rank = integer(0),
+    is_valid = logical(0)
+  )
+
+  if (length(dtxsids) == 0) {
+    return(empty_result)
+  }
+
+  # Deduplicate input
+  unique_dtxsids <- unique(dtxsids[!is.na(dtxsids) & dtxsids != ""])
+
+  if (length(unique_dtxsids) == 0) {
+    return(empty_result)
+  }
+
+  message(sprintf("Validating %d unique DTXSIDs...", length(unique_dtxsids)))
+
+  # Split into batches
+  n_batches <- ceiling(length(unique_dtxsids) / batch_size)
+  all_results <- list()
+
+  for (batch_idx in seq_len(n_batches)) {
+    start_idx <- (batch_idx - 1) * batch_size + 1
+    end_idx <- min(batch_idx * batch_size, length(unique_dtxsids))
+    batch <- unique_dtxsids[start_idx:end_idx]
+
+    message(sprintf("  Batch %d/%d: %d DTXSIDs...", batch_idx, n_batches, length(batch)))
+
+    # Use purrr::safely for error handling
+    safe_lookup <- purrr::safely(ComptoxR::ct_chemical_search_equal_bulk)
+    api_result <- safe_lookup(batch)
+
+    if (!is.null(api_result$error)) {
+      warning(sprintf("API call failed for batch %d: %s", batch_idx, api_result$error$message))
+      # Mark all in this batch as invalid
+      batch_result <- tibble::tibble(
+        searchValue = batch,
+        dtxsid = NA_character_,
+        preferredName = NA_character_,
+        rank = NA_integer_,
+        is_valid = FALSE
+      )
+    } else {
+      raw <- api_result$result
+
+      if (is.null(raw) || nrow(raw) == 0) {
+        # No results found - mark all as invalid
+        batch_result <- tibble::tibble(
+          searchValue = batch,
+          dtxsid = NA_character_,
+          preferredName = NA_character_,
+          rank = NA_integer_,
+          is_valid = FALSE
+        )
+      } else {
+        # Standardize column names
+        col_map <- list(
+          searchValue = grep("^search.?value$", names(raw), ignore.case = TRUE, value = TRUE),
+          dtxsid = grep("^dtxsid$", names(raw), ignore.case = TRUE, value = TRUE),
+          preferredName = grep("^preferred.?name$", names(raw), ignore.case = TRUE, value = TRUE),
+          rank = grep("^rank$", names(raw), ignore.case = TRUE, value = TRUE)
+        )
+
+        found_results <- tibble::tibble(
+          searchValue = if (length(col_map$searchValue) > 0) raw[[col_map$searchValue[1]]] else NA_character_,
+          dtxsid = if (length(col_map$dtxsid) > 0) raw[[col_map$dtxsid[1]]] else NA_character_,
+          preferredName = if (length(col_map$preferredName) > 0) raw[[col_map$preferredName[1]]] else NA_character_,
+          rank = if (length(col_map$rank) > 0) as.integer(raw[[col_map$rank[1]]]) else NA_integer_,
+          is_valid = !is.na(if (length(col_map$dtxsid) > 0) raw[[col_map$dtxsid[1]]] else NA_character_)
+        )
+
+        # Take lowest rank per searchValue
+        found_results <- found_results |>
+          dplyr::group_by(searchValue) |>
+          dplyr::slice_min(rank, n = 1, with_ties = FALSE) |>
+          dplyr::ungroup()
+
+        # Find DTXSIDs not in API response
+        found_values <- found_results$searchValue[found_results$is_valid]
+        missed_values <- setdiff(batch, found_values)
+
+        if (length(missed_values) > 0) {
+          missed_results <- tibble::tibble(
+            searchValue = missed_values,
+            dtxsid = NA_character_,
+            preferredName = NA_character_,
+            rank = NA_integer_,
+            is_valid = FALSE
+          )
+          batch_result <- dplyr::bind_rows(found_results, missed_results)
+        } else {
+          batch_result <- found_results
+        }
+      }
+    }
+
+    all_results[[batch_idx]] <- batch_result
+
+    # Delay between batches (except after last batch)
+    if (batch_idx < n_batches && delay_sec > 0) {
+      Sys.sleep(delay_sec)
+    }
+  }
+
+  combined <- dplyr::bind_rows(all_results)
+
+  n_valid <- sum(combined$is_valid, na.rm = TRUE)
+  n_invalid <- sum(!combined$is_valid, na.rm = TRUE)
+  message(sprintf("Validation complete: %d valid, %d invalid", n_valid, n_invalid))
+
+  combined
+}
+
+# ============================================================================
+# merge_retry_results
+# ============================================================================
+
+#' Merge retry curation results back into original resolution state
+#'
+#' @param original_state Original resolution_state data frame
+#' @param retry_results Retry pipeline results data frame
+#' @param selected_row_indices Integer vector of original row indices that were re-curated
+#' @param tags_changed Logical indicating if column tags were changed (default FALSE)
+#' @return Updated original_state data frame with retry results merged
+merge_retry_results <- function(original_state, retry_results, selected_row_indices, tags_changed = FALSE) {
+  # Validate input
+  if (nrow(retry_results) != length(selected_row_indices)) {
+    stop("Mismatch: retry_results has ", nrow(retry_results), " rows but selected_row_indices has ", length(selected_row_indices), " elements")
+  }
+
+  # Initialize resolution state if needed
+  original_state <- init_resolution_state(original_state)
+
+  # Safety check: skip pinned rows
+  pinned_mask <- original_state$.pinned[selected_row_indices]
+  if (any(pinned_mask, na.rm = TRUE)) {
+    pinned_indices <- selected_row_indices[pinned_mask]
+    warning(sprintf("Skipping %d pinned rows: %s", sum(pinned_mask, na.rm = TRUE), paste(pinned_indices, collapse = ", ")))
+    # Filter out pinned rows from both selected_row_indices and retry_results
+    selected_row_indices <- selected_row_indices[!pinned_mask]
+    retry_results <- retry_results[!pinned_mask, , drop = FALSE]
+  }
+
+  if (length(selected_row_indices) == 0) {
+    message("No rows to merge after filtering pinned rows")
+    return(original_state)
+  }
+
+  # If tags changed, add new columns from retry_results that don't exist in original_state
+  if (tags_changed) {
+    new_cols <- setdiff(names(retry_results), names(original_state))
+    if (length(new_cols) > 0) {
+      message(sprintf("Adding %d new columns from retry: %s", length(new_cols), paste(new_cols, collapse = ", ")))
+      for (col in new_cols) {
+        # Initialize with NA, matching the type from retry_results
+        original_state[[col]] <- rep(NA, nrow(original_state))
+        # Preserve column type
+        if (is.numeric(retry_results[[col]])) {
+          original_state[[col]] <- as.numeric(original_state[[col]])
+        } else if (is.logical(retry_results[[col]])) {
+          original_state[[col]] <- as.logical(original_state[[col]])
+        } else {
+          original_state[[col]] <- as.character(original_state[[col]])
+        }
+      }
+    }
+  }
+
+  # Track original error status for unresolvable detection
+  original_errors <- original_state$consensus_status[selected_row_indices] == "error"
+
+  # Update consensus columns for selected rows
+  consensus_cols <- c("consensus_dtxsid", "consensus_status", "consensus_source", "qc_tier")
+  for (col in consensus_cols) {
+    if (col %in% names(retry_results)) {
+      original_state[[col]][selected_row_indices] <- retry_results[[col]]
+    }
+  }
+
+  # Update per-column lookup columns (dtxsid_*, preferredName_*, rank_*, source_tier_*)
+  lookup_col_patterns <- c("^dtxsid_", "^preferredName_", "^rank_", "^source_tier_")
+  for (pattern in lookup_col_patterns) {
+    retry_cols <- grep(pattern, names(retry_results), value = TRUE)
+    for (col in retry_cols) {
+      if (col %in% names(original_state)) {
+        original_state[[col]][selected_row_indices] <- retry_results[[col]]
+      } else if (tags_changed) {
+        # New column was already added above
+        original_state[[col]][selected_row_indices] <- retry_results[[col]]
+      }
+    }
+  }
+
+  # Mark unresolvable: rows that were error before AND are still error after retry
+  retry_errors <- original_state$consensus_status[selected_row_indices] == "error"
+  unresolvable_mask <- original_errors & retry_errors
+  if (any(unresolvable_mask, na.rm = TRUE)) {
+    unresolvable_indices <- selected_row_indices[unresolvable_mask]
+    original_state$consensus_status[unresolvable_indices] <- "unresolvable"
+    message(sprintf("Marked %d rows as unresolvable (error before and after retry)", sum(unresolvable_mask, na.rm = TRUE)))
+  }
+
+  message(sprintf("Merged retry results for %d rows", length(selected_row_indices)))
+  original_state
 }
