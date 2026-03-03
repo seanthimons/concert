@@ -48,7 +48,7 @@ Helium,7440-59-7,valid,NA
 Argon,7440-37-1,valid,NA
 Acetone,,invalid,missing_casrn
 ,67-64-1,invalid,missing_name
-,,,invalid,completely_empty
+,,invalid,completely_empty
 Ethan0l,64-17-5,invalid,typo_in_name
 Acet0ne,67-64-1,invalid,typo_in_name
 B3nz3n3,71-43-2,invalid,typo_in_name
@@ -72,8 +72,8 @@ Diethyl ether,60-29-7,valid,NA
 Tetrahydrofuran,109-99-9,valid,NA
 Dichloromethane,75-09-2,valid,NA
 Carbon tetrachloride,56-23-5,valid,NA
-1,4-Dioxane,123-91-1,valid,NA
-N,N-Dimethylformamide,68-12-2,valid,NA
+"1,4-Dioxane",123-91-1,valid,NA
+"N,N-Dimethylformamide",68-12-2,valid,NA
 Acetonitrile,75-05-8,valid,NA
 Isopropanol,67-63-0,valid,NA
 Potassium permanganate,7722-64-7,valid,NA
