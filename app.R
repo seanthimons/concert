@@ -2055,9 +2055,9 @@ server <- function(input, output, session) {
       # Add needs_review flag (TRUE for error/No Match rows only), remove .pinned
       export_data <- data_store$resolution_state %>%
         dplyr::mutate(
-          needs_review = (consensus_status == "error")
+          needs_review = (consensus_status %in% c("error", "unresolvable"))
         ) %>%
-        dplyr::select(-tidyselect::any_of(".pinned")) %>%
+        dplyr::select(-tidyselect::any_of(c(".pinned", ".manual_entry"))) %>%
         dplyr::relocate(needs_review, .after = tidyselect::last_col())
 
       # Sheet 2: Summary
@@ -2068,7 +2068,9 @@ server <- function(input, output, session) {
           "Consensus - Disagree",
           "Consensus - Agree (Caveat)",
           "Consensus - Single Source",
+          "Consensus - Manual",
           "Consensus - Error",
+          "Consensus - Unresolvable",
           "Match Rate (%)"
         ),
         Value = c(
@@ -2077,7 +2079,9 @@ server <- function(input, output, session) {
           data_store$consensus_summary$n_disagree,
           data_store$consensus_summary$n_agree_caveat,
           data_store$consensus_summary$n_single,
+          data_store$consensus_summary$n_manual %||% 0,
           data_store$consensus_summary$n_error,
+          data_store$consensus_summary$n_unresolvable %||% 0,
           round((sum(!is.na(data_store$resolution_state$consensus_dtxsid)) / nrow(data_store$resolution_state)) * 100, 1)
         )
       )
@@ -2163,6 +2167,101 @@ server <- function(input, output, session) {
       size = "l",
       easyClose = FALSE
     ))
+  })
+
+  # Apply re-tag and re-curate handler
+  observeEvent(input$apply_retag, {
+    removeModal()
+
+    selected_rows <- data_store$selected_error_rows
+    req(selected_rows)
+
+    # Collect new tags from modal inputs
+    original_cols <- names(data_store$clean)
+    new_tags <- list()
+    for (col in original_cols) {
+      tag_val <- input[[paste0("retag_col_", col)]]
+      if (!is.null(tag_val) && tag_val != "") {
+        new_tags[[col]] <- tag_val
+      }
+    }
+
+    if (length(new_tags) == 0) {
+      showNotification("No columns tagged. Please select at least one tag.", type = "warning")
+      return()
+    }
+
+    # Check if tags changed from original
+    tags_changed <- !identical(sort(names(new_tags)), sort(names(data_store$column_tags))) ||
+                    !identical(new_tags[sort(names(new_tags))], data_store$column_tags[sort(names(data_store$column_tags))])
+
+    # Extract subset of clean data for selected rows
+    subset_data <- data_store$clean[selected_rows, , drop = FALSE]
+
+    # Run full curation pipeline on subset
+    shinyjs::disable("apply_retag")
+
+    withProgress(message = "Re-curating selected rows...", value = 0, {
+      retry_result <- tryCatch({
+        run_curation_pipeline(
+          clean_data = subset_data,
+          column_tags = new_tags,
+          progress_callback = function(stage, msg) {
+            incProgress(0.2, detail = msg)
+          }
+        )
+      }, error = function(e) {
+        showNotification(paste("Re-curation failed:", e$message), type = "error", duration = NULL)
+        NULL
+      })
+
+      if (!is.null(retry_result)) {
+        incProgress(0.3, detail = "Merging results...")
+
+        # Merge retry results back into main state
+        updated_state <- merge_retry_results(
+          original_state = data_store$resolution_state,
+          retry_results = retry_result$results,
+          selected_row_indices = selected_rows,
+          tags_changed = tags_changed
+        )
+
+        data_store$resolution_state <- updated_state
+
+        # Update dtxsid_cols if new tag columns were added
+        if (tags_changed) {
+          data_store$dtxsid_cols <- grep("^dtxsid_", names(updated_state), value = TRUE)
+        }
+
+        # Count results
+        n_resolved <- sum(updated_state$consensus_status[selected_rows] %in%
+          c("agree", "agree_caveat", "single", "manual"), na.rm = TRUE)
+        n_still_error <- sum(updated_state$consensus_status[selected_rows] == "unresolvable", na.rm = TRUE)
+
+        showNotification(
+          sprintf("Re-curation complete: %d resolved, %d unresolvable", n_resolved, n_still_error),
+          type = if (n_still_error > 0) "warning" else "message",
+          duration = 8
+        )
+      }
+    })
+
+    # Reset filter and selection state
+    data_store$error_filter_active <- FALSE
+    data_store$selected_error_rows <- NULL
+    updateActionButton(session, "filter_errors", label = "Show Errors")
+
+    # Update consensus summary
+    updated_df <- data_store$resolution_state
+    data_store$consensus_summary <- list(
+      n_agree = sum(updated_df$consensus_status == "agree", na.rm = TRUE),
+      n_disagree = sum(updated_df$consensus_status == "disagree", na.rm = TRUE),
+      n_agree_caveat = sum(updated_df$consensus_status == "agree_caveat", na.rm = TRUE),
+      n_single = sum(updated_df$consensus_status == "single", na.rm = TRUE),
+      n_error = sum(updated_df$consensus_status == "error", na.rm = TRUE),
+      n_manual = sum(updated_df$consensus_status == "manual", na.rm = TRUE),
+      n_unresolvable = sum(updated_df$consensus_status == "unresolvable", na.rm = TRUE)
+    )
   })
 }
 
