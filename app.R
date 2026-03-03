@@ -2203,6 +2203,7 @@ server <- function(input, output, session) {
 
     # Run full curation pipeline on subset
     shinyjs::disable("apply_retag")
+    on.exit(shinyjs::enable("apply_retag"))
 
     withProgress(message = "Re-curating selected rows...", value = 0, {
       retry_result <- tryCatch({
