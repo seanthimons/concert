@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Curation Refinement
 status: unknown
-last_updated: "2026-03-02T01:23:00.820Z"
+last_updated: "2026-03-03T16:06:52.393Z"
 progress:
-  total_phases: 2
+  total_phases: 3
   completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 6
+  completed_plans: 4
 ---
 
 ---
@@ -75,6 +75,7 @@ Progress: [■■■■■■■■□□] 75% (6 of 8 phases complete across al
 - Trend: Stable — v1.1 delivered with full UAT pass (12/12)
 
 *Will update after first v1.2 plan completion*
+| Phase 08 P01 | 155 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -95,6 +96,9 @@ Key decisions from previous milestones:
 - Other tagged columns participate in full tier chain alongside Name columns (06-01)
 - CAS-from-names and CAS-from-columns tracked separately for visibility (06-01)
 - [Phase 06]: Derive match_type in app.R rather than R/curation.R — keeps UI transformations in UI layer
+- [Phase 08]: Bulk API validation with batching (20 per batch, 1s delay) for manual DTXSID validation
+- [Phase 08]: Pinned rows skipped with warning in merge_retry_results (defensive safety check)
+- [Phase 08]: Unresolvable status requires error both before and after retry (not single error state)
 
 ### Pending Todos
 
