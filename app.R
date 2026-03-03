@@ -318,14 +318,39 @@ ui <- page_sidebar(
           )
         ),
 
-        # Header with Download button top-right
+        # Header with Download button top-right and action buttons
         div(
           class = "d-flex justify-content-between align-items-center mb-3 mt-3",
           h4("Curated Results"),
-          downloadButton(
-            "download_curated",
-            "Download Excel",
-            class = "btn-primary"
+          div(
+            class = "d-flex gap-2",
+            actionButton(
+              "filter_errors",
+              "Show Errors",
+              icon = bsicons::bs_icon("filter"),
+              class = "btn-sm btn-outline-secondary"
+            ),
+            shinyjs::hidden(
+              actionButton(
+                "retag_selected",
+                "Re-tag Selected",
+                icon = bsicons::bs_icon("tags"),
+                class = "btn-sm btn-warning"
+              )
+            ),
+            shinyjs::hidden(
+              actionButton(
+                "validate_all",
+                "Validate All",
+                icon = bsicons::bs_icon("check2-all"),
+                class = "btn-sm btn-success"
+              )
+            ),
+            downloadButton(
+              "download_curated",
+              "Download Excel",
+              class = "btn-primary"
+            )
           )
         ),
 
@@ -368,7 +393,12 @@ server <- function(input, output, session) {
     consensus_summary = NULL,
     resolution_state = NULL,
     dtxsid_cols = NULL,
-    priority_order = NULL
+    priority_order = NULL,
+    # Error recovery fields
+    error_filter_active = FALSE,
+    display_row_map = NULL,
+    selected_error_rows = NULL,
+    manual_queue = list()  # row_idx (string) -> dtxsid (string)
   )
 
   # --- Gated Navigation: Hide tabs on startup ---
@@ -1385,7 +1415,7 @@ server <- function(input, output, session) {
     # Ensure consensus_status is a factor with ordered levels (enables dropdown filter)
     df$consensus_status <- factor(
       df$consensus_status,
-      levels = c("agree", "agree_caveat", "single", "disagree", "error")
+      levels = c("agree", "agree_caveat", "single", "disagree", "error", "manual", "unresolvable")
     )
 
     # Derive Match Type from source_tier columns
@@ -1507,11 +1537,53 @@ server <- function(input, output, session) {
             ""
           }
         }
+      } else if (status == "manual") {
+        # Manual entry: show checkmark + DTXSID + preferredName + manual badge
+        dtxsid <- df$consensus_dtxsid[i]
+        pref_name <- if ("manual_preferredName" %in% names(df)) df$manual_preferredName[i] else NA_character_
+        # Fall back to auto preferredName columns if manual not available
+        if (is.na(pref_name)) {
+          pref_cols <- grep("^preferredName_", names(df), value = TRUE)
+          for (pc in pref_cols) {
+            if (!is.na(df[[pc]][i])) { pref_name <- df[[pc]][i]; break }
+          }
+        }
+        manual_badge <- '<span class="badge bg-info ms-1" style="font-size:0.7em;">manual</span>'
+        if (!is.na(dtxsid) && !is.na(pref_name)) {
+          paste0("\u2705 ", htmltools::htmlEscape(dtxsid), " \u2014 ", htmltools::htmlEscape(pref_name), " ", manual_badge)
+        } else if (!is.na(dtxsid)) {
+          paste0("\u2705 ", htmltools::htmlEscape(dtxsid), " ", manual_badge)
+        } else {
+          ""
+        }
+      } else if (status == "unresolvable") {
+        # Unresolvable: show warning icon
+        "\u26A0\uFE0F Auto-curation failed"
+      } else if (status == "error") {
+        # Check if manual entry in progress (queued but not yet validated)
+        if (isTRUE(df$.manual_entry[i]) && !is.na(df$consensus_dtxsid[i])) {
+          dtxsid <- df$consensus_dtxsid[i]
+          queued_badge <- '<span class="badge bg-warning text-dark ms-1" style="font-size:0.7em;">queued</span>'
+          paste0(htmltools::htmlEscape(dtxsid), " ", queued_badge)
+        } else {
+          ""
+        }
       } else {
-        # error or other status
+        # other status
         ""
       }
     })
+
+    # Apply error filter if active
+    display_indices <- seq_len(nrow(df))
+    if (isTRUE(data_store$error_filter_active)) {
+      display_indices <- which(df$consensus_status %in% c("error", "unresolvable"))
+      df_display <- df[display_indices, , drop = FALSE]
+    } else {
+      df_display <- df
+    }
+    # Store mapping for row selection (filtered row -> original row)
+    data_store$display_row_map <- display_indices
 
     # --- Three-tier column visibility ---
 
@@ -1522,7 +1594,9 @@ server <- function(input, output, session) {
       grep("^searchName_", names(df), value = TRUE),
       grep("^rank_", names(df), value = TRUE),
       grep("^source_tier_", names(df), value = TRUE),
-      ".pinned"
+      ".pinned",
+      ".manual_entry",
+      "manual_preferredName"
     )
     always_hidden_idx <- which(names(df) %in% always_hidden) - 1
 
@@ -1541,6 +1615,7 @@ server <- function(input, output, session) {
     # Column indices for badge rendering (0-indexed)
     match_type_idx <- which(names(df) == "match_type") - 1
     consensus_idx <- which(names(df) == "consensus_status") - 1
+    consensus_dtxsid_idx <- which(names(df) == "consensus_dtxsid") - 1
 
     # Prepare display dataframe
     display_df <- df
@@ -1548,6 +1623,12 @@ server <- function(input, output, session) {
     # Create DT table with colvis, badges, and column visibility
     dt <- datatable(
       display_df,
+      editable = list(
+        target = "cell",
+        disable = list(
+          columns = setdiff(seq_len(ncol(display_df)) - 1, consensus_dtxsid_idx)
+        )
+      ),
       options = list(
         pageLength = 25,
         scrollX = TRUE,
@@ -1594,7 +1675,9 @@ server <- function(input, output, session) {
               "    'agree_caveat': '#17a2b8',",
               "    'single': '#6c757d',",
               "    'disagree': '#fd7e14',",
-              "    'error': '#343a40'",
+              "    'error': '#343a40',",
+              "    'manual': '#6f42c1',",
+              "    'unresolvable': '#721c24'",
               "  };",
               "  var bg = colors[data] || '#6c757d';",
               "  return '<span style=\"background:' + bg + ';color:#fff;padding:2px 8px;border-radius:4px;font-weight:600;font-size:0.85em;display:inline-block;\">' +",
@@ -1616,13 +1699,15 @@ server <- function(input, output, session) {
       'consensus_status',
       target = 'row',
       backgroundColor = styleEqual(
-        c("agree", "agree_caveat", "disagree", "single", "error"),
+        c("agree", "agree_caveat", "disagree", "single", "error", "manual", "unresolvable"),
         c(
           "rgba(40, 167, 69, 0.08)",
           "rgba(40, 167, 69, 0.05)",
           "rgba(220, 53, 69, 0.08)",
           "rgba(108, 117, 125, 0.05)",
-          "rgba(220, 53, 69, 0.12)"
+          "rgba(220, 53, 69, 0.12)",
+          "rgba(111, 66, 193, 0.08)",
+          "rgba(114, 28, 36, 0.12)"
         )
       )
     )
@@ -1706,6 +1791,45 @@ server <- function(input, output, session) {
   })
 
   # Resolution Controls ----
+
+  # Handle inline cell editing for manual DTXSID entry
+  observeEvent(input$curation_table_cell_edit, {
+    info <- input$curation_table_cell_edit
+    row_idx <- info$row  # 1-based
+    new_value <- trimws(as.character(info$value))
+
+    # Only allow edits on error/unresolvable rows
+    current_status <- as.character(data_store$resolution_state$consensus_status[row_idx])
+    if (!current_status %in% c("error", "unresolvable")) {
+      showNotification("Only error/unresolvable rows can be manually edited", type = "warning")
+      return()
+    }
+
+    # Basic DTXSID format validation
+    if (!grepl("^DTXSID\\d+$", new_value, ignore.case = TRUE)) {
+      showNotification(
+        paste0("Invalid format: ", new_value, ". Expected: DTXSIDxxxxxxx"),
+        type = "warning", duration = 5
+      )
+      return()
+    }
+
+    # Queue for bulk validation
+    data_store$manual_queue[[as.character(row_idx)]] <- new_value
+
+    # Update display state immediately (show value + mark as manual)
+    updated_df <- data_store$resolution_state
+    updated_df$consensus_dtxsid[row_idx] <- new_value
+    updated_df$.manual_entry[row_idx] <- TRUE
+    data_store$resolution_state <- updated_df
+
+    showNotification(paste0("Row ", row_idx, " queued for validation"), type = "message", duration = 2)
+  })
+
+  # Toggle Validate All button visibility based on queue length
+  observe({
+    shinyjs::toggleState("validate_all", condition = length(data_store$manual_queue) > 0)
+  })
 
   # Handle per-row resolution dropdown
   observeEvent(input$resolve_row_choice, {
@@ -1879,6 +2003,71 @@ server <- function(input, output, session) {
       )
     }
   )
+
+  # --- Error Recovery Observers ---
+
+  # Filter toggle observer
+  observeEvent(input$filter_errors, {
+    data_store$error_filter_active <- !data_store$error_filter_active
+
+    # Update button label
+    updateActionButton(
+      session, "filter_errors",
+      label = if (data_store$error_filter_active) "Show All" else "Show Errors"
+    )
+  })
+
+  # Track selected rows and show/hide retag button
+  observe({
+    selected <- input$curation_table_rows_selected
+    if (!is.null(selected) && length(selected) > 0 && isTRUE(data_store$error_filter_active)) {
+      # Map filtered indices back to original indices
+      data_store$selected_error_rows <- data_store$display_row_map[selected]
+      shinyjs::show("retag_selected")
+    } else {
+      data_store$selected_error_rows <- NULL
+      shinyjs::hide("retag_selected")
+    }
+  })
+
+  # Show re-tag modal
+  observeEvent(input$retag_selected, {
+    req(data_store$selected_error_rows, data_store$clean, data_store$column_tags)
+
+    n_selected <- length(data_store$selected_error_rows)
+    original_cols <- names(data_store$clean)
+
+    # Build modal content with column tag selectors
+    modal_content <- tagList(
+      p(sprintf("Re-assign column tags for %d selected row(s).", n_selected)),
+      p("Change tags below and click 'Apply & Re-curate' to run the full pipeline on selected rows."),
+      hr(),
+      lapply(original_cols, function(col) {
+        current_tag <- data_store$column_tags[[col]] %||% ""
+        div(
+          class = "mb-3",
+          selectInput(
+            inputId = paste0("retag_col_", col),
+            label = col,
+            choices = c("" = "", "Name" = "Name", "CASRN" = "CASRN", "Other" = "Other"),
+            selected = current_tag,
+            width = "100%"
+          )
+        )
+      })
+    )
+
+    showModal(modalDialog(
+      title = sprintf("Re-tag %d Selected Rows", n_selected),
+      modal_content,
+      footer = tagList(
+        actionButton("apply_retag", "Apply & Re-curate", class = "btn-primary"),
+        modalButton("Cancel")
+      ),
+      size = "l",
+      easyClose = FALSE
+    ))
+  })
 }
 
 # Run application
