@@ -15,10 +15,10 @@ Requirements for v1.2 Curation Refinement. Each maps to roadmap phases.
 
 ### Error Recovery
 
-- [ ] **RECV-01**: User can manually enter a DTXSID for any error-status row
+- [x] **RECV-01**: User can manually enter a DTXSID for any error-status row
 - [x] **RECV-02**: User can bulk-validate all manually entered DTXSIDs against CompTox in one action
 - [x] **RECV-03**: Validated manual DTXSIDs populate preferredName and update consensus status
-- [ ] **RECV-04**: User can select error rows, re-assign tag types, and re-curate just that subset
+- [x] **RECV-04**: User can select error rows, re-assign tag types, and re-curate just that subset
 - [x] **RECV-05**: Re-curated results merge back into the main resolution state preserving existing .pinned rows and row order
 
 ### UI/UX Polish
@@ -59,10 +59,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SRCH-01 | Phase 6 | Complete (06-01) |
 | SRCH-02 | Phase 6 | Complete (06-01) |
 | SRCH-03 | Phase 6 | Complete (06-01) |
-| RECV-01 | Phase 8 | Pending |
+| RECV-01 | Phase 8 | Complete |
 | RECV-02 | Phase 8 | Complete |
 | RECV-03 | Phase 8 | Complete |
-| RECV-04 | Phase 8 | Pending |
+| RECV-04 | Phase 8 | Complete |
 | RECV-05 | Phase 8 | Complete |
 | UIPX-01 | Phase 7 | Complete |
 | UIPX-02 | Phase 7 | Complete |
