@@ -1406,7 +1406,7 @@ server <- function(input, output, session) {
   })
 
   # Curation results table
-  output$curation_table <- renderDT({
+  output$curation_table <- renderDT(server = FALSE, {
     req(data_store$resolution_state, data_store$dtxsid_cols)
 
     df <- data_store$resolution_state
@@ -1829,7 +1829,12 @@ server <- function(input, output, session) {
 
   # Toggle Validate All button visibility based on queue length
   observe({
-    shinyjs::toggleState("validate_all", condition = length(data_store$manual_queue) > 0)
+    has_queued <- length(data_store$manual_queue) > 0
+    if (has_queued) {
+      shinyjs::show("validate_all")
+    } else {
+      shinyjs::hide("validate_all")
+    }
   })
 
   # Handle per-row resolution dropdown
