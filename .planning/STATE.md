@@ -77,6 +77,7 @@ Progress: [■■■■■■■■■■] 100% (8 of 8 phases complete across a
 *Will update after first v1.2 plan completion*
 | Phase 08 P01 | 155 | 2 tasks | 3 files |
 | Phase 08 P02 | 298 | 2 tasks | 1 files |
+| Phase 08 P03 | 302 | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -103,6 +104,9 @@ Key decisions from previous milestones:
 - [Phase 08]: Only error/unresolvable rows editable for manual DTXSID entry - prevents accidental overwrites
 - [Phase 08]: Queue entries for bulk validation rather than per-cell API calls - reduces overhead
 - [Phase 08]: Manual/queued/validated badge system for clear visual distinction between entry states
+- [Phase 08]: Error filter with row selection uses index mapping (filtered → original) for accurate merge-back
+- [Phase 08]: Row selection enabled only when error filter active - prevents bulk operations on full dataset
+- [Phase 08]: Filter auto-resets to "Show All" after re-curation so user sees full updated table
 
 ### Pending Todos
 
@@ -111,13 +115,12 @@ Key decisions from previous milestones:
 
 ### Blockers/Concerns
 
-**Phase 8 Research Flags:**
-- Retry merge-back logic needs comprehensive unit tests — test row order preservation, .pinned state, column count validation for same-tag retry, new-tag addition, tag removal scenarios
+None - Phase 08 complete with all unit tests passing (127 tests total, including 41 new merge tests).
 
 ## Session Continuity
 
-Last session: 2026-03-01
-Stopped at: Phase 6 complete, ready to plan Phase 7
+Last session: 2026-03-03
+Stopped at: Phase 08 Plan 03 complete - all error recovery workflows implemented and tested
 Resume file: None
 
-**Next step:** `/gsd:discuss-phase 7` or `/gsd:plan-phase 7`
+**Next step:** Phase 08 (Error Recovery Workflows) complete. All planned phases for current milestone complete.
