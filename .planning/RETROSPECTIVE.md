@@ -83,6 +83,48 @@
 
 ---
 
+## Milestone: v1.2 — Curation Refinement
+
+**Shipped:** 2026-03-03
+**Phases:** 3 | **Plans:** 6 | **Sessions:** ~5
+
+### What Was Built
+- Reordered search tiers (exact → CAS → starts-with) with 3-char minimum for improved precision
+- "Other" tagged columns participate in full curation chain and consensus voting
+- Column visibility tiers, color-coded badges, and enhanced resolution dropdowns
+- Manual DTXSID entry with inline editing, queue system, and bulk CompTox validation
+- Error row retry workflow: filter → select → re-tag → re-curate → merge-back with pin preservation
+- Unresolvable status tracking and Excel export with needs_review flagging
+
+### What Worked
+- Parallel plan execution within phases (08-01 backend, 08-02 frontend, 08-03 workflow) kept each plan focused
+- UAT-driven bugfixing caught real issues (row duplication, modal binding, summary counts) before shipping
+- recalc_consensus_summary() helper eliminated the 4-site summary drift bug permanently
+
+### What Was Inefficient
+- Row duplication bug persisted across 3 fix attempts because the root cause (Shiny auto-sourcing prototype_pipeline.R over curation.R) was architectural, not in the join logic being debugged
+- Shiny actionButton in modals fails to re-register on reopen — required 5 iterations to discover this is a known Shiny limitation, ultimately solved with JS-triggered buttons reading DOM values
+- Summary count calculations were duplicated in 4 places with inconsistent fields — should have been a helper from the start
+
+### Patterns Established
+- `recalc_consensus_summary()` single source of truth for all status counts
+- JS `Shiny.setInputValue` with DOM value collection for reliable modal buttons
+- Vector indexing over dplyr joins when row count must be preserved
+- `R/archive/` directory for historical reference files that shouldn't be auto-sourced
+
+### Key Lessons
+1. When a fix doesn't work, check if something is overwriting your code — Shiny auto-sources `R/*.R` alphabetically, so a prototype file can silently shadow production functions
+2. Shiny modal inputs have known binding issues — use JS-side DOM reading for reliability
+3. Extract shared calculations into helpers immediately rather than copy-pasting with drift risk
+4. Test data must follow the same format standards as real data (CSV quoting for commas)
+
+### Cost Observations
+- Model mix: opus for orchestration/UAT, sonnet for plan execution
+- Sessions: ~5 (planning, Phase 6+7 execution, Phase 8 execution, UAT rounds, milestone completion)
+- Notable: UAT Phase 8 required extended debugging (row duplication + modal buttons) across 2 sessions
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -91,9 +133,11 @@
 |-----------|----------|--------|------------|
 | v1.0 | ~3 | 2 | Established GSD workflow, learned bslib API |
 | v1.1 | ~4 | 3 | Added TDD, prototype-first approach, UAT verification |
+| v1.2 | ~5 | 3 | UAT-driven bugfixing, JS modal workarounds, helper extraction |
 
 ### Top Lessons (Verified Across Milestones)
 
-1. **Traceability must update atomically** — Both v1.0 and v1.1 had requirements/roadmap tracking lag behind actual work. Fix: update traceability in the same commit as plan completion.
-2. **Verify framework APIs before implementing** — v1.0 had nav_panel_hidden bug, v1.1 avoided similar issues by reading actual function implementations. Research → verify → implement.
-3. **UAT reveals needs that specs miss** — v1.0 bugfix came from manual testing, v1.1 UAT surfaced dropdown UX gap. Always run UAT before milestone close.
+1. **Traceability must update atomically** — v1.0 and v1.1 had tracking lag. v1.2 improved but roadmap checkboxes still lagged.
+2. **Verify framework APIs before implementing** — v1.0 nav_panel_hidden bug, v1.2 Shiny modal actionButton limitation. Research → verify → implement.
+3. **UAT reveals needs that specs miss** — All three milestones found issues during UAT that weren't in specs.
+4. **Check for shadowing before debugging logic** — v1.2 row duplication: 3 fix attempts on join logic when the real cause was file auto-sourcing order.

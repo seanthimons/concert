@@ -34,18 +34,19 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - ✓ DTXSID-based consensus across tagged columns per row — v1.1
 - ✓ User resolution UI for disagreements (per-row or en masse column preference) — v1.1
 - ✓ Standalone prototype script before Shiny integration — v1.1
+- ✓ Reorder search chain: exact → CAS → starts-with — v1.2
+- ✓ "Other" tagged columns searched against CompTox (full chain, consensus) — v1.2
+- ✓ Match Type column and search tier notification — v1.2
+- ✓ Untagged columns hidden from Review Results UI — v1.2
+- ✓ Column visibility toggle via colvis button — v1.2
+- ✓ Richer resolution dropdown (preferredName, rank, QC level) — v1.2
+- ✓ Manual DTXSID entry with bulk validation — v1.2
+- ✓ Error row retry: filter → re-tag → re-curate → merge-back — v1.2
+- ✓ Unresolvable status and Excel export needs_review flagging — v1.2
 
 ### Active
 
-- ✓ Reorder search chain: exact → CAS → starts-with (move starts-with to last resort) — v1.2 Phase 6
-- ✓ "Other" tagged columns searched against CompTox (full chain, participates in consensus) — v1.2 Phase 6
-- ✓ Match Type column in Review Results showing which tier resolved each row — v1.2 Phase 6
-- ✓ Search tier breakdown notification after curation — v1.2 Phase 6
-- [ ] Untagged columns hidden from Review Results UI (still included in Excel export)
-- [ ] Review Results table column visibility improvements for messy data
-- [ ] Richer context in resolution dropdown (preferredName, rank, QC level)
-- [ ] Manual DTXSID entry for error rows with bulk validation against CompTox
-- [ ] Error row retry: select error rows → re-tag → re-curate subset → merge back
+(None — next milestone requirements TBD)
 
 ### Out of Scope
 
@@ -57,30 +58,17 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - Contains search tier — too fuzzy, may produce unreliable matches
 - CompToxR wrapper functions — CompToxR functions already vectorized, call directly
 
-## Current Milestone: v1.2 Curation Refinement
-
-**Goal:** Improve curation accuracy, error recovery, and result presentation — reorder search tiers, enable "Other" column curation, add manual DTXSID entry, and error row retry workflow.
-
-**Target features:**
-- Search chain reorder (exact → CAS → starts-with)
-- "Other" tag as full curation participant
-- Untagged column hiding in Review Results
-- Manual DTXSID entry with bulk validation
-- Error row retry with re-tagging
-- UX polish (column visibility, dropdown context)
-
 ## Context
 
-Shipped v1.1 Curation Process Update with 3,612 LOC R across 6 files.
+Shipped v1.2 Curation Refinement with 4,109 LOC R across 5 files.
 Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, writexl.
 
 The app has 6 top-level tabs: Data Preview, Detection Info, Raw Data, Tag Columns, Run Curation, Review Results. On startup only Upload (sidebar) is visible; tabs appear progressively as the user advances through the workflow.
 
 Key files:
-- `app.R` — main UI/server definition (1,719 lines)
-- `R/curation.R` — self-contained pipeline orchestrator with migrated functions (624 lines)
-- `R/consensus.R` — consensus classification and resolution functions (229 lines)
-- `R/prototype_pipeline.R` — historical reference, not sourced at runtime (417 lines)
+- `app.R` — main UI/server definition (2,275 lines)
+- `R/curation.R` — self-contained pipeline orchestrator (954 lines)
+- `R/consensus.R` — consensus classification and resolution functions (257 lines)
 - `R/file_handlers.R` — file reading/validation (218 lines)
 - `R/data_detection.R` — frontmatter detection algorithms (405 lines)
 
@@ -113,6 +101,10 @@ Key files:
 | 3-char minimum on starts-with | Reduces API noise from short strings | ✓ Good — v1.2 |
 | Other tags as full tier chain participants | Enables curation of arbitrary identifier columns | ✓ Good — v1.2 |
 | match_type derived in app.R not curation.R | Keeps UI transformations in UI layer | ✓ Good — v1.2 |
+| JS-triggered modal buttons over actionButton | Shiny actionButton in modals fails to re-register on reopen | ✓ Good — v1.2 |
+| Vector indexing over dplyr joins in mapping | Prevents row duplication from many-to-many joins | ✓ Good — v1.2 |
+| Unresolvable = error before AND after retry | Distinguishes first-attempt failures from exhausted retries | ✓ Good — v1.2 |
+| Queue-then-validate for manual DTXSIDs | Batch API calls reduce overhead vs per-cell validation | ✓ Good — v1.2 |
 
 ---
-*Last updated: 2026-03-01 after Phase 6*
+*Last updated: 2026-03-03 after v1.2 milestone*

@@ -33,3 +33,22 @@
 
 ---
 
+
+## v1.2 Curation Refinement (Shipped: 2026-03-03)
+
+**Phases completed:** 3 phases, 6 plans, 7 tasks
+**Lines of code:** 4,109 across 5 R files
+**Requirements:** 12/12 satisfied (SRCH, RECV, UIPX)
+
+**Key accomplishments:**
+- Reordered search tiers (exact → CAS → starts-with) with 3-char minimum filter for improved precision
+- "Other" tagged columns participate in full curation chain and consensus voting
+- Column visibility tiers, color-coded badges, and enhanced resolution dropdowns with preferredName context
+- Manual DTXSID entry with inline editing, queue system, and bulk CompTox validation
+- Error row retry workflow: filter → select → re-tag → re-curate → merge-back with pin preservation
+- Unresolvable status tracking and comprehensive Excel export with needs_review flagging
+
+**UAT:** 10/10 tests passed
+
+---
+
