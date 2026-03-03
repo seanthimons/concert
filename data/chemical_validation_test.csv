@@ -99,3 +99,6 @@ Manganese(II) sulfate,7785-87-7,valid,NA
 Aluminum chloride,7446-70-0,valid,NA
 Sodium carbonate,497-19-8,valid,NA
 Potassium carbonate,584-08-7,valid,NA
+xzqwv_not_a_chemical,99-99-0,invalid,guaranteed_error
+zzz_fake_compound_42,00-00-0,invalid,guaranteed_error
+qqqnoexist_reagent,11-11-1,invalid,guaranteed_error
