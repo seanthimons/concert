@@ -406,15 +406,17 @@ run_tiered_search <- function(dedup_result) {
 #' @return Original df with lookup columns joined back
 map_results_to_rows <- function(df, dedup_key_map, lookup_results) {
   input_rows <- nrow(df)
-  df$.row_idx <- seq_len(nrow(df))
 
-  # Pre-deduplicate lookup_results: keep best rank per searchValue
+  # Build a fast lookup table: searchValue -> best result (lowest rank)
   lookup_deduped <- lookup_results |>
     dplyr::arrange(rank) |>
     dplyr::distinct(searchValue, .keep_all = TRUE)
 
+  # Named list for O(1) lookup by searchValue
+  lookup_idx <- stats::setNames(seq_len(nrow(lookup_deduped)), lookup_deduped$searchValue)
+
   message(sprintf(
-    "[map_results_to_rows] Input: %d rows, %d lookup results (%d after dedup by searchValue)",
+    "[map_results_to_rows] Input: %d rows, %d lookup results (%d unique searchValues)",
     input_rows, nrow(lookup_results), nrow(lookup_deduped)
   ))
 
@@ -422,48 +424,53 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results) {
   dedup_key_map <- dedup_key_map |>
     dplyr::filter(!is.na(dedup_key) & dedup_key != "")
 
-  # For each tagged column, build a row_idx -> best result mapping
-  # Uses only 1:1 joins (no many-to-many)
   tag_cols <- unique(dedup_key_map$column_name)
 
+  # For each tagged column, populate result vectors by direct indexing (no joins)
   for (col in tag_cols) {
-    # Get the dedup_key for each row in this column
     col_keys <- dedup_key_map |>
-      dplyr::filter(column_name == col) |>
-      dplyr::select(row_idx, dedup_key)
+      dplyr::filter(column_name == col)
 
-    # Join to pre-deduped lookup results (1 result per searchValue)
-    col_data <- col_keys |>
-      dplyr::left_join(lookup_deduped, by = c("dedup_key" = "searchValue")) |>
-      dplyr::select(row_idx, dtxsid, preferredName, searchName, rank, source_tier) |>
-      dplyr::distinct(row_idx, .keep_all = TRUE)
+    # Pre-allocate result vectors matching df row count
+    dtxsid_vec <- rep(NA_character_, input_rows)
+    pref_vec <- rep(NA_character_, input_rows)
+    search_vec <- rep(NA_character_, input_rows)
+    rank_vec <- rep(NA_integer_, input_rows)
+    tier_vec <- rep(NA_character_, input_rows)
 
-    # Rename columns with suffix if multiple tagged columns
-    result_cols <- c("dtxsid", "preferredName", "searchName", "rank", "source_tier")
-    if (length(tag_cols) == 1) {
-      names(col_data)[names(col_data) != "row_idx"] <- result_cols
-    } else {
-      suffix <- paste0("_", col)
-      names(col_data)[names(col_data) != "row_idx"] <- paste0(result_cols, suffix)
+    # Fill in results by direct index lookup
+    for (i in seq_len(nrow(col_keys))) {
+      ridx <- col_keys$row_idx[i]
+      key <- col_keys$dedup_key[i]
+      match_pos <- lookup_idx[key]
+
+      if (!is.na(match_pos)) {
+        dtxsid_vec[ridx] <- lookup_deduped$dtxsid[match_pos]
+        pref_vec[ridx] <- lookup_deduped$preferredName[match_pos]
+        search_vec[ridx] <- lookup_deduped$searchName[match_pos]
+        rank_vec[ridx] <- lookup_deduped$rank[match_pos]
+        tier_vec[ridx] <- lookup_deduped$source_tier[match_pos]
+      }
     }
 
-    # Join to df — should be 1:1 since col_data has unique row_idx
-    df <- df |>
-      dplyr::left_join(col_data, by = c(".row_idx" = "row_idx"))
+    # Assign columns to df (no joins — row count cannot change)
+    if (length(tag_cols) == 1) {
+      df$dtxsid <- dtxsid_vec
+      df$preferredName <- pref_vec
+      df$searchName <- search_vec
+      df$rank <- rank_vec
+      df$source_tier <- tier_vec
+    } else {
+      suffix <- paste0("_", col)
+      df[[paste0("dtxsid", suffix)]] <- dtxsid_vec
+      df[[paste0("preferredName", suffix)]] <- pref_vec
+      df[[paste0("searchName", suffix)]] <- search_vec
+      df[[paste0("rank", suffix)]] <- rank_vec
+      df[[paste0("source_tier", suffix)]] <- tier_vec
+    }
   }
 
-  # Final safety: guarantee no row expansion
-  if (nrow(df) != input_rows) {
-    warning(sprintf(
-      "[map_results_to_rows] Row expansion detected: %d -> %d. Forcing dedup.",
-      input_rows, nrow(df)
-    ))
-    df <- df |>
-      dplyr::distinct(.row_idx, .keep_all = TRUE)
-  }
-
-  df$.row_idx <- NULL
-  message(sprintf("[map_results_to_rows] Output: %d rows (expected %d)", nrow(df), input_rows))
+  message(sprintf("[map_results_to_rows] Output: %d rows (no joins used)", nrow(df)))
   df
 }
 
