@@ -422,7 +422,9 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results) {
   for (col in tag_cols) {
     col_data <- enriched_keys |>
       dplyr::filter(column_name == col) |>
-      dplyr::select(row_idx, dtxsid, preferredName, searchName, rank, source_tier)
+      dplyr::select(row_idx, dtxsid, preferredName, searchName, rank, source_tier) |>
+      dplyr::arrange(rank) |>
+      dplyr::distinct(row_idx, .keep_all = TRUE)
 
     # If only one tagged column, use simple names; otherwise suffix
     if (length(tag_cols) == 1) {
