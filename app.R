@@ -2174,12 +2174,15 @@ server <- function(input, output, session) {
 
   # Apply re-tag and re-curate handler
   observeEvent(input$apply_retag, {
-    removeModal()
-
     selected_rows <- data_store$selected_error_rows
-    req(selected_rows)
 
-    # Collect new tags from modal inputs
+    if (is.null(selected_rows) || length(selected_rows) == 0) {
+      showNotification("No rows selected. Please select error rows first.", type = "warning")
+      removeModal()
+      return()
+    }
+
+    # Collect new tags from modal inputs BEFORE closing modal
     original_cols <- names(data_store$clean)
     new_tags <- list()
     for (col in original_cols) {
@@ -2188,6 +2191,9 @@ server <- function(input, output, session) {
         new_tags[[col]] <- tag_val
       }
     }
+
+    # Now safe to close modal
+    removeModal()
 
     if (length(new_tags) == 0) {
       showNotification("No columns tagged. Please select at least one tag.", type = "warning")
