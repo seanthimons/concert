@@ -1386,14 +1386,15 @@ server <- function(input, output, session) {
     matched_rows <- sum(!is.na(data_store$resolution_state$consensus_dtxsid))
     match_rate <- round((matched_rows / total_rows) * 100, 1)
 
-    # Needs Review = agree_caveat + single
-    needs_review <- summary$n_agree_caveat + summary$n_single
+    resolved <- summary$n_agree + (summary$n_agree_caveat %||% 0) +
+      (summary$n_single %||% 0) + (summary$n_manual %||% 0)
+    errors <- (summary$n_error %||% 0) + (summary$n_unresolvable %||% 0)
 
     layout_columns(
       col_widths = c(3, 3, 3, 3),
       value_box(
-        title = "Agree",
-        value = summary$n_agree,
+        title = "Resolved",
+        value = resolved,
         showcase = bsicons::bs_icon("check-circle-fill"),
         theme = "success"
       ),
@@ -1404,8 +1405,8 @@ server <- function(input, output, session) {
         theme = "danger"
       ),
       value_box(
-        title = "Needs Review",
-        value = needs_review,
+        title = "Errors",
+        value = errors,
         showcase = bsicons::bs_icon("exclamation-triangle-fill"),
         theme = "warning"
       ),
