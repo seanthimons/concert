@@ -46,6 +46,11 @@ compute_qc_tier <- function(status, n_matched, n_total) {
 
 #' Classify consensus across tagged columns for each row
 #'
+#' NOTE: This function returns status values "agree", "agree_caveat", "single",
+#' "disagree", and "error". Downstream code (manual validation flow, retry merge)
+#' may add additional status values: "manual" (manually-entered DTXSID) and
+#' "unresolvable" (error persisting after retry).
+#'
 #' @param df Data frame with DTXSID columns from map_results_to_rows()
 #' @param dtxsid_cols Character vector of DTXSID column names to compare
 #' @return Original df with added columns: consensus_status, consensus_dtxsid,
@@ -120,13 +125,16 @@ classify_consensus <- function(df, dtxsid_cols) {
 
 #' Initialize resolution state on a classified data frame
 #'
-#' Adds .pinned column (FALSE) if not already present.
+#' Adds .pinned column (FALSE) and .manual_entry column (FALSE) if not already present.
 #'
 #' @param df Data frame (typically output of classify_consensus)
-#' @return df with .pinned column
+#' @return df with .pinned and .manual_entry columns
 init_resolution_state <- function(df) {
   if (!".pinned" %in% names(df)) {
     df$.pinned <- FALSE
+  }
+  if (!".manual_entry" %in% names(df)) {
+    df$.manual_entry <- FALSE
   }
   df
 }
