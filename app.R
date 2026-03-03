@@ -1560,14 +1560,7 @@ server <- function(input, output, session) {
         # Unresolvable: show warning icon
         "\u26A0\uFE0F Auto-curation failed"
       } else if (status == "error") {
-        # Check if manual entry in progress (queued but not yet validated)
-        if (isTRUE(df$.manual_entry[i]) && !is.na(df$consensus_dtxsid[i])) {
-          dtxsid <- df$consensus_dtxsid[i]
-          queued_badge <- '<span class="badge bg-warning text-dark ms-1" style="font-size:0.7em;">queued</span>'
-          paste0(htmltools::htmlEscape(dtxsid), " ", queued_badge)
-        } else {
-          ""
-        }
+        ""
       } else {
         # other status
         ""
@@ -1802,7 +1795,7 @@ server <- function(input, output, session) {
     display_row <- info$row  # 1-based index in displayed table
     new_value <- trimws(as.character(info$value))
 
-    # Map displayed row to original row index
+    # Map displayed row to original row index when filter is active
     row_map <- isolate(data_store$display_row_map)
     if (!is.null(row_map) && display_row <= length(row_map)) {
       row_idx <- row_map[display_row]
@@ -1811,7 +1804,7 @@ server <- function(input, output, session) {
     }
 
     # Only allow edits on error/unresolvable rows
-    current_status <- as.character(isolate(data_store$resolution_state$consensus_status[row_idx]))
+    current_status <- as.character(isolate(data_store$resolution_state)$consensus_status[row_idx])
     if (!current_status %in% c("error", "unresolvable")) {
       showNotification("Only error/unresolvable rows can be manually edited", type = "warning")
       return()
@@ -1826,12 +1819,10 @@ server <- function(input, output, session) {
       return()
     }
 
-    # Queue for bulk validation (use original row index)
+    # Queue for bulk validation only — don't update resolution_state here.
+    # The cell value is already visually updated by DT's inline editor.
+    # resolution_state gets updated when "Validate All" is clicked.
     data_store$manual_queue[[as.character(row_idx)]] <- new_value
-
-    # Update the underlying data silently (no full re-render)
-    data_store$resolution_state$consensus_dtxsid[row_idx] <- new_value
-    data_store$resolution_state$.manual_entry[row_idx] <- TRUE
 
     showNotification(paste0("Row ", row_idx, " queued for validation"), type = "message", duration = 2)
   })
@@ -1936,6 +1927,7 @@ server <- function(input, output, session) {
           updated_df$consensus_dtxsid[row_idx] <- val_row$dtxsid[1]
           updated_df$consensus_status[row_idx] <- "manual"
           updated_df$consensus_source[row_idx] <- "manual_entry"
+          updated_df$.manual_entry[row_idx] <- TRUE
 
           # Store preferredName in manual_preferredName column
           if (!"manual_preferredName" %in% names(updated_df)) {
