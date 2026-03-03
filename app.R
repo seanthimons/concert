@@ -1617,12 +1617,16 @@ server <- function(input, output, session) {
     consensus_idx <- which(names(df) == "consensus_status") - 1
     consensus_dtxsid_idx <- which(names(df) == "consensus_dtxsid") - 1
 
-    # Prepare display dataframe
-    display_df <- df
+    # Prepare display dataframe (after filtering)
+    display_df <- df_display
+
+    # Determine row selection mode based on filter state
+    selection_mode <- if (isTRUE(data_store$error_filter_active)) "multiple" else "none"
 
     # Create DT table with colvis, badges, and column visibility
     dt <- datatable(
       display_df,
+      selection = selection_mode,
       editable = list(
         target = "cell",
         disable = list(
@@ -1885,6 +1889,98 @@ server <- function(input, output, session) {
         type = "error"
       )
     })
+  })
+
+  # Handle Validate All button for manual DTXSID entries
+  observeEvent(input$validate_all, {
+    queue <- data_store$manual_queue
+    if (length(queue) == 0) {
+      showNotification("No manual entries to validate", type = "warning", duration = 3)
+      return()
+    }
+
+    row_indices <- as.integer(names(queue))
+    all_dtxsids <- unlist(queue)
+    unique_dtxsids <- unique(all_dtxsids)
+
+    # Disable button during validation
+    shinyjs::disable("validate_all")
+    on.exit(shinyjs::enable("validate_all"))
+
+    withProgress(message = "Validating manual DTXSIDs...", value = 0, {
+      incProgress(0.1, detail = sprintf("Validating %d entries...", length(unique_dtxsids)))
+
+      validation_results <- validate_manual_dtxsids(unique_dtxsids)
+
+      incProgress(0.6, detail = "Updating results...")
+
+      updated_df <- data_store$resolution_state
+      n_valid <- 0
+      n_invalid <- 0
+      invalid_details <- c()
+
+      for (i in seq_along(row_indices)) {
+        row_idx <- row_indices[i]
+        entered_dtxsid <- queue[[as.character(row_idx)]]
+
+        val_row <- validation_results[validation_results$searchValue == entered_dtxsid, ]
+
+        if (nrow(val_row) > 0 && isTRUE(val_row$is_valid[1])) {
+          # Valid: update consensus
+          updated_df$consensus_dtxsid[row_idx] <- val_row$dtxsid[1]
+          updated_df$consensus_status[row_idx] <- "manual"
+          updated_df$consensus_source[row_idx] <- "manual_entry"
+
+          # Store preferredName in manual_preferredName column
+          if (!"manual_preferredName" %in% names(updated_df)) {
+            updated_df$manual_preferredName <- NA_character_
+          }
+          updated_df$manual_preferredName[row_idx] <- val_row$preferredName[1]
+
+          n_valid <- n_valid + 1
+        } else {
+          # Invalid: keep error status, track for feedback
+          invalid_details <- c(invalid_details,
+            sprintf("Row %d: %s", row_idx, entered_dtxsid))
+          n_invalid <- n_invalid + 1
+        }
+      }
+
+      data_store$resolution_state <- updated_df
+
+      # Clear queue
+      data_store$manual_queue <- list()
+
+      incProgress(0.3, detail = "Done")
+    })
+
+    # Summary notification
+    msg <- sprintf("Validation complete: %d validated, %d failed", n_valid, n_invalid)
+    showNotification(msg,
+      type = if (n_invalid > 0) "warning" else "message",
+      duration = 8
+    )
+
+    # Detail notification for failures
+    if (n_invalid > 0) {
+      showNotification(
+        paste("Failed entries:", paste(invalid_details, collapse = "; ")),
+        type = "error",
+        duration = NULL  # Stays until dismissed
+      )
+    }
+
+    # Update consensus summary to reflect manual resolutions
+    updated_df <- data_store$resolution_state
+    data_store$consensus_summary <- list(
+      n_agree = sum(updated_df$consensus_status == "agree", na.rm = TRUE),
+      n_disagree = sum(updated_df$consensus_status == "disagree" & !isTRUE(updated_df$.pinned), na.rm = TRUE),
+      n_agree_caveat = sum(updated_df$consensus_status == "agree_caveat", na.rm = TRUE),
+      n_single = sum(updated_df$consensus_status == "single", na.rm = TRUE),
+      n_error = sum(updated_df$consensus_status == "error", na.rm = TRUE),
+      n_manual = sum(updated_df$consensus_status == "manual", na.rm = TRUE),
+      n_unresolvable = sum(updated_df$consensus_status == "unresolvable", na.rm = TRUE)
+    )
   })
 
   # Handle en masse priority application
