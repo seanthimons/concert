@@ -405,45 +405,65 @@ run_tiered_search <- function(dedup_result) {
 #' @param lookup_results Lookup results from run_tiered_search
 #' @return Original df with lookup columns joined back
 map_results_to_rows <- function(df, dedup_key_map, lookup_results) {
-  # Add row index to original df if not present
+  input_rows <- nrow(df)
   df$.row_idx <- seq_len(nrow(df))
 
-  # Join dedup_key_map to lookup_results on dedup_key = searchValue
-  enriched_keys <- dedup_key_map |>
-    dplyr::left_join(
-      lookup_results,
-      by = c("dedup_key" = "searchValue"),
-      relationship = "many-to-many"
-    )
+  # Pre-deduplicate lookup_results: keep best rank per searchValue
+  lookup_deduped <- lookup_results |>
+    dplyr::arrange(rank) |>
+    dplyr::distinct(searchValue, .keep_all = TRUE)
 
-  # For each tagged column, create a set of lookup columns
-  tag_cols <- unique(enriched_keys$column_name)
+  message(sprintf(
+    "[map_results_to_rows] Input: %d rows, %d lookup results (%d after dedup by searchValue)",
+    input_rows, nrow(lookup_results), nrow(lookup_deduped)
+  ))
+
+  # Filter out NA/empty dedup keys
+  dedup_key_map <- dedup_key_map |>
+    dplyr::filter(!is.na(dedup_key) & dedup_key != "")
+
+  # For each tagged column, build a row_idx -> best result mapping
+  # Uses only 1:1 joins (no many-to-many)
+  tag_cols <- unique(dedup_key_map$column_name)
 
   for (col in tag_cols) {
-    col_data <- enriched_keys |>
+    # Get the dedup_key for each row in this column
+    col_keys <- dedup_key_map |>
       dplyr::filter(column_name == col) |>
+      dplyr::select(row_idx, dedup_key)
+
+    # Join to pre-deduped lookup results (1 result per searchValue)
+    col_data <- col_keys |>
+      dplyr::left_join(lookup_deduped, by = c("dedup_key" = "searchValue")) |>
       dplyr::select(row_idx, dtxsid, preferredName, searchName, rank, source_tier) |>
-      dplyr::arrange(rank) |>
       dplyr::distinct(row_idx, .keep_all = TRUE)
 
-    # If only one tagged column, use simple names; otherwise suffix
+    # Rename columns with suffix if multiple tagged columns
+    result_cols <- c("dtxsid", "preferredName", "searchName", "rank", "source_tier")
     if (length(tag_cols) == 1) {
-      names(col_data)[names(col_data) != "row_idx"] <- c(
-        "dtxsid", "preferredName", "searchName", "rank", "source_tier"
-      )
+      names(col_data)[names(col_data) != "row_idx"] <- result_cols
     } else {
       suffix <- paste0("_", col)
-      names(col_data)[names(col_data) != "row_idx"] <- paste0(
-        c("dtxsid", "preferredName", "searchName", "rank", "source_tier"),
-        suffix
-      )
+      names(col_data)[names(col_data) != "row_idx"] <- paste0(result_cols, suffix)
     }
 
+    # Join to df — should be 1:1 since col_data has unique row_idx
     df <- df |>
       dplyr::left_join(col_data, by = c(".row_idx" = "row_idx"))
   }
 
+  # Final safety: guarantee no row expansion
+  if (nrow(df) != input_rows) {
+    warning(sprintf(
+      "[map_results_to_rows] Row expansion detected: %d -> %d. Forcing dedup.",
+      input_rows, nrow(df)
+    ))
+    df <- df |>
+      dplyr::distinct(.row_idx, .keep_all = TRUE)
+  }
+
   df$.row_idx <- NULL
+  message(sprintf("[map_results_to_rows] Output: %d rows (expected %d)", nrow(df), input_rows))
   df
 }
 
@@ -626,7 +646,17 @@ run_curation_pipeline <- function(clean_data, column_tags, progress_callback = N
   }
 
   # Stage 3: Map results to rows
+  message(sprintf("[pipeline] clean_data: %d rows, combined_results: %d rows", nrow(clean_data), nrow(combined_results)))
   mapped_df <- map_results_to_rows(clean_data, dedup_result$dedup_key_map, combined_results)
+
+  # Assert row count preserved
+  if (nrow(mapped_df) != nrow(clean_data)) {
+    warning(sprintf(
+      "[pipeline] CRITICAL: row count changed after mapping: %d -> %d. Truncating to original.",
+      nrow(clean_data), nrow(mapped_df)
+    ))
+    mapped_df <- mapped_df[seq_len(nrow(clean_data)), , drop = FALSE]
+  }
 
   # Stage 4: Consensus classification
   dtxsid_cols <- find_dtxsid_cols(mapped_df)
