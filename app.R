@@ -372,6 +372,19 @@ ui <- page_sidebar(
 )
 
 
+# Recalculate consensus summary from resolution state (single source of truth)
+recalc_consensus_summary <- function(df) {
+  list(
+    n_agree = sum(df$consensus_status == "agree", na.rm = TRUE),
+    n_disagree = sum(df$consensus_status == "disagree" & !isTRUE(df$.pinned), na.rm = TRUE),
+    n_agree_caveat = sum(df$consensus_status == "agree_caveat", na.rm = TRUE),
+    n_single = sum(df$consensus_status == "single", na.rm = TRUE),
+    n_error = sum(df$consensus_status == "error", na.rm = TRUE),
+    n_manual = sum(df$consensus_status == "manual", na.rm = TRUE),
+    n_unresolvable = sum(df$consensus_status == "unresolvable", na.rm = TRUE)
+  )
+}
+
 # Server Logic
 server <- function(input, output, session) {
   # Reactive values store
@@ -1878,13 +1891,7 @@ server <- function(input, output, session) {
 
       # Recalculate consensus summary
       updated_df <- data_store$resolution_state
-      data_store$consensus_summary <- list(
-        n_agree = sum(updated_df$consensus_status == "agree", na.rm = TRUE),
-        n_disagree = sum(updated_df$consensus_status == "disagree" & !isTRUE(updated_df$.pinned), na.rm = TRUE),
-        n_agree_caveat = sum(updated_df$consensus_status == "agree_caveat", na.rm = TRUE),
-        n_single = sum(updated_df$consensus_status == "single", na.rm = TRUE),
-        n_error = sum(updated_df$consensus_status == "error", na.rm = TRUE)
-      )
+      data_store$consensus_summary <- recalc_consensus_summary(updated_df)
     }, error = function(e) {
       showNotification(
         paste0("Error resolving row: ", e$message),
@@ -1975,15 +1982,7 @@ server <- function(input, output, session) {
 
     # Update consensus summary to reflect manual resolutions
     updated_df <- data_store$resolution_state
-    data_store$consensus_summary <- list(
-      n_agree = sum(updated_df$consensus_status == "agree", na.rm = TRUE),
-      n_disagree = sum(updated_df$consensus_status == "disagree" & !isTRUE(updated_df$.pinned), na.rm = TRUE),
-      n_agree_caveat = sum(updated_df$consensus_status == "agree_caveat", na.rm = TRUE),
-      n_single = sum(updated_df$consensus_status == "single", na.rm = TRUE),
-      n_error = sum(updated_df$consensus_status == "error", na.rm = TRUE),
-      n_manual = sum(updated_df$consensus_status == "manual", na.rm = TRUE),
-      n_unresolvable = sum(updated_df$consensus_status == "unresolvable", na.rm = TRUE)
-    )
+    data_store$consensus_summary <- recalc_consensus_summary(updated_df)
   })
 
   # Handle en masse priority application
@@ -2018,13 +2017,7 @@ server <- function(input, output, session) {
       resolved_count <- before_count - after_count
 
       # Recalculate consensus summary
-      data_store$consensus_summary <- list(
-        n_agree = sum(updated_df$consensus_status == "agree", na.rm = TRUE),
-        n_disagree = after_count,
-        n_agree_caveat = sum(updated_df$consensus_status == "agree_caveat", na.rm = TRUE),
-        n_single = sum(updated_df$consensus_status == "single", na.rm = TRUE),
-        n_error = sum(updated_df$consensus_status == "error", na.rm = TRUE)
-      )
+      data_store$consensus_summary <- recalc_consensus_summary(updated_df)
 
       showNotification(
         paste0("Applied priority chain: ", resolved_count, " rows resolved"),
@@ -2273,15 +2266,7 @@ server <- function(input, output, session) {
 
     # Update consensus summary
     updated_df <- data_store$resolution_state
-    data_store$consensus_summary <- list(
-      n_agree = sum(updated_df$consensus_status == "agree", na.rm = TRUE),
-      n_disagree = sum(updated_df$consensus_status == "disagree", na.rm = TRUE),
-      n_agree_caveat = sum(updated_df$consensus_status == "agree_caveat", na.rm = TRUE),
-      n_single = sum(updated_df$consensus_status == "single", na.rm = TRUE),
-      n_error = sum(updated_df$consensus_status == "error", na.rm = TRUE),
-      n_manual = sum(updated_df$consensus_status == "manual", na.rm = TRUE),
-      n_unresolvable = sum(updated_df$consensus_status == "unresolvable", na.rm = TRUE)
-    )
+    data_store$consensus_summary <- recalc_consensus_summary(updated_df)
   })
 }
 
