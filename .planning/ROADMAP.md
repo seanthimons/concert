@@ -69,15 +69,17 @@ Plans:
 **Depends on**: Phase 7
 **Requirements**: RECV-01, RECV-02, RECV-03, RECV-04, RECV-05
 **Success Criteria** (what must be TRUE):
-  1. User can manually enter DTXSID for any error-status row via modal dialog
+  1. User can manually enter DTXSID for any error-status row via inline cell click
   2. User can bulk-validate all manually entered DTXSIDs against CompTox in one action
   3. User sees validated manual DTXSIDs populate preferredName and update consensus status
   4. User can select error rows, re-assign tag types via modal, and re-curate just that subset
   5. User sees re-curated results merge back into main table preserving row order and existing pinned resolutions
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 08-01: TBD
+- [ ] 08-01-PLAN.md -- Backend: validate_manual_dtxsids(), merge_retry_results(), consensus status extensions + unit tests
+- [ ] 08-02-PLAN.md -- Manual DTXSID inline entry, validation queue, Validate All button with progress
+- [ ] 08-03-PLAN.md -- Error filter, row selection, re-tag modal, re-curate pipeline, merge-back + human verification
 
 ## Progress
 
@@ -93,7 +95,7 @@ Phases execute in numeric order: 6 → 7 → 8
 | 5. Shiny Integration | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 6. Search Pipeline Refinement | 2/2 | Complete   | 2026-03-01 | - |
 | 7. UI Polish | v1.2 | 0/1 | Planned | - |
-| 8. Error Recovery Workflows | v1.2 | 0/? | Not started | - |
+| 8. Error Recovery Workflows | v1.2 | 0/3 | Planned | - |
 
 ---
-*Last updated: 2026-03-01 after plan 06-02 completion*
+*Last updated: 2026-03-03 after phase 08 planning*
