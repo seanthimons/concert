@@ -2167,7 +2167,13 @@ server <- function(input, output, session) {
         tags$button(
           "Apply & Re-curate",
           class = "btn btn-primary",
-          onclick = "Shiny.setInputValue('apply_retag_trigger', Math.random())"
+          onclick = paste0(
+            "var tags = {};",
+            "document.querySelectorAll('select[id^=\"retag_col_\"]').forEach(function(el) {",
+            "  tags[el.id.replace('retag_col_', '')] = el.value;",
+            "});",
+            "Shiny.setInputValue('apply_retag_trigger', {tags: tags, t: Math.random()});"
+          )
         ),
         modalButton("Cancel")
       ),
@@ -2186,13 +2192,15 @@ server <- function(input, output, session) {
       return()
     }
 
-    # Collect new tags from modal inputs BEFORE closing modal
-    original_cols <- names(data_store$clean)
+    # Read tags from JS trigger payload (Shiny modal inputs don't bind reliably)
+    trigger_data <- input$apply_retag_trigger
     new_tags <- list()
-    for (col in original_cols) {
-      tag_val <- input[[paste0("retag_col_", col)]]
-      if (!is.null(tag_val) && tag_val != "") {
-        new_tags[[col]] <- tag_val
+    if (!is.null(trigger_data$tags)) {
+      for (col in names(trigger_data$tags)) {
+        tag_val <- trigger_data$tags[[col]]
+        if (!is.null(tag_val) && tag_val != "") {
+          new_tags[[col]] <- tag_val
+        }
       }
     }
 
