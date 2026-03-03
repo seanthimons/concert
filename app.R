@@ -327,14 +327,14 @@ ui <- page_sidebar(
             actionButton(
               "filter_errors",
               "Show Errors",
-              icon = bsicons::bs_icon("filter"),
+              icon = icon("filter"),
               class = "btn-sm btn-outline-secondary"
             ),
             shinyjs::hidden(
               actionButton(
                 "retag_selected",
                 "Re-tag Selected",
-                icon = bsicons::bs_icon("tags"),
+                icon = icon("tags"),
                 class = "btn-sm btn-warning"
               )
             ),
@@ -342,7 +342,7 @@ ui <- page_sidebar(
               actionButton(
                 "validate_all",
                 "Validate All",
-                icon = bsicons::bs_icon("check2-all"),
+                icon = icon("check"),
                 class = "btn-sm btn-success"
               )
             ),
@@ -2149,7 +2149,7 @@ server <- function(input, output, session) {
           selectInput(
             inputId = paste0("retag_col_", col),
             label = col,
-            choices = c("" = "", "Name" = "Name", "CASRN" = "CASRN", "Other" = "Other"),
+            choices = c("(none)" = "", "Name" = "Name", "CASRN" = "CASRN", "Other" = "Other"),
             selected = current_tag,
             width = "100%"
           )
