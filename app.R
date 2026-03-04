@@ -120,15 +120,15 @@ server <- function(input, output, session) {
 
   # --- Gated Navigation ---
   session$onFlushed(function() {
-    nav_hide("main_tabs", target = "detection_info")
-    nav_hide("main_tabs", target = "raw_data")
-    nav_hide("main_tabs", target = "tag_columns")
-    nav_hide("main_tabs", target = "run_curation_tab")
-    nav_hide("main_tabs", target = "review_results")
+    nav_hide("main_tabs", target = "detection_info", session = session)
+    nav_hide("main_tabs", target = "raw_data", session = session)
+    nav_hide("main_tabs", target = "tag_columns", session = session)
+    nav_hide("main_tabs", target = "run_curation_tab", session = session)
+    nav_hide("main_tabs", target = "review_results", session = session)
   }, once = TRUE)
 
   show_tab_with_pulse <- function(tab_value) {
-    nav_show("main_tabs", target = tab_value)
+    nav_show("main_tabs", target = tab_value, session = session)
     shinyjs::runjs(sprintf("
       var tab = document.querySelector('[data-value=\"%s\"]');
       if (tab) {
@@ -152,12 +152,12 @@ server <- function(input, output, session) {
     data_store$resolution_state <- NULL
     data_store$dtxsid_cols <- NULL
     data_store$priority_order <- NULL
-    nav_hide("main_tabs", target = "detection_info")
-    nav_hide("main_tabs", target = "raw_data")
-    nav_hide("main_tabs", target = "tag_columns")
-    nav_hide("main_tabs", target = "run_curation_tab")
-    nav_hide("main_tabs", target = "review_results")
-    nav_select("main_tabs", "data_preview")
+    nav_hide("main_tabs", target = "detection_info", session = session)
+    nav_hide("main_tabs", target = "raw_data", session = session)
+    nav_hide("main_tabs", target = "tag_columns", session = session)
+    nav_hide("main_tabs", target = "run_curation_tab", session = session)
+    nav_hide("main_tabs", target = "review_results", session = session)
+    nav_select("main_tabs", "data_preview", session = session)
   }
 
   # Show tabs when data is available
@@ -172,7 +172,7 @@ server <- function(input, output, session) {
   observeEvent(input$main_tabs, {
     curation_tabs <- c("tag_columns", "run_curation_tab", "review_results")
     is_curation <- input$main_tabs %in% curation_tabs
-    toggle_sidebar("main_sidebar", open = !is_curation)
+    toggle_sidebar("main_sidebar", open = !is_curation, session = session)
   })
 
   # --- Initialize Modules ---
@@ -186,7 +186,7 @@ server <- function(input, output, session) {
   mod_tag_columns_server("tags", data_store,
     on_tags_applied = function() {
       show_tab_with_pulse("run_curation_tab")
-      nav_hide("main_tabs", target = "review_results")
+      nav_hide("main_tabs", target = "review_results", session = session)
     }
   )
 
