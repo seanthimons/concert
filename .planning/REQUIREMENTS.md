@@ -92,42 +92,42 @@ Deferred to future releases. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MODL-01 | — | Pending |
-| MODL-02 | — | Pending |
-| INFRA-01 | — | Pending |
-| INFRA-02 | — | Pending |
-| INFRA-03 | — | Pending |
-| INFRA-04 | — | Pending |
-| CAS-01 | — | Pending |
-| CAS-02 | — | Pending |
-| CAS-03 | — | Pending |
-| CAS-04 | — | Pending |
-| NAME-01 | — | Pending |
-| NAME-02 | — | Pending |
-| NAME-03 | — | Pending |
-| NAME-04 | — | Pending |
-| FILT-01 | — | Pending |
-| FILT-02 | — | Pending |
-| FILT-03 | — | Pending |
-| FILT-04 | — | Pending |
-| FILT-05 | — | Pending |
-| FILT-06 | — | Pending |
-| UIUX-01 | — | Pending |
-| UIUX-02 | — | Pending |
-| UIUX-03 | — | Pending |
-| UIUX-04 | — | Pending |
-| UIUX-05 | — | Pending |
-| EXPO-01 | — | Pending |
-| EXPO-02 | — | Pending |
-| EXPO-03 | — | Pending |
-| POST-01 | — | Pending |
-| POST-02 | — | Pending |
+| MODL-01 | Phase 9 | Pending |
+| MODL-02 | Phase 9 | Pending |
+| INFRA-01 | Phase 10 | Pending |
+| INFRA-02 | Phase 10 | Pending |
+| INFRA-03 | Phase 10 | Pending |
+| INFRA-04 | Phase 10 | Pending |
+| UIUX-01 | Phase 10 | Pending |
+| CAS-01 | Phase 11 | Pending |
+| CAS-02 | Phase 11 | Pending |
+| CAS-03 | Phase 11 | Pending |
+| CAS-04 | Phase 11 | Pending |
+| UIUX-02 | Phase 11 | Pending |
+| UIUX-04 | Phase 11 | Pending |
+| NAME-01 | Phase 12 | Pending |
+| NAME-02 | Phase 12 | Pending |
+| NAME-03 | Phase 12 | Pending |
+| NAME-04 | Phase 12 | Pending |
+| UIUX-03 | Phase 12 | Pending |
+| FILT-01 | Phase 13 | Pending |
+| FILT-02 | Phase 13 | Pending |
+| FILT-03 | Phase 13 | Pending |
+| FILT-04 | Phase 13 | Pending |
+| FILT-05 | Phase 13 | Pending |
+| FILT-06 | Phase 13 | Pending |
+| UIUX-05 | Phase 13 | Pending |
+| EXPO-01 | Phase 14 | Pending |
+| EXPO-02 | Phase 14 | Pending |
+| EXPO-03 | Phase 14 | Pending |
+| POST-01 | Phase 15 | Pending |
+| POST-02 | Phase 15 | Pending |
 
 **Coverage:**
 - v1.3 requirements: 30 total
-- Mapped to phases: 0
-- Unmapped: 30 ⚠️
+- Mapped to phases: 30
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-04*
-*Last updated: 2026-03-04 after initial definition*
+*Last updated: 2026-03-04 after roadmap creation*
