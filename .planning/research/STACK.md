@@ -1,649 +1,422 @@
-# Technology Stack: v1.2 Curation Refinement
+# Technology Stack: v1.3 Data Cleaning Pipeline
 
 **Project:** ChemReg
-**Milestone:** v1.2 Curation Refinement
-**Researched:** 2026-03-01
+**Milestone:** v1.3 Data Cleaning Pipeline
+**Researched:** 2026-03-04
 **Overall Confidence:** HIGH
 
 ## Executive Summary
 
-**No new package dependencies required.** All v1.2 features can be implemented using existing stack: ComptoxR 1.4.0, DT with Buttons extension, and standard Shiny reactive patterns. The existing curation pipeline already captures `preferredName` and `rank` from CompTox API responses—these just need to be surfaced in the UI.
+The v1.3 milestone requires **minimal new dependencies** — only 2 packages need to be added to support the new features. The existing stack (R/Shiny, bslib, DT, rio/readxl, ComptoxR, stringi via stringr/tidyverse) already provides most capabilities needed. The two additions are:
 
-**What's new for v1.2:**
-- Bulk DTXSID validation via existing `ComptoxR::chemi_amos_batch()`
-- Error row retry using existing DT row selection (`input$tableId_rows_selected`)
-- Column visibility via existing DT Buttons extension with `columnDefs`
-- Richer dropdown context using data already captured in pipeline
+1. **openxlsx2** — For multi-sheet Excel export with metadata sheets (replaces writexl for export only)
+2. **rhandsontable** — For editable reference lists UI (stop words, block lists, etc.)
+
+All other requirements (unicode detection, progress tracking, re-import detection) are satisfied by existing packages or simple custom logic.
+
+**What's new for v1.3:**
+- Multi-sheet Excel export with audit trail, reference lists, and manifest (openxlsx2)
+- Editable reference lists (stop words, block lists, functional categories, food names) via rhandsontable
+- Re-import detection using existing readxl + custom manifest parsing
+- Pipeline progress tracking using existing withProgress()
+- Unicode detection using existing stringi (via tidyverse)
 
 **What's NOT changing:**
-- Package dependencies (zero additions)
 - Core framework (R/Shiny, bslib, DT, ComptoxR)
-- Data structures (existing reactiveValues pattern)
+- Import logic (readxl remains for reading Excel files)
+- Progress tracking approach (withProgress() pattern already established)
 
 ---
 
-## Stack Analysis by v1.2 Feature
+## Recommended Stack Additions
 
-### Feature 1: Bulk DTXSID Validation
+### Excel Export: openxlsx2
 
-**Status:** ✓ Already Available
-**Package:** ComptoxR 1.4.0 (existing)
-**Function:** `chemi_amos_batch(dtxsids = c("DTXSID...", ...))`
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| **openxlsx2** | Latest (≥1.13+) | Multi-sheet Excel export with metadata | **Only package that supports:** writing arbitrary metadata sheets (audit trail, reference lists, config), setting workbook properties (creator, title, description), and reading those sheets back on re-import. writexl only supports simple data frame → sheet mapping. |
 
-**Why:**
-- ComptoxR already installed from GitHub (`seanthimons/ComptoxR@1.4.0`)
-- `chemi_amos_batch()` accepts a `dtxsids` parameter for bulk validation
-- Returns substance info for valid DTXSIDs, NULL/error for invalid ones
-- No additional dependencies needed
-
-**Integration:**
+**Installation:**
 ```r
-# User enters DTXSIDs via textAreaInput or data table edit
-dtxsid_input <- c("DTXSID7020182", "DTXSID0020232", "invalid123")
-
-# Validate via ComptoxR
-validated <- chemi_amos_batch(dtxsids = dtxsid_input)
-
-# Filter to valid DTXSIDs that returned data
-valid_dtxsids <- validated %>%
-  filter(!is.na(dtxsid)) %>%
-  pull(dtxsid)
+pak::pkg_install("openxlsx2")
 ```
 
-**Function Signature:**
+**Integration points:**
+- Use **openxlsx2** for export only (app.R Excel download handler)
+- Keep **readxl** for import (already handles multi-sheet reading via `readxl::excel_sheets()`)
+- Keep **rio** as fallback reader for CSV/other formats
+- **writexl** can be removed from dependencies (no longer needed)
+
+**Key functions needed:**
 ```r
-args(chemi_amos_batch)
-# function (additional_record_info = NULL, always_download_file = NULL,
-#     base_url = NULL, dtxsids = NULL, include_classyfire = NULL,
-#     include_external_links = NULL, include_functional_uses = NULL,
-#     include_source_counts = NULL, methodologies = NULL, record_types = NULL)
+wb <- wb_workbook()                     # Create workbook object
+wb <- wb_add_worksheet(wb, "Data")      # Add sheets
+wb <- wb_add_data(wb, "Data", df)       # Write data frames
+wb <- wb_set_properties(wb, creator = "ChemReg", title = "...", ...)  # Metadata
+wb_save(wb, "file.xlsx")                # Save to disk or temp file for download
 ```
 
-**Confidence:** HIGH — Function exists, tested via `args(chemi_amos_batch)`, documented in ComptoxR package.
-
----
-
-### Feature 2: Error Row Retry with Re-tagging
-
-**Status:** ✓ Standard Shiny Pattern
-**Packages:** DT (existing), shiny (existing)
-**Components:** `input$tableId_rows_selected`, `reactiveValues()`, subset filtering
-
-**Why:**
-- DT already provides row selection via `input$tableId_rows_selected` ([DT Shiny documentation](https://rstudio.github.io/DT/shiny.html))
-- No special packages needed—standard reactive workflow:
-  1. User selects error rows in DT table
-  2. Filter `data_store$resolution_state` to selected row indices
-  3. Render tag dropdowns for subset
-  4. Re-run `run_pipeline_with_tags()` on subset
-  5. Merge results back into main `resolution_state` by row index
-
-**Integration:**
-```r
-# Extract selected error rows
-observeEvent(input$retry_errors, {
-  selected_indices <- input$curation_table_rows_selected
-  req(length(selected_indices) > 0)
-
-  # Subset to error rows
-  error_subset <- data_store$resolution_state[selected_indices, ]
-
-  # Re-tag and re-curate (existing pipeline)
-  retry_result <- run_pipeline_with_tags(
-    df = error_subset,
-    column_tags = input$retry_tags,  # new tagging UI
-    progress_callback = function(stage, pct) {...}
-  )
-
-  # Merge back
-  data_store$resolution_state[selected_indices, ] <- retry_result
-})
-```
-
-**Confidence:** HIGH — DT row selection is built-in, pattern matches existing resolution workflow.
-
-**Source:** [Using DT in Shiny - Row Selection](https://rstudio.github.io/DT/shiny.html)
-
----
-
-### Feature 3: Smarter Column Visibility in DT Tables
-
-**Status:** ✓ DT Buttons Extension (existing)
-**Package:** DT (existing)
-**Extension:** `Buttons` with `colvis` button (already used in app.R)
-
-**Why:**
-- App already uses `extensions = 'Buttons'` in Review Results table (app.R line 1440)
-- No new dependencies—just add configuration:
-  - `columnDefs` to hide columns by default
-  - `buttons = list('colvis')` to toggle visibility
-
-**Integration:**
-```r
-datatable(
-  df,
-  extensions = 'Buttons',
-  options = list(
-    dom = 'Bfrtip',
-    # Hide untagged columns by default (indices determined at runtime)
-    columnDefs = list(
-      list(visible = FALSE, targets = untagged_col_indices)
-    ),
-    buttons = list('colvis')  # Toggle button
-  )
-)
-```
-
-**Determining untagged columns:**
-```r
-# In server logic
-untagged_cols <- setdiff(
-  names(data_store$resolution_state),
-  c(tagged_original_cols, consensus_cols, metadata_cols)
-)
-untagged_col_indices <- which(names(df) %in% untagged_cols) - 1  # 0-indexed
-```
-
-**Confidence:** HIGH — Feature already partially implemented, `columnDefs` is standard DataTables API.
+**Why NOT writexl for this use case:**
+- writexl is faster but **only supports data frames → sheets** mapping
+- writexl has **zero styling or metadata support** (by design — it's minimal on purpose)
+- We need to write non-dataframe sheets (config lists, audit metadata) and set workbook properties for re-import detection
 
 **Sources:**
-- [DT Extensions - Buttons](https://rstudio.github.io/DT/extensions.html)
-- [Column Visibility in DT - GitHub Issue #153](https://github.com/rstudio/DT/issues/153)
-- [Hide Columns in DT - GeeksforGeeks](https://www.geeksforgeeks.org/r-language/hide-certain-columns-in-a-responsive-data-table-using-dt-package-in-r/)
+- [openxlsx2 Package Manual](https://cran.r-universe.dev/openxlsx2/doc/manual.html)
+- [R-bloggers: Comparing R Packages for Writing Excel Files](https://www.r-bloggers.com/2023/05/comparing-r-packages-for-writing-excel-files-an-analysis-of-writexl-openxlsx-and-xlsx-in-r/)
+- [openxlsx2 Documentation](https://janmarvin.github.io/openxlsx2/)
 
 ---
 
-### Feature 4: Richer Dropdown Context (preferredName, rank, QC level)
+### Editable Reference Lists: rhandsontable
 
-**Status:** ✓ Already Captured, Needs UI Surfacing
-**Packages:** None (existing pipeline data)
-**Implementation:** HTML string formatting in `get_resolution_options()`
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| **rhandsontable** | Latest (≥0.3.8+) | Editable in-app reference lists (stop words, block lists, functional categories, food names) | **Excel-like editing UX** with add/remove rows, dropdown validation, inline editing. DT with `editable=TRUE` only supports cell replacement (no add/remove rows, no column-specific input types). |
 
-**Why:**
-- `preferredName` and `rank` already captured in pipeline (curation.R lines 101, 393)
-- QC tier calculated in consensus.R (line 31)
-- Just need to surface in dropdown HTML:
-
-**Current dropdown (app.R ~1392):**
+**Installation:**
 ```r
-'<option value="', names(options), '">',
-sub("^dtxsid_", "", names(options)), ': ', options, '</option>'
+pak::pkg_install("rhandsontable")
 ```
 
-**Enhanced dropdown:**
+**Integration points:**
+- New "Clean Data" tab UI for editing reference lists before/after running cleaning pipeline
+- Four editable tables: stop words, block lists, functional categories, food names
+- User can add/remove entries, then re-run cleaning with updated lists
+
+**Key functions needed:**
 ```r
-'<option value="', names(options), '">',
-sub("^dtxsid_", "", names(options)),
-' | ', preferred_name[i],  # from preferredName_columnname
-' | Rank ', rank[i],       # from rank_columnname
-' | QC ', qc_tier[i],      # from consensus QC tier
-'</option>'
+# UI
+rHandsontableOutput("stop_words_table")
+
+# Server
+output$stop_words_table <- renderRHandsontable({
+  rhandsontable(data.frame(word = cleaning_stop_words()), rowHeaders = NULL) %>%
+    hot_col("word", type = "text")
+})
+
+# Capture edits
+updated_df <- hot_to_r(input$stop_words_table)
 ```
 
-**Data availability:**
-- `preferredName` columns: `preferredName_chemical_name`, `preferredName_casrn`, etc.
-- `rank` columns: `rank_chemical_name`, `rank_casrn`, etc.
-- `qc_tier`: single column in consensus results
+**Why NOT DT with editable=TRUE:**
+- DT `editable=TRUE` only allows **replacing cell values** (double-click, type, enter)
+- DT does **not** support user-initiated add/remove rows in editable mode
+- DT does **not** support column-specific input validation (e.g., dropdown for categories)
+- rhandsontable provides **spreadsheet-like UX** users expect for managing reference lists
+- Performance: rhandsontable renders slower than DT, but reference lists are small (<100 rows), so this is acceptable
 
-**Confidence:** HIGH — Data already exists in `resolution_state`, just needs HTML formatting change.
+**When to use DT vs rhandsontable going forward:**
+| Use Case | Package | Reason |
+|----------|---------|--------|
+| Display-only tables with sorting/filtering | **DT** | Fast rendering, built-in search/filter, column visibility |
+| Editable reference lists (add/remove rows, validation) | **rhandsontable** | Excel-like editing, dropdown/autocomplete, row operations |
+| Large result tables (>1000 rows) | **DT** | Performance (DT renders 10x faster than rhandsontable on large data) |
+| Small lookup tables user needs to edit | **rhandsontable** | Better UX for managing lists |
 
-**Source:** Existing codebase (R/curation.R lines 67-101, R/consensus.R lines 25-40)
+**License consideration:**
+- rhandsontable uses Handsontable.js **v6.2.2** (last version before Handsontable went commercial-restricted in v7+)
+- v6.2.2 is still **MIT licensed** and free for all use
+- rhandsontable maintainer has committed to **not updating beyond v6.2.2** to avoid license issues
+- **This is acceptable** for ChemReg (internal use, not distributing the package itself)
+
+**Sources:**
+- [rhandsontable Documentation](https://jrowen.github.io/rhandsontable/)
+- [Comparing DT vs rhandsontable - Posit Community](https://forum.posit.co/t/package-replacement-of-rhanfsontable-or-dt-in-r-shiny-to-create-editable-table-with-dropdown-list/59639)
+- [Appsilon: Better Than Excel - Use These R Shiny Packages Instead](https://appsilon.com/forget-about-excel-use-r-shiny-packages-instead/)
+- [rhandsontable GitHub](https://github.com/jrowen/rhandsontable)
 
 ---
 
-### Feature 5: Search Reorder (exact → CAS → starts-with)
+## Capabilities Already Satisfied by Existing Stack
 
-**Status:** ✓ Code Change Only
-**Packages:** None
-**Implementation:** Reorder tier calls in `curate_column_tiered()`
+### Unicode Detection: stringi (via tidyverse)
 
-**Current order (curation.R):**
-1. Exact search (`ct_chemical_search_equal_bulk`)
-2. Starts-with search (`ct_chemical_start_with`)
-3. CAS validation (`validate_cas_bulk`)
+| Requirement | Package | Function | Notes |
+|-------------|---------|----------|-------|
+| Detect non-ASCII characters | **stringi** | `stri_enc_isascii(x)` | Returns `TRUE`/`FALSE` per element. Already available (stringi is imported by stringr, which is in tidyverse). |
+| Clean Unicode → ASCII | **ComptoxR** | `clean_unicode(df)` | Already using this. 100+ character mappings (Greek, math symbols, smart quotes, etc.). |
+| Detect encoding | **stringi** | `stri_enc_detect(x)` | Returns guessed encoding + confidence. Useful for import diagnostics but not needed for core pipeline. |
 
-**New order (v1.2):**
-1. Exact search (unchanged)
-2. CAS validation (moved up)
-3. Starts-with search (moved to last resort)
+**No new packages needed.**
 
-**Why:**
-- CAS numbers are more specific than starts-with string matching
-- Starts-with can produce fuzzy matches, should be last resort
-- No package changes needed, just reorder function calls
+ComptoxR's `clean_unicode()` is already comprehensive. For post-curation QC, `stringi::stri_enc_isascii()` verifies nothing remains. stringi is already in the dependency tree (via stringr → tidyverse), so no explicit install needed.
 
-**Confidence:** HIGH — Pure code logic change.
+**Sources:**
+- [stringi Encoding Detection](https://github.com/gagolews/stringi/blob/master/R/encoding_detection.R)
+- [stringi Documentation](https://stringi.gagolewski.com/)
 
 ---
 
-### Feature 6: "Other" Tag as Full Curation Participant
+### Progress Tracking: Shiny's withProgress (Built-in)
 
-**Status:** ✓ Code Change Only
-**Packages:** None
-**Implementation:** Remove tag filtering in pipeline
+| Requirement | Package | Function | Notes |
+|-------------|---------|----------|-------|
+| Pipeline step-by-step progress | **shiny** (built-in) | `withProgress(expr, { incProgress(amount, detail = "...") })` | Already used in R/curation.R (line 954+). Works for sequential pipelines. |
+| Async progress (optional) | **progressr** | `withProgressShiny()` | **Not needed.** Pre-curation pipeline is synchronous (runs on main thread). progressr is for async/parallel tasks. |
+| Spinner overlays (optional) | **waiter** | `Waitress$new()` | **Not needed.** withProgress() notification-based progress is sufficient and consistent with existing UX. |
 
-**Current behavior:**
-- "Other" tagged columns excluded from curation (if implemented)
-- OR: No special handling, already included (needs verification)
+**No new packages needed.**
 
-**New behavior (v1.2):**
-- "Other" tagged columns go through full search chain (exact → CAS → starts-with)
-- Participate in consensus DTXSID comparison
-- Included in resolution dropdowns
+The pre-curation pipeline (21 functions) and post-curation QC can use the same `withProgress()` + `incProgress()` pattern already implemented for the tiered curation search. Each cleaning step calls `incProgress(1/21, detail = "Normalizing CAS-RNs...")`.
 
-**Implementation:**
+**Alternative considered and rejected:**
+- **progressr**: Adds complexity for async progress tracking. Pre-curation is fast (<2 seconds for 200 rows) and synchronous. Not worth the overhead.
+- **waiter**: Different UX pattern (full-page spinner vs. notification-based progress). Would create inconsistency with existing curation progress UI.
+
+**Sources:**
+- [Shiny withProgress Documentation](https://shiny.posit.co/r/reference/shiny/latest/withprogress.html)
+- [Mastering Shiny - User Feedback Chapter](https://mastering-shiny.org/action-feedback.html)
+- [progressr withProgressShiny](https://progressr.futureverse.org/reference/withProgressShiny.html)
+
+---
+
+### Re-Import Detection: readxl + Custom Logic
+
+| Requirement | Package | Function | Notes |
+|-------------|---------|----------|-------|
+| Detect sheet names in uploaded Excel file | **readxl** (existing) | `excel_sheets(path)` | Returns character vector of sheet names. Already used for multi-sheet import. |
+| Read specific sheet | **readxl** (existing) | `read_excel(path, sheet = "Manifest")` | Already used for data import. |
+| Detect ChemReg manifest signature | **Custom logic** | Check for "Manifest" sheet + required columns | Simple conditional: `if ("Manifest" %in% excel_sheets(path)) { ... }` |
+
+**No new packages needed.**
+
+**Re-import detection workflow:**
+1. User uploads file → `validate_file()` checks extension (already exists)
+2. If `.xlsx`, call `readxl::excel_sheets(path)` to get sheet list
+3. If `"Manifest"` sheet exists:
+   - Read it with `readxl::read_excel(path, sheet = "Manifest")`
+   - Check for required columns: `export_timestamp`, `chemreg_version`, `data_sheet`, `audit_sheet`, `reference_sheets`
+   - If valid → extract sheet names and hot-load state
+   - If invalid → treat as new upload
+4. If not a ChemReg export → normal upload flow
+
+**Manifest sheet structure (written by openxlsx2 on export):**
 ```r
-# Remove any logic like:
-# if (tag == "Other") { skip }
-
-# Ensure "Other" is treated same as "Chemical Name" and "CASRN"
+manifest <- data.frame(
+  key = c("export_timestamp", "chemreg_version", "data_sheet", "audit_sheet", "reference_sheets"),
+  value = c(Sys.time(), "1.3.0", "Clean_Data", "Audit_Trail", "Stop_Words,Block_List,Functional_Categories,Food_Names")
+)
 ```
 
-**Confidence:** HIGH — Code change only, no package dependencies.
+**Sources:**
+- [readxl: List all sheets - excel_sheets](https://readxl.tidyverse.org/reference/excel_sheets.html)
+- [readxl Workflows](https://readxl.tidyverse.org/articles/readxl-workflows.html)
+
+---
+
+## Supporting Libraries (No Changes Needed)
+
+| Library | Version | Purpose | Status |
+|---------|---------|---------|--------|
+| **tidyverse** | Latest | String manipulation (stringr), data manipulation (dplyr, tidyr), functional programming (purrr) | **Keep.** Used throughout for `str_detect()`, `str_replace()`, `mutate()`, `unnest_longer()`, `safely()`, etc. |
+| **janitor** | Latest | Column name cleaning, empty row/column removal | **Keep.** `clean_names()` and `remove_empty()` used in post-detection cleanup. |
+| **ComptoxR** | v1.4.0+ | CAS validation/extraction, Unicode cleaning, formula extraction, mixture detection | **Keep.** Core dependency for chemical data cleaning. See PRE_POST_CURATION_PLAN.md for 9 ComptoxR functions used. |
+| **DT** | Latest | Display-only tables with sorting/filtering | **Keep.** Still used for Review Results table, Detection Info comparison, and other read-only tables. |
+| **shinyjs** | Latest | JavaScript helpers for UI interactions | **Keep.** Used for enabling/disabling inputs, hiding/showing elements based on state. |
+| **bslib** | Latest | Bootstrap 5 theming, layout primitives | **Keep.** Existing UI theme and tab structure. |
+| **readxl** | Latest | Excel import (multi-sheet detection and reading) | **Keep.** Handles all import needs. |
+| **rio** | Latest | Fallback reader for CSV and other formats | **Keep.** Universal import wrapper with automatic format detection. |
+
+---
+
+## Packages to REMOVE
+
+| Package | Reason |
+|---------|--------|
+| **writexl** | Replaced by openxlsx2 for export. writexl cannot write metadata sheets or set workbook properties. Can be removed from load_packages.R. |
+
+---
+
+## Installation Updates
+
+**Updated `load_packages.R` booster_pack (lines 49-155):**
+
+```r
+booster_pack <- c(
+  ### IO ----
+  'fs',
+  'here',
+  'janitor',
+  'rio',
+  'readxl',      # Excel file reading (multi-sheet support)
+  'openxlsx2',   # NEW: Excel file writing with metadata sheets
+  # 'writexl',   # REMOVED: replaced by openxlsx2
+  'tidyverse',
+  'mirai',
+  'parallel',
+  'digest',
+
+  ### Shiny ----
+  'shiny',
+  'bslib',
+  'bsicons',
+  'DT',
+  'shinyjs',
+  'rhandsontable',  # NEW: Editable reference lists
+
+  ### Testing ----
+  'testthat',
+
+  ### Misc ----
+  'devtools',
+  'remotes'
+)
+```
+
+**GitHub packages (unchanged):**
+```r
+github_packages <- c(
+  "seanthimons/ComptoxR"  # v1.4.0+
+)
+```
+
+---
+
+## Integration Checklist
+
+### openxlsx2 Integration
+
+- [ ] Add `openxlsx2` to booster_pack in load_packages.R
+- [ ] Remove `writexl` from booster_pack
+- [ ] Update Excel export handler in app.R (download button server logic)
+  - [ ] Create workbook: `wb <- wb_workbook()`
+  - [ ] Add data sheet: `wb_add_worksheet(wb, "Clean_Data") %>% wb_add_data("Clean_Data", data_store$clean)`
+  - [ ] Add audit trail sheet: `wb_add_worksheet(wb, "Audit_Trail") %>% wb_add_data("Audit_Trail", audit_df)`
+  - [ ] Add reference list sheets (4 sheets): stop words, block lists, functional categories, food names
+  - [ ] Add manifest sheet with metadata
+  - [ ] Set workbook properties: `wb_set_properties(wb, creator = "ChemReg", title = "...", ...)`
+  - [ ] Save to temp file and serve for download
+- [ ] Update re-import detection logic (file upload observer)
+  - [ ] Check for "Manifest" sheet using `readxl::excel_sheets()`
+  - [ ] If found, read manifest and extract sheet references
+  - [ ] Hot-load reference lists from embedded sheets
+  - [ ] Display notification: "ChemReg export detected — state restored"
+
+### rhandsontable Integration
+
+- [ ] Add `rhandsontable` to booster_pack in load_packages.R
+- [ ] Create new "Clean Data" tab UI (between Data Preview and Tag Columns)
+- [ ] Add four expandable accordion sections for reference lists:
+  - [ ] Stop Words: `rHandsontableOutput("stop_words_table")`
+  - [ ] Block List: `rHandsontableOutput("block_list_table")`
+  - [ ] Functional Categories: `rHandsontableOutput("functional_categories_table")`
+  - [ ] Food Names: `rHandsontableOutput("food_names_table")`
+- [ ] Server logic for each table:
+  - [ ] Render initial table from `R/cleaning_reference.R` functions
+  - [ ] Observe table edits: `updated_df <- hot_to_r(input$table_id)`
+  - [ ] Store updated lists in reactive values
+  - [ ] Wire updated lists into pre-curation pipeline when "Run Cleaning" button clicked
+- [ ] Add "Reset to Defaults" button per table (restores original reference lists)
+- [ ] Add "Re-run Cleaning" button (re-executes pipeline with current reference lists)
 
 ---
 
 ## What NOT to Add
 
-### ❌ ctxR Package (CRAN)
-**Why not:** ComptoxR (custom fork from seanthimons/ComptoxR) is already installed and working. ctxR is a different package with similar functionality but different API. Switching would break existing code.
-
-**Decision:** Stick with ComptoxR 1.4.0.
-
-**Note:** Web searches found ctxR (CRAN package) with `check_existence_by_dtxsid_batch()` for DTXSID validation. However, project uses ComptoxR which has equivalent `chemi_amos_batch()` function. No need to add ctxR.
-
-### ❌ Additional DT Extensions
-**Why not:** Buttons extension already loaded and sufficient for column visibility. ResponsiveDisplay, ColReorder, FixedColumns not needed for stated requirements.
-
-**Decision:** Continue using `Buttons` extension only.
-
-### ❌ shinyjs Additions
-**Why not:** Existing shinyjs usage (DOM manipulation for tab pulsing) is sufficient. Row selection, tagging UI, and validation don't require additional shinyjs functions.
-
-**Decision:** No new shinyjs methods needed.
-
-### ❌ Validation Packages (assertthat, checkmate, validate)
-**Why not:** Simple DTXSID format validation (regex: `^DTXSID\\d+$`) can be done with base R `grepl()`. ComptoxR's `chemi_amos_batch()` will validate existence against CompTox.
-
-**Decision:** No validation package needed.
-
-### ❌ Modal/Dialog Packages (shinyWidgets, shinyBS)
-**Why not:** bslib provides native modal dialogs via `modalDialog()` and `showModal()`. Sufficient for re-tagging UI during error retry workflow.
-
-**Decision:** Use bslib modals.
+| Package | Why NOT Needed |
+|---------|----------------|
+| **xlsx** | Deprecated. Requires Java. Slower than openxlsx2 and writexl. No advantages. |
+| **openxlsx** (v1, not v2) | Predecessor to openxlsx2. Slower, less maintained. openxlsx2 is the modern fork. |
+| **progressr** | Async progress tracking. Pre-curation pipeline is synchronous and fast (<2 seconds). Adds complexity without benefit. |
+| **waiter** | Full-page spinner overlay. Inconsistent with existing notification-based progress UI. No advantage over withProgress(). |
+| **shinyWidgets** | Not needed. bslib provides all UI primitives needed. Adding shinyWidgets would increase bundle size for no clear benefit. |
+| **DTedit** | Third-party wrapper around DT for CRUD operations. Overkill for reference list editing. rhandsontable provides better UX for this use case. |
+| **editData** | Another editable table package. Less mature than rhandsontable, fewer features. |
 
 ---
 
-## Existing Stack (No Changes)
+## Architecture Notes
 
-### Core Framework
+### Why Two Packages for Tables?
 
-| Technology | Version | Purpose | Status |
-|------------|---------|---------|--------|
-| **R** | 4.5.1 | Runtime environment | No change |
-| **shiny** | Latest CRAN | Reactive framework | No change |
-| **bslib** | ≥0.9.0 | UI framework, navigation | No change |
-| **shinyjs** | ≥2.1.0 | UI state control | No change |
+**DT** and **rhandsontable** serve **different use cases**:
 
-### Data & I/O
+| Use Case | Package | Reason |
+|----------|---------|--------|
+| Display curation results (500-5000 rows) | **DT** | Fast rendering, built-in sorting/filtering/search, column visibility controls. User needs to analyze data, not edit it. |
+| Edit reference lists (10-50 rows) | **rhandsontable** | Excel-like editing UX (add/remove rows, inline edit, validation). User expects spreadsheet interaction. |
 
-| Package | Version | Purpose | Status |
-|---------|---------|---------|--------|
-| **dplyr** | Latest | Data manipulation | No change |
-| **tidyr** | Latest | Data reshaping | No change |
-| **purrr** | Latest | Functional programming | No change |
-| **rio** | Latest | File I/O | No change |
-| **readxl** | Latest | Excel reading | No change |
-| **writexl** | Latest | Excel writing | No change |
-| **janitor** | Latest | Column name cleaning | No change |
+**Performance:**
+- DT renders **10x faster** than rhandsontable on tables >100 rows
+- rhandsontable renders **slower** but provides **better editing UX**
 
-### UI Components
+**Solution:** Use each package where it excels. DT for display, rhandsontable for editing small reference lists.
 
-| Package | Version | Purpose | Status |
-|---------|---------|---------|--------|
-| **DT** | Latest | Interactive tables | No change (add columnDefs config) |
-| **bsicons** | Latest | Icons | No change |
+### Why openxlsx2 for Export but readxl for Import?
 
-### API
+**Export needs:**
+- Write arbitrary metadata sheets (audit trail, config, reference lists)
+- Set workbook properties (creator, title, description) for re-import detection
+- Only openxlsx2 supports this
 
-| Package | Version | Purpose | Status |
-|---------|---------|---------|--------|
-| **ComptoxR** | 1.4.0 | CompTox API access | No change (use chemi_amos_batch) |
-| **httr2** | Latest | HTTP requests (dependency) | No change |
+**Import needs:**
+- Read multi-sheet Excel files
+- Detect sheet names
+- Read specific sheets by name
+- readxl already handles this perfectly and is faster than openxlsx2 for reading
 
-### Testing
-
-| Package | Version | Purpose | Status |
-|---------|---------|---------|--------|
-| **testthat** | Latest | Unit testing | No change |
-
----
-
-## Updated Dependencies Summary
-
-| Category | Package | Version | Change | Purpose |
-|----------|---------|---------|--------|---------|
-| **API** | ComptoxR | 1.4.0 | No change | CompTox API access, bulk DTXSID validation via `chemi_amos_batch()` |
-| **UI** | DT | existing | Configuration only | DataTables with Buttons extension for column visibility (`columnDefs`) |
-| **Framework** | shiny | existing | No change | Reactive row selection via `input$tableId_rows_selected`, subset filtering |
-| **Framework** | bslib | existing | No change | UI theme, modal dialogs for re-tagging UI |
-| **Framework** | shinyjs | existing | No change | Existing tab pulsing (no new features needed) |
-| **Data** | dplyr | existing | No change | Data manipulation, subset filtering, merge-back logic |
-| **Data** | tidyr | existing | No change | Data reshaping (if needed for retry merge) |
-
-**Total new packages:** 0
-**Total new functions/features:** 0 (all existing capabilities)
-
----
-
-## Implementation Checklist
-
-- [ ] **Bulk DTXSID validation:** Call `ComptoxR::chemi_amos_batch(dtxsids = user_input)`
-- [ ] **Error row retry:** Use `input$curation_table_rows_selected` for subset workflow
-- [ ] **Column visibility:** Add `columnDefs` to DT options with runtime-determined untagged columns
-- [ ] **Dropdown context:** Modify HTML string in `get_resolution_options()` to include `preferredName`, `rank`, `qc_tier`
-- [ ] **Search reorder:** Modify pipeline call order in `curate_column_tiered()` (exact → CAS → starts-with)
-- [ ] **"Other" tag curation:** Remove tag filtering in pipeline (ensure "Other" goes through full search chain)
-
----
-
-## Version Requirements
-
-All packages already installed at compatible versions:
-
-```r
-# Core (already in load_packages.R)
-library(shiny)       # Latest CRAN
-library(bslib)       # Latest CRAN
-library(DT)          # Latest CRAN
-library(shinyjs)     # Latest CRAN
-library(dplyr)       # Latest CRAN (tidyverse)
-library(tidyr)       # Latest CRAN (tidyverse)
-library(purrr)       # Latest CRAN (tidyverse)
-
-# API (already installed via remotes)
-library(ComptoxR)    # 1.4.0 from seanthimons/ComptoxR
-```
-
-**No installation commands needed.**
-
----
-
-## Integration Points
-
-### Pipeline Integration (R/curation.R)
-
-**Bulk DTXSID validation:**
-```r
-# Add helper function
-validate_dtxsids_bulk <- function(dtxsids) {
-  result <- chemi_amos_batch(dtxsids = dtxsids)
-  tibble(
-    dtxsid = dtxsids,
-    is_valid = dtxsids %in% result$dtxsid,
-    preferredName = result$preferredName[match(dtxsids, result$dtxsid)]
-  )
-}
-```
-
-**Search reorder:**
-```r
-# Change tier order in curate_column_tiered()
-# FROM: c("exact", "starts_with", "cas")
-# TO:   c("exact", "cas", "starts_with")
-
-curate_column_tiered <- function(df, column_name, ...) {
-  # Tier 1: Exact search
-  exact_results <- search_exact_bulk(...)
-
-  # Tier 2: CAS validation (MOVED UP)
-  cas_results <- validate_cas_bulk(...)
-
-  # Tier 3: Starts-with (MOVED TO LAST)
-  starts_results <- search_starts_with(...)
-}
-```
-
-**"Other" tag inclusion:**
-```r
-# Remove any tag filtering like:
-# if (tag %ni% c("Chemical Name", "CASRN")) { return(NULL) }
-
-# Ensure all tags go through full pipeline
-run_pipeline_with_tags <- function(df, column_tags, ...) {
-  for (col in names(column_tags)) {
-    # Curate regardless of tag value
-    results[[col]] <- curate_column_tiered(df, col, ...)
-  }
-}
-```
-
-### UI Integration (app.R)
-
-**Error retry workflow:**
-```r
-# Add UI in Review Results tab
-actionButton("retry_errors_btn", "Retry Selected Error Rows")
-
-# Show modal with re-tagging UI
-observeEvent(input$retry_errors_btn, {
-  selected <- input$curation_table_rows_selected
-  req(length(selected) > 0)
-
-  showModal(modalDialog(
-    title = "Re-tag Selected Rows",
-    uiOutput("retry_tag_ui"),
-    footer = tagList(
-      actionButton("retry_confirm", "Re-curate"),
-      modalButton("Cancel")
-    )
-  ))
-})
-
-# Render tag dropdowns for selected rows
-output$retry_tag_ui <- renderUI({
-  # Column dropdowns for selected subset
-})
-
-# Re-run pipeline on subset
-observeEvent(input$retry_confirm, {
-  # Use pattern from Feature 2 above
-})
-```
-
-**Column visibility:**
-```r
-output$curation_table <- renderDT({
-  req(data_store$resolution_state, data_store$dtxsid_cols)
-
-  df <- data_store$resolution_state
-
-  # Determine untagged columns
-  tagged_cols <- names(data_store$column_tags)
-  consensus_cols <- c("consensus_status", "consensus_dtxsid", "consensus_source", "qc_tier")
-  dtxsid_related <- grep("^(dtxsid|preferredName|rank|searchName)_", names(df), value = TRUE)
-
-  keep_visible <- c(tagged_cols, consensus_cols, "Resolution")
-  hide_cols <- setdiff(names(df), keep_visible)
-  hide_indices <- which(names(df) %in% hide_cols) - 1  # 0-indexed
-
-  datatable(
-    df,
-    extensions = 'Buttons',
-    options = list(
-      dom = 'Bfrtip',
-      columnDefs = list(
-        list(visible = FALSE, targets = hide_indices)
-      ),
-      buttons = list('colvis')
-    )
-  )
-})
-```
-
-**Dropdown context:**
-```r
-# Modify get_resolution_options() helper function
-get_resolution_options <- function(df, row_idx, dtxsid_cols) {
-  options <- list()
-
-  for (col in dtxsid_cols) {
-    dtxsid_val <- df[[col]][row_idx]
-    if (!is.na(dtxsid_val)) {
-      # Get corresponding metadata
-      col_base <- sub("^dtxsid_", "", col)
-      preferred_col <- paste0("preferredName_", col_base)
-      rank_col <- paste0("rank_", col_base)
-
-      preferred <- if (preferred_col %in% names(df)) df[[preferred_col]][row_idx] else NA
-      rank_val <- if (rank_col %in% names(df)) df[[rank_col]][row_idx] else NA
-
-      # Build label
-      label <- paste0(
-        col_base,
-        if (!is.na(preferred)) paste0(" | ", preferred) else "",
-        if (!is.na(rank_val)) paste0(" | Rank ", rank_val) else "",
-        " | ", dtxsid_val
-      )
-
-      options[[col]] <- label
-    }
-  }
-
-  options
-}
-```
-
-### State Management (reactiveValues)
-
-**Retry workflow:**
-```r
-data_store <- reactiveValues(
-  # Existing fields
-  resolution_state = NULL,
-  dtxsid_cols = NULL,
-
-  # Add for retry workflow
-  retry_subset = NULL,       # Selected error rows
-  retry_tags = NULL,         # Re-tagging choices for subset
-  retry_results = NULL       # Re-curation results to merge back
-)
-```
-
----
-
-## Verification Commands
-
-```r
-# Confirm ComptoxR has chemi_amos_batch
-library(ComptoxR)
-args(chemi_amos_batch)
-# Should show: function (dtxsids = NULL, ...)
-
-# Confirm DT has Buttons extension
-library(DT)
-datatable(iris, extensions = 'Buttons', options = list(dom = 'Bfrtip', buttons = 'colvis'))
-# Should render table with column visibility button
-
-# Confirm row selection works
-# In Shiny app: input$tableId_rows_selected should return integer vector
-
-# Verify preferredName/rank captured
-source("R/curation.R")
-test_result <- search_exact_bulk(c("Acetone", "Ethanol"))
-names(test_result)
-# Should include: "preferredName", "rank"
-```
-
----
-
-## Performance Considerations
-
-**Bulk DTXSID validation:**
-- `chemi_amos_batch()` batches requests (default 200 per batch)
-- No performance impact vs. sequential validation
-- Use `withProgress()` for user feedback during validation
-
-**Error row retry:**
-- Only re-curates selected subset (not full dataset)
-- Merge-back is row-index based (fast)
-- No state duplication (updates `resolution_state` in place)
-
-**Column visibility:**
-- `columnDefs` applied client-side by DataTables (no server overhead)
-- Hidden columns still in DOM (fast toggle via `colvis` button)
-- No impact on export (hidden columns included in download)
-
-**Dropdown context:**
-- HTML string concatenation at render time
-- Minimal overhead (only for "disagree" rows)
-- No additional API calls (data already in `resolution_state`)
+**Solution:** Use openxlsx2 for export, readxl for import. They complement each other.
 
 ---
 
 ## Confidence Assessment
 
-| Feature | Stack Confidence | Integration Confidence | Risk |
-|---------|------------------|------------------------|------|
-| Bulk DTXSID validation | HIGH | HIGH | Low — function exists, tested |
-| Error row retry | HIGH | MEDIUM | Medium — merge-back logic needs careful testing |
-| Column visibility | HIGH | HIGH | Low — DT columnDefs is well-documented |
-| Dropdown context | HIGH | HIGH | Low — data already exists, straightforward HTML |
-| Search reorder | HIGH | HIGH | Low — simple function call reordering |
-| "Other" tag curation | HIGH | HIGH | Low — remove filter logic, ensure consistency |
+| Area | Confidence | Notes |
+|------|------------|-------|
+| openxlsx2 for multi-sheet export | **HIGH** | Official CRAN package (v1.13+ as of Jan 2026), active maintenance, comprehensive documentation. Used in production by many projects. |
+| rhandsontable for editable lists | **MEDIUM-HIGH** | Mature package (v0.3.8+), but stuck on Handsontable.js v6.2.2 due to license change. License is safe (MIT), but package won't receive JS library updates. This is acceptable for our use case (simple editing, no advanced features needed). |
+| stringi for Unicode detection | **HIGH** | Core R package, widely used, comprehensive ICU integration. Already in dependency tree. |
+| withProgress for pipeline tracking | **HIGH** | Built-in Shiny feature, already used in existing codebase for curation pipeline. Well-documented. |
+| readxl for re-import detection | **HIGH** | tidyverse package, stable, fast, handles all Excel reading needs. |
 
-**Overall Confidence:** HIGH — All features implementable with existing stack. No package additions required.
-
----
-
-## Key Decisions
-
-| Decision | Rationale | Outcome |
-|----------|-----------|---------|
-| Use ComptoxR not ctxR | Project already uses ComptoxR fork; switching breaks existing code | ✓ Stick with ComptoxR 1.4.0 |
-| No new packages | All features achievable with existing capabilities | ✓ Zero dependency additions |
-| Use DT columnDefs | Standard DataTables API, already using Buttons extension | ✓ Configuration change only |
-| Surface existing data for dropdowns | preferredName/rank already captured in pipeline | ✓ HTML formatting change only |
-| Use bslib modals for retry UI | Native bslib support, consistent with existing UI | ✓ No shinyWidgets needed |
+**Overall confidence:** **HIGH** — only 2 new packages needed, both are mature and well-documented.
 
 ---
 
-## Sources
+## Timeline Implications
 
-### HIGH Confidence (Verified Functions)
+**Minimal risk from new dependencies:**
+- openxlsx2 and rhandsontable are both stable CRAN packages
+- No breaking changes expected
+- Integration is straightforward (documented APIs, similar to existing patterns)
 
-- **ComptoxR GitHub Repository:** [seanthimons/ComptoxR](https://github.com/seanthimons/ComptoxR) — Bulk DTXSID validation via `chemi_amos_batch(dtxsids = ...)`
-- **Existing Codebase:** `R/curation.R` lines 67-101, 393 — `preferredName`, `rank` capture in pipeline
-- **Existing Codebase:** `R/consensus.R` lines 25-40 — `qc_tier` calculation
-- **Existing Codebase:** `app.R` lines 1383-1395 — Current dropdown HTML implementation
+**Migration from writexl → openxlsx2:**
+- Low effort: export logic is isolated to one download handler
+- No import changes needed (readxl stays)
+- Opportunity to improve export UX with styled headers, frozen panes (bonus features openxlsx2 provides)
 
-### HIGH Confidence (Official Documentation)
-
-- [DT Shiny Documentation - Row Selection](https://rstudio.github.io/DT/shiny.html) — `input$tableId_rows_selected` usage
-- [DT Extensions - Buttons](https://rstudio.github.io/DT/extensions.html) — Column visibility via `colvis` button
-- [DT GitHub Issue #153 - Column Visibility](https://github.com/rstudio/DT/issues/153) — `columnDefs` examples and patterns
-- [GeeksforGeeks - Hide Columns in DT](https://www.geeksforgeeks.org/r-language/hide-certain-columns-in-a-responsive-data-table-using-dt-package-in-r/) — `columnDefs` usage guide
-
-### MEDIUM Confidence (Alternative Packages, Not Used)
-
-- [ctxR CRAN Package](https://cran.r-project.org/web/packages/ctxR/ctxR.pdf) — Alternative CompTox API package with `check_existence_by_dtxsid_batch()` (not used, ComptoxR preferred)
+**rhandsontable learning curve:**
+- Simple API: `renderRHandsontable()` + `hot_to_r()`
+- Similar reactive pattern to DT (output → input$table_id)
+- Estimated integration: 2-3 hours for 4 reference list tables
 
 ---
 
-## Recommendation
+## Sources Summary
 
-**Proceed with implementation using existing stack.** No `pak::pkg_install()` calls needed. All v1.2 features are achievable through:
+**Editable Tables:**
+- [DT in Shiny - RStudio](https://rstudio.github.io/DT/shiny.html)
+- [Comparing DT vs rhandsontable - Posit Community](https://forum.posit.co/t/package-replacement-of-rhanfsontable-or-dt-in-r-shiny-to-create-editable-table-with-dropdown-list/59639)
+- [rhandsontable Documentation](https://jrowen.github.io/rhandsontable/)
+- [Appsilon: Better Than Excel - Use R Shiny Packages](https://appsilon.com/forget-about-excel-use-r-shiny-packages-instead/)
 
-1. **Configuration changes** (DT columnDefs)
-2. **Code logic changes** (search reorder, tag filtering removal)
-3. **HTML formatting changes** (dropdown context)
-4. **Standard Shiny patterns** (row selection, modal dialogs, subset filtering)
-5. **Existing ComptoxR functions** (chemi_amos_batch for bulk validation)
+**Excel Packages:**
+- [R-bloggers: Comparing writexl, openxlsx, and xlsx](https://www.r-bloggers.com/2023/05/comparing-r-packages-for-writing-excel-files-an-analysis-of-writexl-openxlsx-and-xlsx-in-r/)
+- [openxlsx2 Package Manual](https://cran.r-universe.dev/openxlsx2/doc/manual.html)
+- [openxlsx2 Documentation](https://janmarvin.github.io/openxlsx2/)
+- [readxl Documentation](https://readxl.tidyverse.org/)
+- [readxl excel_sheets](https://readxl.tidyverse.org/reference/excel_sheets.html)
 
-Focus development effort on **code logic and UI enhancements** rather than dependency management.
+**Progress & Unicode:**
+- [Shiny withProgress Documentation](https://shiny.posit.co/r/reference/shiny/latest/withprogress.html)
+- [Mastering Shiny - User Feedback](https://mastering-shiny.org/action-feedback.html)
+- [stringi Encoding Detection](https://github.com/gagolews/stringi/blob/master/R/encoding_detection.R)
+- [stringi Documentation](https://stringi.gagolewski.com/)
+- [progressr withProgressShiny](https://progressr.futureverse.org/reference/withProgressShiny.html)
 
 ---
 
-*Stack research for: ChemReg v1.2 Curation Refinement*
-*Researched: 2026-03-01*
-*Confidence: HIGH — All recommendations verified via existing codebase inspection and official documentation*
+*Stack research for: ChemReg v1.3 Data Cleaning Pipeline*
+*Researched: 2026-03-04*
+*Confidence: HIGH — All recommendations verified via official documentation and community sources*

@@ -1,563 +1,421 @@
-# Architecture Research: Curation Refinement Integration
+# Architecture Research: ChemReg v1.3 Integration
 
-**Domain:** Shiny Chemical Curation Application
-**Researched:** 2026-03-01
+**Domain:** R/Shiny Chemical Inventory Cleaning Pipeline Integration
+**Researched:** 2026-03-04
 **Confidence:** HIGH
 
-## Current System Overview
+## Executive Summary
+
+ChemReg v1.3 adds a pre/post-curation cleaning pipeline with interactive UI, editable reference lists, and multi-sheet Excel export/re-import. The existing app.R is 2,275 lines with a monolithic structure using reactiveValues() for state management and gated tab navigation. This research answers:
+
+1. **Modularization strategy:** When and how to extract the "Clean Data" tab into a module vs inline implementation
+2. **Reactive cascade updates:** How cleaning integrates into the existing upload → detect → preview → tag → curate → review flow
+3. **Reference list state management:** Where editable lists live and how they trigger re-cleaning
+4. **Multi-sheet export architecture:** Extending the existing writexl single-sheet export with embedded state
+5. **Re-import detection:** Recognizing ChemReg exports without breaking CSV/XLSX flow
+6. **Build order:** Dependency-aware implementation sequence
+
+**Key Finding:** Don't modularize yet. Inline implementation with staged extraction later is lower risk, faster to ship, and aligns with Shiny best practices for incremental refactoring.
+
+---
+
+## Current Architecture
+
+### System Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                          UI Layer (app.R)                    │
+│                     Shiny UI Layer                           │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
-│  │ Upload   │  │ Tag Cols │  │ Run Cure │  │ Review   │    │
-│  │ Tab      │  │ Tab      │  │ Tab      │  │ Results  │    │
+│  │ Upload   │  │ Detect   │  │ Preview  │  │ Tag      │    │
+│  │ (sidebar)│  │ Info Tab │  │ Tab      │  │ Tab      │    │
 │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘    │
-│       │             │              │             │           │
-│       ├─────────────┴──────────────┴─────────────┤           │
-│       │         reactiveValues(data_store)       │           │
-│       └──────────────────┬────────────────────────┘           │
-├──────────────────────────┼──────────────────────────────────┤
-│                  Processing Layer                            │
-│  ┌────────────────────────┴──────────────────────────────┐   │
-│  │                R/curation.R (624 lines)                │   │
-│  │  deduplicate_tagged_columns → run_tiered_search       │   │
-│  │  → map_results_to_rows → (calls consensus.R)          │   │
-│  └───────────────────────┬────────────────────────────────┘   │
-│                          │                                    │
-│  ┌───────────────────────┴────────────────────────────────┐   │
-│  │              R/consensus.R (229 lines)                  │   │
-│  │  classify_consensus → init_resolution_state            │   │
-│  │  resolve_row → apply_priority_chain                    │   │
-│  └─────────────────────────────────────────────────────────┘   │
+│       │             │             │             │           │
+│  ┌────┴─────┐  ┌────┴─────┐  ┌────┴─────┐                  │
+│  │ Run      │  │ Review   │  │ (6 tabs) │                  │
+│  │ Curation │  │ Results  │  │ Gated    │                  │
+│  └──────────┘  └──────────┘  └──────────┘                  │
 ├─────────────────────────────────────────────────────────────┤
-│                      External API                            │
-│  ┌─────────────────────────────────────────────────────┐     │
-│  │   CompToxR (ComptoxR:: calls via curation.R)        │     │
-│  │   - ct_chemical_search_equal_bulk                   │     │
-│  │   - ct_chemical_search_start_with                   │     │
-│  │   - as_cas / is_cas                                 │     │
-│  └─────────────────────────────────────────────────────┘     │
+│                   Server Logic (app.R)                       │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  data_store (reactiveValues)                          │  │
+│  │    raw, clean, detection, file_info                   │  │
+│  │    column_tags, curation_results, consensus_data      │  │
+│  │    resolution_state, dtxsid_cols, priority_order      │  │
+│  │    error_filter_active, display_row_map, manual_queue │  │
+│  └───────────────────────────────────────────────────────┘  │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
+│  │ File     │  │ Detection│  │ Curation │  │ Consensus│   │
+│  │ Handlers │  │ Ensemble │  │ Pipeline │  │ Classify │   │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
+├─────────────────────────────────────────────────────────────┤
+│                    Helper Modules (R/)                       │
+│  file_handlers.R  data_detection.R  curation.R  consensus.R │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## New Features Integration Analysis
+### Current Data Flow
 
-### Feature 1: Search Chain Reordering (exact → CAS → starts-with)
-
-**Current:** `run_tiered_search()` runs exact → starts-with → CAS (lines 274-363 in curation.R)
-
-**Integration Point:** Modify `run_tiered_search()` tier execution order
-
-**Components Modified:**
-- `R/curation.R::run_tiered_search()` (main orchestrator)
-- `R/curation.R::run_curation_pipeline()` (inline tier execution with progress callbacks, lines 451-540)
-
-**Data Flow Change:**
 ```
-BEFORE: unique_names → exact → (misses) → starts-with → [separate] unique_cas → CAS
-AFTER:  unique_names → exact → (misses) → [check CAS] → (misses) → starts-with
+Upload File (input$file_upload)
+    ↓
+validate_file() → safely_read_file() → detect_data_start()
+    ↓
+data_store$raw, data_store$clean, data_store$detection
+    ↓ (show tabs: Detection Info, Raw Data, Tag Columns)
+Tag Columns (UI: dropdowns per column)
+    ↓ (input$apply_tags)
+data_store$column_tags
+    ↓ (show tab: Run Curation)
+    ↓ (reset: curation_results, consensus_data, resolution_state)
+Start Curation (input$run_curation)
+    ↓
+deduplicate_tagged_columns() → tiered search (exact → CAS → starts-with)
+    ↓
+classify_consensus() → resolution UI (if disagreements)
+    ↓
+data_store$curation_results, data_store$consensus_data
+    ↓ (show tab: Review Results)
+Export to Excel (downloadHandler)
+    ↓
+writexl::write_xlsx(list("Curated Data", "Summary", "Column Tags"))
 ```
 
-**Key Considerations:**
-- CAS columns are currently in `unique_cas` — need to treat them as name search candidates first
-- Progress callbacks need reordering (lines 471-539)
-- Source tier labels (`source_tier` column) remain stable (already has "cas" tier)
-- Summary message (line 357-360) needs reordering
+### Cascade Reset Pattern
 
-**New vs Modified:**
-- **MODIFIED:** `run_tiered_search()` — reorder tier 2 and tier 3 blocks
-- **MODIFIED:** `run_curation_pipeline()` — reorder inline tier execution
-- **NEW:** None
+**Critical:** ChemReg uses strict invalidation on state changes.
+
+| Trigger | Reset Scope | Rationale |
+|---------|-------------|-----------|
+| Re-upload file | ALL downstream state (tags, curation, consensus, resolution) | New data invalidates all derived state |
+| Tag change | Curation results, consensus, resolution | Different columns → different curation input |
+| Re-run curation | Resolution state only | New curation results → old resolutions invalid |
+
+**Implementation:** Explicit `data_store$field <- NULL` assignments in observers, not reactive dependency chains. This prevents partial state inconsistencies.
 
 ---
 
-### Feature 2: Other Tags as Full Curation Participants
+## New Architecture: v1.3 Cleaning Pipeline Integration
 
-**Current:** `deduplicate_tagged_columns()` only processes Name and CASRN tags (lines 16-58 in curation.R)
+### System Overview with Cleaning Pipeline
 
-**Integration Point:** Expand deduplication and search to include "Other" tag type
-
-**Components Modified:**
-- `R/curation.R::deduplicate_tagged_columns()` — extract Other values into unique_names set
-- `R/curation.R::map_results_to_rows()` — already handles all tagged columns via `dedup_key_map` (line 390)
-- `R/consensus.R::classify_consensus()` — already uses `find_dtxsid_cols()` to auto-detect all dtxsid_* columns (line 53)
-
-**Data Flow Change:**
 ```
-BEFORE:
-  Name cols → unique_names → search
-  CASRN cols → unique_cas → validate
-  Other cols → dedup_key_map only (no search)
-
-AFTER:
-  Name cols → unique_names → search
-  CASRN cols → unique_cas → validate (then search if reordering)
-  Other cols → unique_names → search (full chain participation)
+┌─────────────────────────────────────────────────────────────┐
+│                     Extended UI Layer                        │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
+│  │ Upload   │  │ Detect   │  │ Preview  │  │ CLEAN    │    │
+│  │ (sidebar)│  │ Info Tab │  │ Tab      │  │ DATA TAB │◄── NEW
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘    │
+│       │             │             │             │           │
+│  ┌────┴─────┐  ┌────┴─────┐  ┌────┴─────┐  ┌────┴─────┐    │
+│  │ Tag      │  │ Run      │  │ Review   │  │ (7 tabs) │    │
+│  │ Columns  │  │ Curation │  │ Results  │  │ Gated    │    │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │
+├─────────────────────────────────────────────────────────────┤
+│                  Server Logic (app.R + NEW)                  │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  data_store (reactiveValues) — EXTENDED                │  │
+│  │    raw, clean, detection, file_info                    │  │
+│  │    cleaned_data ◄── NEW (post-pre_curation)            │  │
+│  │    cleaning_audit ◄── NEW (comment columns)            │  │
+│  │    cleaning_stats ◄── NEW (summary counts)             │  │
+│  │    reference_lists ◄── NEW (editable stop words, etc.) │  │
+│  │    column_tags, curation_results, consensus_data       │  │
+│  │    resolution_state, dtxsid_cols, priority_order       │  │
+│  │    error_filter_active, display_row_map, manual_queue  │  │
+│  └───────────────────────────────────────────────────────┘  │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
+│  │ File     │  │ Detection│  │ PRE-     │  │ Curation │   │
+│  │ Handlers │  │ Ensemble │  │ CURATION │  │ Pipeline │   │
+│  └──────────┘  └──────────┘  └────┬─────┘  └──────────┘   │
+│                                    │                         │
+│  ┌──────────┐  ┌──────────┐  ┌────┴─────┐  ┌──────────┐   │
+│  │ POST-    │  │ Consensus│  │ Cleaning │  │ Export   │   │
+│  │ CURATION │  │ Classify │  │ Reference│  │ Multi-   │   │
+│  │ QC       │  │          │  │          │  │ Sheet    │   │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
+├─────────────────────────────────────────────────────────────┤
+│                 Helper Modules (R/ — EXTENDED)               │
+│  file_handlers.R  data_detection.R  curation.R  consensus.R │
+│  pre_curation.R ◄── NEW                                     │
+│  post_curation.R ◄── NEW                                    │
+│  cleaning_reference.R ◄── NEW                               │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**Key Considerations:**
-- `dedup_key_map` already tracks all tag types (line 38)
-- `map_results_to_rows()` already joins back ALL tagged columns (line 390: `tag_cols <- unique(enriched_keys$column_name)`)
-- Consensus already auto-detects dtxsid_* columns via `find_dtxsid_cols()`
-- **Minimal change:** Just add Other values to `unique_names` in deduplicate step
+### Extended Cascade Reset Pattern
 
-**New vs Modified:**
-- **MODIFIED:** `deduplicate_tagged_columns()` — add Other to unique_names extraction (lines 43-46)
-- **NEW:** None
+| Trigger | Reset Scope | Rationale |
+|---------|-------------|-----------|
+| Re-upload file | ALL (including cleaned_data, cleaning_audit, reference_lists) | New raw data invalidates everything |
+| Edit reference list + re-run cleaning | cleaned_data, cleaning_audit, tags, curation, consensus, resolution | Reference change → different cleaning output → all downstream invalid |
+| Tag change | Curation results, consensus, resolution (NOT cleaning) | Cleaning is independent of tagging |
+| Re-run curation | Resolution state only (NOT cleaning or tags) | Same as before |
+
+**Critical new dependency:** Tags now operate on `cleaned_data` not `clean`, so cleaning MUST precede tagging in the workflow.
 
 ---
 
-### Feature 3: Hide Untagged Columns in Review Results
+## Integration Points
 
-**Current:** `output$curation_table` (app.R lines 1370-1484) hides dtxsid_*, preferredName_*, searchName_*, rank_*, source_tier_*, and .pinned columns via `columnDefs: list(visible = FALSE, targets = hidden_indices)` (line 1437)
+### 1. Clean Data Tab UI/Server — Inline vs Module
 
-**Integration Point:** Add original untagged columns to `hidden_cols` vector
+**Decision: Inline implementation in app.R (Phase 1), extract to module later (Phase 2+).**
 
-**Components Modified:**
-- `app.R::output$curation_table` — extend `hidden_cols` to include original columns NOT in `data_store$column_tags`
+**Inline-first is correct for v1.3 because:**
 
-**Data Flow Change:**
-```
-BEFORE: All original columns visible in DT, only lookup columns hidden
-AFTER:  Only tagged original columns + consensus columns visible, untagged + lookup hidden
-```
+1. **Lower risk:** The existing app has 6 tabs all implemented inline. Adding a 7th inline tab is consistent with current architecture.
+2. **Faster to ship:** Module communication requires explicit input/output contracts, reactive triggers, and namespace management.
+3. **Easier to debug:** All reactive logic lives in one file during initial development.
+4. **Refactoring path exists:** Once stable, extract using the "stratégie du petit r" pattern.
 
-**Key Considerations:**
-- Excel export (`output$download_curated`, lines 1659-1715) should still include ALL columns except `.pinned` (line 1675)
-- `data_store$column_tags` is available (set in apply_tags observer, line 1100)
-- Need to compute: `untagged_cols <- setdiff(names(df), names(data_store$column_tags))`
-- Exclude consensus/resolution columns from hiding: `consensus_status`, `consensus_dtxsid`, `consensus_source`, `qc_tier`, `Resolution`
+### 2. Reference List State Management
 
-**New vs Modified:**
-- **MODIFIED:** `app.R::output$curation_table` — expand `hidden_cols` logic (line 1413-1420)
-- **NEW:** None
+**Decision: Store in `data_store$reference_lists` as a named list of character vectors.**
 
----
-
-### Feature 4: Manual DTXSID Entry with Bulk Validation
-
-**Integration Point:** Add UI and server logic to Review Results tab
-
-**New Components:**
-```
-UI (app.R):
-- Checkbox column in DT for row selection (error rows only)
-- Input field for manual DTXSID entry
-- "Validate & Apply" button
-
-Server (app.R):
-- observeEvent(input$validate_manual_dtxsid)
-- Call new function: validate_dtxsid_bulk()
-- Update resolution_state with validated DTXSID
-```
-
-**New Functions (R/curation.R):**
 ```r
-validate_dtxsid_bulk <- function(dtxsid_vector) {
-  # Call ComptoxR::ct_chemical_search_equal_bulk(dtxsid_vector)
-  # Return tibble(input_dtxsid, is_valid, preferredName)
-}
-
-apply_manual_dtxsid <- function(df, row_indices, dtxsid, dtxsid_cols) {
-  # Set consensus_dtxsid, consensus_status = "agree" (manual override)
-  # Set .pinned = TRUE, consensus_source = "manual"
-  # Return modified df
-}
-```
-
-**Data Flow:**
-```
-User selects error rows → enters DTXSID → Validate button
-  → validate_dtxsid_bulk() → CompToxR exact search
-  → apply_manual_dtxsid() → update resolution_state
-  → Recalculate consensus_summary
-  → DT re-renders with updated status
-```
-
-**Key Considerations:**
-- Error rows: `df$consensus_status == "error"` (line 1379)
-- DT checkbox extension: `extensions = c('Buttons', 'Select')` and `select = 'multi'`
-- Bulk validation via `ct_chemical_search_equal_bulk()` (same function as exact search)
-- Manual entries should set `consensus_source = "manual"` to distinguish from API results
-- Should allow overriding ANY row (not just error), but default UI to error rows only
-
-**New vs Modified:**
-- **NEW:** `R/curation.R::validate_dtxsid_bulk()` (~20 lines)
-- **NEW:** `R/curation.R::apply_manual_dtxsid()` (~25 lines)
-- **MODIFIED:** `app.R::nav_panel("Review Results")` — add manual entry UI (lines 298-345)
-- **NEW:** `app.R::observeEvent(input$validate_manual_dtxsid)` (~50 lines)
-
----
-
-### Feature 5: Error Row Retry with Re-tagging and Result Merging
-
-**Integration Point:** Add workflow to Review Results tab that reruns curation on subset
-
-**New Components:**
-```
-UI (app.R):
-- "Retry Selected Rows" button (visible when error rows selected in DT)
-- Modal dialog with column tagging interface for selected rows only
-- "Re-curate Subset" button in modal
-
-Server (app.R):
-- observeEvent(input$retry_error_rows) — show modal with mini tag UI
-- observeEvent(input$run_subset_curation) — run pipeline on subset
-- Merge results back into resolution_state
-```
-
-**New Functions (R/curation.R):**
-```r
-run_curation_subset <- function(clean_data, row_indices, column_tags, progress_callback = NULL) {
-  # Extract subset: clean_data[row_indices, ]
-  # Run deduplicate → search → map → classify on subset
-  # Return subset results with original row indices preserved
-}
-
-merge_subset_results <- function(original_df, subset_df, row_indices, dtxsid_cols) {
-  # Replace rows in original_df with subset_df results
-  # Preserve original columns, update dtxsid_* and consensus_* columns
-  # Recalculate consensus_summary
-  # Return modified original_df
-}
-```
-
-**Data Flow:**
-```
-User selects error rows in DT → Retry button
-  → Modal with tag dropdowns (pre-filled from data_store$column_tags)
-  → User adjusts tags → Re-curate button
-  → run_curation_subset(clean_data, row_indices, new_tags)
-    → deduplicate → search → map → classify (on subset only)
-  → merge_subset_results(resolution_state, subset_results, row_indices)
-  → Update data_store$resolution_state
-  → Recalculate consensus_summary
-  → Close modal, DT re-renders
-```
-
-**Key Considerations:**
-- Need original `data_store$clean` data (preserved throughout session, line 537)
-- Row indices must be preserved through subset pipeline (`clean_data$.row_idx <- row_indices` before processing)
-- Tag changes only apply to subset, not global `data_store$column_tags`
-- Merged results may change consensus_status from "error" → "agree"/"disagree"/"single"
-- Progress callback should work with subset (smaller n)
-
-**New vs Modified:**
-- **NEW:** `R/curation.R::run_curation_subset()` (~60 lines, adapted from run_curation_pipeline)
-- **NEW:** `R/curation.R::merge_subset_results()` (~40 lines)
-- **MODIFIED:** `app.R::nav_panel("Review Results")` — add retry UI elements
-- **NEW:** `app.R::observeEvent(input$retry_error_rows)` — show modal (~30 lines)
-- **NEW:** `app.R::observeEvent(input$run_subset_curation)` — execute subset pipeline (~70 lines)
-
----
-
-## Suggested Build Order
-
-### Phase 1: Search Chain Foundations (lowest risk, high value)
-1. **Feature 1: Reorder search chain** (exact → CAS → starts-with)
-   - Modify `run_tiered_search()` tier order
-   - Update progress messages
-   - Test with existing data
-   - **Rationale:** Self-contained, no new UI, improves accuracy immediately
-
-2. **Feature 2: Other tags as searchable**
-   - Modify `deduplicate_tagged_columns()` to include Other in unique_names
-   - Test consensus still auto-detects dtxsid_* columns
-   - **Rationale:** Leverages existing map/classify logic, minimal change
-
-### Phase 2: UI Refinements (medium complexity, polish)
-3. **Feature 3: Hide untagged columns**
-   - Extend `hidden_cols` logic in `output$curation_table`
-   - Verify Excel export still includes all columns
-   - **Rationale:** Simple DT configuration change, no backend changes
-
-### Phase 3: Advanced Features (highest complexity, new workflows)
-4. **Feature 4: Manual DTXSID entry**
-   - Add `validate_dtxsid_bulk()` and `apply_manual_dtxsid()` functions
-   - Add manual entry UI to Review Results
-   - Add observeEvent for validation
-   - Test with invalid/valid DTXSIDs
-   - **Rationale:** New workflow, but single-direction (user → validation → update)
-
-5. **Feature 5: Error row retry**
-   - Add `run_curation_subset()` and `merge_subset_results()` functions
-   - Add retry UI and modal dialog
-   - Add subset curation observeEvent
-   - Test merging logic thoroughly
-   - **Rationale:** Most complex, requires subset pipeline + merge logic + modal UX
-
-### Dependency Rationale
-
-- **1 → 2:** Search reordering should stabilize before adding Other tags (both affect search tier distribution)
-- **2 → 3:** Other tags need to work before hiding untagged (validates that tagged columns show correct consensus)
-- **3 → 4:** Column hiding polish before adding manual entry (reduces visual clutter for manual workflow)
-- **4 → 5:** Manual entry is simpler workflow (no modal, no merge), test before subset retry complexity
-
----
-
-## Integration Patterns
-
-### Pattern 1: Reactive Data Store Extensions
-
-**What:** Adding new fields to `reactiveValues(data_store)` to support new features
-
-**Current fields:**
-```r
-data_store <- reactiveValues(
-  raw, clean, detection, file_info,       # Upload/detection
-  selected_columns, column_tags,           # Tagging
-  curation_results, curation_report, curation_status,  # Legacy
-  dedup_preview, consensus_data, consensus_summary,    # Pipeline
-  resolution_state, dtxsid_cols, priority_order        # Resolution
+data_store$reference_lists <- list(
+  stop_words = c("proprietary", "ingredient", "hazard", ...),
+  block_list = c("alcohol", "Acrylic Polymer", ...),
+  food_names = c("yeast culture", "food starch", ...),
+  functional_categories = c("fragrance", "parfum", "flavor", ...)
 )
 ```
 
-**New fields needed:**
-- `selected_rows` (for manual DTXSID entry and retry workflows)
-- `subset_tags` (for retry workflow, scoped to selected rows)
+### 3. Multi-Sheet Excel Export Architecture
 
-**When to use:** Any time a new workflow needs to preserve state between UI interactions
+**Decision: Extend existing `writexl::write_xlsx()` with additional sheets for cleaning state.**
 
-**Trade-offs:**
-- **Pro:** Centralized state, survives tab switches
-- **Con:** Large reactiveValues can trigger unnecessary re-renders (use `isolate()` when reading for non-reactive operations)
+**Why writexl over openxlsx:** writexl is 2x faster, writes smaller files, and ChemReg already depends on it.
 
----
+### 4. Re-Import Detection
 
-### Pattern 2: Function Composition in Curation Pipeline
-
-**What:** New features reuse existing pipeline functions (deduplicate → search → map → classify)
-
-**Example:**
-```r
-# Existing full pipeline
-run_curation_pipeline(clean_data, column_tags, progress_callback)
-  → deduplicate_tagged_columns()
-  → run_tiered_search()
-  → map_results_to_rows()
-  → classify_consensus()
-
-# New subset pipeline (Feature 5)
-run_curation_subset(clean_data, row_indices, column_tags, progress_callback)
-  → subset_data <- clean_data[row_indices, ]
-  → deduplicate_tagged_columns(subset_data, column_tags)  # REUSE
-  → run_tiered_search()                                    # REUSE
-  → map_results_to_rows()                                  # REUSE
-  → classify_consensus()                                   # REUSE
-  → add original row_indices to result
-```
-
-**When to use:** When new workflow is a variant of existing pipeline (different input scope, same logic)
-
-**Trade-offs:**
-- **Pro:** DRY, reuses tested logic, consistent behavior
-- **Con:** Functions must be pure (no side effects) to safely reuse in subset context
+**Decision: Check for "Metadata" sheet presence and `source = "ChemReg"` during upload.**
 
 ---
 
-### Pattern 3: Progressive Disclosure in DT
+## Recommended Build Order
 
-**What:** Show/hide UI elements based on row selection and consensus_status
+### Phase 1: Foundation (No UI Yet)
 
-**Current usage:**
-- Resolution dropdowns only appear for `consensus_status == "disagree"` rows (line 1384-1409)
-- Pinned rows show pin icon instead of dropdown (line 1385-1388)
+1. **P1.1: Create `R/cleaning_reference.R`** — 4 functions returning character vectors
+2. **P1.2: Create `R/pre_curation.R` — Part 1** — Infrastructure (`append_comment`, `canonicalize_strings`)
+3. **P1.3: `R/pre_curation.R` — Part 2** — 21 cleaning functions per PRE_POST_CURATION_PLAN.md
+4. **P1.4: `R/pre_curation.R` — Part 3** — Pipeline orchestrator `run_pre_curation()`
 
-**New usage:**
-- Manual DTXSID entry UI only enabled when error rows selected
-- Retry workflow button only visible when rows selected in DT
+**Dependencies:** None
+**Time estimate:** 3-5 days
 
-**Implementation:**
-```r
-# In UI
-conditionalPanel(
-  condition = "output.has_selected_rows && output.all_selected_are_errors",
-  actionButton("retry_error_rows", "Retry Selected Rows")
-)
+### Phase 2: UI Integration (Inline in app.R)
 
-# In server
-output$has_selected_rows <- reactive({
-  length(input$curation_table_rows_selected) > 0
-})
-outputOptions(output, "has_selected_rows", suspendWhenHidden = FALSE)
+5. **P2.1: Extend `data_store` reactiveValues** — Add cleaned_data, cleaning_audit, cleaning_stats, reference_lists
+6. **P2.2: Source new helper modules**
+7. **P2.3: Add Clean Data tab UI**
+8. **P2.4: Add cleaning observers**
+9. **P2.5: Update Tag Columns to use `cleaned_data`**
+10. **P2.6: Update cascade reset on re-upload**
 
-output$all_selected_are_errors <- reactive({
-  req(data_store$resolution_state, input$curation_table_rows_selected)
-  selected_statuses <- data_store$resolution_state$consensus_status[input$curation_table_rows_selected]
-  all(selected_statuses == "error")
-})
-outputOptions(output, "all_selected_are_errors", suspendWhenHidden = FALSE)
-```
+**Dependencies:** Phase 1 complete
+**Time estimate:** 2-3 days
 
-**Trade-offs:**
-- **Pro:** Reduces UI clutter, guides user to valid actions
-- **Con:** Requires reactive outputs for conditionalPanel (can't use `req()` in condition string)
+### Phase 3: Multi-Sheet Export
 
----
+11. **P3.1: Extend Excel export handler** — Add Cleaning Audit, Stats, Reference Lists, Metadata sheets
+12. **P3.2: Implement re-import detection** — Hot-load embedded state
 
-## Data Flow: New Features
+**Dependencies:** Phase 2 complete
+**Time estimate:** 1 day
 
-### Manual DTXSID Entry Flow
+### Phase 4: Post-Curation QC (Optional for v1.3.0)
 
-```
-Review Results DT
-  → User selects error rows (DT select extension)
-  → User enters DTXSID in text input
-  → Click "Validate & Apply"
-    ↓
-observeEvent(input$validate_manual_dtxsid)
-  → dtxsid <- input$manual_dtxsid_input
-  → selected_rows <- input$curation_table_rows_selected
-    ↓
-validate_dtxsid_bulk(dtxsid)
-  → ComptoxR::ct_chemical_search_equal_bulk(dtxsid)
-  → Returns: is_valid, preferredName
-    ↓
-If valid:
-  apply_manual_dtxsid(data_store$resolution_state, selected_rows, dtxsid, dtxsid_cols)
-    → Set consensus_dtxsid = dtxsid
-    → Set consensus_status = "agree"
-    → Set consensus_source = "manual"
-    → Set .pinned = TRUE
-    ↓
-  Update data_store$resolution_state
-  Update data_store$consensus_summary
-  DT re-renders (updated row shows "agree" status)
-```
+13. **P4.1: Create `R/post_curation.R`** — QC functions (CAS validation, Unicode check, functional use lookup)
+14. **P4.2: Wire post-curation into Review Results tab**
 
-### Subset Retry Flow
+**Dependencies:** Phase 3 complete
+**Time estimate:** 1-2 days
 
-```
-Review Results DT
-  → User selects error rows
-  → Click "Retry Selected Rows"
-    ↓
-showModal(modalDialog(
-  title = "Re-tag and Re-curate Selected Rows",
-  uiOutput("subset_tagging_ui"),  # Column tag dropdowns pre-filled
-  actionButton("run_subset_curation", "Re-curate Subset")
-))
-    ↓
-User adjusts tags in modal
-  → Click "Re-curate Subset"
-    ↓
-observeEvent(input$run_subset_curation)
-  → selected_rows <- input$curation_table_rows_selected
-  → subset_tags <- collect tags from modal inputs
-  → subset_data <- data_store$clean[selected_rows, ]
-    ↓
-run_curation_subset(subset_data, selected_rows, subset_tags, progress_callback)
-  → deduplicate → search → map → classify (on subset only)
-  → Returns: subset_results with .row_idx preserved
-    ↓
-merge_subset_results(data_store$resolution_state, subset_results, selected_rows, dtxsid_cols)
-  → Replace dtxsid_*, preferredName_*, consensus_* columns for selected rows
-  → Recalculate consensus_summary
-  → Return updated df
-    ↓
-Update data_store$resolution_state
-Update data_store$consensus_summary
-removeModal()
-DT re-renders (updated rows show new consensus)
-```
+### Phase 5: Refactor to Modules (Future, v1.4+)
+
+15. **P5.1: Extract cleaning module**
+16. **P5.2: Extract curation module**
+
+**Dependencies:** Phase 2-4 proven stable
+**Time estimate:** 3-4 days
 
 ---
 
-## Anti-Patterns
+## Data Flow Changes: Before vs After
 
-### Anti-Pattern 1: Modifying Global column_tags in Subset Workflow
+### Current Flow (v1.2)
 
-**What people might do:** Update `data_store$column_tags` when user re-tags subset rows
-
-**Why it's wrong:**
-- Global tags apply to ALL rows in next full curation run
-- Subset re-tagging is row-specific override, not global preference change
-- Would confuse users if they re-run full curation and see unexpected tags
-
-**Do this instead:**
-- Store subset tags in local variable or `data_store$subset_tags` (ephemeral)
-- Pass subset tags ONLY to `run_curation_subset()`
-- Do NOT update `data_store$column_tags`
-
----
-
-### Anti-Pattern 2: Rerunning Full Pipeline for Manual DTXSID Entry
-
-**What people might do:** Call `run_curation_pipeline()` after manual DTXSID entry to "refresh" results
-
-**Why it's wrong:**
-- Wastes API calls (re-searches all rows)
-- Slow UX (user sees progress spinner for simple update)
-- Overwrites manual entries (pipeline would re-classify and lose manual override)
-
-**Do this instead:**
-- Directly update `data_store$resolution_state` with manual DTXSID
-- Set `.pinned = TRUE` to preserve manual entry
-- Recalculate `consensus_summary` counts without re-running pipeline
-- Only call API for validation (`validate_dtxsid_bulk()`), not full search
-
----
-
-### Anti-Pattern 3: Losing Row Indices in Subset Pipeline
-
-**What people might do:** Run pipeline on `clean_data[selected_rows, ]` without preserving original row indices
-
-**Why it's wrong:**
-- Subset results have row indices 1:n (where n = number of selected rows)
-- Original data has row indices that may not be contiguous (e.g., c(5, 12, 47))
-- Merge function needs original indices to update correct rows
-
-**Do this instead:**
-```r
-# Before pipeline
-subset_data <- clean_data[selected_rows, ]
-subset_data$.original_row_idx <- selected_rows
-
-# After pipeline
-merge_subset_results(original_df, subset_df, subset_df$.original_row_idx, dtxsid_cols)
 ```
+Upload → data_store$raw
+    ↓
+detect_data_start() → data_store$clean
+    ↓
+Tag Columns → data_store$column_tags
+    ↓
+run_curation(clean) → data_store$curation_results
+    ↓
+classify_consensus() → data_store$consensus_data
+    ↓
+Export (3 sheets)
+```
+
+### New Flow (v1.3)
+
+```
+Upload → data_store$raw
+    ↓
+detect_data_start() → data_store$clean
+    ↓
+run_pre_curation(clean) → data_store$cleaned_data ◄── NEW
+    ↓
+Tag Columns (uses cleaned_data) → data_store$column_tags
+    ↓
+run_curation(cleaned_data) → data_store$curation_results ◄── CHANGED INPUT
+    ↓
+classify_consensus() → data_store$consensus_data
+    ↓
+run_post_curation(consensus_data) → QC warnings ◄── NEW
+    ↓
+Export (7 sheets) ◄── NEW
+```
+
+**Critical change:** Curation pipeline input switches from `data_store$clean` to `data_store$cleaned_data`. This must be wired in `observeEvent(input$run_curation)`.
+
+---
+
+## Anti-Patterns to Avoid
+
+### Anti-Pattern 1: Modularizing Too Early
+
+**What people do:** Extract the Clean Data tab into a module before the pipeline is proven stable.
+
+**Why it's wrong:** Module communication adds complexity, debugging is harder, boundaries may need redrawing during development.
+
+**Do this instead:** Build inline first, prove the pipeline works, THEN extract to module.
+
+### Anti-Pattern 2: Over-Engineering Reference List Storage
+
+**What people do:** Store reference lists in a database or external YAML config file.
+
+**Why it's wrong:** Reference lists are small, change infrequently, and are user-editable. Adding database/file I/O increases deployment complexity.
+
+**Do this instead:** Store in `data_store$reference_lists` as in-memory character vectors, export with Excel multi-sheet.
+
+### Anti-Pattern 3: Reactive Dependency Chains for Cascade Reset
+
+**What people do:** Rely on reactive invalidation to cascade resets.
+
+**Why it's wrong:** Reactive chains can trigger partial updates, hard to reason about order, causes flickering UI.
+
+**Do this instead:** Explicit `data_store$field <- NULL` assignments, centralize reset logic in helper functions.
+
+### Anti-Pattern 4: Using openxlsx for Simple Multi-Sheet Export
+
+**What people do:** Add openxlsx dependency for multi-sheet export because it has more features.
+
+**Why it's wrong:** ChemReg already uses writexl, which is 2x faster and produces smaller files. openxlsx features (styling, formulas) are not needed.
+
+**Do this instead:** Use writexl::write_xlsx() with a named list of data frames.
 
 ---
 
 ## Scaling Considerations
 
-### Current Scale (v1.2)
-- **Rows:** 10-10,000 rows per file (typical chemical inventory)
-- **Columns:** 5-50 columns (1-10 tagged for curation)
-- **API calls:** Deduplicated, typically 100-5,000 unique names/CAS per file
+| Scale | Architecture Adjustments |
+|-------|--------------------------|
+| 1-1,000 rows per file | Current inline architecture is fine; no changes needed |
+| 1,000-50,000 rows | Pre-curation pipeline may slow down; consider withProgress() for long-running cleaning steps |
+| 50,000+ rows | Consider chunked processing, background jobs (promises + future), async curation |
 
-**Architecture is appropriate for scale:**
-- Single-file uploads (no batch processing needed)
-- In-memory processing (reactiveValues, no database)
-- Synchronous API calls with progress feedback
+### First Bottleneck: Pre-Curation Runtime
 
-### Future Bottlenecks (if scaling to 100k+ rows)
+For large files (>10k rows), the 21-step pipeline may take >10 seconds.
 
-1. **DT rendering:** Large DT tables (>10k rows) may lag in browser
-   - **Mitigation:** Server-side processing (`DT::renderDT(..., server = TRUE)`)
-   - **When:** If users upload files with >10k rows regularly
+**Solution:** Wrap `run_pre_curation()` in `withProgress()` (already proven in existing curation pipeline).
 
-2. **API rate limits:** CompToxR bulk endpoints may throttle
-   - **Mitigation:** Batch API calls (already doing via `_bulk()` functions)
-   - **When:** If unique names exceed API rate limits (check ComptoxR docs)
+### Second Bottleneck: Multi-Sheet Excel Export
 
-3. **Memory:** reactiveValues stores full dataset + results in session
-   - **Mitigation:** Switch to database backend (DuckDB, SQLite)
-   - **When:** If file sizes exceed 100MB or concurrent users stress server RAM
+For files with >50k rows and 7 sheets, writexl may take >5 seconds.
 
-**Current v1.2 scope:** No scaling changes needed. Features 1-5 maintain current architecture.
+**Solution:** Generate Excel file asynchronously using future/promises (deferred to v1.4+).
+
+---
+
+## Integration Testing Strategy
+
+### Test 1: Upload → Clean → Tag → Curate → Export (Happy Path)
+
+1. Upload `data/chemical_validation_test.csv` (172 rows)
+2. Verify Clean Data tab appears with summary cards
+3. Verify `data_store$cleaned_data` has 21 cleaning steps applied
+4. Tag columns, verify tagging uses cleaned_data
+5. Run curation, verify consensus uses cleaned_data
+6. Export, verify 7 sheets present in Excel
+
+### Test 2: Reference List Edit → Re-Run Cleaning
+
+1. Upload file
+2. Edit stop words list (add "foo", "bar")
+3. Click "Re-run Cleaning"
+4. Verify cleaned_data updated, tags/curation reset
+5. Verify new stop words flagged in cleaning audit
+
+### Test 3: Re-Import ChemReg Export
+
+1. Export curated data
+2. Close app, restart
+3. Re-upload exported Excel file
+4. Verify metadata detected, state restored
+5. Verify cleaned_data, reference_lists, column_tags all present
+
+### Test 4: Backward Compatibility (Non-ChemReg Excel)
+
+1. Upload a normal Excel file (not ChemReg export)
+2. Verify normal upload flow (no hot-load)
+3. Verify cleaning runs, app functions normally
+
+### Test 5: Cascade Reset on Re-Upload
+
+1. Upload file, clean, tag, curate
+2. Re-upload different file
+3. Verify confirmation modal appears
+4. Confirm replacement
+5. Verify ALL state reset (cleaned_data, tags, curation, reference_lists)
 
 ---
 
 ## Sources
 
-- **Existing codebase:** app.R (1,719 lines), R/curation.R (624 lines), R/consensus.R (229 lines)
-- **Shiny patterns:** [Mastering Shiny - Reactivity](https://mastering-shiny.org/basic-reactivity.html) (MEDIUM confidence, year 2025)
-- **DT extensions:** [DT package documentation - Select extension](https://rstudio.github.io/DT/extensions.html) (HIGH confidence, official docs)
-- **ComptoxR API:** [ComptoxR GitHub](https://github.com/cran/ComptoxR) (HIGH confidence, package source)
+### Shiny Architecture and Modules
+- [Engineering Production-Grade Shiny Apps - Chapter 3: Structuring Your Project](https://engineering-shiny.org/structuring-project.html)
+- [Shiny - Modularizing Shiny app code (Official Posit Guide)](https://shiny.posit.co/r/articles/improve/modules/)
+- [Mastering Shiny - Chapter 19: Shiny modules](https://mastering-shiny.org/scaling-modules.html)
+- [How to Modularize an Existing Shiny App](https://dataenthusiast.ca/2023/how-to-modularize-existing-shiny-app/)
+- [A beginner's guide to Shiny modules - Emily Riederer](https://emilyriederer.netlify.app/post/shiny-modules/)
+- [5 Modularization - Shiny App Workflows](https://b-klaver.github.io/shinyWorkflows/modularization.html)
+
+### Reactive Programming and State Management
+- [Mastering Shiny - Chapter 15: Reactive building blocks](https://mastering-shiny.org/reactivity-objects.html)
+- [Mastering Shiny - Chapter 16: Escaping the graph](https://mastering-shiny.org/reactivity-components.html)
+- [How to Modify Reactive Values in Shiny Apps - Nela Tomić](https://medium.com/@netomics/modifying-reactive-values-in-shiny-apps-f5df29fb6603)
+- [Communication between modules and its whims - Rtask](https://rtask.thinkr.fr/communication-between-modules-and-its-whims/)
+- [Shiny Modules (part 2): Share reactive among multiple modules - ArData](https://www.ardata.fr/en/post/2019/04/26/share-reactive-among-shiny-modules/)
+
+### Excel Multi-Sheet Export/Import
+- [R: How to Export Data Frames to Multiple Excel Sheets - Statology](https://www.statology.org/r-export-to-excel-multiple-sheets/)
+- [Read Excel Files - readxl package](https://readxl.tidyverse.org/)
+- [How to read a XLSX file with multiple Sheets in R? - GeeksforGeeks](https://www.geeksforgeeks.org/r-language/how-to-read-a-xlsx-file-with-multiple-sheets-in-r/)
+- [Introduction - openxlsx package](https://ycphs.github.io/openxlsx/articles/Introduction.html)
+
+### Shiny Configuration and Editable Data
+- [Mastering Shiny - Chapter 10: Dynamic UI](https://mastering-shiny.org/action-dynamic.html)
+- [Shiny module to interactively edit a data.frame - datamods package](https://dreamrs.github.io/datamods/reference/edit-data.html)
 
 ---
 
-*Architecture research for: ChemReg v1.2 Curation Refinement*
-*Researched: 2026-03-01*
+*Architecture research for: ChemReg v1.3 Pre/Post-Curation Cleaning Pipeline Integration*
+*Researched: 2026-03-04*
+*Confidence: HIGH (Shiny patterns verified via official documentation and community best practices; multi-sheet export confirmed via package docs)*

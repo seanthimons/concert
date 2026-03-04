@@ -1,255 +1,335 @@
 # Project Research Summary
 
-**Project:** ChemReg v1.2 Curation Refinement
-**Domain:** Chemical inventory data curation tool (R Shiny application)
-**Researched:** 2026-03-01
+**Project:** ChemReg v1.3 Data Cleaning Pipeline
+**Domain:** R/Shiny chemical inventory data cleaning and curation
+**Researched:** 2026-03-04
 **Confidence:** HIGH
 
 ## Executive Summary
 
-ChemReg v1.2 is a curation refinement milestone that builds entirely on the existing stack with zero new dependencies. All planned features—bulk DTXSID validation, error row retry with re-tagging, smarter column visibility, richer resolution context, search chain reordering, and "Other" tag curation participation—can be implemented using capabilities already present in the codebase (ComptoxR 1.4.0, DT with Buttons extension, standard Shiny reactive patterns). The research reveals that this milestone is more about code logic refinement and UI polish than about integrating new technologies.
+ChemReg v1.3 adds pre/post-curation data cleaning to the existing upload → detect → tag → curate workflow. Research confirms this is **low-risk, high-value enhancement** requiring only 2 new dependencies (openxlsx2 for multi-sheet Excel export, rhandsontable for editable reference lists). The 21-step cleaning pipeline follows established data transformation patterns (OpenRefine, Trifacta) with transparent audit trails and before/after comparison. Chemical-specific cleaning (CAS rescue, functional use flagging, IUPAC name handling) has no commercial analogs — this is greenfield opportunity built on the solid ComptoxR foundation already in use.
 
-The recommended approach prioritizes search accuracy improvements first (reordering the search chain to exact → CAS → starts-with and enabling "Other" tags in full curation), followed by UI refinements that reduce cognitive load (hiding untagged columns automatically), and finally advanced workflows that improve error recovery (manual DTXSID entry and subset retry with re-tagging). This ordering minimizes risk by establishing data quality foundations before introducing complex merge-back workflows.
+The recommended approach is **inline implementation first, modularize later**. The current app.R is 2,275 lines with a working reactiveValues() state pattern. Adding the "Clean Data" tab inline (Phase 1-4) is faster and lower-risk than refactoring to modules upfront. Extract modules in v1.4+ once the pipeline is proven stable. Critical architectural decision: cleaning must precede tagging in the workflow cascade, requiring explicit reset logic when reference lists change or files are re-uploaded.
 
-Key risks center around three areas: (1) **search precision collapse** if starts-with search moves to last-resort position without proper filtering—requires empirical validation on sample datasets before deployment; (2) **consensus algorithm confusion** when "Other" tagged columns participate equally in voting alongside Name and CASRN columns—needs semantic decision on whether Other columns vote, observe, or vote with reduced weight; (3) **retry merge state loss** if error row retry uses join-based merging instead of index-based replacement—must preserve row order and .pinned state to avoid breaking user mental model. All three risks are mitigable through careful testing and deliberate architectural choices documented in PITFALLS.md.
+Key risks center on **synonym splitting breaking IUPAC names** (commas in inverted forms like "butane, 2,2-dimethyl" vs. synonym separators), **reactive cascade explosion** from editable reference lists (UI freezing on every edit), and **Excel export failures** from audit trail columns exceeding cell/column limits. All three are mitigated with explicit protection rules (Phase 3), debounced edits with "Apply Changes" buttons (Phase 4), and separate audit trail sheets (Phase 1). The pitfalls research provides detailed detection and recovery strategies for each risk.
 
 ## Key Findings
 
 ### Recommended Stack
 
-**No new dependencies required.** The existing stack (R 4.5.1, Shiny, bslib, DT, ComptoxR 1.4.0, tidyverse) already provides all capabilities needed for v1.2 features. ComptoxR's `chemi_amos_batch()` function supports bulk DTXSID validation, DT's Buttons extension provides column visibility controls via `columnDefs`, and standard Shiny reactive patterns handle row selection and subset workflows. The pipeline already captures `preferredName` and `rank` from CompTox API responses—these just need to be surfaced in the resolution dropdown HTML.
+ChemReg's existing stack already provides 90% of needed capabilities. Only 2 packages need to be added:
 
 **Core technologies:**
-- **ComptoxR 1.4.0** (existing): CompTox API access — `chemi_amos_batch()` function enables bulk DTXSID validation without additional packages
-- **DT with Buttons extension** (existing): Interactive tables with column visibility — `columnDefs: list(visible = FALSE)` and `colvis` button already in use, just needs configuration expansion
-- **Shiny reactiveValues pattern** (existing): State management — `input$tableId_rows_selected` provides row selection for subset workflows, no special packages needed
-- **bslib modals** (existing): UI dialogs — native `modalDialog()` and `showModal()` sufficient for re-tagging UI during error retry
+- **openxlsx2** (NEW): Multi-sheet Excel export with metadata — only package supporting arbitrary metadata sheets (audit trails, reference lists, manifest) and workbook properties for re-import detection. Replaces writexl for export only.
+- **rhandsontable** (NEW): Editable reference lists with Excel-like UX — supports add/remove rows, dropdown validation, inline editing. DT with editable=TRUE only supports cell replacement, not row operations.
+- **stringi** (existing via tidyverse): Unicode detection with `stri_enc_isascii()` — already available through stringr dependency.
+- **withProgress()** (existing Shiny built-in): Pipeline progress tracking — already used in tiered curation, same pattern works for 21-step cleaning.
+- **readxl** (existing): Multi-sheet Excel import and re-import detection via `excel_sheets()` — keep for all import needs.
+
+**Architecture notes:** Use openxlsx2 for export, readxl for import. They complement each other. Use DT for display tables (fast, 10x faster than rhandsontable on large data), rhandsontable for editing small reference lists (10-50 rows). ComptoxR remains the core dependency for chemical cleaning (CAS validation, Unicode cleaning, formula extraction).
+
+**Package to remove:** writexl (replaced by openxlsx2 for export)
 
 ### Expected Features
 
-The v1.2 feature landscape reveals a mix of table stakes (error row filtering, column visibility, manual identifier entry) and differentiators (smart auto-hiding of untagged columns, re-tag before retry, contextual resolution dropdowns with preferredName + rank). Research shows that bulk validation and subset retry are industry-standard patterns in data curation tools (AWS DMS, Databricks CDC pipelines) and users expect them for large datasets.
-
 **Must have (table stakes):**
-- **Error row filtering** — users expect ability to focus on problems (complexity: LOW, already exists via consensus_status filter)
-- **Column visibility toggle** — universal table feature for messy multi-column data (complexity: LOW, DT colvis extension)
-- **Manual identifier entry** — standard fallback when automated matching fails (complexity: MEDIUM, requires validation API + reactive handling)
-- **Bulk validation** — avoid round-trip API calls for each manual entry (complexity: MEDIUM, CompTox Batch Search supports thousands at once)
-- **Subset retry** — industry standard for large datasets, re-run failed items without full reprocess (complexity: MEDIUM, filter → modify → re-run → merge back pattern)
+- Tabular data preview (before/after comparison) — users validate by seeing transformation impact
+- Undo/redo or re-run capability — OpenRefine standard, users expect reversibility
+- Visual flag distinction — red/blocking vs. yellow/warning vs. blue/info (universal UX pattern)
+- Summary statistics cards — "X CAS rescued", "Y formulas detected", "Z flagged for review"
+- Exportable results with audit trail — transparency and reproducibility baseline
 
 **Should have (differentiators):**
-- **Smart column hiding (auto-hide untagged)** — reduces cognitive load, most tools require manual toggle (complexity: LOW, single checkbox + reactive filter)
-- **Re-tag before retry** — unique workflow: fix tag assignment and retry just errors (complexity: MEDIUM, subset-only tag invalidation vs. full cascade)
-- **Contextual resolution dropdown** — show preferredName + QC level + rank, not just DTXSID (complexity: LOW-MEDIUM, data already available from pipeline)
-- **Search chain reordering** — prioritize CAS validation over starts-with fuzzy matching (complexity: LOW, reorder function calls in `run_tiered_search()`)
+- **Per-row audit trail** — "What changed and why?" for every transformation, displayed via DT child rows
+- **Editable reference lists** — curators tune stop words/block lists without developer intervention
+- **Blocking vs annotating flags** — blocking flags (formulas, empty names) stop curation; annotating flags (mixtures, functional categories) warn but proceed
+- **Multi-sheet Excel export** — data + audit trail + reference lists + config + data dictionary in one file
+- **Re-import detection** — recognize ChemReg exports, hot-load embedded reference lists and pipeline config
+- **CAS-RN rescue pipeline** — extract CAS from name columns, validate checksums, split multi-CAS cells (no generic tool does this)
+- **Functional use flagging** — detect "Fragrance", "Flavor", "Surfactant" as non-chemical categories
+- **Post-curation QC** — re-validate CAS after API resolution, enrich with functional use + safety flags
 
-**Defer (v2+):**
-- **Inline editing of all cells** — scope creep, this is curation not general spreadsheet editing (complexity: HIGH, DT editable cells + validation loop)
-- **Retry with search tier override** — power user feature, defer until demand proven (complexity: HIGH, per-row search strategy parameters)
-- **Persistent preferences across sessions** — complexity not justified by value for single-file workflow (complexity: MEDIUM-HIGH, session state management across page refresh)
+**Defer (anti-features):**
+- Fully manual cell-by-cell editing — doesn't scale; use batch operations + flag exceptions
+- Drag-and-drop pipeline builder — high complexity, low ROI; fixed pipeline with enable/disable toggles is sufficient
+- Real-time cleaning as-you-type — confusing; preview cleaned data, apply on button click
+- AI/ML-powered "smart" cleaning — opaque audit trail, chemical names too domain-specific
 
 ### Architecture Approach
 
-The curation refinement features integrate cleanly into the existing pipeline architecture without requiring structural changes. The current system uses a four-stage pipeline (deduplicate → search → map → classify) that processes tagged columns through tiered CompTox API searches (exact → starts-with → CAS) and produces consensus results with resolution dropdowns for conflicts. New features either modify the pipeline order (search chain reordering), expand input scope (Other tags as searchable), or add parallel workflows that reuse pipeline components (subset retry).
+ChemReg follows the **reactive state management pattern** with explicit cascade resets. Current flow: Upload → detect → preview → tag → curate → review. New flow inserts cleaning between preview and tag: Upload → detect → preview → **clean** → tag → curate → **post-curation QC** → review. Critical change: curation now operates on `cleaned_data` not `clean`, requiring explicit wiring in the "Run Curation" observer.
 
 **Major components:**
-1. **Pipeline modifications** (R/curation.R) — reorder search tiers in `run_tiered_search()`, expand `deduplicate_tagged_columns()` to include Other tags, add `validate_dtxsid_bulk()` and `run_curation_subset()` helper functions
-2. **Resolution state updates** (app.R) — extend `output$curation_table` hidden columns logic to include untagged original columns, modify `get_resolution_options()` to format dropdown HTML with preferredName/rank/qc_tier metadata
-3. **Subset retry workflow** (app.R + R/curation.R) — new UI elements (retry button, modal dialog with tag dropdowns), new server observers for subset execution and merge-back logic using index-based replacement to preserve row order and .pinned state
+1. **R/pre_curation.R** — 21 cleaning functions + pipeline orchestrator with `withProgress()` tracking
+2. **R/post_curation.R** — QC functions (CAS re-validation, Unicode check, functional use enrichment)
+3. **R/cleaning_reference.R** — 4 functions returning character vectors (stop words, block list, functional categories, food names)
+4. **Clean Data tab (inline in app.R)** — summary cards, reference list editors (rhandsontable), before/after preview (DT), re-run cleaning button
+5. **Extended data_store reactiveValues** — add cleaned_data, cleaning_audit, cleaning_stats, reference_lists
 
-**Key integration patterns:**
-- **Function composition**: Subset retry reuses existing pipeline functions (deduplicate → search → map → classify) on filtered data
-- **Reactive data store extensions**: Add `selected_rows` and `subset_tags` to reactiveValues for retry workflow state
-- **Progressive disclosure**: Show manual entry and retry UI only when appropriate rows selected (error rows for manual entry, selected rows for retry)
+**State management pattern:** Explicit `data_store$field <- NULL` assignments on state changes, not reactive dependency chains. This prevents partial state inconsistencies. New cascade rule: editing reference lists + re-running cleaning invalidates tags, curation, consensus, and resolution (all downstream state).
+
+**Modularization strategy:** Inline implementation first (Phase 1-4), extract to modules later (v1.4+). Building inline is lower risk, faster to ship, and easier to debug during initial development. Once stable, extract using the "stratégie du petit r" pattern (incremental refactoring with tests).
 
 ### Critical Pitfalls
 
-Research identified six critical pitfalls across the feature set, with clear prevention strategies documented:
+1. **Synonym splitting breaking IUPAC names** — Comma-based splitting (`"xylene, dimethylbenzene"`) falsely splits inverted IUPAC names (`"butane, 2,2-dimethyl"`) where commas are syntactically significant. **Mitigation:** Protect digit-comma-digit patterns, parenthetical content, detect inverted form via `^[A-Z][a-z]+,\s+\d` regex. Log all splits. Write 20+ test cases covering edge cases before deployment (Phase 3).
 
-1. **DT Column Index Drift After Hiding Columns** — When hiding columns via `columnDefs: list(visible = FALSE)`, JS callbacks using `data-row` attributes for R-side row indices (1-based) can misalign if mixing with DT column indices (0-based, visible only). Prevention: Always use R-side row indices in `data-row` attributes, never mix with DT column indices in callbacks, test with 0/1/10+ hidden columns scenarios.
+2. **Reactive cascade explosion from editable reference lists** — Single stop-word edit triggers full 21-step pipeline re-run, tag invalidation, curation invalidation, causing 5-10 seconds of UI freeze. **Mitigation:** Add explicit "Apply Changes" button (don't auto-rerun on keystroke), debounce edits with `debounce(reactiveVal, millis=2000)`, use `isolate()` on display outputs. Show diff preview before re-running (Phase 4).
 
-2. **Starts-With Search Precision Collapse** — Moving starts-with to last-resort position (exact → CAS → starts-with) may degrade match quality because starts-with returns ALL prefix matches with no relevance filtering. For short queries like "Acet" or "Prop", this produces 100+ matches and `slice_min(rank, n=1)` arbitrarily picks top-ranked, which may not be user's intended chemical. Prevention: Run empirical validation on sample datasets with both tier orders, add length-based filtering (only use starts-with for queries 6+ characters), log tier attribution to audit match quality.
+3. **App.R crossing 3,000 lines without modularization** — File already at 2,275 lines will grow to 3,000+ with cleaning tab, becoming unmaintainable (10+ minute LLM context load, difficult dependency tracing, high merge conflicts). **Mitigation:** Extract existing 6 tabs into modules BEFORE adding Phase 1 (8-12 hour refactoring). Target app.R <500 lines (orchestration only). Each module gets own state, communicates via return values.
 
-3. **Consensus Algorithm Breaks with Three Column Types** — The consensus logic assumes all dtxsid_* columns are semantically equivalent (Name or CASRN tags). When "Other" columns become curation participants, you have three tag types with different reliability levels, but consensus counts them equally. A 2-name + 1-CAS agreement gets the same QC tier as 3-name agreement, even though CAS is more reliable. Prevention: Decide Other's consensus role (vote equally vs. reduced weight vs. observe-only), update `find_dtxsid_cols` with tag awareness, revise QC tier calculation to be tag-type aware.
+4. **Progress tracking lies in multi-step pipeline** — 21 steps with equal weight (5% each) but step 17 (`split_multi_cas()`) takes 40% of runtime; progress sits at 80% for 30 seconds. **Mitigation:** Measure empirical step weights via benchmarking 1,000-row test dataset, use weighted `incProgress(amount=step_weight)`. Show absolute time estimates. Separate fast vs. slow steps (Phase 1).
 
-4. **Retry Merge Loses Resolution State** — Using `left_join()` to merge retried subset back into original data creates duplicated columns (dtxsid_Name.x, dtxsid_Name.y) and loses .pinned state or row order. Prevention: Use row index-based replacement `original[indices, cols] <- retried[match(...), cols]` instead of join, preserve .pinned explicitly before merge, validate row count invariant (nrow unchanged).
+5. **Audit trail columns causing Excel export failure** — Pipe-separated comment strings grow to 500-1,000+ characters, exceeding Excel's 32,767 character cell limit. Wide dataframes (50+ columns) hit 16,384 column limit. **Mitigation:** Truncate displayed comments to 500 chars, store full trail in separate "Audit_Trail" sheet. Validate limits before export with `validate_excel_limits()` helper. Show warning if dataset too large for Excel format (Phase 1 + Phase 6).
 
-5. **Manual DTXSID Entry Bypasses Validation** — Manual entry creates a new path that bypasses the pipeline's guaranteed API-validated IDs. Invalid DTXSIDs (typos, wrong format, non-existent) flow into consensus_dtxsid, breaking downstream assumptions. Prevention: Validate via `ComptoxR::ct_get_dtxsid_details()` before storing, batch validation for bulk paste, store `consensus_source = "manual"` and `manual_validated = TRUE/FALSE` columns, provide instant feedback with green checkmark/red X.
+6. **Re-import detection overwriting user edits** — App detects ChemReg export, auto-restores embedded reference lists and tags, silently overwriting any in-session modifications. **Mitigation:** Detect state divergence, show modal: "Restore embedded settings or keep current settings?" with side-by-side diff. Track modification timestamps. Never auto-restore without confirmation (Phase 1).
 
-6. **Hidden Column Filter Breaks DT Filtering** — DT's `filter = "top"` generates filter inputs for ALL columns including hidden ones. Invisible filters accumulate state (browser autocomplete, user typing before hiding), causing mysterious empty table states. Prevention: Remove hidden columns from display_df before passing to datatable(), or disable filtering on hidden columns via `searchable: FALSE` in columnDefs.
+7. **Flag behavior confusion (blocking vs. annotating)** — All flags displayed identically despite different behaviors; blocking flags stop curation, annotating flags warn but proceed. Users overwhelmed by 40% of rows flagged with 5+ types. **Mitigation:** Implement 3-tier visual taxonomy (red/blocking, yellow/warning, blue/info). Default view shows only blocking flags, collapsible sections for warnings. Add tooltip explanations and override mechanism (v1.3 Design Phase + Phase 4).
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure prioritizes foundational accuracy improvements, then UI polish, then advanced workflows:
+Based on research, suggested phase structure:
 
-### Phase 1: Search Chain Foundations
-**Rationale:** Lowest risk, highest immediate value. Improves data quality without introducing new UI complexity or merge-back workflows. Search chain reordering (exact → CAS → starts-with) prioritizes specific identifiers over fuzzy matching, and enabling Other tags expands curation coverage. Both are self-contained backend changes with no new state management.
+### Phase 0: Refactor Before Building (CRITICAL)
+**Rationale:** App.R already at 2,275 lines. Adding 800+ lines of cleaning UI without modularization creates technical debt that compounds over time (Pitfall #3). Extract existing tabs into modules now before adding new features.
 
-**Delivers:** More accurate chemical matching via CAS-prioritized search tier order, full curation participation for "Other" tagged columns
+**Delivers:**
+- 6 modules: `mod_data_preview`, `mod_detection_info`, `mod_raw_data`, `mod_tag_columns`, `mod_run_curation`, `mod_review_results`
+- R/ directory with proper structure (`R/modules/`, existing helpers stay in `R/`)
+- app.R reduced to <500 lines (orchestration only)
+- Tests proving all existing functionality still works
 
-**Addresses:**
-- Search chain reordering (FEATURES.md: differentiator, code change only)
-- "Other" tag as full curation participant (FEATURES.md: differentiator, code change only)
+**Time estimate:** 8-12 hours
+**Risk mitigation:** Prevents "unmaintainable monolith" pattern before adding complexity
 
-**Avoids:**
-- Starts-With Search Precision Collapse (PITFALLS.md #2): Empirical validation on sample datasets before deployment
-- Consensus Algorithm Breaks with Three Column Types (PITFALLS.md #3): Decide Other's consensus role and update logic before enabling Other search
+---
 
-**Research flag:** NEEDS empirical validation — test tier order (exact → CAS → starts vs. exact → starts → CAS) on 100-row sample dataset with known ground truth. Compare consensus_status distribution (agree/disagree/error percentages) to choose optimal order.
+### Phase 1: Foundation (Audit Trail + Reference Data)
+**Rationale:** All cleaning features depend on audit trail infrastructure (`append_comment()`). Reference data (stop words, block lists, functional categories, food names) must be defined before they can be used in filters. Progress tracking infrastructure sets pattern for all later phases.
 
-### Phase 2: UI Refinements (Column Visibility)
-**Rationale:** Medium complexity, high polish value. Reduces cognitive load for users reviewing messy chemical data with 20+ original columns. Standard DT configuration change with no backend modifications. Establishes clean UI foundation before adding manual entry and retry workflows.
-
-**Delivers:** Automatically hide untagged columns in Review Results table, user toggle to show/hide via colvis button
-
-**Addresses:**
-- Smart column hiding (FEATURES.md: differentiator, LOW complexity)
-- Column visibility toggle (FEATURES.md: table stakes, LOW complexity)
-
-**Avoids:**
-- DT Column Index Drift (PITFALLS.md #1): Test resolution dropdown with 0, 1, 10+ hidden columns to verify data-row attribute correctness
-- Hidden Column Filter Breaks DT Filtering (PITFALLS.md #6): Disable filtering on hidden columns via `searchable: FALSE` or remove from display_df
-
-**Research flag:** STANDARD pattern — DT columnDefs well-documented, skip research-phase. Follow existing implementation in app.R lines 1413-1437.
-
-### Phase 3: Manual DTXSID Entry with Validation
-**Rationale:** Highest table-stakes priority from FEATURES.md. Enables users to fix errors that API can't resolve (chemicals not in CompTox, ambiguous names). Single-direction workflow (user → validation → update) is simpler than bidirectional retry with merge-back. Establishes validation patterns before subset retry complexity.
-
-**Delivers:** Modal dialog for manual DTXSID entry on selected error rows, bulk validation via ComptoxR, preview of proposed changes before commit
+**Delivers:**
+- `R/cleaning_reference.R` — 4 functions returning reference character vectors
+- `R/pre_curation.R` foundation — `append_comment()`, `canonicalize_strings()`, progress weight helpers
+- Extended `data_store` with cleaned_data, cleaning_audit, cleaning_stats, reference_lists
+- Separate "Audit_Trail" sheet architecture for export (prevents Excel cell limit issues)
 
 **Addresses:**
-- Manual DTXSID entry (FEATURES.md: table stakes, MEDIUM complexity)
-- Bulk validation (FEATURES.md: table stakes, MEDIUM complexity)
-- Validation preview (FEATURES.md: differentiator, MEDIUM complexity)
+- Pitfall #5 (audit trail Excel limits) via separate sheet design
+- Pitfall #4 (progress tracking) via benchmarking infrastructure
+- Pitfall #6 (re-import state) via state management design
 
-**Avoids:**
-- Manual DTXSID Entry Bypasses Validation (PITFALLS.md #5): Implement validation API call before storing, batch validation for bulk paste, instant feedback UI
+**Stack:** No new dependencies (foundation only)
+**Time estimate:** 2-3 days
 
-**Research flag:** STANDARD pattern — modal dialogs + API validation well-documented in Shiny ecosystem. Follow existing `showModal()` usage in codebase.
+---
 
-### Phase 4: Error Row Retry with Re-tagging
-**Rationale:** Most complex feature, requires subset pipeline + merge logic + modal UX. Builds on validation patterns from Phase 3 (modal dialog, bulk operations). Delivers high value for users who mis-tagged columns initially—retry just errors without full reprocess. Should come last to avoid risking earlier phases with merge-back complexity.
+### Phase 2: CAS-RN Pipeline
+**Rationale:** CAS cleaning is highest-value, lowest-risk starting point. Research shows 14.4% + 2.4% of rows benefit from CAS rescue and normalization. ComptoxR already provides all needed functions. CAS cleaning is independent of name cleaning, can be tested in isolation.
 
-**Delivers:** Subset retry workflow (filter error rows → re-tag in modal → re-curate subset → merge back), preserves row order and .pinned state
-
-**Addresses:**
-- Subset retry (FEATURES.md: table stakes, MEDIUM complexity)
-- Re-tag before retry (FEATURES.md: differentiator, MEDIUM complexity)
-
-**Avoids:**
-- Retry Merge Loses Resolution State (PITFALLS.md #4): Use index-based replacement not join, preserve .pinned explicitly, validate row count invariant
-- Redundant consensus classification (PITFALLS.md performance trap): Only classify retried rows, replace in original without re-classifying all
-
-**Research flag:** NEEDS careful testing — merge-back logic requires thorough unit tests for row order preservation, .pinned state, column count validation. Test scenarios: retry with same tags, retry with new tag added, retry with tag removed.
-
-### Phase 5: Contextual Resolution Dropdown
-**Rationale:** Final polish feature. Data (preferredName, rank, qc_tier) already exists in resolution_state, just needs HTML formatting change in `get_resolution_options()`. Low risk, high UX value. Should come after retry workflow to avoid complicating testing (retry + new dropdown format = two variables changing).
-
-**Delivers:** Resolution dropdown shows "DTXSID - PreferredName (Rank X, QC Tier)" instead of raw DTXSID
+**Delivers:**
+- 4 CAS cleaning functions: normalize, rescue, validate, split multi-CAS
+- Integration with audit trail (comment logging)
+- Summary stats: "X CAS rescued from names", "Y CAS validated", "Z multi-CAS split"
 
 **Addresses:**
-- Contextual resolution dropdown (FEATURES.md: differentiator, LOW-MEDIUM complexity)
+- Features: CAS rescue pipeline (differentiator)
+- Pitfall #1 preparation (synonym splitting protection patterns — tested here with CAS splitting before name synonym splitting)
 
-**Avoids:**
-- No major pitfalls—straightforward HTML string concatenation
+**Uses:** ComptoxR (existing), stringi for pattern detection
+**Time estimate:** 3-4 days
 
-**Research flag:** STANDARD pattern — HTML formatting in Shiny, skip research-phase. Follow existing `get_resolution_options()` pattern in app.R lines 1383-1409.
+---
+
+### Phase 3: Name Cleaning Core
+**Rationale:** Name cleaning is most complex (8 functions) and highest-risk (Pitfall #1: synonym splitting). Build on audit trail and CAS patterns from Phase 1-2. Must implement IUPAC comma protection before general deployment.
+
+**Delivers:**
+- 8 name cleaning functions: terminal phrases, hazard warnings, quality adjectives, formulas, proprietary indicators, synonym splitting (with IUPAC protection), extraneous parentheses, stop word trimming
+- 20+ test cases for synonym splitting edge cases (inverted IUPAC, digit-comma-digit, parenthetical)
+- Before/after name comparison in UI
+
+**Addresses:**
+- **Pitfall #1 (synonym splitting IUPAC names)** — critical mitigation via protection rules and extensive testing
+- Features: Basic name cleaning (table stakes), formula detection (differentiator)
+
+**Risk:** HIGH — synonym splitting is most error-prone operation
+**Time estimate:** 4-5 days
+
+---
+
+### Phase 4: Reference Data Filters + Editable Lists
+**Rationale:** With CAS and name cleaning proven, add reference-based filtering (functional categories, food names, block lists). This phase introduces UI complexity (editable tables, reactive cascade management). Must implement debouncing and "Apply Changes" pattern to avoid Pitfall #2.
+
+**Delivers:**
+- 4 reference filter functions: functional category detection, food name flagging, block list matching, custom stop words
+- rhandsontable editable tables for all 4 reference lists
+- Debounced editing with explicit "Apply Changes" button
+- Flag taxonomy UI: red/blocking, yellow/warning, blue/info badges
+- "Re-run Cleaning" workflow with state invalidation
+
+**Addresses:**
+- **Pitfall #2 (reactive cascade explosion)** — critical mitigation via debouncing and staged editing
+- **Pitfall #7 (flag behavior confusion)** — 3-tier visual taxonomy implementation
+- Features: Editable reference lists (differentiator), blocking vs. annotating flags (differentiator)
+
+**Stack:** **rhandsontable** (NEW) for editable tables
+**Risk:** MEDIUM — reactive cascade management requires careful testing
+**Time estimate:** 5-6 days
+
+---
+
+### Phase 5: Multi-Sheet Export + Re-Import Detection
+**Rationale:** With full cleaning pipeline working, add reproducibility features. Multi-sheet export carries complete state (data + audit + reference lists + config). Re-import detection enables session restoration. This phase completes the reproducibility loop.
+
+**Delivers:**
+- 7-sheet Excel export: Data, Audit_Trail, Reference_Lists, Pipeline_Config, Data_Dictionary, Manifest, README
+- Re-import detection via Manifest sheet parsing
+- State restoration with conflict resolution modal (Pitfall #6 mitigation)
+- Excel limit validation before export
+
+**Addresses:**
+- **Pitfall #6 (re-import overwriting edits)** — state divergence detection and confirmation modal
+- **Pitfall #5 (Excel limits)** — final validation in export handler
+- Features: Multi-sheet export (differentiator), re-import detection (differentiator)
+
+**Stack:** **openxlsx2** (NEW) for multi-sheet export with metadata
+**Time estimate:** 3-4 days
+
+---
+
+### Phase 6: Post-Curation QC (Optional for v1.3.0)
+**Rationale:** Closes the loop: cleaning → curation → validation. Re-validates CAS after API resolution, enriches with functional use and safety flags from CompTox. Can be deferred to v1.3.1 if timeline is tight.
+
+**Delivers:**
+- `R/post_curation.R` — CAS re-validation, Unicode check, functional use lookup, safety flag enrichment
+- Integration with Review Results tab (new columns)
+- Timeout handling for API calls (Pitfall #4 mitigation for async operations)
+
+**Addresses:**
+- Features: Post-curation QC (differentiator)
+- Pitfall #4 extension (progress tracking for API calls with variable latency)
+
+**Uses:** ComptoxR functional use and safety flag APIs (existing)
+**Risk:** LOW — similar to existing curation pipeline
+**Time estimate:** 2-3 days
+
+---
 
 ### Phase Ordering Rationale
 
-- **Phase 1 → 2**: Search reordering and Other tag enablement should stabilize before UI changes (both affect consensus results, want stable data before adding column hiding)
-- **Phase 2 → 3**: Column hiding polish before manual entry reduces visual clutter for error resolution workflow
-- **Phase 3 → 4**: Manual entry establishes validation patterns (modal dialog, bulk API calls) before subset retry complexity
-- **Phase 4 → 5**: Retry workflow should work with existing dropdown format before adding richer context (reduces test matrix: retry + old dropdown, then add new dropdown)
+**Dependencies:**
+- Phase 0 must come before all others (creates clean modular structure for new features)
+- Phase 1 is foundation for all cleaning (audit trail, reference data, state management)
+- Phase 2 (CAS) and Phase 3 (names) are independent of each other but both depend on Phase 1
+- Phase 4 (reference filters) depends on Phases 1-3 (uses cleaned CAS/names as input)
+- Phase 5 (export) depends on Phases 1-4 (exports cleaned data + reference state)
+- Phase 6 (post-QC) depends on existing curation pipeline, can run in parallel with Phases 1-5 if needed
 
-**Dependency chain discovered:**
-- Search tier order affects consensus distribution → affects which rows need manual entry/retry → affects UX priorities
-- Other tag participation affects consensus algorithm → must resolve voting semantics before enabling search
-- Column hiding affects visible columns → must not break resolution dropdown indices (PITFALLS #1)
-- Subset retry merge strategy → must preserve .pinned state from manual entry (Phase 3 creates pinned rows, Phase 4 must preserve them)
+**Groupings:**
+- Phases 1-3: Core cleaning pipeline (no UI beyond basic preview)
+- Phase 4: UI complexity (editable tables, reactive management)
+- Phase 5: Reproducibility (export/import)
+- Phase 6: Enrichment (post-curation)
+
+**Risk mitigation:**
+- Start with lowest-risk, highest-value (CAS cleaning)
+- Tackle highest-risk operation (synonym splitting) after patterns established
+- Add UI complexity (editable tables) after core pipeline proven
+- Optional phase (post-QC) can be deferred if needed
 
 ### Research Flags
 
-**Phases needing deeper research during planning:**
-- **Phase 1 (Search Foundations)**: Empirical tier order validation — run curation on 100-row sample with both orders, compare match quality metrics (precision, recall, consensus rate)
-- **Phase 1 (Other Tag)**: Consensus semantics decision — document whether Other columns vote equally, vote reduced, or observe-only; update consensus logic accordingly
-- **Phase 4 (Error Retry)**: Merge-back testing — create comprehensive test suite for index-based replacement: same-tag retry, new-tag addition, tag removal, row order preservation, .pinned state preservation
+**Phases likely needing deeper research during planning:**
+- **Phase 3 (Name Cleaning Core):** Synonym splitting IUPAC protection — may need consultation with chemist or OPSIN parser testing to validate edge cases
+- **Phase 4 (Reference Filters):** Flag taxonomy UX — should conduct user testing to verify 3-tier system is intuitive (blocking vs. warning vs. info)
 
 **Phases with standard patterns (skip research-phase):**
-- **Phase 2 (Column Visibility)**: DT columnDefs well-documented, existing implementation in codebase to follow
-- **Phase 3 (Manual Entry)**: Modal dialogs and API validation standard Shiny patterns, follow existing `showModal()` usage
-- **Phase 5 (Dropdown Context)**: HTML formatting in Shiny, straightforward extension of existing `get_resolution_options()` function
+- **Phase 0 (Refactor):** Well-documented Shiny module patterns, no domain-specific complexity
+- **Phase 1 (Foundation):** Straightforward reactive state management, established audit trail patterns
+- **Phase 2 (CAS Pipeline):** ComptoxR functions already exist and are documented, low uncertainty
+- **Phase 5 (Export):** Standard multi-sheet Excel export, openxlsx2 has comprehensive documentation
+- **Phase 6 (Post-QC):** Same pattern as existing curation pipeline, no new concepts
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All required capabilities verified in existing codebase (ComptoxR `chemi_amos_batch()`, DT Buttons extension, Shiny reactive row selection). Zero new dependencies confirmed via function signature inspection and package documentation. |
-| Features | HIGH | Table stakes and differentiators validated against industry patterns (AWS DMS, Databricks CDC for subset retry; DataTables, MUI for column visibility). FEATURES.md correctly identifies bulk validation and manual entry as expected, re-tagging as unique differentiator. |
-| Architecture | HIGH | Integration points clearly defined via codebase analysis (app.R 1,719 lines, R/curation.R 624 lines, R/consensus.R 229 lines). All new features map to existing patterns (function composition for subset retry, reactive store extensions, progressive disclosure). |
-| Pitfalls | MEDIUM-HIGH | Critical pitfalls identified via codebase inspection (column index drift, consensus voting) and official documentation (CompTox search behavior, DT filter state). Starts-with precision collapse is MEDIUM confidence—requires empirical validation. Recovery strategies documented with cost estimates. |
+| Stack | **HIGH** | Only 2 new packages needed (openxlsx2, rhandsontable), both mature CRAN packages with active maintenance. All other needs satisfied by existing dependencies (stringi via tidyverse, withProgress built-in, readxl existing). Source quality: official CRAN docs, package manuals, verified community comparisons. |
+| Features | **HIGH** | UX patterns verified via OpenRefine, DataTables, Shiny ecosystem documentation. Chemical-specific features (CAS rescue, functional use flagging) have no commercial analogs, but this is validated opportunity (live ChemReg data shows 14.4% + 2.4% of rows benefit). Table stakes and differentiators clearly defined. |
+| Architecture | **HIGH** | Current app.R structure documented and understood. Inline-first approach is correct per Shiny best practices and Engineering Production-Grade Shiny Apps guide. State management patterns proven in existing codebase (reactiveValues cascade reset). Module extraction path is clear for v1.4+. |
+| Pitfalls | **MEDIUM** | 7 critical pitfalls identified with detailed mitigation strategies, but severity estimates are based on inference from community reports and best practices, not direct experience with ChemReg scale. Synonym splitting IUPAC protection rules are based on IUPAC spec understanding, need chemist validation. Flag taxonomy UX needs user testing to confirm intuitiveness. |
 
-**Overall confidence:** HIGH — All v1.2 features implementable with existing stack and standard patterns. Main uncertainty is empirical tier order validation (needs real data testing) and Other tag consensus semantics (needs product decision, not research).
+**Overall confidence:** **HIGH**
 
 ### Gaps to Address
 
-**Search tier order optimization:**
-- **Gap**: No empirical data on match quality for exact → CAS → starts vs. exact → starts → CAS
-- **How to handle**: During Phase 1 planning, run curation on 100-row sample dataset (50 exact matches, 30 CAS-only, 20 typos) with both orders. Compare consensus_status distribution. Choose order that maximizes agree rate while minimizing false positives.
-- **Validation needed**: Test with short queries (2-3 letters like "Pb", "Hg") vs. long queries (8+ letters) to ensure starts-with filtering works across query length spectrum
+**Synonym splitting IUPAC protection validation:**
+- Research identified protection patterns (digit-comma-digit, inverted form detection, parenthetical), but these are based on IUPAC spec interpretation
+- **Mitigation:** During Phase 3 implementation, test with OPSIN parser or consult with chemist to validate edge cases. Create 20+ test cases from live ChemReg data before deployment. If protection fails on real data, fall back to semicolon-only splitting (safer).
 
-**Other tag consensus voting semantics:**
-- **Gap**: No product decision on whether Other columns should vote equally with Name/CASRN, vote reduced weight, or observe-only
-- **How to handle**: During Phase 1 planning, document decision in ARCHITECTURE.md based on user intent for Other tag (if Other = supplier codes/batch IDs, should be observe-only; if Other = alternate names, should vote equally)
-- **Implementation**: Update `classify_consensus()` with tag-aware logic before enabling Other search—test scenarios: 1 Name + 1 CAS + 1 Other all agree; 1 Name + 1 Other agree, CAS NA; 2 Other + 1 Name
+**Editable reference list UX confirmation:**
+- Research recommends rhandsontable over DT for editing, but user preference for Excel-like UX vs. form-based editing is assumed
+- **Mitigation:** During Phase 4 implementation, build both patterns as prototypes (rhandsontable inline table + modal form for adding items). Quick user testing (5 minutes) to confirm which is more intuitive before committing to full implementation.
 
-**Retry merge-back edge cases:**
-- **Gap**: No test coverage for subset retry with new tag addition (adds new dtxsid_* columns to resolution_state)
-- **How to handle**: During Phase 4 planning, create comprehensive unit tests for merge_subset_results() function: (1) same-tag retry preserves column count, (2) new-tag retry adds columns without .x/.y suffixes, (3) tag-removal retry removes columns, (4) all scenarios preserve row order and .pinned state
-- **Validation needed**: Test with edge case: retry 3 error rows, user adds "Other" tag to one column → verify dtxsid_Other column appears for retried rows, NA for non-retried rows
+**Flag taxonomy intuitiveness:**
+- 3-tier system (red/blocking, yellow/warning, blue/info) is based on universal UX patterns, but chemical inventory context may introduce confusion
+- **Mitigation:** During Phase 4 implementation, create 15+ user testing scenarios: "Which flags must you fix before curation?" Verify 80%+ correct answer rate. If confusion persists, add inline tooltips with explicit explanations per flag type.
+
+**Excel export limits on very large datasets:**
+- Mitigation strategies (separate audit sheet, truncation, limit validation) are based on Excel spec research, but performance on 10,000+ row datasets is unknown
+- **Mitigation:** During Phase 5 implementation, test export with synthetic 10,000-row dataset containing heavy transformations (20+ steps per row). Measure export time, file size, Excel open time. If limits are hit, implement CSV fallback option for datasets exceeding thresholds.
+
+**Re-import state divergence detection accuracy:**
+- Heuristics (timestamp comparison, state hash) are theoretically sound, but edge cases (user edits Excel data sheet manually, system clock skew) may cause false positives/negatives
+- **Mitigation:** During Phase 5 implementation, create 10+ test scenarios: initial upload, re-upload after in-app edits, re-upload after Excel edits, re-upload after both. Verify modal appears correctly in each case. If heuristics are too noisy, simplify to always-prompt-on-re-import (safer but less seamless).
 
 ## Sources
 
 ### Primary (HIGH confidence)
 
-**Existing Codebase (verified via source inspection):**
-- `app.R` (1,719 lines) — DT table rendering (lines 1370-1484), resolution dropdown HTML (lines 1383-1409), hidden columns via columnDefs (line 1437), current .pinned state handling
-- `R/curation.R` (624 lines) — `run_tiered_search()` tier order (lines 274-363), `deduplicate_tagged_columns()` tag filtering (lines 16-58), preferredName/rank capture (lines 67-101, 393)
-- `R/consensus.R` (229 lines) — `classify_consensus()` logic (lines 25-40), `find_dtxsid_cols()` pattern matching (line 53), QC tier calculation (line 31)
+**Stack Research:**
+- [openxlsx2 Package Manual](https://cran.r-universe.dev/openxlsx2/doc/manual.html) — Multi-sheet export capabilities
+- [openxlsx2 Documentation](https://janmarvin.github.io/openxlsx2/) — Workbook properties API
+- [rhandsontable Documentation](https://jrowen.github.io/rhandsontable/) — Editable table patterns
+- [Shiny withProgress Documentation](https://shiny.posit.co/r/reference/shiny/latest/withprogress.html) — Progress tracking built-in
+- [readxl Documentation](https://readxl.tidyverse.org/) — Multi-sheet import
+- [stringi Documentation](https://stringi.gagolewski.com/) — Unicode detection
 
-**Official Documentation:**
-- [ComptoxR GitHub Repository](https://github.com/seanthimons/ComptoxR) — `chemi_amos_batch(dtxsids = ...)` function signature verified via `args()`, bulk DTXSID validation capability confirmed
-- [DT Package Documentation - Extensions](https://rstudio.github.io/DT/extensions.html) — Buttons extension with colvis support, column visibility API via columnDefs
-- [DT Shiny Documentation - Row Selection](https://rstudio.github.io/DT/shiny.html) — `input$tableId_rows_selected` usage for subset workflows
-- [US EPA CompTox Dashboard - Batch Search](https://www.epa.gov/comptox-tools/chemicals-dashboard-help-batch-search) — Batch search supports exact matches, bulk validation for DTXSIDs/CASRNs
-- [US EPA CompTox Dashboard - Basic Search](https://www.epa.gov/comptox-tools/chemicals-dashboard-help-basic-search) — Exact vs. substring search behavior, starts-with returns all prefix matches
+**Architecture Research:**
+- [Engineering Production-Grade Shiny Apps - Chapter 3: Structuring Your Project](https://engineering-shiny.org/structuring-project.html) — Modularization strategy
+- [Mastering Shiny - Chapter 19: Shiny modules](https://mastering-shiny.org/scaling-modules.html) — Module patterns
+- [Mastering Shiny - Chapter 15: Reactive building blocks](https://mastering-shiny.org/reactivity-objects.html) — State management
+- [Shiny - Modularizing Shiny app code](https://shiny.posit.co/r/articles/improve/modules/) — Official module guide
+
+**Feature Research:**
+- [OpenRefine Official Site](https://openrefine.org/) — Data cleaning UX patterns
+- [DataTables Child Rows](https://datatables.net/examples/api/row_details.html) — Audit trail display pattern
+- [DT in Shiny](https://rstudio.github.io/DT/shiny.html) — Editable tables
 
 ### Secondary (MEDIUM confidence)
 
-**Industry Patterns and Best Practices:**
-- [AWS DMS Data Validation](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Validating.html) — Subset retry patterns for ETL pipelines, idempotent merge via unique key validation
-- [Databricks Blog - Late Arriving Dimensions](https://www.databricks.com/blog/2020/12/15/handling-late-arriving-dimensions-using-a-reconciliation-pattern.html) — Retry and merge-back patterns for CDC pipelines
-- [Data Validation in ETL - Integrate.io](https://www.integrate.io/blog/data-validation-etl/) — Bulk validation patterns, error recovery workflows
-- [Bulk Action UX Guidelines - Eleken](https://www.eleken.co/blog-posts/bulk-actions-ux) — UI patterns for multi-row selection, bulk operations feedback
-- [DataTables Column Visibility Examples](https://datatables.net/examples/api/show_hide.html) — Official examples for columnDefs and colvis button configuration
+**Pitfall Research:**
+- [Mastering Shiny - User feedback](https://mastering-shiny.org/action-feedback.html) — Progress tracking pitfalls
+- [Form Validations vs Warnings (Baymard)](https://baymard.com/blog/validations-vs-warnings) — Flag taxonomy UX
+- [NN/g Error Message Guidelines](https://www.nngroup.com/articles/errors-forms-design-guidelines/) — Visual design for errors
+- [writexl CRAN documentation](https://cran.r-project.org/web/packages/writexl/writexl.pdf) — Excel limits
+- [Excel Worksheets - Naming](https://bettersolutions.com/excel/worksheets/naming.htm) — Sheet naming constraints
 
-**UI Framework Documentation:**
-- [DT GitHub Issue #153 - Column Visibility](https://github.com/rstudio/DT/issues/153) — Community patterns for hiding columns, pitfall discussions on filter state
-- [MUI X Data Grid - Column Visibility](https://mui.com/x/react-data-grid/column-visibility/) — Priority-based defaults, user override patterns
-- [Mastering Shiny - Reactivity Objects](https://mastering-shiny.org/reactivity-objects.html) — Reference semantics of reactiveValues, state preservation patterns
+**UX Pattern Research:**
+- [Trifacta Data Wrangling Overview](https://www.softcrylic.com/blogs/trifacta-a-tool-for-the-modern-day-data-analyst/) — Recipe-based transformation
+- [Data Table Design UX Best Practices](https://www.pencilandpaper.io/articles/ux-pattern-analysis-enterprise-data-tables) — Expandable rows
+- [Reproducible Data Cleaning Guide](https://b-greve.gitbook.io/beginners-guide-to-clean-data/data-modeling/reproducibility) — Audit trail patterns
 
-### Tertiary (LOW confidence - needs validation)
+### Tertiary (LOW confidence)
 
-**Search Strategy Tradeoffs:**
-- [Enabling High-Throughput Searches - PMC](https://pmc.ncbi.nlm.nih.gov/articles/PMC8630643/) — CompTox current search limitations, future fuzzy matching plans (confirms starts-with has no relevance scoring, supports precision collapse concern)
-- [Sourcing Chemical Data from CompTox - ScienceDirect](https://www.sciencedirect.com/science/article/pii/S0160412021001914) — Identifier search exact match requirement, spelling issues (confirms tier order affects match quality, needs empirical validation)
+**Chemical Domain:**
+- [IUPAC nomenclature of organic chemistry - Wikipedia](https://en.wikipedia.org/wiki/IUPAC_nomenclature_of_organic_chemistry) — Inverted name forms
+- [Chemical Inventory Management Best Practices](https://www.fldata.com/chemical-inventory-management-best-practices) — Domain validation needs
 
-**Join and Merge Behavior:**
-- [dplyr Mutating Joins Documentation](https://dplyr.tidyverse.org/reference/mutate-joins.html) — Official join documentation (confirms join doesn't preserve attributes like .pinned, validates anti-pattern concern)
-- [How to Merge Data in R - InfoWorld](https://www.infoworld.com/article/2264570/how-to-merge-data-in-r-using-r-merge-dplyr-or-datatable.html) — Join mechanics and attribute preservation (no guarantees for custom attributes)
+**Community Best Practices:**
+- [R-bloggers: Comparing writexl, openxlsx, and xlsx](https://www.r-bloggers.com/2023/05/comparing-r-packages-for-writing-excel-files-an-analysis-of-writexl-openxlsx-and-xlsx-in-r/) — Package comparison
+- [Appsilon: Better Than Excel - Use R Shiny Packages](https://appsilon.com/forget-about-excel-use-r-shiny-packages-instead/) — rhandsontable vs DT
 
 ---
-
-*Research completed: 2026-03-01*
+*Research completed: 2026-03-04*
 *Ready for roadmap: yes*
-*Phase count estimate: 5 phases*
-*Research flags: 3 needs-validation items, 3 standard-pattern items*
