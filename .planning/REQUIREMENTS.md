@@ -9,8 +9,8 @@ Requirements for v1.3 Data Cleaning Pipeline. Each maps to roadmap phases.
 
 ### Modularization (MODL)
 
-- [ ] **MODL-01**: User can use all existing app functionality after codebase is refactored into Shiny modules
-- [ ] **MODL-02**: App.R is reduced to orchestration-only code (<500 lines) with each tab extracted to its own module
+- [x] **MODL-01**: User can use all existing app functionality after codebase is refactored into Shiny modules
+- [x] **MODL-02**: App.R is reduced to orchestration-only code (<500 lines) with each tab extracted to its own module
 
 ### Infrastructure (INFRA)
 
@@ -92,8 +92,8 @@ Deferred to future releases. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MODL-01 | Phase 9 | Pending |
-| MODL-02 | Phase 9 | Pending |
+| MODL-01 | Phase 9 | Complete |
+| MODL-02 | Phase 9 | Complete |
 | INFRA-01 | Phase 10 | Pending |
 | INFRA-02 | Phase 10 | Pending |
 | INFRA-03 | Phase 10 | Pending |
