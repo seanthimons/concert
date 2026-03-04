@@ -46,7 +46,19 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ### Active
 
-(None — next milestone requirements TBD)
+#### Current Milestone: v1.3 Data Cleaning Pipeline
+
+**Goal:** Add a staged pre- and post-curation cleaning pipeline with interactive UI, editable reference lists, smart multi-sheet Excel export, and re-import detection.
+
+**Target features:**
+- Pre-curation cleaning pipeline (unicode, string canonicalization, CAS pipeline, name cleaning, reference data filters)
+- New "Clean Data" tab between Data Preview and Tag Columns
+- Editable reference lists (stop words, block lists, functional categories, food names) — configurable before and after cleaning, with re-run
+- Per-flag-type curation behavior (blocking vs annotating flags)
+- Audit trail per row (comment columns tracking every transformation)
+- Post-curation QC (CAS re-validation, unicode check, functional use enrichment, safety flags)
+- Multi-sheet Excel export carrying data, audit trail, reference list state, flags, and pipeline config
+- Re-import detection: recognize ChemReg exports and hot-load embedded state
 
 ### Out of Scope
 
@@ -71,6 +83,14 @@ Key files:
 - `R/consensus.R` — consensus classification and resolution functions (257 lines)
 - `R/file_handlers.R` — file reading/validation (218 lines)
 - `R/data_detection.R` — frontmatter detection algorithms (405 lines)
+
+New files planned for v1.3:
+- `R/pre_curation.R` — all pre-curation cleaning and flagging functions
+- `R/post_curation.R` — post-curation QC checks and audit trail export
+- `R/cleaning_reference.R` — reference data loaders (stop words, block lists, functional categories)
+
+Detailed plan: `PRE_POST_CURATION_PLAN.md` (function mapping from Python clean_chems.py, ComptoxR equivalents, pipeline order, test dataset coverage).
+Test dataset extended to 172 records covering all pre-curation edge cases (`data/chemical_validation_test.csv`).
 
 ## Constraints
 
@@ -107,4 +127,4 @@ Key files:
 | Queue-then-validate for manual DTXSIDs | Batch API calls reduce overhead vs per-cell validation | ✓ Good — v1.2 |
 
 ---
-*Last updated: 2026-03-03 after v1.2 milestone*
+*Last updated: 2026-03-04 after v1.3 milestone start*
