@@ -1,418 +1,350 @@
-# Feature Landscape: Data Curation Refinement
+# Feature Landscape
 
-**Domain:** Chemical inventory data curation tools
-**Researched:** 2026-03-01
+**Domain:** Chemical inventory data cleaning and curation pipeline
+**Researched:** 2026-03-04
+**Confidence:** HIGH for UX patterns (verified with OpenRefine, DataTables, Shiny ecosystem); MEDIUM for chemical-specific workflows (limited domain-specific tools)
+
+---
+
+## Executive Summary
+
+Data cleaning tools follow a "preview → transform → review" pattern with transparent audit trails and reproducible configurations. Table stakes include: interactive cleaning with undo/redo, visual distinction between blocking errors and warnings, exportable operation history, and tabular data display. Differentiators for chemical inventory: embedded audit trails per row, editable domain-specific reference lists (stop words, functional categories), smart re-import detection with state restoration, and multi-sheet Excel exports carrying configuration + data dictionary.
+
+The R/Shiny ecosystem supports these patterns through: DT for editable tables with child row expansion, bslib tabs for progressive disclosure workflows, and writexl for multi-sheet exports. Chemical-specific features (CAS validation, functional use flagging) have no commercial analogs — this is greenfield opportunity.
+
+---
 
 ## Table Stakes
 
-Features users expect. Missing = product feels incomplete.
+Features users expect from data cleaning tools. Missing these = product feels incomplete or untrustworthy.
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Error row filtering/isolation | Standard in data validation UX; users expect ability to focus on problems | Low | Filter by consensus status = "error" already exists in codebase |
-| Column visibility toggle | Universal table feature; messy chemical data has many columns users don't care about | Low | DataTables built-in, R DT package supports via colvis extension |
-| Manual identifier entry | Standard fallback when automated matching fails | Medium | Single-row input straightforward, bulk validation adds complexity |
-| Inline edit for corrections | Expected in modern data grids; users fix typos without re-upload | Medium-High | DT editable cells via JS callback, Shiny reactive handling, validation loop |
-| Error feedback specificity | Users expect to know WHY validation failed (bad format, no match, API error) | Low-Medium | Already have error status; need to expose error messages from CompToxR |
-| Bulk validation | Avoid round-trip API calls for each manual entry | Medium | CompTox Batch Search supports up to thousands of identifiers at once |
-| Subset retry | Industry standard for large datasets; re-run failed items without full reprocess | Medium | Filter → modify → re-run subset → merge back pattern |
-| Persistent user preferences | Column visibility choices should survive tab switches within session | Low-Medium | Session-scoped reactive value, reset only on new file upload |
+| Feature | Why Expected | Complexity | Dependencies | Notes |
+|---------|--------------|------------|--------------|-------|
+| **Tabular data preview** | Standard for all data tools; users need to see raw → clean transformation | Low | DT package (existing) | Already implemented in Data Preview tab |
+| **Undo/redo operation history** | OpenRefine standard; users expect reversibility without data loss | Medium | Reactive values tracking pipeline state | Need stack of pipeline configs + data snapshots |
+| **Visual flag distinction** | Error = red + blocking; Warning = yellow/orange + proceeds; universal UX pattern ([Baymard](https://baymard.com/blog/validations-vs-warnings), [NN/g](https://www.nngroup.com/articles/errors-forms-design-guidelines/)) | Low | Bootstrap color utilities (existing) | Red/exclamation for blocking flags; yellow/warning icon for annotations |
+| **Summary statistics cards** | Users need "what changed?" counts before/after cleaning | Low | Existing summary card pattern from v1.0-1.2 | "X CAS rescued", "Y formulas detected", "Z flagged for review" |
+| **Exportable results** | All tools export cleaned data; baseline expectation | Low | writexl (existing) | Enhanced to multi-sheet in differentiators |
+| **Progressive workflow tabs** | ChemReg pattern (Data Preview → Tag → Curate); users expect linear progression | Low | bslib nav_panel (existing) | Insert "Clean Data" tab between Preview and Tag |
+| **Batch operations** | Clean entire column/dataset at once; manual row-by-row = unacceptable | Medium | Pipeline functions vectorized over df columns | Pre-curation.R functions must be vectorized |
+| **Before/after comparison** | Users validate by comparing distributions ([Juice Analytics](https://www.juiceanalytics.com/writing/guide-to-cleaning-data), [Tableau](https://help.tableau.com/current/prep/en-us/prep_clean.htm)) | Medium | DT with column visibility toggles | Show original + cleaned columns side-by-side or toggle |
+
+---
 
 ## Differentiators
 
-Features that set product apart. Not expected, but valued.
+Features that set ChemReg apart from generic data cleaning tools. Not expected by all users, but highly valued by chemical inventory managers.
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Smart column hiding (auto-hide untagged) | Reduces cognitive load; most tools require manual toggle | Low | Single checkbox "Hide untagged columns" + reactive filter |
-| Re-tag before retry | Unique workflow: realize column was mis-tagged, fix tag assignment, retry just errors | Medium | Tag changes normally cascade-reset curation; need subset-only invalidation |
-| Retry with search tier override | Power user feature: force exact-only or skip CAS validation for specific rows | High | Requires per-row or per-batch search strategy parameter |
-| Contextual resolution dropdown | Show preferredName + QC level + rank in dropdown, not just DTXSID | Low-Medium | Data already available from curation results; format for display |
-| Validation preview before commit | Show what WILL happen with manual DTXSIDs before actually replacing consensus | Medium | Two-step UX: validate → preview changes → commit |
-| Audit trail for manual overrides | Track which rows were manually curated vs auto-matched | Low | Add column to results: source = "auto" \| "manual" \| "retry" |
+| Feature | Value Proposition | Complexity | Dependencies | Notes |
+|---------|-------------------|------------|--------------|-------|
+| **Per-row audit trail** | Transparency: "What changed and why?" for every cell transformation | High | DT child rows + comment columns in df | [DataTables child row API](https://datatables.net/examples/api/row_details.html); pipe-separated audit log per row |
+| **Editable reference lists** | Curators can tune stop words, block lists, functional categories without developer intervention | High | DT editable tables + reactive re-run | [Shiny DT editable](https://rstudio.github.io/DT/shiny.html); save edits to reactiveVal, rerun pipeline on change |
+| **Blocking vs annotating flags** | Blocking flags (formulas, empty names) stop curation; Annotating flags (mixtures, proprietary) warn but proceed | Medium | Flag type metadata + conditional routing in pipeline | No commercial analog; novel for chemical cleaning |
+| **Multi-sheet Excel export** | Data + Audit Trail + Reference Lists + Config + Data Dictionary in one file | Medium | writexl multi-sheet API | Reproducibility: export carries full state for re-import ([data cleaning best practices](https://rebeccabarter.com/blog/2019-03-07_reproducible_pipeline)) |
+| **Re-import detection** | Recognize ChemReg exports, hot-load embedded reference lists + pipeline config, skip redundant cleaning | High | Metadata sheet in Excel + detection logic on upload | Session restoration pattern from [datacleanr](https://github.com/the-Hull/datacleanr) R package |
+| **CAS-RN rescue pipeline** | Extract CAS from name columns, validate checksums, split multi-CAS cells — domain-specific | Medium | ComptoxR (existing) + pipeline orchestration | No generic tool does this; chemical inventory unique need |
+| **Functional use flagging** | Detect "Fragrance", "Flavor", "Surfactant" as non-chemical product categories | Medium | Reference list (EPA ChemExpo or keyword-based) | Chemical domain-specific; OpenRefine has no analog |
+| **Post-curation QC** | Re-validate CAS after API resolution, enrich with functional use + safety flags from CompTox | Medium | ComptoxR functional use + safety flag APIs | Closes loop: cleaning → curation → validation |
+
+---
 
 ## Anti-Features
 
-Features to explicitly NOT build.
+Features to explicitly NOT build. These either conflict with design principles or introduce unacceptable complexity.
 
 | Anti-Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| Inline edit of every cell | Scope creep; this is curation not general spreadsheet editing | Only enable editing for identifier columns used in retry |
-| Real-time validation during typing | Too many API calls; CompTox has rate limits | Validate on explicit button click or batch validation |
-| Automatic retry on errors | Wastes API quota; many errors are unfixable (bad data, not in database) | User-initiated retry with optional re-tagging |
-| Save partial work / session persistence | High complexity; Shiny session state management fragile across page refresh | Clear workflow expectation: one session = one file = one export |
-| Unlimited undo/redo | Not a general editor; linear workflow with explicit re-run steps | Allow cascade-reset (re-tag invalidates curation) but not granular undo |
-| Custom search tier configuration | Over-engineering; 99% of users fine with exact → CAS → starts-with order | Hard-code tier order based on research findings |
-| Row-level search tier override | Too granular; adds UI complexity for edge case | Batch retry with re-tag covers use case (change column assignment) |
+| **Fully manual cell-by-cell editing** | Doesn't scale; users with 10K+ rows need batch operations | Provide batch cleaning functions + flag exceptions for review |
+| **Drag-and-drop pipeline builder** | High complexity, low ROI for R/Shiny; fixed pipeline is simpler and sufficient | Fixed 21-step pipeline with enable/disable toggles per step |
+| **Real-time cleaning as user types** | Confusing; users can't tell what will change until they commit | Preview cleaned data in side-by-side table, apply on button click |
+| **AI/ML-powered "smart" cleaning** | Opaque ("why did it change this?"); requires training data; chemical names too domain-specific | Explicit rule-based pipeline with transparent audit trail |
+| **Session persistence across browser refresh** | High complexity (requires server-side storage or cookies); defer to future if needed | Export/re-import pattern achieves similar outcome with less complexity |
+| **Inline formula editor for custom cleaning rules** | Requires DSL or R code eval; security + UX nightmare | Provide comprehensive reference list editors instead |
+| **Version control / branching for cleaning recipes** | Over-engineering for single-user workflow; OpenRefine doesn't do this either | Export operation history as JSON; user manages versions externally if needed |
+
+---
 
 ## Feature Dependencies
 
+Visual graph of how features depend on each other:
+
 ```
-Error row filtering → Subset selection for retry
-  ↓
-Subset selection → Re-tag (optional) → Re-run curation → Merge back
-  ↓
-Merge back → Updated consensus → Resolution dropdown (if new conflicts)
-
-Manual DTXSID entry → Bulk validation API call → Validation results display
-  ↓
-Validation results → User confirms → Update consensus (replace "error" rows)
-
-Column visibility toggle → User preferences (session-scoped)
-  ↓
-Preferences persist across tab switches → Reset on new file upload
-
-Contextual resolution dropdown → Richer display (preferredName, QC, rank)
-  ↓
-Still produces DTXSID selection → Consensus update (existing flow)
+File Upload (existing)
+    ↓
+Unicode Cleaning (ComptoxR::clean_unicode)
+    ↓
+CAS Pipeline (normalize → rescue → validate → split)
+    ↓
+Name Cleaning (terminal phrases → hazards → quality adjectives → formulas)
+    ↓
+Reference Filters (functional categories → stop words → block list → food names)
+    ↓
+Audit Trail Export (per-row comment columns)
+    ↓
+Pre-Curation Summary (counts + flags)
+    ↓
+Column Tagging (existing)
+    ↓
+Curation (existing)
+    ↓
+Post-Curation QC (CAS re-validation + functional use + safety flags)
+    ↓
+Multi-Sheet Export (data + audit + reference + config + dictionary)
 ```
+
+**Critical path:** Unicode → CAS → Names → Audit
+All cleaning steps depend on audit trail infrastructure (`append_comment()`).
+
+**Optional:** Editable reference lists can be deferred (start with static lists in `cleaning_reference.R`).
+
+---
 
 ## MVP Recommendation
 
-### Phase 1: Low-hanging fruit (already have primitives)
-1. **Column visibility toggle** — DT extension, session reactive value
-2. **Smart hide untagged** — Filter untagged columns from display table
-3. **Error feedback specificity** — Expose CompToxR error messages in UI
-4. **Contextual resolution dropdown** — Format existing data in dropdown
+Build in 3 increments:
 
-### Phase 2: Core value adds
-5. **Manual DTXSID entry** — Single input field for error rows
-6. **Bulk validation** — CompTox Batch Search API for multiple manual entries
-7. **Validation preview** — Show proposed changes before commit
+### Phase 1: Core Cleaning (MVP for internal testing)
+Prioritize:
+1. ✅ **Audit trail infrastructure** (`append_comment()` — all other features depend on this)
+2. ✅ **Unicode cleaning** (ComptoxR — easiest, highest ROI per real data analysis)
+3. ✅ **CAS pipeline** (normalize → rescue → validate — 14.4% + 2.4% of rows in live data)
+4. ✅ **Basic name cleaning** (terminal phrases, hazard warnings, formulas — high impact)
+5. ✅ **Summary cards** (counts of changes)
+6. ✅ **Before/after preview** (DT with column toggles)
 
-### Phase 3: Advanced workflows
-8. **Subset retry** — Filter errors → re-run → merge back
-9. **Re-tag before retry** — Invalidate only selected rows, not full cascade
-10. **Audit trail** — Track manual vs auto curation source
+**Defer:** Reference filters, editable lists, multi-sheet export, re-import.
 
-Defer:
-- **Inline editing** — High complexity, marginal value over manual entry + retry
-- **Retry with search tier override** — Power user feature, defer until demand proven
-- **Persistent preferences across sessions** — Complexity not justified by value
+**Why:** Validates pipeline architecture + audit trail pattern. Can test cleaning accuracy before building UI polish.
 
-## Implementation Notes
+---
 
-### Column Visibility (Table Stakes)
+### Phase 2: Reference Filters + Editable Lists (Production-ready cleaning)
+Add:
+1. ✅ **Static reference lists** (`cleaning_reference.R` — functional categories, stop words, block list, food names)
+2. ✅ **Reference filter flagging** (flag, don't remove — 2.5% + 2.2% of rows)
+3. ✅ **Editable reference lists UI** (DT editable tables + reactive re-run)
+4. ✅ **Blocking vs annotating flag distinction** (visual + routing logic)
 
-**Standard pattern:** Checkbox list or dropdown menu toggles column display.
+**Defer:** Multi-sheet export, re-import.
 
-**Best practice:** User preferences override defaults and persist within session (not across page refresh).
+**Why:** Completes cleaning feature set. Users can now tune reference lists without code changes.
 
-**DT/DataTables support:** Built-in `colvis` extension provides button + modal with column checkboxes.
+---
 
-**ChemReg context:** Already use DT package; add `extensions = 'ColVis'` to `DT::datatable()` options.
+### Phase 3: Reproducibility + QC (Research-grade workflow)
+Add:
+1. ✅ **Multi-sheet Excel export** (data + audit + reference state + config + dictionary)
+2. ✅ **Re-import detection** (detect ChemReg export, restore reference lists + skip cleaning if already done)
+3. ✅ **Post-curation QC** (CAS re-validation + functional use + safety flags)
 
-**Complexity:** LOW — framework primitive + reactive preference storage.
+**Why:** Closes the reproducibility loop. Users can share cleaned + curated data with full provenance.
 
-### Smart Hide Untagged (Differentiator)
+---
 
-**Pattern:** Automatically hide columns user hasn't marked as relevant.
+## Integration with Existing ChemReg Features
 
-**ChemReg context:** Users tag columns as "Name", "CASRN", or "Other". Untagged columns are irrelevant to curation (e.g., storage location, quantity).
+| Existing Feature | How Cleaning Integrates | Impact |
+|------------------|-------------------------|--------|
+| **Data Preview tab** | Unchanged; shows post-detection, pre-cleaning data | None (backward compatible) |
+| **Tag Columns tab** | Now receives cleaned data instead of raw data | Better match rates (fewer API misses due to noise) |
+| **Run Curation tab** | Unchanged; tiered search operates on cleaned names/CAS | Improved consensus accuracy |
+| **Review Results tab** | Gains post-curation QC columns (functional use, safety flags) | Richer metadata for curator decisions |
+| **Excel export** | Enhanced to multi-sheet (data + audit + reference + config) | Replaces single-sheet export |
 
-**Implementation:** Single checkbox "Hide untagged columns" → reactive filter on column list → update DT visible columns.
+**Gating logic:**
+- Clean Data tab unlocks after successful data detection (same as current Tag Columns gating).
+- Tag Columns tab unlocks after Clean Data completes (user reviews cleaning results before tagging).
+- No changes to existing curation flow gating.
 
-**Edge case:** If ALL columns untagged, show all (empty table confusing).
+---
 
-**Complexity:** LOW — boolean filter + DT column visibility API.
+## Complexity Assessment
 
-### Manual DTXSID Entry (Table Stakes)
+| Feature | LOC Estimate | Risk | Notes |
+|---------|--------------|------|-------|
+| Audit trail (`append_comment()`) | 50 | Low | Pure function, easy to test |
+| Unicode cleaning | 20 | Low | ComptoxR wrapper, already validated |
+| CAS pipeline (4 functions) | 200 | Medium | Rescue logic complex (IUPAC comma handling) |
+| Name cleaning (8 functions) | 400 | Medium | Hazard regex, terminal phrase heuristics |
+| Reference filters (4 functions) | 150 | Low | Keyword matching, straightforward |
+| Summary cards | 100 | Low | Count aggregation + Bootstrap cards |
+| Before/after preview | 150 | Low | DT column visibility API |
+| Editable reference lists | 300 | High | DT editable + reactive re-run + state management |
+| Blocking vs annotating flags | 100 | Low | Conditional routing based on flag_type metadata |
+| Multi-sheet export | 200 | Medium | writexl multi-sheet API, need data dictionary formatting |
+| Re-import detection | 250 | High | Excel metadata sheet parsing + state restoration logic |
+| Post-curation QC | 150 | Low | ComptoxR API calls, similar to existing curation |
 
-**Standard pattern:** Inline edit or modal dialog for single value entry.
+**Total estimate:** ~2,070 LOC for full feature set (MVP Phase 1 ≈ 800 LOC).
 
-**Bulk variant:** CSV paste, multi-line textarea, or file upload for many identifiers.
+---
 
-**Validation requirement:** Check format (DTXSID + 9 digits) + verify exists in CompTox.
+## UX Pattern Details
 
-**ChemReg context:** Error rows have no valid DTXSID. User knows correct identifier (from external source, manual lookup).
+### Audit Trail Display: Child Rows vs Side Panel vs Tooltip
+
+**Options evaluated:**
+
+| Pattern | Pros | Cons | Best For |
+|---------|------|------|----------|
+| **Expandable child rows** ([DataTables](https://datatables.net/examples/api/row_details.html)) | Keeps context (row visible above details), no lost scroll position, familiar pattern | Increases vertical space when expanded, may push other rows off-screen | Moderate-length audit logs (5-10 transformations per row) |
+| **Side panel drawer** ([HighLevel audit logs](https://help.gohighlevel.com/support/solutions/articles/155000006667-audit-logs-introducing-the-new-design-experience)) | Persistent view (doesn't change table layout), arrow keys navigate between rows, rich formatting possible | Context switch (row → panel), horizontal space constraint on small screens | Deep audit logs with before/after values, timestamps, user info |
+| **Tooltip on hover** | Minimal UI clutter, instant preview | Text-only (no formatting), disappears on mouse-out, limited space | Very short logs (1-2 line summary) |
+
+**Recommendation for ChemReg:** Start with **child rows** (simpler, standard DT pattern). Upgrade to side panel if users request richer formatting (before/after value comparison, color-coded change types).
+
+**Implementation:**
+- DT `row().child()` API creates child row on click
+- Format audit log as HTML list: `<ul><li>Unicode: swapped α with .alpha.</li><li>Extraneous parenthesis: (EPA added)</li></ul>`
+- Click chevron icon to expand/collapse
 
-**UI options:**
-1. **Modal dialog** — Click error row → modal with input field → validate → update
-2. **Inline edit** — Click cell → editable → validate on blur
-3. **Bulk paste** — Textarea accepts multiple DTXSIDs (one per line or comma-separated)
-
-**Recommendation:** Start with modal (simpler state management), add bulk paste for scale.
-
-**Complexity:** MEDIUM — UI straightforward, validation API + reactivity adds complexity.
-
-### Bulk Validation (Table Stakes)
-
-**Why necessary:** CompTox API has rate limits. Validating 100 manual entries one-by-one = slow + wasteful.
-
-**CompTox support:** Batch Search accepts up to thousands of identifiers (DTXSID, CASRN, InChIKey, chemical name).
-
-**Response format:** Returns matched records with DTXSID, preferredName, CASRN, molecular formula, etc.
-
-**Validation logic:**
-- Valid format? (DTXSID = `DTXSID[0-9]{9}`)
-- Exists in CompTox? (Batch Search returns match)
-- If no match → error, user must correct
-
-**ChemReg context:** User enters multiple DTXSIDs (via bulk paste or repeated modal entries). Before committing, validate all against CompTox in single API call.
-
-**Complexity:** MEDIUM — API call batching + error handling.
-
-### Subset Retry (Table Stakes)
-
-**Pattern:** Filter failed rows → modify inputs → re-run processing → merge results back.
-
-**Industry standard:** AWS DMS, Databricks CDC pipelines, ETL tools all support partial retry.
-
-**Key requirements:**
-1. **Idempotency** — Retry doesn't duplicate data
-2. **Merge safety** — Results replace original rows, not append
-3. **Validation** — Ensure row identifiers match (avoid wrong-row updates)
-
-**ChemReg context:** User filters to error rows → optionally re-tags columns → re-runs curation on subset → results merge back (replace consensus for those rows).
-
-**Merge strategy:** Use row index or unique key (e.g., original row number from uploaded file).
-
-**Complexity:** MEDIUM — Filter + run curation subset straightforward; merge-back logic needs careful testing.
-
-### Re-tag Before Retry (Differentiator)
-
-**Use case:** User realizes "Compound Name" column was mis-tagged as "Other". Errors occurred because name column wasn't searched. Fix tag → retry just the errors.
-
-**Current behavior:** Tag change cascade-resets ALL curation results (conservative, prevents stale state).
-
-**Desired behavior:** Tag change invalidates only SELECTED rows for retry, preserves rest.
-
-**Implementation challenge:** Reactive cascade currently all-or-nothing. Need subset-scoped invalidation.
-
-**Alternative approach:** Copy error rows to separate "retry workspace" → re-tag columns in workspace → run curation → merge back. Avoids partial invalidation complexity.
-
-**Complexity:** MEDIUM (subset invalidation) or LOW (workspace copy pattern).
-
-**Recommendation:** Workspace copy pattern simpler, clearer UX.
-
-### Validation Preview (Differentiator)
-
-**Pattern:** Two-step commit — show what WILL change, user confirms before applying.
-
-**Why valuable:** Manual override is risky (wrong DTXSID = corrupted data). Preview prevents mistakes.
-
-**ChemReg context:** User enters DTXSIDs for error rows → validate → show table of proposed changes → user reviews → clicks "Apply" to commit.
-
-**Preview table columns:**
-- Row identifier (e.g., row number, chemical name from original data)
-- Current consensus status ("error")
-- Proposed DTXSID (user-entered)
-- Validation status (valid / invalid / not found)
-- CompTox metadata (preferredName, CASRN for verification)
-
-**Complexity:** MEDIUM — Requires temporary state (proposed changes not yet committed) + UI for review.
-
-### Contextual Resolution Dropdown (Differentiator)
-
-**Current state:** Dropdown shows raw DTXSIDs (e.g., "DTXSID1020001", "DTXSID5023847").
-
-**Problem:** Users can't tell which is correct without external lookup.
-
-**Solution:** Show preferredName + QC level + rank in dropdown label, value still DTXSID.
-
-**Example label:** `Acetone (DTXSID1020001) [QC: STANDARD, Rank: 1]`
-
-**Data availability:** All metadata already in curation results from CompToxR.
-
-**Implementation:** Format dropdown choices in `build_resolution_dropdown()` function.
-
-**Complexity:** LOW-MEDIUM — String formatting + ensure all fields available.
-
-### Audit Trail (Differentiator)
-
-**Why valuable:** Track provenance — was this row auto-matched or manually curated?
-
-**Implementation:** Add `curation_source` column to results:
-- `"auto"` — Matched via tiered search
-- `"manual"` — User entered DTXSID
-- `"retry"` — Re-run after tag change or error resolution
-- `"resolved"` — User selected from resolution dropdown
-
-**Display:** Include in exported Excel for downstream analysis.
-
-**Complexity:** LOW — Simple string column, set during curation/manual entry.
-
-### Column Visibility Best Practices
-
-**From research:**
-- Priority-based defaults (data-priority 1-6, auto-hide low priority on narrow screens)
-- User override via checkbox menu or column picker modal
-- Preferences persist within session (until page refresh)
-- Clear visual indicator when columns hidden (e.g., "5 columns hidden" badge)
-
-**DT/DataTables pattern:**
-- `columns.visible` option controls initial visibility
-- `colvis` extension adds button + modal with checkboxes
-- User clicks checkbox → column shows/hides immediately
-- Preferences stored in browser localStorage (optional)
-
-**ChemReg needs:**
-- Many untagged columns (storage location, batch number, etc.)
-- Only Name, CASRN, Other tagged columns relevant to curation review
-- Auto-hide untagged = reduce clutter
-- User can still show/hide individual columns via colvis
-
-**Recommended approach:**
-1. Default visibility: show all tagged columns, hide untagged
-2. Checkbox: "Show untagged columns" (off by default)
-3. ColVis extension for granular per-column control
-4. Session-scoped preference (reset on new file upload)
-
-### Error Recovery Workflow Best Practices
-
-**From research (AWS DMS, Databricks):**
-- Retry with delay (exponential backoff for transient failures)
-- Idempotent merge (upsert based on unique key, not append)
-- Validation before retry (don't retry guaranteed failures)
-- Status tracking (pending → retry → success/fail)
-
-**ChemReg context:**
-- No transient failures (CompTox API either finds match or doesn't)
-- Retry motivation: user fixed input (re-tagged column, manual DTXSID entry)
-- Validation: ensure manual DTXSIDs valid before retry
-- Merge: replace consensus for retried rows, preserve others
-
-**Error categories:**
-1. **Fixable via re-tag** — Column mis-assigned, correct data in different column
-2. **Fixable via manual entry** — Chemical not in CompTox or name too ambiguous
-3. **Unfixable** — Bad data (typo, non-chemical text), missing entirely
-
-**Workflow:**
-1. User reviews error rows
-2. Identifies category (re-tag vs manual entry vs ignore)
-3. Takes action (re-tag + retry OR manual DTXSID entry OR skip)
-4. Results merge back, consensus updated
-
-### Bulk Validation API Details
-
-**CompTox Batch Search capabilities:**
-- Input formats: Chemical name, CASRN, DTXSID, InChIKey, molecular formula
-- Batch size: Hundreds to thousands (exact limit not documented, test recommended)
-- Output: Matched records with full metadata (DTXSID, preferredName, CASRN, formula, etc.)
-- Error handling: Invalid identifiers flagged, "No Hits" indicated
-
-**Validation checks:**
-1. **Format validation** (client-side, before API call)
-   - DTXSID: `DTXSID[0-9]{9}` (27 char InChIKey variant also exists)
-   - CASRN: `[0-9]{2,7}-[0-9]{2}-[0-9]` with checksum validation
-   - InChIKey: 27 chars, uppercase letters, hyphens at positions 15 and 26
-2. **Existence validation** (API call)
-   - CompTox Batch Search returns matches
-   - No match = identifier not in database
-3. **Conflict detection** (optional, for CASRN)
-   - Multiple CASRNs can map to same InChIKey
-   - CompTox flags deleted/alternate CASRNs, routes to active
-
-**ChemReg implementation:**
-- User enters DTXSIDs (bulk paste or repeated modal entry)
-- Client-side regex validation (instant feedback on format errors)
-- Batch API call via ComptoxR (verify existence)
-- Display validation results (valid / invalid / not found)
-- User confirms → apply valid entries, reject invalid
-
-**Error messaging:**
-- Invalid format: "DTXSID123 is not a valid DTXSID format (expected DTXSID + 9 digits)"
-- Not found: "DTXSID1234567890 not found in CompTox database"
-- API error: "CompTox API error: [message]"
-
-### Inline Edit vs Modal Entry Trade-offs
-
-**Inline edit (table cell editing):**
-- **Pros:** Feels immediate, minimal clicks, familiar spreadsheet UX
-- **Cons:** Complex state management (which cells editable?), validation timing (on blur? on enter?), error display (where to show validation error for a cell?)
-- **Complexity:** HIGH — DT editable extension + Shiny reactivity + validation loop
-
-**Modal entry:**
-- **Pros:** Clear workflow (click row → modal → enter → validate → save), error messages easy to display in modal, simpler state (modal open/closed)
-- **Cons:** Extra click, context switch (row to modal and back)
-- **Complexity:** MEDIUM — Modal UI + validation + update reactive value
-
-**Bulk paste (textarea in modal):**
-- **Pros:** Efficient for many entries, supports copy-paste from external source
-- **Cons:** Parsing input (one per line? comma-separated? with row identifiers?), error display for multi-line input
-- **Complexity:** MEDIUM-HIGH — Input parsing + validation + mapping to rows
-
-**Recommendation for ChemReg:**
-- **Start with modal entry** for single row (simpler, good enough for small error counts)
-- **Add bulk paste** if users regularly have 20+ errors (efficiency gain justifies complexity)
-- **Defer inline edit** unless user feedback strongly requests it
-
-## Complexity Summary
-
-| Feature | Complexity | Rationale |
-|---------|-----------|-----------|
-| Column visibility toggle | LOW | DT built-in extension + reactive preference |
-| Smart hide untagged | LOW | Boolean filter + DT API |
-| Error feedback specificity | LOW-MEDIUM | Expose existing CompToxR messages |
-| Contextual resolution dropdown | LOW-MEDIUM | Format existing data |
-| Audit trail | LOW | Add string column, set during curation |
-| Manual DTXSID entry (modal) | MEDIUM | UI + validation API + reactivity |
-| Bulk validation | MEDIUM | API batching + error handling |
-| Validation preview | MEDIUM | Temporary state + review UI |
-| Subset retry | MEDIUM | Filter + run + merge logic |
-| Re-tag before retry (workspace) | MEDIUM | Copy subset + re-tag + merge |
-| Re-tag before retry (invalidation) | MEDIUM-HIGH | Partial reactive invalidation |
-| Inline edit | HIGH | Editable cells + validation loop + state management |
-| Retry with tier override | HIGH | Per-row search strategy + UI complexity |
-
-## Dependencies on Existing Features
-
-| New Feature | Depends On (Existing) |
-|-------------|----------------------|
-| Error row filtering | Consensus classification (agree/disagree/error) — v1.1 |
-| Manual DTXSID entry | CompToxR API integration — v1.1 |
-| Bulk validation | CompToxR Batch Search — available in API |
-| Subset retry | Tiered curation search pipeline — v1.1 |
-| Re-tag before retry | Column tagging system — v1.0 |
-| Contextual resolution dropdown | Resolution UI (per-row + en masse) — v1.1 |
-| Smart hide untagged | Column tagging (Name, CASRN, Other) — v1.0 |
-| Column visibility toggle | DT datatable display — existing |
-| Audit trail | Curation results data structure — v1.1 |
-
-## Research Confidence
-
-| Area | Confidence | Notes |
-|------|-----------|-------|
-| Column visibility patterns | HIGH | DT/DataTables official docs, multiple UI framework examples |
-| Bulk validation (general) | HIGH | Industry standard pattern, well-documented in ETL/data validation tools |
-| CompTox Batch Search | MEDIUM | Official EPA docs confirm capability, exact limits untested |
-| Subset retry patterns | HIGH | Databricks, AWS DMS official docs, common in CDC pipelines |
-| Inline edit complexity | HIGH | Multiple framework docs (Telerik, Syncfusion, AG Grid) |
-| Chemical identifier validation | HIGH | CompTox official docs, IUPAC InChI standards |
-| Manual entry UX | MEDIUM | General data validation UX, not chemical-specific sources |
+---
+
+### Editable Reference Lists: Inline vs Modal vs Separate Page
+
+**Options evaluated:**
+
+| Pattern | Pros | Cons | Best For |
+|---------|------|------|----------|
+| **Inline editable table** ([DT editable](https://rstudio.github.io/DT/shiny.html)) | Familiar spreadsheet UX, immediate edits, bulk copy-paste | Validation timing (on blur? enter key?), accidental edits, state management | Small lists (< 50 items), single-column data |
+| **Modal dialog with form** | Clear workflow (open → edit → save), easy validation, no accidental edits | Extra clicks, context switch | Adding new items, editing multi-field records |
+| **Separate "Configure" tab** | Dedicated space, persistent (no modal dismiss), can include instructions | Workflow interruption (leave Clean Data tab → edit → return), risk of forgetting to re-run pipeline | Power users, extensive customization |
+
+**Recommendation for ChemReg:** **Inline editable table** for small lists (stop words, food names, block list). **Modal for adding new items** (avoids inline validation complexity). **Separate tab** only if users need extensive help text or configuration beyond simple lists.
+
+**Implementation:**
+- DT editable table via `editable = "cell"` option
+- Listen to `input$tableId_cell_edit` event
+- Update `reactiveVal()` with edited list
+- "Apply Changes" button re-runs pipeline with updated list
+- Warning: "Unsaved changes" if user leaves tab with edits pending
+
+---
+
+### Blocking vs Annotating Flags: Visual Design
+
+**Color conventions** ([Baymard](https://baymard.com/blog/validations-vs-warnings), [NN/g](https://www.nngroup.com/articles/errors-forms-design-guidelines/)):
+
+| Flag Type | Color | Icon | Behavior |
+|-----------|-------|------|----------|
+| **Blocking** | Red (`bg-danger`) | `⛔` or `❌` | Row excluded from curation; user must fix or accept data loss |
+| **Annotating** | Yellow/Orange (`bg-warning`) | `⚠️` | Row proceeds to curation; flag stored as metadata for review |
+| **Info** | Blue (`bg-info`) | `ℹ️` | FYI only (e.g., "CAS rescued from name column") |
+
+**ChemReg examples:**
+
+| Flag | Type | Why | Example |
+|------|------|-----|---------|
+| "Name is formula" (H2O, NaCl) | Blocking | Formulas won't match CompTox names; curation will fail | Red row highlight |
+| "Empty name and CAS" | Blocking | Nothing to curate | Red row highlight |
+| "Name is mixture" (60:40 w/w) | Annotating | Mixtures may match single component or fail; let curator decide | Yellow badge in row |
+| "Name is functional use" (Fragrance) | Annotating | May be generic category or actual chemical (e.g., linalool as fragrance) | Yellow badge in row |
+| "Proprietary / trade secret" | Annotating | Likely non-chemical but could be ambiguous naming | Yellow badge in row |
+
+**Implementation:**
+- Flagging functions return `data.frame` with `flag_type` column: `"blocking"`, `"annotating"`, `"info"`
+- UI filters rows: `blocking_rows <- df %>% filter(flag_type == "blocking")`
+- Before curation: show count of blocking flags, require user to acknowledge ("X rows will be excluded")
+- DT row styling via `formatStyle()`: red background for blocking, yellow for annotating
+
+---
+
+### Multi-Sheet Excel Export: Best Practices
+
+**Sheet structure** ([data organization guide](https://www.tandfonline.com/doi/full/10.1080/00031305.2017.1375989)):
+
+| Sheet Name | Contents | Purpose |
+|------------|----------|---------|
+| **Data** | Cleaned + curated chemical data | Main output for analysis |
+| **Audit_Trail** | Row-by-row transformation log | Provenance tracking |
+| **Reference_Lists** | Stop words, block list, functional categories (as exported) | Reproducibility: shows which filters were applied |
+| **Pipeline_Config** | Enabled/disabled steps, settings (e.g., CAS checksum strictness) | Reproducibility: full pipeline state |
+| **Data_Dictionary** | Column name, description, data type, example values | Metadata for downstream users |
+| **README** | File creation date, ChemReg version, contact info | Human-readable header |
+
+**Data Dictionary format:**
+
+| Column_Name | Description | Data_Type | Example | Source |
+|-------------|-------------|-----------|---------|--------|
+| `chemical_name_clean` | Chemical name after pre-curation cleaning | Character | "acetone" | Cleaned from raw_chem_name |
+| `casrn_normalized` | CAS-RN after normalization and validation | Character | "67-64-1" | Validated via ComptoxR |
+| `consensus_dtxsid` | Resolved DTXSID from tiered curation | Character | "DTXSID1020001" | CompTox API curation |
+| `consensus_status` | Agreement level across tagged columns | Factor | "agree", "disagree", "error" | Consensus classification |
+| `functional_use` | EPA functional use category (post-curation) | Character | "solvent; cleaning agent" | CompTox functional use API |
+| `audit_trail_name` | All transformations applied to name column | Character | "Unicode: α→.alpha. \| Parens: (ACS)" | Cleaning pipeline |
+
+**writexl implementation:**
+```r
+wb_list <- list(
+  Data = cleaned_curated_df,
+  Audit_Trail = audit_df,
+  Reference_Lists = bind_rows(
+    stop_words = tibble(type = "stop_words", value = stop_words_list),
+    block_list = tibble(type = "block_list", value = block_list),
+    ...
+  ),
+  Pipeline_Config = tibble(step = names(pipeline_config), enabled = unlist(pipeline_config)),
+  Data_Dictionary = data_dictionary_df,
+  README = tibble(info = c("File created:", Sys.time(), "ChemReg version:", "1.3.0", ...))
+)
+writexl::write_xlsx(wb_list, path = "ChemReg_export.xlsx")
+```
+
+---
+
+### Re-Import Detection: Heuristics
+
+**How to detect ChemReg export vs fresh upload:**
+
+| Method | Pros | Cons | Reliability |
+|--------|------|------|-------------|
+| **Sheet name pattern** | Fast (check `excel_sheets()`), non-invasive | False positives if user manually creates sheets named "Audit_Trail" | 90% |
+| **Metadata in README sheet** | Explicit (e.g., `ChemReg_version: 1.3.0`), authoritative | Requires parsing README sheet | 99% |
+| **Column name pattern** | Check for `audit_trail_name`, `consensus_dtxsid`, `pipeline_config_*` | Invasive (loads data), slow for large files | 95% |
+| **Custom property in Excel metadata** | Most reliable, no sheet pollution | Requires `openxlsx` (writexl doesn't support custom properties) | 100% (if supported) |
+
+**Recommendation:** Combine **README sheet** + **column name pattern** as fallback.
+
+**Workflow on re-import:**
+1. User uploads file
+2. Check if README sheet exists with `ChemReg_version` key
+3. If yes → extract `Reference_Lists` and `Pipeline_Config` sheets, restore to reactiveVals
+4. Check if `Data` sheet already has cleaned columns (`chemical_name_clean`, `casrn_normalized`)
+5. If yes → skip pre-curation pipeline, jump directly to Tag Columns tab
+6. Show modal: "Re-import detected. Restored reference lists: X stop words, Y block list items. Pipeline skipped."
+
+**Edge case:** User edits exported file, re-imports. Solution: hash `Data` sheet content, store in README. On re-import, compare hash. If mismatch → warn "Data modified since export; re-running pipeline."
+
+---
 
 ## Sources
 
-**Data Curation and Error Recovery:**
-- [Data Curation in 2026: Key Concepts and Best Practices](https://research.aimultiple.com/data-curation/)
-- [Emerging Trends in Data Curation - Secoda](https://www.secoda.co/glossary/emerging-trends-in-data-curation)
-- [Error handling in distributed systems - Temporal](https://temporal.io/blog/error-handling-in-distributed-systems)
+### UX Patterns & Data Cleaning Tools
+- [OpenRefine Official Site](https://openrefine.org/) — Open-source data cleaning with faceting and undo/redo
+- [OpenRefine Undo/Redo Documentation](https://guides.library.unlv.edu/open-refine/undo-redo) — Operation history and JSON export
+- [Trifacta Data Wrangling Overview](https://www.softcrylic.com/blogs/trifacta-a-tool-for-the-modern-day-data-analyst/) — Recipe-based transformation UI
+- [Data Table Design UX Best Practices](https://www.pencilandpaper.io/articles/ux-pattern-analysis-enterprise-data-tables) — Expandable row patterns
+- [Audit Trail UI Pattern (HighLevel)](https://help.gohighlevel.com/support/solutions/articles/155000006667-audit-logs-introducing-the-new-design-experience) — Side drawer with before/after values
 
-**Bulk Validation and Manual Entry:**
-- [Bulk action UX: 8 design guidelines - Eleken](https://www.eleken.co/blog-posts/bulk-actions-ux)
-- [Designing for Enterprise — Better UX for Bulk Upload - Medium](https://manitesharma.medium.com/designing-for-enterprise-better-ux-for-bulk-upload-961e9fd1b80d)
-- [Data Validation in ETL - 2026 Guide - Integrate.io](https://www.integrate.io/blog/data-validation-etl/)
+### Validation & Error Handling
+- [Form Validations vs Warnings (Baymard)](https://baymard.com/blog/validations-vs-warnings) — Blocking errors vs proceed-with-warning pattern
+- [NN/g Error Message Guidelines](https://www.nngroup.com/articles/errors-forms-design-guidelines/) — Visual design for errors
+- [Building UX for Error Validation](https://medium.com/@olamishina/building-ux-for-error-validation-strategy-36142991017a) — Red/orange/green color conventions
 
-**Retry and Merge-Back Patterns:**
-- [Retry and Failure Handling Strategy for CDC Merge Pipeline - Microsoft Q&A](https://learn.microsoft.com/en-us/answers/questions/2284154/retry-and-failure-handling-strategy-for-cdc-merge)
-- [AWS DMS data validation - AWS Documentation](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Validating.html)
-- [How to Handle Late Arriving Dimensions - Databricks Blog](https://www.databricks.com/blog/2020/12/15/handling-late-arriving-dimensions-using-a-reconciliation-pattern.html)
+### Reproducibility & Export
+- [Reproducible Data Cleaning Guide](https://b-greve.gitbook.io/beginners-guide-to-clean-data/data-modeling/reproducibility) — Document every transformation
+- [Creating a Data Cleaning Workflow](https://cghlewis.com/blog/data_clean_02/) — Session info and script export
+- [datacleanr R Package](https://github.com/the-Hull/datacleanr) — Interactive + reproducible cleaning with recipe export
+- [Multi-Sheet Excel Best Practices](https://www.tandfonline.com/doi/full/10.1080/00031305.2017.1375989) — Data dictionary structure
 
-**Column Visibility and Table UX:**
-- [DataTables: Show / hide columns dynamically](https://datatables.net/examples/api/show_hide.html)
-- [Column-Toggle Table Widget - jQuery Mobile](https://api.jquerymobile.com/table-columntoggle/)
-- [Data Grid - Column visibility - MUI X](https://mui.com/x/react-data-grid/column-visibility/)
-- [12 Best Data Catalog Tools in 2026 - Atlan](https://atlan.com/data-catalog-tools/)
+### R Shiny Implementation
+- [DT in Shiny](https://rstudio.github.io/DT/shiny.html) — Editable tables and cell edit events
+- [DataTables Child Rows](https://datatables.net/examples/api/row_details.html) — Expandable row details API
+- [editbl Package](https://cran.r-project.org/web/packages/editbl/editbl.pdf) — Referenced table pattern for Shiny
+- [Progressive Disclosure Pattern](https://ui-patterns.com/patterns/ProgressiveDisclosure) — Reveal information as needed
+- [shinymgr Framework](https://journal.r-project.org/articles/RJ-2024-009/) — Tab-based workflow management
 
-**Inline Editing Patterns:**
-- [Simplify Data Entry with Built-In Grid Editing - ComponentSource](https://www.componentsource.com/news/2026/01/20/simplify-data-entry-built-grid-editing)
-- [AG Grid Validations - Cupcake Design System](https://cupcake-design-system.github.io/patterns/ag-grid-validations/)
-- [CRUD Beyond Grids: Modern UI Patterns 2026](https://copyprogramming.com/howto/what-is-the-best-ux-to-let-user-perform-crud-operations)
-
-**CompTox and Chemical Identifiers:**
-- [Cheminformatics Modules Manual - US EPA](https://www.epa.gov/comptox-tools/cheminformatics-modules-manual)
-- [The CompTox Chemistry Dashboard - Journal of Cheminformatics](https://jcheminf.biomedcentral.com/articles/10.1186/s13321-017-0247-6)
-- [Chemicals Dashboard Help: Batch Search - US EPA](https://www.epa.gov/comptox-tools/chemicals-dashboard-help-batch-search)
-- [CompTox Dashboard Data through APIs - TAME 2.0](https://uncsrp.github.io/TAME2/comptox-dashboard-data-through-apis.html)
-- [5 Chemical Identifiers - Chemistry LibreTexts](https://chem.libretexts.org/Courses/University_of_Arkansas_Little_Rock/ChemInformatics_(2015):_Chem_4399_5399/Text/5_Chemical_Identifiers)
-- [Using InChI and InChIKey - IUPAC FAIR Chemistry Cookbook](https://iupac.github.io/WFChemCookbook/manipulations/using_inchi.html)
+### Chemical Inventory Context
+- [Chemical Inventory Management Best Practices](https://www.fldata.com/chemical-inventory-management-best-practices) — Data validation and reconciliation
+- [Chemical Inventory Software Comparison](https://safetyculture.com/apps/chemical-inventory-software) — Feature landscape for chemical tracking tools
+- [Data Cleaning Best Practices 2025](https://clevercsv.com/data-cleaning-best-practices/) — Audit trails and standardization

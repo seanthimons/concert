@@ -1,194 +1,195 @@
-# Pitfalls Research
+# Domain Pitfalls
 
-**Domain:** Curation refinement features for existing chemical inventory app
-**Researched:** 2026-03-01
-**Confidence:** HIGH
+**Domain:** R/Shiny chemical inventory data cleaning pipeline
+**Researched:** 2026-03-04
+**Confidence:** MEDIUM
 
 ## Critical Pitfalls
 
-### Pitfall 1: DT Column Index Drift After Hiding Columns
+### Pitfall 1: Synonym Splitting Breaking IUPAC Names
 
 **What goes wrong:**
-When hiding columns via `columnDefs: list(visible = FALSE, targets = hidden_indices)`, JavaScript callbacks using `data-row` attributes refer to R-side row indices (1-based), but DT's internal column indices (0-based) shift when columns are hidden. If you hide dtxsid_* columns but formatStyle or JS callbacks assume original column positions, they target the wrong columns or fail silently.
+Comma-based synonym splitting (`"xylene, dimethylbenzene"`) falsely splits IUPAC names that use commas for locant separation (`"butane, 2,2-dimethyl"`) or stereochemical notation (`"(1R,3R;1R,3S)-compound"`). The live ChemReg dataset has 1,000+ rows with comma-separated synonyms but also contains inverted IUPAC names where the comma is syntactically significant.
 
 **Why it happens:**
-The DT package maintains separate R-side (1-based with all columns) and JS-side (0-based, visible columns only) indexing. When `escape=FALSE` is used with dynamically generated HTML (like resolution dropdowns), the `data-row` attribute captures the R row index, but if your JS callback tries to read column values using visible column positions, it gets misaligned data.
+IUPAC allows two naming forms: `"2,2-dimethylbutane"` (canonical) and `"butane, 2,2-dimethyl"` (inverted). The inverted form looks identical to a synonym list ([IUPAC nomenclature](https://en.wikipedia.org/wiki/IUPAC_nomenclature_of_organic_chemistry)). Commas also appear in digit-comma-digit patterns (`1,4-dioxane`) and parenthetical stereochemistry descriptors. Naive splitting on all commas destroys these names.
 
 **How to avoid:**
-1. Always use R-side row indices (from `seq_len(nrow(df))`) in `data-row` attributes
-2. Never mix R row indices with DT column indices in the same callback
-3. When hiding columns, compute `hidden_indices` as `which(names(df) %in% hidden_cols) - 1` (0-indexed for JS)
-4. Test callbacks with both minimum (1 column hidden) and maximum (10+ columns hidden) scenarios
-5. Use formatStyle's `target = 'row'` instead of column-specific styling when possible to avoid index issues
+1. **Protect digit-comma-digit patterns**: Don't split within `\d+,\d+` sequences
+2. **Protect parenthetical content**: Don't split on commas inside `()`, `[]`, or `{}`
+3. **Detect inverted IUPAC form**: If a string matches `^[A-Z][a-z]+,\s+\d` (name followed by comma-space-digit), treat as single name
+4. **Prefer semicolons**: Split on semicolons first (least ambiguous), then cautiously on commas
+5. **Log all splits**: Audit trail should show what was split and how many parts resulted
 
 **Warning signs:**
-- Resolution dropdown appears in the wrong column after hiding dtxsid_* columns
-- `Shiny.setInputValue` receives row indices that don't match consensus_status values
-- formatStyle applies to wrong column (e.g., consensus_status styling appears on consensus_dtxsid)
-- Console errors like "cannot read property of undefined" in browser DevTools
+- Test dataset shows splits creating 1-character fragments
+- Post-split names contain only numbers (`"2,2-dimethyl"` split into `["2", "2-dimethyl"]`)
+- CompTox curation shows sudden match rate drop after synonym splitting enabled
+- Names like `"propane"` appearing in data that should be `"propane, 2-methyl"`
 
 **Phase to address:**
-Phase 1 (Untagged Column Hiding) — validate that hiding columns doesn't break existing resolution dropdown indices
+Phase 3 (Name Cleaning Core) — P3.3: Synonym splitting function must implement protection rules before general deployment. Write 20+ test cases covering edge cases from live data before integration.
 
 ---
 
-### Pitfall 2: Starts-With Search Precision Collapse
+### Pitfall 2: Reactive Cascade Explosion from Editable Reference Lists
 
 **What goes wrong:**
-Moving starts-with to the end of the search chain (exact → CAS → starts-with) seems logical for prioritizing exact matches, but starts-with has no precision control — it returns all chemicals starting with the query string. For short queries like "Acet" or "Prop", this produces 100+ matches per query, and `slice_min(rank, n=1)` arbitrarily picks the top-ranked one, which may not be the user's intended chemical. This degrades match quality compared to exact-then-starts-with order.
+When a user edits a reference list (stop words, block list, functional categories), the app re-runs the entire 21-step pre-curation pipeline, which triggers tag column invalidation, which cascades to curation invalidation, which forces Review Results re-render, which triggers Excel export cache invalidation. A single stop-word addition causes 5-10 seconds of re-computation and UI lock.
 
 **Why it happens:**
-The CompTox API's starts-with search is "identifier substring search" and returns all matching substances with no fuzzy matching score. According to EPA documentation, exact searches are already implemented, but "fuzzy matching" to account for spelling differences is a future plan. The current starts-with implementation ranks results but doesn't filter by relevance beyond alphabetical/system ordering. When CAS search runs before starts-with, CAS failures (invalid format, no DTXSID mapping) fall through to starts-with, polluting results with unintended prefix matches.
+Shiny's reactive programming model follows the principle that if A depends on B, changing B invalidates A ([Mastering Shiny Ch. 15](https://mastering-shiny.org/reactivity-objects.html)). Reference lists feed into pre-curation → pre-curation feeds into tagged data → tagged data feeds into curation results. Without explicit isolation, changing reference data creates a reactive chain that re-computes everything downstream. The issue compounds because `withProgress()` blocks the reactive context, preventing concurrent user actions during re-computation ([Mastering Shiny Ch. 8](https://mastering-shiny.org/action-feedback.html)).
 
 **How to avoid:**
-1. **Test match quality empirically** — run curation on sample data with both orders (exact → starts → CAS vs exact → CAS → starts) and compare consensus_status distributions
-2. **Add starts-with filtering** — if moving to last-resort position, add length-based filtering (e.g., only use starts-with if query is 6+ characters) to reduce false positives
-3. **Consider CAS-first only for CAS-tagged columns** — keep Name columns on exact → starts chain, use exact → CAS → starts only for CASRN-tagged columns
-4. **Log tier attribution** — ensure `source_tier` column distinguishes exact, cas, starts_with so you can audit match quality post-curation
-5. **Document the tradeoff** — exact → starts → CAS maximizes recall for typos; exact → CAS → starts maximizes precision for valid CAS numbers
+1. **Debounce reference edits**: Use `shinyjs::delay()` or `debounce()` to batch rapid edits into a single re-run trigger
+2. **Add explicit "Apply Changes" button**: Don't auto-rerun on every keystroke in editable reference tables — let users stage changes then commit
+3. **Use `isolate()` for display**: UI components showing pipeline results should use `isolate()` to read data without taking reactive dependencies
+4. **Cache intermediate results**: Store pre-curation results in a `reactiveVal()` that only invalidates when reference data explicitly changes and user confirms
+5. **Show diff preview**: Before re-running pipeline, show user how many rows will be affected by the reference list change
 
 **Warning signs:**
-- Consensus rate drops after reordering (e.g., from 85% agree to 75% agree)
-- Review Results shows chemicals with names completely different from uploaded data (e.g., uploaded "Acetone" matched to "Acetonitrile")
-- Tier attribution shows unexpected starts_with dominance for columns tagged as CASRN
-- User feedback: "The matches are wrong now"
+- UI becomes unresponsive for multiple seconds after reference list edit
+- Progress bar appears mid-typing in editable table
+- Browser shows "Shiny is busy" gray overlay frequently during reference editing
+- User reports in testing: "I can't edit the list without the app freezing"
 
 **Phase to address:**
-Phase 2 (Search Chain Reorder) — run comparative analysis on sample datasets before finalizing tier order
+Phase 4 (Reference Data Filters) — P4.1/P4.2/P4.3. Implement staged editing pattern with explicit "Apply" action before wiring reference tables into the reactive graph. Test with 50+ rapid edits to verify debouncing works.
 
 ---
 
-### Pitfall 3: Consensus Algorithm Breaks with Three Column Types
+### Pitfall 3: App.R Crossing 3,000 Lines Without Modularization
 
 **What goes wrong:**
-The consensus logic (`find_dtxsid_cols`) assumes all dtxsid_* columns are semantically equivalent (all from Name or CASRN tags). When "Other" columns become curation participants, you now have dtxsid_Name, dtxsid_CASRN, and dtxsid_Other columns. The consensus algorithm counts `k = length(dtxsid_cols)` for QC tier calculation but doesn't weight by tag type — a 2-name + 1-CAS agreement gets the same QC tier as a 3-name agreement, even though CAS is more reliable. Worse, if Other columns contain supplier codes or batch IDs that shouldn't participate in consensus, the algorithm treats them as equal voters.
+`app.R` already at 2,275 lines will grow to 3,000+ with "Clean Data" tab logic, reference list editing UI, audit trail display, and multi-sheet export configuration. File becomes unmaintainable — 10+ minute context load time for LLM assistance, difficult to trace reactive dependencies, high merge conflict probability, and impossible to test in isolation.
 
 **Why it happens:**
-The original design assumed two tag types (Name, CASRN) and that all tagged columns should vote equally. Adding Other as a third type without revising consensus logic creates semantic ambiguity: should Other columns count toward `k`? Should they have lower weight? The current implementation has no tag-type awareness in `classify_consensus()`.
+Shiny's single-file app pattern (`app.R`) encourages putting all UI and server logic in one place ([Engineering Production-Grade Shiny Apps](https://engineering-shiny.org/structuring-project.html)). As features accumulate (data preview, detection, tagging, curation, resolution, now cleaning), the file grows linearly. Without explicit modularization ([Mastering Shiny Ch. 19](https://mastering-shiny.org/scaling-modules.html)), developers add new tabs by copy-pasting existing tab patterns, each bringing 150-300 lines of UI + server logic.
 
 **How to avoid:**
-1. **Decide Other's consensus role** — should Other columns:
-   - Vote equally (current behavior, simple but potentially wrong)
-   - Vote with reduced weight (requires consensus refactor)
-   - Not vote (filter out dtxsid_Other before consensus, report separately)
-2. **Update `find_dtxsid_cols` with tag awareness** — change signature to `find_dtxsid_cols(df, tag_map)` so it can filter by tag type
-3. **Revise QC tier calculation** — if Other participates, consider tier = f(n_matched, n_name_cols, n_cas_cols, n_other_cols) instead of just n_total
-4. **Add consensus mode parameter** — `classify_consensus(df, dtxsid_cols, mode = c("equal_vote", "name_cas_only", "weighted"))`
-5. **Test with mixed tag scenarios** — 1 Name + 1 CAS + 1 Other, all agree; 1 Name + 1 CAS + 1 Other, Other disagrees; 2 Other + 1 Name
+1. **Extract tab logic into modules NOW**: Before adding "Clean Data" tab, create `R/modules/mod_data_preview.R`, `mod_tag_columns.R`, `mod_review_results.R`. Each module exports `*_ui()` and `*_server()` functions
+2. **Use R package structure**: Move all R code to `R/` directory (already partially done), use `devtools::load_all()` instead of `source()` ([Mastering Shiny Ch. 20](https://mastering-shiny.org/scaling-packaging.html))
+3. **One reactiveValues per module**: Don't use a global `data_store` — each module should have its own state and communicate via return values
+4. **Limit app.R to orchestration**: Target app.R under 500 lines — just theme, layout, and module calls
+5. **Refactor before adding**: Don't add 800 lines of cleaning UI to existing 2,275-line file — refactor first, then add new module
 
 **Warning signs:**
-- QC tiers look wrong (e.g., 1 Name + 1 Other agreement gets qc_tier=1 like 3-column full consensus)
-- Consensus status "agree" for rows where Other column has garbage data but Name/CAS agree
-- User confusion: "Why is my supplier code affecting chemical ID consensus?"
-- Test failures when Other columns added to curation pipeline
+- Scrolling through `app.R` takes 5+ seconds
+- Search for function definition requires Ctrl+F + manual inspection of 3+ locations
+- Merge conflicts on every parallel feature branch
+- "Which observer handles X?" requires 20+ minutes of tracing
+- New developer ramp-up time exceeds 1 week
 
 **Phase to address:**
-Phase 3 (Other Tag Curation) — refactor consensus logic before enabling Other search
+Before Phase 1 (Foundation) starts. Create technical debt repayment phase: extract existing 6 tabs into modules (`mod_data_preview`, `mod_detection_info`, `mod_raw_data`, `mod_tag_columns`, `mod_run_curation`, `mod_review_results`). Verify all existing functionality works before proceeding to pre-curation pipeline. Budget 8-12 hours for this refactoring.
 
 ---
 
-### Pitfall 4: Retry Merge Loses Resolution State
+### Pitfall 4: Progress Tracking Lies in Multi-Step Pipeline
 
 **What goes wrong:**
-The error row retry workflow subsets error rows, re-tags them, re-curates, then merges back via `left_join(original, retried, by = "row_id")` or similar. But `left_join` drops columns not present in the join key, and if the retry produces new dtxsid_* columns (e.g., user adds a new tag), the merge creates duplicated columns (dtxsid_Name.x, dtxsid_Name.y). Even if column names match, join operations don't preserve `.pinned` state or row order — retried rows may reappear at the end of the table, breaking the user's mental model.
+21-step pre-curation pipeline shows progress bar incrementing linearly (5% per step), but step 17 (`split_multi_cas()`) takes 40% of total runtime on datasets with extensive multi-CAS rows. Progress bar sits at 80% for 30 seconds, then jumps to 100% instantly. Users think the app froze and kill the browser tab. Post-curation functional use enrichment API calls time out silently, progress bar completes, but data is incomplete.
 
 **Why it happens:**
-R's join functions (dplyr, base merge) are designed for relational data, not stateful UI objects. The `.pinned` attribute is a UI-layer concept stored in the resolution_state data frame. When you subset error rows, re-curate, and join back, you're merging two different "versions" of the same rows. Standard joins don't have semantics for "replace these rows in-place while preserving surrounding state".
+`withProgress()` defaults to equal-weight steps ([Shiny Progress Documentation](https://shiny.posit.co/r/articles/build/progress/)). Setting `incProgress(amount = 1/21)` assumes each step takes 1/21 of runtime, but: (1) steps have vastly different complexity (unicode cleaning is instant, CAS splitting is O(n*m) for n rows with m CAS numbers each), (2) API calls have variable latency (exact match: 100ms, starts-with search: 5-10s), (3) nested `withProgress()` for curation tiers [can create visual issues](https://rstudio.github.io/shiny/reference/withProgress.html) where second-level bars overlap first-level bars in the UI.
 
 **How to avoid:**
-1. **Use row index-based replacement, not join** — instead of `left_join`, do:
-   ```r
-   retried_indices <- which(original$consensus_status == "error" & original$row_id %in% retried$row_id)
-   original[retried_indices, updated_cols] <- retried[match(original$row_id[retried_indices], retried$row_id), updated_cols]
-   ```
-2. **Preserve .pinned explicitly** — before merge, save `.pinned` state, then restore:
-   ```r
-   pinned_state <- original$.pinned
-   merged <- merge_retry_results(original, retried)
-   merged$.pinned <- pinned_state
-   ```
-3. **Validate row count invariant** — `nrow(merged) == nrow(original)` must be TRUE (no row duplication)
-4. **Validate column count** — after merge, no .x/.y suffixes in names(merged)
-5. **Test with subset re-tagging** — retry 3 error rows, add 1 new tag (adds dtxsid_Other), verify original dtxsid_Name/CASRN preserved for non-retried rows
+1. **Measure empirical step weights**: Run pipeline on representative data (1,000+ rows), record time per step, calculate proportional weights. Use `incProgress(amount = step_weight)` instead of equal fractions
+2. **Show absolute time estimates**: Use `detail = "Estimated X seconds remaining"` based on measured rates ([withProgress documentation](https://rdrr.io/cran/shiny/man/withProgress.html))
+3. **Separate fast vs slow steps**: Group instant operations (unicode, canonicalization) into one progress tick; show individual ticks for slow operations (CAS splitting, API calls)
+4. **Timeout handling**: Wrap API calls in `tryCatch()` with explicit timeout, show "X of Y API calls completed" message instead of hanging progress
+5. **Use Progress reference class for async**: If post-curation API calls are batched asynchronously, `withProgress()` won't work — use `Progress$new()` reference class instead
 
 **Warning signs:**
-- `nrow(resolution_state)` increases after retry (row duplication)
-- Column names contain .x or .y suffixes after merge
-- Previously pinned rows become unpinned after retry
-- Row order changes (error rows move to bottom)
-- DT table shows duplicate rows or missing rows after retry merge
+- User testing: "I thought it crashed" (progress bar stationary for 10+ seconds)
+- Progress bar jumps from 30% to 100% in one update
+- Estimated time remaining shows "5 seconds" for 30 seconds straight
+- Excel export completes but post-curation functional use columns are empty (silent timeout)
 
 **Phase to address:**
-Phase 5 (Error Row Retry) — design merge strategy before implementing retry workflow
+Phase 1 (Foundation) P1.1 through Phase 6 (Post-Curation QC). Before implementing `run_pre_curation()` orchestrator, create `estimate_step_duration()` helper that benchmarks each step on test dataset. Use those durations to calculate `incProgress()` weights. Re-benchmark after Phase 5 name cleaning functions are integrated (performance may change). Add timeout tests for Phase 6 API calls.
 
 ---
 
-### Pitfall 5: Manual DTXSID Entry Bypasses Validation
+### Pitfall 5: Audit Trail Columns Causing Excel Export Failure
 
 **What goes wrong:**
-Users enter DTXSIDs manually (e.g., "DTXSID7020001" for acetone), but the UI doesn't validate against CompTox before storing. Invalid DTXSIDs (typos, wrong format, non-existent IDs) flow into consensus_dtxsid, breaking downstream assumptions that all DTXSIDs are valid. Bulk validation via CompTox API after entry can fail silently (API returns 404 for invalid IDs), leaving garbage data in the consensus column. Worse, if manual entry creates consensus_dtxsid without corresponding dtxsid_* columns, the consensus source becomes ambiguous ("manual" vs column name).
+After running pre-curation pipeline with all 21 steps, each row has 2-5 transformations logged in `name_comment` and `casrn_comment` columns. Pipe-separated strings grow to 500-1,000+ characters. When exporting to Excel via `writexl::write_xlsx()`, strings exceeding 32,767 characters (Excel cell limit) cause silent truncation or export failure. Wide dataframes (original columns + curated columns + match_type + consensus columns + 2 comment columns + post-curation flags) hit Excel's 16,384 column limit when functional use enrichment adds 10+ category columns.
 
 **Why it happens:**
-The current pipeline assumes all DTXSIDs come from API lookups (search_exact, search_starts_with, validate_and_lookup_cas), which guarantee API-validated IDs. Manual entry is a new path that bypasses this validation. The consensus logic expects `consensus_source` to map to a column name (e.g., "Name" from "dtxsid_Name"), but manual entry has no originating column.
+Excel .xlsx format has hard limits: 32,767 characters per cell ([Excel 31-character sheet name limit](https://www.keynotesupport.com/excel-basics/worksheet-names-characters-allowed-prohibited.shtml)), 16,384 columns per sheet, 1,048,576 rows per sheet ([writexl documentation](https://cran.r-project.org/web/packages/writexl/writexl.pdf) does not enforce these limits — it writes the file, but Excel may refuse to open it or silently corrupt data). Audit trail comments concatenate messages with pipe separator: `"Unicode detected: swapped α with .alpha. | Extraneous parenthesis: (EPA added) | Name is functional use: surfactant"`. Each transformation adds 50-200 characters. After 21 steps, a heavily-transformed row can exceed the cell limit. Post-curation enrichment (functional use categories, safety flags) adds 5-15 new columns, pushing wide datasets over the column limit.
 
 **How to avoid:**
-1. **Validate before storing** — on manual DTXSID entry, call `ComptoxR::ct_get_dtxsid_details(dtxsid)` to verify ID exists
-2. **Batch validation with progress** — for bulk manual entry (paste list of DTXSIDs), validate all at once with `withProgress()` feedback
-3. **Store validation metadata** — add `consensus_source = "manual"` and `manual_validated = TRUE/FALSE` columns
-4. **Provide instant feedback** — show green checkmark for valid DTXSID, red X for invalid, with preferredName preview
-5. **Allow invalid-but-flagged** — don't block manual entry of invalid IDs (user may have external knowledge), but flag them clearly in Review Results
-6. **Test edge cases**:
-   - Valid DTXSID format but non-existent ID
-   - Invalid format (missing "DTXSID", wrong length)
-   - Case sensitivity (dtxsid7020001 vs DTXSID7020001)
-   - Deprecated DTXSIDs (redirected to active ID)
+1. **Truncate comment cells at 30,000 characters**: Add `truncate_long_strings()` helper before export, append `"... [truncated]"` suffix
+2. **Separate audit trail sheet**: Don't put comments in main data sheet — create dedicated "Audit Trail" sheet with row_id → comments mapping, one comment per row
+3. **Column count check**: Before export, count `ncol(df)` — if >16,000, split into multiple sheets ("Data_part1", "Data_part2") or omit post-curation enrichment columns from main sheet (put in separate "Enrichment" sheet)
+4. **Compression for large datasets**: Use `compression = 9` parameter in `write_xlsx()` (not documented in standard CRAN docs but supported by underlying libxlsxwriter)
+5. **Warning notification**: If audit trail strings approach 25,000 characters or column count >15,000, show `showNotification()` warning: "Large export may not open in Excel. Consider CSV export instead."
 
 **Warning signs:**
-- Review Results shows rows with consensus_dtxsid but no corresponding preferredName
-- Excel export contains DTXSIDs that don't resolve in CompTox Dashboard
-- consensus_source column contains "NA" or empty strings for manually entered rows
-- API rate limit errors from validation attempts on large manual entry batches
+- Excel shows "file corrupted" error when opening exported .xlsx
+- Opening exported file shows `#####` in comment columns (column too narrow, but actually indicates character overflow)
+- Exported file missing last 50 columns (silent truncation at column limit)
+- Export takes 30+ seconds for 1,000 row dataset (indicates wide dataframe)
+- RStudio console shows `write_xlsx()` warning about character encoding (indicates non-ASCII in very long strings)
 
 **Phase to address:**
-Phase 4 (Manual DTXSID Entry) — implement validation before exposing manual entry UI
+Phase 2 (CAS-RN Pipeline) P2.1 onward. Every function that calls `append_comment()` should also implement `truncate_audit_comment()` check. By Phase 6 (Post-Curation QC) P6.4 export, add `validate_excel_limits()` helper that checks row/column/cell constraints before calling `write_xlsx()`. Create "Audit Trail" sheet architecture in P1.1 audit infrastructure design.
 
 ---
 
-### Pitfall 6: Hidden Column Filter Breaks DT Filtering
+### Pitfall 6: Re-Import Detection Overwriting User Edits
 
 **What goes wrong:**
-When you hide untagged columns via `columnDefs: list(visible = FALSE)`, DT's `filter = "top"` still generates filter inputs for hidden columns. These invisible filters accumulate user state (if a user types in them before hiding or via browser autocomplete), causing mysterious empty table states where the user sees no data but can't understand why. Additionally, hiding columns doesn't remove them from CSV export (`buttons = c('csv')`) — users export "cleaned" data but get all original columns.
+User uploads ChemReg export, app detects embedded state (column tags, pipeline config, reference lists), auto-restores everything. User had edited stop-word list in Excel before re-upload intending to use custom list, but app ignores the Excel edits and loads the embedded reference lists from hidden metadata sheet. User re-tags columns with different mappings, runs curation, then clicks "Re-upload file" to fix a data issue — app resets tags to original embedded state, wiping out the new tag configuration.
 
 **Why it happens:**
-DT's column hiding is CSS-based (`display: none`), not structural removal. Filter widgets are generated for all columns, then hidden columns have their headers hidden, but the filter inputs remain in the DOM and active in the filtering logic. Similarly, DataTables' export buttons operate on the underlying data structure, not the visible columns.
+Re-import detection is designed to preserve state across sessions, but the feature doesn't distinguish between "initial load of previous export" vs. "re-upload after user made external changes" vs. "re-upload after user made in-app changes." State restoration logic in `observeEvent(input$file_upload)` reads embedded metadata and immediately calls `updateSelectInput()` / `data_store$tags <- embedded_tags`, overwriting any in-session user modifications. The [Shiny file input documentation](https://recology.info/2024/03/shiny-file-inputs/) notes that file input resets when user uploads a new file, but doesn't address state collision between embedded metadata and current reactive state ([R-bloggers on state restoration](https://www.r-bloggers.com/2019/06/shiny-application-with-modules-saving-and-restoring-from-rds/)).
 
 **How to avoid:**
-1. **Remove hidden columns from display_df** — instead of hiding via columnDefs, remove them before passing to datatable():
-   ```r
-   display_df <- df[, !names(df) %in% hidden_cols, drop = FALSE]
-   ```
-2. **If using columnDefs, disable filtering on hidden columns**:
-   ```r
-   columnDefs = list(
-     list(visible = FALSE, targets = hidden_indices),
-     list(searchable = FALSE, targets = hidden_indices)
-   )
-   ```
-3. **Customize export buttons** — use DT extensions to export only visible columns:
-   ```r
-   buttons = list(list(extend = 'csv', exportOptions = list(columns = ':visible')))
-   ```
-4. **Test filter state persistence** — hide columns, filter on a visible column, unhide columns, verify filters reset correctly
-5. **Document export behavior** — if hidden columns ARE included in export (for Excel with full data), document this clearly in UI
+1. **Detect state divergence**: Before auto-restoring, compare embedded state vs. current `data_store` state. If current state is non-default (tags exist, reference lists modified), show modal: "This file contains previous settings. Restore them or keep current settings?"
+2. **Explicit "Load State" button**: Don't auto-restore — show notification "This file was exported from ChemReg. Click 'Restore Settings' to load column tags and reference lists." Let user decide
+3. **Track modification timestamps**: Embed `exported_at` timestamp in metadata sheet. If re-uploading a file exported 5 minutes ago but user has made 20 reference list edits since, prioritize in-session edits
+4. **Show state diff preview**: Modal shows side-by-side comparison: "Embedded tags: CAS → col_A, Name → col_B | Current tags: CAS → col_C, Name → col_D"
+5. **Preserve external edits**: If user edited the data sheet in Excel (added rows, changed values), detect this by comparing row counts / checksums, and don't restore old state — treat as new upload
 
 **Warning signs:**
-- Table appears empty but row count shows non-zero
-- Clearing visible filters doesn't restore rows (hidden column filter is active)
-- CSV export contains columns user thought were hidden
-- Browser DevTools shows filter inputs with `display: none` but non-empty values
+- User testing: "I changed the tags but they got reset when I re-uploaded"
+- User reports reference list edits disappearing after file re-upload
+- Support requests: "How do I edit the stop-word list? I changed it in Excel but the app ignores my changes"
+- Embedded state timestamp is 1 hour old but user has been working in the app for 2 hours (indicates stale state restoration)
 
 **Phase to address:**
-Phase 1 (Untagged Column Hiding) — decide structural removal vs. CSS hiding before implementing
+v1.3 Design Phase (before implementation starts). Define state restoration UX: auto-restore on initial upload, explicit confirmation on subsequent uploads, preservation of in-session modifications. Implement in Phase 1 P1.1 alongside audit trail infrastructure (both deal with state management). Write 10+ test scenarios for state collision cases before coding.
+
+---
+
+### Pitfall 7: Flag Behavior Confusion (Blocking vs Annotating)
+
+**What goes wrong:**
+Pre-curation flags functional category names ("fragrance", "surfactant") as non-chemical, setting them to `NA` and blocking curation. User expected these to be annotated but still searchable because they want to identify what functional use category the entry belongs to. Post-curation safety flags are informational-only but displayed identically to pre-curation blocking flags in the UI. User doesn't understand why some flags stop curation (formula-as-name, stop words) while others don't (functional categories, food names, mixture ratios).
+
+**Why it happens:**
+The PRE_POST_CURATION_PLAN.md specifies "flag, don't remove" for reference data filters (functional categories, food names, stop words), but doesn't define whether flagged rows should: (1) be excluded from curation entirely, (2) be sent to curation with a warning annotation, or (3) be visually marked but processed normally. The original Python `clean_chems.py` removed flagged entries outright; the R port switches to flagging for conservativeness, but the intended user workflow isn't specified. Research on [form validation UX](https://www.smashingmagazine.com/2022/08/error-messages-ux-design/) and [validation vs warnings patterns](https://baymard.com/blog/validations-vs-warnings) shows users perceive all flags as errors unless explicitly distinguished. [Alert fatigue research](https://www.splunk.com/en_us/blog/learn/alert-fatigue.html) shows that too many warnings cause users to ignore all of them.
+
+**How to avoid:**
+1. **Explicit flag taxonomy**: Define 3 flag types with visual distinction:
+   - **BLOCKING** (red badge, stops curation): formula-as-name, empty name after cleaning, invalid CAS with no name
+   - **WARNING** (yellow badge, proceeds to curation with annotation): functional categories, food names, mixture ratios, stop words
+   - **INFO** (blue badge, post-curation only): safety flags, functional use enrichment, unicode detected
+2. **Per-flag-type filtering UI**: In "Clean Data" tab, show 3 separate filter sections: "Blocking Flags (X rows — must resolve before curation)", "Warning Flags (Y rows — will proceed with annotation)", "Info Flags (Z rows — reference only)"
+3. **Inline flag explanation**: Tooltip or expandable card explaining what each flag means and what action is required: "Formula-as-name: This entry is a molecular formula, not a chemical name. It will not be sent to curation. Edit the name or mark for manual review."
+4. **Flag override**: Allow user to override blocking flags: "Proceed with curation anyway" checkbox converts BLOCKING → WARNING for selected rows
+5. **Graduated disclosure**: Don't show all flags upfront — default to showing only BLOCKING flags, with "Show warnings (Y)" and "Show info (Z)" expandable sections
+
+**Warning signs:**
+- User testing: "Why did curation skip these rows?" (referring to flagged-but-not-blocked rows)
+- Support requests: "How do I turn off functional category filtering? I want to search these anyway."
+- User clicks "Run Curation" expecting 1,000 rows, only 850 get curated, no explanation why 150 were excluded
+- Post-curation safety flags shown in red (blocking visual style) but don't actually block anything, causing confusion
+
+**Phase to address:**
+v1.3 Design Phase — before Phase 1 implementation. Define flag taxonomy document with examples. Implement 3-tier flag system in Phase 1 P1.1 (audit trail infrastructure includes flag type tracking). UI distinction in Phase 4 (Reference Data Filters) when flags are first introduced. Create 15+ user testing scenarios covering flag interpretation before Phase 4 ships.
 
 ---
 
@@ -196,131 +197,131 @@ Phase 1 (Untagged Column Hiding) — decide structural removal vs. CSS hiding be
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Hiding columns via CSS instead of removing from data | Preserves data for Excel export, simpler implementation | Filter state bugs, export confusion, accessibility issues | Only if Excel export must include hidden columns AND filters disabled on hidden columns |
-| Equal-weight consensus for all tag types | No refactor needed for Other tag | QC tiers meaningless when mixing reliable (CAS) and unreliable (Other) columns | Never — consensus quality is core value prop |
-| Row-index-based retry merge instead of proper state management | Fast implementation, avoids join complexity | Fragile to future changes (add/remove rows), hard to test | MVP only — refactor to row_id-based merge in next phase |
-| Skip validation on manual DTXSID entry | Faster UX, no API calls | Garbage data in consensus, user trust loss | Never — validation is essential for data quality |
-| Hard-code search tier order instead of making it configurable | Avoids UI complexity | Can't A/B test tier order, harder to optimize per dataset | Acceptable until user feedback proves tier order needs tuning |
-
----
+| Storing audit comments in main dataframe columns | Simple to implement, no separate data structure needed | Bloats dataframe, hits Excel export limits, makes column selection complex | Acceptable for MVP if dataset <500 rows and <10 transformations per row; must migrate to separate audit trail sheet before production |
+| Using `source()` instead of R package structure | No refactoring required, works immediately | Can't use `devtools::test()`, `R CMD check`, or namespace isolation; file loading order bugs; hard to distribute as reusable module | Never acceptable for apps >1,000 lines — refactor before adding v1.3 features |
+| Global `data_store` reactiveValues object | Easy to access from any observer, no parameter passing needed | Impossible to trace data dependencies, reactivity debugging nightmare, can't test server logic in isolation | Acceptable only during prototype phase; must refactor to module return values before v1.3 milestone |
+| Auto-restoring state on re-import without user confirmation | Seamless UX when it works correctly | Silently overwrites user modifications, no recourse if wrong state loaded | Never acceptable — always show confirmation modal for state restoration |
+| Equal-weight progress bar steps | Trivial to implement (`incProgress(1/n)`), no benchmarking needed | User perceives app as frozen when stuck on slow step | Acceptable for pipelines where all steps take <2 seconds each; must use weighted progress if any step >5 seconds |
+| Hard-coded reference lists in R/cleaning_reference.R | No CSV parsing, no file I/O, guaranteed available | Lists become stale, requires code change + redeployment to update, can't be customized per deployment | Acceptable for MVP; must add CSV-based loading + UI editing before production deployment |
 
 ## Integration Gotchas
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| CompTox API starts-with search | Assuming starts-with returns "best match" like fuzzy search | Starts-with returns all prefix matches ranked by system order; always filter by query length (6+ chars) or manually verify top result |
-| DT datatable with escape=FALSE | Using R row indices in JS column lookups | Use `data-row` for R row index (1-based), never mix with DT column index (0-based, visible only) |
-| Shiny reactiveValues merge | Using dplyr::left_join to merge retried subset back | Use index-based replacement `df[indices, cols] <- new_values` to preserve row order and attributes |
-| ComptoxR bulk validation | Assuming failed API calls return empty results | `ct_chemical_search_equal_bulk` returns NULL on total failure, empty tibble on zero matches; wrap in tryCatch and check both |
-| DT column hiding | Hiding columns after creating DT with `filter = "top"` | Disable filtering on hidden columns via `searchable = FALSE` in columnDefs or remove columns from display_df |
-
----
+| writexl multi-sheet export | Passing dataframe list with unvalidated sheet names (special characters, >31 chars, "History" reserved word) | Sanitize sheet names before export: `make.names(names(sheet_list), unique=TRUE) %>% substr(1,31) %>% str_replace_all("[\\[\\]:*?/\\\\]", "_")`. Test with edge case names: "Data (2024)", "History", "Very_Long_Name_That_Exceeds_Limit". [Excel sheet naming rules](https://bettersolutions.com/excel/worksheets/naming.htm) |
+| ComptoxR API calls in pipeline | No timeout handling — API latency spikes cause `withProgress()` to hang indefinitely | Wrap API calls in `possibly(..., otherwise = NA, quiet=FALSE)` with `purrr::safely()`. Set global timeout via `httr::timeout(30)` in .Rprofile. Show "X/Y completed" message with failed DTXSIDs logged. |
+| DT editable tables for reference lists | Using `input$tableId_cell_edit` to update reactiveValues directly in observer → reactive loop when re-rendering DT with updated data | Use `DT::replaceData()` or `dataTableProxy()` to update table without invalidating the input binding ([Using DT in Shiny](https://rstudio.github.io/DT/shiny.html)). Debounce edits with `shinyjs::delay(2000, ...)` before triggering downstream pipeline re-run. |
+| Shiny modules with namespace isolation | Forgetting `ns()` wrapper on input IDs in module UI, causing inputs to not connect to module server | Every `inputId` in module UI must use `ns("id")`. Every output in module server must use bare `"id"` (namespace applied by `moduleServer()`). Test by creating 2 instances of same module — if they interfere, namespace is broken. [Shiny Modules documentation](https://shiny.posit.co/r/articles/improve/modules/) |
 
 ## Performance Traps
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Bulk starts-with search on short queries | API timeout, 100+ results per query, UI freezes | Filter queries to length >= 6 characters before calling starts-with | 50+ chemicals with 2-3 letter names (e.g., "Pb", "Hg", "NaCl") |
-| Re-rendering entire DT on every resolution | Table flashes, pagination resets, user loses scroll position | Use DT::replaceData() to update data without recreating table | 500+ row tables with frequent resolutions |
-| Computing resolution options for all rows on every render | `get_resolution_options` called 1000+ times per render | Cache resolution options in a list column during classify_consensus | 200+ rows with 10+ tagged columns |
-| Redundant consensus classification after merge | Classify original, classify retried subset, classify merged (3x work) | Only classify retried rows, then replace in original without re-classifying | Retry workflow with 100+ error rows |
-| Hidden column iteration in renderDT | formatStyle loops over all columns including hidden ones | Apply formatStyle only to visible columns: `!names(df) %in% hidden_cols` | 20+ columns, 10+ hidden |
+| Re-running entire 21-step pipeline on reference list edit | UI freezes for 5-10 seconds per edit, progress bar appears mid-typing, browser "not responding" | Implement "Apply Changes" button pattern, cache intermediate results with `bindCache()`, debounce edits with `debounce(reactiveVal(...), millis=2000)` | >500 rows AND >3 reference list edits per session |
+| Wide dataframe with 50+ columns in DT::renderDataTable | Initial render takes 10+ seconds, scrolling is janky, column hiding UI unresponsive | Use `options = list(deferRender = TRUE, scroller = TRUE, scrollX = TRUE, scrollY = "600px")` for large tables ([Shiny Data Tables Guide](https://www.datanovia.com/learn/tools/shiny-apps/interactive-features/data-tables.html)). Default to showing only 15 key columns, hide others with `columnDefs = list(list(visible=FALSE, targets=c(16:50)))`. | >30 columns OR >1,000 rows |
+| Audit trail comment strings >10,000 characters | DT rendering slows to 1-2 seconds per page change, Excel export takes 30+ seconds, memory usage spikes | Truncate displayed comments to 500 chars with "... (show full)" expandable link. Store full comments in separate sheet on export. Use `DT::formatStyle()` with `textOverflow: 'ellipsis'`. | Average comment length >5,000 characters OR >20 transformations per row |
+| Reactive observers re-rendering outputs on every keystroke in search box | CPU spikes to 100%, app becomes unresponsive during typing, outputs flicker | Use `debounce(reactive(input$search), millis=500)` instead of reading `input$search` directly. For expensive outputs, use `req(nchar(input$search) >= 3)` to skip until minimum length reached ([Shiny Reactive Programming Guide](https://www.datanovia.com/learn/tools/shiny-apps/fundamentals/reactive-programming.html)). | Search triggers >5 outputs AND dataset >500 rows |
 
----
+## Security Mistakes
+
+| Mistake | Risk | Prevention |
+|---------|------|------------|
+| Embedding CompTox API key in exported Excel metadata sheet | API key visible to anyone opening the file, potential quota abuse if key is extracted and reused | Never export API keys. Instead, export API call results (DTXSIDs, names, CAS) as data. Embed only non-sensitive config: pipeline step flags, reference list versions, thresholds. If API key is needed for re-curation, require user to re-enter it in app. |
+| Allowing arbitrary sheet names in Excel export from user input | Malicious user provides sheet name with formula injection payload (`=cmd|'/c calc'!A1`), Excel executes on open | Sanitize all user-provided strings before using as sheet names: strip `=+-@`, limit to alphanumeric + underscore + hyphen, max 31 chars. Use `make.names()` + whitelist regex: `str_replace_all(name, "[^A-Za-z0-9_-]", "_")`. |
+| Trusting embedded metadata in re-imported ChemReg exports without validation | User manually edits metadata sheet, embeds malicious R code in serialized reference list, `readRDS()` executes code on load | Never use `readRDS()` on user-provided data. Store reference lists as plain CSV in metadata sheet (not serialized R objects). Validate all loaded metadata against schema before applying: check column names, data types, value ranges. If validation fails, discard embedded state and treat as fresh upload. |
+| Displaying raw user-uploaded data in DT without sanitization | User uploads CSV with `<script>alert('XSS')</script>` in chemical name field, DT renders HTML, script executes in browser | Use `escape = TRUE` in `DT::datatable()` (default in newer versions, but verify). Never set `escape = FALSE` on user-provided columns. Only use `escape = FALSE` for app-generated HTML like resolution dropdowns on known-safe column. |
 
 ## UX Pitfalls
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| No visual diff between CAS-sourced and Name-sourced consensus | User can't assess match reliability | Add consensus_source badge in table (e.g., "CAS ✓", "Name ~") with color coding |
-| Hiding untagged columns without explanation | User confused why columns disappeared | Add toggle "Show untagged columns" with default OFF and tooltip explanation |
-| Manual DTXSID entry without format hints | User enters invalid format, sees error, gives up | Provide format example ("DTXSID7020001") and auto-uppercase + validate on blur |
-| Error row retry with no success feedback | User re-tags errors, clicks retry, sees table refresh, unsure if it worked | Show notification: "3 rows re-curated: 2 resolved, 1 still error" with before/after counts |
-| Dropdown context shows only DTXSID | User picks "DTXSID7020001" vs "DTXSID8021234" with no idea which is which | Include preferredName in dropdown: "DTXSID7020001 - Acetone (Rank 1, CAS tier)" |
-| No undo for en masse resolution | User clicks wrong priority column, 100 rows resolved incorrectly, no undo | Add "Reset all unpinned" button or confirmation modal before mass resolution |
-| Search tier reorder with no migration guide | User re-curates same data, gets different results, loses trust | Show warning on first run after upgrade: "Search order changed, results may differ. Re-run curation on all datasets." |
-
----
+| Showing all 21 pre-curation steps in progress bar with technical function names | User sees "Canonicalizing strings (step 3/21)" and doesn't understand what's happening or why it's slow | Group steps into 5-6 user-facing stages: "Fixing encoding issues", "Cleaning chemical names", "Validating CAS numbers", "Checking reference databases", "Finalizing". Show stage name + progress within stage. |
+| Flagging 40% of uploaded rows with 5+ different flag types | User overwhelmed, doesn't know where to start, abandons workflow ("flag fatigue") | Default view: show only BLOCKING flags (must fix to proceed). Collapsible sections for WARNING flags (grouped by type: "15 functional categories", "8 formulas") and INFO flags (post-curation only). Provide "Accept all warnings" bulk action. [Guidelines on inline validation](https://www.smashingmagazine.com/2022/09/inline-validation-web-forms-ux/) |
+| Re-import state restoration without explanation | App auto-fills column tags and reference lists when user uploads file, no indication why or how to undo | Show prominent notification: "This file was previously exported from ChemReg. Column tags and settings have been restored. [Undo] [Dismiss]". Undo button clears embedded state and treats as fresh upload. Notification persists until dismissed. |
+| DT editable reference list with no save confirmation | User edits 10 rows in stop-word table, accidentally navigates away from tab, edits lost because no "Apply" was clicked | Add "You have unsaved changes" warning if user navigates away from reference list tab with uncommitted edits. Show visual indicator (orange dot on tab title) when edits are staged but not applied. Require explicit "Apply Changes" or "Discard" action. |
+| Excel export completing silently with truncated data | User downloads file, Excel opens with `#####` in columns or missing columns, no indication that data was truncated | Before export, check limits. If exceeded, show modal: "Your data is too large for Excel format (50 columns, 16k limit is 16,384). Truncated columns saved to 'Additional_Data.csv'. [Download Both] [Cancel]". Alternatively, offer CSV export for datasets exceeding limits. |
+| Progress bar stuck at 95% for 30 seconds during API calls | User thinks app crashed, kills browser tab, loses work | Use detailed progress messages: "Validating chemicals with CompTox API... 145/200 completed (estimated 25 seconds remaining)". If API call batch is slow, show per-item progress, not just overall bar. For post-curation enrichment, show "Optional step — may take 1-2 minutes" with Skip button. |
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Untagged column hiding:** Often missing filter state cleanup — verify hidden columns have `searchable: FALSE` and no active filters
-- [ ] **Search tier reorder:** Often missing empirical validation — verify match quality doesn't degrade on sample datasets (exact → CAS → starts vs exact → starts → CAS)
-- [ ] **Other tag curation:** Often missing consensus logic update — verify `k` calculation and QC tier still meaningful with three tag types
-- [ ] **Manual DTXSID entry:** Often missing bulk validation — verify API validation works for 100+ manual entries without timeout
-- [ ] **Error row retry:** Often missing row order preservation — verify retried rows stay in original position, not appended to end
-- [ ] **Resolution dropdown context:** Often missing rank and tier info — verify dropdown shows preferredName, rank, and source_tier, not just DTXSID
-- [ ] **DT column index mapping:** Often missing edge case tests — verify resolution dropdown works with 1 hidden column, 10 hidden columns, 0 hidden columns
-- [ ] **Retry merge logic:** Often missing .pinned state preservation — verify manual resolutions before retry are not lost after merge
-- [ ] **CompTox API error handling:** Often missing silent failure detection — verify NULL vs empty tibble distinction in tryCatch blocks
-- [ ] **Consensus mode selection:** Often missing user documentation — verify SUMMARY.md explains when Other columns vote vs observe-only
-
----
+- [ ] **Synonym splitting**: Often missing IUPAC comma protection — verify `"butane, 2,2-dimethyl"` doesn't split into two names
+- [ ] **Editable reference lists**: Often missing debounce/apply button — verify editing stop-word list 5 times rapidly doesn't trigger 5 pipeline re-runs
+- [ ] **Excel export**: Often missing cell/column limit checks — verify 1,000-row dataset with 20-step audit trail exports without truncation or corruption
+- [ ] **Progress tracking**: Often missing weighted steps — verify 21-step pipeline doesn't appear frozen during slow CAS splitting step
+- [ ] **Re-import detection**: Often missing state conflict resolution — verify re-uploading file after in-app tag changes prompts user instead of silently overwriting
+- [ ] **Flag taxonomy UI**: Often missing visual distinction between blocking/warning/info — verify user can tell which flags require action vs. which are informational
+- [ ] **Reactive isolation**: Often missing `isolate()` on display outputs — verify editing reference list with "Apply" button doesn't auto-rerun pipeline until button clicked
+- [ ] **Module namespacing**: Often missing `ns()` wrappers — verify creating 2 instances of reference list editor module doesn't cause input ID collision
+- [ ] **Audit trail export**: Often missing separate sheet architecture — verify comment columns in main data sheet are truncated to 30k chars and full trail is in separate sheet
+- [ ] **API timeout handling**: Often missing fallback for failed calls — verify CompTox API timeout on 5/100 chemicals doesn't cause entire post-curation step to fail silently
 
 ## Recovery Strategies
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| DT column index drift | LOW | Add browser DevTools check, validate `data-row` matches consensus_status, adjust `hidden_indices` calculation |
-| Starts-with precision collapse | MEDIUM | Revert search order to exact → starts → CAS, re-run curation on affected datasets, compare consensus rate |
-| Consensus breaks with three types | HIGH | Refactor `classify_consensus` with tag-aware logic, re-classify all datasets with Other columns, update tests |
-| Retry merge loses state | MEDIUM | Replace join with index-based update, restore `.pinned` from backup, re-apply any lost manual resolutions |
-| Manual DTXSID bypasses validation | LOW | Add validation API call on blur, flag existing invalid DTXSIDs in Review Results with warning badge |
-| Hidden column filter state | LOW | Clear all filters via `DT::clearSearch()`, remove columns from display_df instead of CSS hiding |
-| Search tier order breaks existing data | MEDIUM | Provide migration script to re-curate old datasets with new tier order, document in CHANGELOG |
-
----
+| Synonym splitting broke IUPAC names | MEDIUM | Roll back to pre-split data if audit trail preserved original. Manually review split rows (filter for single-char fragments or digit-only names). Add IUPAC protection rules to `split_synonyms()`, re-run on original data. Test with [OPSIN parser](https://opsin.ch.cam.ac.uk/) to validate names post-split. |
+| Reactive cascade from reference list edit | LOW | Add `isolate()` to downstream observers. Wrap reference list reactiveVal in `debounce(..., millis=2000)`. Add explicit "Apply Changes" actionButton, move pipeline trigger from `observeEvent(input$ref_table_cell_edit)` to `observeEvent(input$apply_button)`. Test by editing 10 rows rapidly. |
+| App.R >3,000 lines | HIGH (8-12 hours) | Extract each tab into module: `mod_data_preview.R`, `mod_tag_columns.R`, etc. Create `R/modules/` directory. Replace tab UI/server code in `app.R` with `mod_*_ui(id)` and `mod_*_server(id, data_store)`. Test each module in isolation with `testServer()`. Verify reactive dependencies still work. |
+| Progress bar lying about time remaining | LOW | Benchmark each pipeline step on 1,000-row test dataset. Calculate proportional weights: `step_weight <- measured_time / sum(all_times)`. Replace `incProgress(1/21)` with `incProgress(amount=step_weights[i])`. Add absolute time estimates: `detail = paste("~", round(remaining_time), "seconds remaining")`. |
+| Audit trail exceeding Excel cell limit | MEDIUM | Implement separate "Audit_Trail" sheet in export. Main data sheet includes only row_id + truncated_comment (500 chars max). Audit sheet has columns: row_id, step_number, step_name, original_value, transformed_value, reason. User can VLOOKUP row_id to see full history. Add `validate_excel_limits()` pre-export check. |
+| Re-import overwriting user edits | LOW | Add state divergence detection: `if (!identical(embedded_tags, data_store$tags))` show modal. Modal includes side-by-side comparison, radio buttons: "Restore embedded settings" vs "Keep current settings" vs "Merge (keep current tags, restore reference lists)". Embed modification timestamp, compare to session start time. |
+| Flag behavior confusion | MEDIUM | Define flag taxonomy enum: `BLOCKING`, `WARNING`, `INFO`. Update all flagging functions to set `flag_type` column. Create `filter_flagged_rows()` helper that filters by type. UI shows 3 separate accordion sections with counts. Add tooltip explanation per flag. Create flag override mechanism: checkbox converts BLOCKING→WARNING for selected rows. |
 
 ## Pitfall-to-Phase Mapping
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| DT column index drift | Phase 1 (Untagged Hiding) | Test resolution dropdown with 0, 1, 5, 10+ hidden columns; verify `data-row` matches expected row in data_store |
-| Hidden column filter state | Phase 1 (Untagged Hiding) | Filter on visible column, hide/unhide columns, verify filters persist correctly and no ghost filters |
-| Starts-with precision collapse | Phase 2 (Search Reorder) | Run curation on same dataset with both orders, compare consensus_status distribution (agree/disagree/error) |
-| Search tier empirical validation | Phase 2 (Search Reorder) | Test with 100-row sample: 50 exact matches, 30 CAS-only, 20 typos; verify tier order maximizes agree rate |
-| Consensus breaks with three types | Phase 3 (Other Tag) | Unit test: 1 Name + 1 CAS + 1 Other all agree → qc_tier=1; 1 Name + 1 Other agree, CAS NA → appropriate tier |
-| Other tag consensus semantics | Phase 3 (Other Tag) | Document in SUMMARY.md: does Other vote equally, vote reduced, or observe-only? Test all three scenarios |
-| Manual DTXSID validation | Phase 4 (Manual Entry) | Enter invalid DTXSID, verify red X and error message; enter valid DTXSID, verify green check and preferredName |
-| Manual entry bulk validation | Phase 4 (Manual Entry) | Paste 100 DTXSIDs (90 valid, 10 invalid), verify validation completes in <10s and flags 10 invalid |
-| Retry merge loses state | Phase 5 (Error Retry) | Pin 3 rows, retry 2 error rows, verify pinned state preserved and row order unchanged |
-| Retry row order preservation | Phase 5 (Error Retry) | Retry error rows at indices 5, 10, 15; verify they remain at indices 5, 10, 15 after merge |
-| Dropdown context clarity | Phase 6 (UX Polish) | Review Results with disagree rows → verify dropdown shows "DTXSID - PreferredName (Rank X, Tier)" |
-| Column visibility UX | Phase 6 (UX Polish) | Add toggle to show/unhide untagged columns; verify toggle state persists within session |
-
----
+| Synonym splitting breaking IUPAC names | Phase 3 (P3.3) | Test with 20+ edge cases: inverted IUPAC, digit-comma-digit, parenthetical stereochemistry. Verify no single-char fragments after split. Check CompTox match rate doesn't drop post-split. |
+| Reactive cascade explosion | Phase 4 (P4.1/P4.2/P4.3) | Edit reference list 10 times in 5 seconds. Verify only 1 pipeline re-run (or 0 if "Apply" not clicked). Check browser performance profiler for reactive chain length. |
+| App.R crossing 3,000 lines | **Before Phase 1 (refactor first)** | Extract 6 existing tabs into modules. Verify `app.R` <500 lines. Create `tests/testthat/test-modules.R` with `testServer()` cases for each module. Check all existing UI still renders. |
+| Progress tracking lies | Phase 1 (P1.1) + Phase 6 (P6.1) | Benchmark all steps on 1,000-row test dataset. Calculate weights. Verify progress bar doesn't pause >5 seconds on any step. Test with slow API endpoint (throttled CompTox sandbox). |
+| Audit trail Excel limits | Phase 1 (P1.1 audit infrastructure) + Phase 6 (P6.4 export) | Create test dataset with 50-step transformation history per row. Verify export succeeds. Open in Excel, verify no truncation. Check file size <50MB for 1,000 rows. |
+| Re-import overwriting edits | Phase 1 (P1.1 state management) | Upload ChemReg export. Edit tags and reference lists in app. Re-upload same file. Verify modal appears with state conflict options. Test "keep current" preserves in-app edits. |
+| Flag behavior confusion | **v1.3 Design Phase** + Phase 1 (P1.1 flag taxonomy) | Define BLOCKING/WARNING/INFO in design doc. Implement 3-color badge system. User testing: "Which flags must you fix before curation?" Verify 80%+ correct answer rate. Test with 15+ flag interpretation scenarios. |
 
 ## Sources
 
-### DT Datatable and Shiny Integration
-- [Using DT in Shiny](https://rstudio.github.io/DT/shiny.html) — Official DT documentation on Shiny integration
-- [DT, formatters and hidden columns](https://groups.google.com/g/shiny-discuss/c/TcztuHs-GBQ) — Community discussion on column hiding bugs
-- [Intro to Shiny: Packages II](https://psrc.github.io/intro-shiny-guide/packages_ii.html) — DT column indexing (0-based vs 1-based)
-- [columnDefs - visible false not working — DataTables forums](https://datatables.net/forums/discussion/24035/columndefs-visible-false-not-working) — Known issues with hidden columns
+**Shiny Reactivity & Progress:**
+- [Engineering Production-Grade Shiny Apps - Common Application Caveats](https://engineering-shiny.org/common-app-caveats.html)
+- [Mastering Shiny - User feedback](https://mastering-shiny.org/action-feedback.html)
+- [Mastering Shiny - Reactive building blocks](https://mastering-shiny.org/reactivity-objects.html)
+- [Shiny Progress indicators](https://shiny.posit.co/r/articles/build/progress/)
+- [withProgress documentation](https://rdrr.io/cran/shiny/man/withProgress.html)
 
-### Shiny Reactive State Management
-- [Subsetting dataframe and storing in reactiveValues() seems inconsistant · Issue #958 · rstudio/shiny](https://github.com/rstudio/shiny/issues/958) — Subset behavior quirks
-- [reactiveValues inconsistent/unclear behaviour in regards to order of items · Issue #2629 · rstudio/shiny](https://github.com/rstudio/shiny/issues/2629) — Row order preservation issues
-- [Chapter 15 Reactive building blocks | Mastering Shiny](https://mastering-shiny.org/reactivity-objects.html) — Reference semantics of reactiveValues
+**Shiny Modules & Code Organization:**
+- [Mastering Shiny - Shiny modules](https://mastering-shiny.org/scaling-modules.html)
+- [Engineering Production-Grade Shiny Apps - Structuring Your Project](https://engineering-shiny.org/structuring-project.html)
+- [Mastering Shiny - Packages](https://mastering-shiny.org/scaling-packaging.html)
+- [Shiny - Modularizing Shiny app code](https://shiny.posit.co/r/articles/improve/modules/)
 
-### CompTox API and Search Strategies
-- [Chemicals Dashboard Help: Basic Search | US EPA](https://www.epa.gov/comptox-tools/chemicals-dashboard-help-basic-search) — Exact vs substring search behavior
-- [Chemicals Dashboard Help: Batch Search | US EPA](https://www.epa.gov/comptox-tools/chemicals-dashboard-help-batch-search) — Batch search limitations (exact matches only)
-- [Enabling High-Throughput Searches for Multiple Chemical Data using the US-EPA CompTox Chemicals Dashboard - PMC](https://pmc.ncbi.nlm.nih.gov/articles/PMC8630643/) — Current search limitations and future fuzzy matching plans
-- [Sourcing data on chemical properties and hazard data from the US-EPA CompTox Chemicals Dashboard: A practical guide for human risk assessment](https://www.sciencedirect.com/science/article/pii/S0160412021001914) — Identifier search exact match requirement, spelling issues
+**Editable Tables:**
+- [Shiny Data Tables: Complete DT Package Guide](https://www.datanovia.com/learn/tools/shiny-apps/interactive-features/data-tables.html)
+- [Using DT in Shiny](https://rstudio.github.io/DT/shiny.html)
+- [rhandsontable](https://jrowen.github.io/rhandsontable/)
+- [Better Than Excel: Use These R Shiny Packages Instead](https://www.appsilon.com/post/forget-about-excel-use-r-shiny-packages-instead)
 
-### dplyr Joins and Data Merging
-- [Mutating joins — mutate-joins • dplyr](https://dplyr.tidyverse.org/reference/mutate-joins.html) — Official join documentation
-- [How to merge data in R using R merge, dplyr, or data.table | InfoWorld](https://www.infoworld.com/article/2264570/how-to-merge-data-in-r-using-r-merge-dplyr-or-datatable.html) — Join mechanics (no attribute preservation guarantees)
+**Excel Export:**
+- [writexl CRAN documentation](https://cran.r-project.org/web/packages/writexl/writexl.pdf)
+- [Learn How To Export R Data Frames To Multiple Excel Sheets](https://statistics.arabpsychology.com/r-export-data-frames-to-multiple-excel-sheets/)
+- [Excel Worksheets - Naming](https://bettersolutions.com/excel/worksheets/naming.htm)
+- [Rules for Naming Microsoft Excel Worksheets](https://www.keynotesupport.com/excel-basics/worksheet-names-characters-allowed-prohibited.shtml)
 
-### Codebase-Specific Knowledge
-- `R/consensus.R` — `find_dtxsid_cols` uses `grep("^dtxsid_", names(df))` pattern matching (HIGH confidence, source code)
-- `R/curation.R` — Current tier order: exact → starts-with → CAS (lines 470-540) (HIGH confidence, source code)
-- `app.R` — DT table with `escape=FALSE` and `data-row` JS callback (lines 1398, 1564) (HIGH confidence, source code)
-- `app.R` — Hidden columns via `columnDefs: list(visible = FALSE, targets = hidden_indices)` (line 1437) (HIGH confidence, source code)
+**UX & Validation:**
+- [Designing Better Error Messages UX](https://www.smashingmagazine.com/2022/08/error-messages-ux-design/)
+- [A Complete Guide To Live Validation UX](https://www.smashingmagazine.com/2022/09/inline-validation-web-forms-ux/)
+- [Form Usability: Validations vs Warnings – Baymard](https://baymard.com/blog/validations-vs-warnings)
+- [Preventing Alert Fatigue](https://www.splunk.com/en_us/blog/learn/alert-fatigue.html)
+
+**State Management & Re-import:**
+- [Shiny application (with modules) – Saving and Restoring from RDS](https://www.r-bloggers.com/2019/06/shiny-application-with-modules-saving-and-restoring-from-rds/)
+- [Shiny file inputs](https://recology.info/2024/03/shiny-file-inputs/)
+- [R Shiny and audit trail for user data](https://forum.posit.co/t/r-shiny-and-audit-trail-for-user-data/50364)
+
+**Chemical Name Parsing:**
+- [OPSIN: Open Parser for Systematic IUPAC Nomenclature](https://opsin.ch.cam.ac.uk/)
+- [IUPAC nomenclature of organic chemistry - Wikipedia](https://en.wikipedia.org/wiki/IUPAC_nomenclature_of_organic_chemistry)
+- [IUPAC Blue Book chapter P-1](https://iupac.qmul.ac.uk/BlueBook/P1.html)
 
 ---
-
-*Pitfalls research for: ChemReg v1.2 Curation Refinement*
-*Researched: 2026-03-01*
-*Confidence: HIGH (codebase analysis) / MEDIUM (CompTox API behavior) / LOW (empirical tier order comparison)*
+*Pitfalls research for: R/Shiny chemical inventory data cleaning pipeline*
+*Researched: 2026-03-04*
