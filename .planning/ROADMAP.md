@@ -59,10 +59,11 @@
   3. App.R is less than 500 lines containing only UI orchestration and module calls
   4. Each of 6 tabs (Data Preview, Detection Info, Raw Data, Tag Columns, Run Curation, Review Results) exists as its own module file in R/modules/
   5. All tests from v1.0-v1.2 still pass without modification
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 09-01: TBD
+- [ ] 09-01-PLAN.md — Extract all 7 modules (upload, data_preview, detection_info, raw_data, tag_columns, run_curation, review_results) into R/modules/
+- [ ] 09-02-PLAN.md — Rewrite app.R to orchestration-only code + add module render tests + smoke test
 
 ### Phase 10: Foundation & Clean Data Tab
 **Goal**: Users can access a new "Clean Data" tab with audit trail infrastructure and reference data loaded
