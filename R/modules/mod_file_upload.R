@@ -107,9 +107,10 @@ mod_file_upload_ui <- function(id) {
 #'
 #' @param id Module namespace ID
 #' @param data_store Reactive values store from main app
+#' @param reset_all_downstream Optional callback function to reset downstream state (app navigation)
 #'
 #' @return Reactive list with file processing outputs
-mod_file_upload_server <- function(id, data_store) {
+mod_file_upload_server <- function(id, data_store, reset_all_downstream = NULL) {
   moduleServer(id, function(input, output, session) {
 
     # --- Internal Functions ---
@@ -296,7 +297,10 @@ mod_file_upload_server <- function(id, data_store) {
     # Re-upload modal: Confirm — reset all downstream state, process new file
     observeEvent(input$confirm_reupload, {
       removeModal()
-      # Full reset of downstream state (done by app.R's reset_all_downstream callback)
+      # Call reset callback if provided
+      if (!is.null(reset_all_downstream)) {
+        reset_all_downstream()
+      }
       # Clear core data
       data_store$raw <- NULL
       data_store$clean <- NULL
@@ -399,6 +403,10 @@ mod_file_upload_server <- function(id, data_store) {
 
     # Reset button handler
     observeEvent(input$reset_btn, {
+      # Call reset callback if provided
+      if (!is.null(reset_all_downstream)) {
+        reset_all_downstream()
+      }
       # Clear data store
       data_store$raw <- NULL
       data_store$clean <- NULL
