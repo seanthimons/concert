@@ -14,10 +14,10 @@ Requirements for v1.3 Data Cleaning Pipeline. Each maps to roadmap phases.
 
 ### Infrastructure (INFRA)
 
-- [ ] **INFRA-01**: User can see a per-row audit trail showing every cleaning transformation applied (what changed and why)
-- [ ] **INFRA-02**: User can configure reference lists (stop words, block lists, functional categories) that are loaded at app startup
-- [ ] **INFRA-03**: Unicode characters in chemical names and CAS fields are automatically cleaned to ASCII equivalents via ComptoxR::clean_unicode()
-- [ ] **INFRA-04**: Leading/trailing punctuation, whitespace, and extraction artifacts (underscores, asterisks) are automatically stripped from all text fields
+- [x] **INFRA-01**: User can see a per-row audit trail showing every cleaning transformation applied (what changed and why)
+- [x] **INFRA-02**: User can configure reference lists (stop words, block lists, functional categories) that are loaded at app startup
+- [x] **INFRA-03**: Unicode characters in chemical names and CAS fields are automatically cleaned to ASCII equivalents via ComptoxR::clean_unicode()
+- [x] **INFRA-04**: Leading/trailing punctuation, whitespace, and extraction artifacts (underscores, asterisks) are automatically stripped from all text fields
 
 ### CAS-RN Cleaning (CAS)
 
@@ -94,10 +94,10 @@ Deferred to future releases. Tracked but not in current roadmap.
 |-------------|-------|--------|
 | MODL-01 | Phase 9 | Complete |
 | MODL-02 | Phase 9 | Complete |
-| INFRA-01 | Phase 10 | Pending |
-| INFRA-02 | Phase 10 | Pending |
-| INFRA-03 | Phase 10 | Pending |
-| INFRA-04 | Phase 10 | Pending |
+| INFRA-01 | Phase 10 | Complete |
+| INFRA-02 | Phase 10 | Complete |
+| INFRA-03 | Phase 10 | Complete |
+| INFRA-04 | Phase 10 | Complete |
 | UIUX-01 | Phase 10 | Pending |
 | CAS-01 | Phase 11 | Pending |
 | CAS-02 | Phase 11 | Pending |
