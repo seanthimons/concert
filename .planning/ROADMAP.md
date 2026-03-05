@@ -76,10 +76,11 @@ Plans:
   4. User can see unicode characters automatically cleaned to ASCII equivalents when cleaning runs
   5. User can see leading/trailing punctuation and whitespace automatically stripped from text fields when cleaning runs
   6. User can see a per-row audit trail showing what transformations were applied (stored in data_store$cleaning_audit)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 10-01: TBD
+- [ ] 10-01-PLAN.md — Cleaning pipeline functions, audit trail infrastructure, reference data loaders with caching, and tests
+- [ ] 10-02-PLAN.md — Clean Data tab Shiny module, app.R wiring, gated navigation updates
 
 ### Phase 11: CAS Pipeline
 **Goal**: Users can see CAS-RNs rescued from names, normalized to canonical format, validated, and multi-CAS cells split
@@ -169,7 +170,7 @@ Phases execute sequentially: 9 → 10 → 11 → 12 → 13 → 14 → 15
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 9. Modularization | 0/TBD | Not started | - |
-| 10. Foundation & Clean Data Tab | 0/TBD | Not started | - |
+| 10. Foundation & Clean Data Tab | 0/2 | Not started | - |
 | 11. CAS Pipeline | 0/TBD | Not started | - |
 | 12. Name Cleaning | 0/TBD | Not started | - |
 | 13. Reference Filters & Editable Lists | 0/TBD | Not started | - |
@@ -177,4 +178,4 @@ Phases execute sequentially: 9 → 10 → 11 → 12 → 13 → 14 → 15
 | 15. Post-Curation QC | 0/TBD | Not started | - |
 
 ---
-*Last updated: 2026-03-04 after v1.3 roadmap creation*
+*Last updated: 2026-03-05 after Phase 10 planning*
