@@ -18,7 +18,7 @@ mod_clean_data_ui <- function(id) {
         ns("run_cleaning"),
         "Run Cleaning",
         class = "btn-success btn-lg",
-        icon = icon("broom")
+        icon = icon("magic")
       ),
 
       uiOutput(ns("cleaning_summary")),
@@ -31,7 +31,7 @@ mod_clean_data_ui <- function(id) {
       condition = paste0("!output['", ns("has_data"), "']"),
       div(
         class = "text-center text-muted py-5",
-        bsicons::bs_icon("broom", size = "3em"),
+        bsicons::bs_icon("eraser", size = "3em"),
         h4("No data loaded"),
         p("Upload a file and it will appear here for cleaning.")
       )

@@ -94,7 +94,7 @@ ui <- page_sidebar(
       mod_raw_data_ui("raw")
     ),
     nav_panel("Clean Data", value = "clean_data",
-      icon = bsicons::bs_icon("broom"),
+      icon = bsicons::bs_icon("magic"),
       mod_clean_data_ui("cleaning")
     ),
     nav_panel("Tag Columns", value = "tag_columns",
