@@ -14,6 +14,7 @@ create_test_store <- function() {
   reactiveValues(
     raw = NULL, clean = NULL, detection = NULL, file_info = NULL,
     selected_columns = NULL, column_tags = NULL,
+    cleaning_audit = NULL, cleaned_data = NULL, reference_lists = NULL,
     curation_results = NULL, curation_report = NULL, curation_status = NULL,
     dedup_preview = NULL, consensus_data = NULL, consensus_summary = NULL,
     resolution_state = NULL, dtxsid_cols = NULL, priority_order = NULL,
@@ -55,6 +56,16 @@ test_that("mod_detection_info_server initializes without error", {
 test_that("mod_raw_data_server initializes without error", {
   testServer(mod_raw_data_server, args = list(
     data_store = create_test_store()
+  ), {
+    session$flushReact()
+    expect_true(TRUE)
+  })
+})
+
+test_that("mod_clean_data_server initializes without error", {
+  testServer(mod_clean_data_server, args = list(
+    data_store = create_test_store(),
+    on_cleaning_complete = NULL
   ), {
     session$flushReact()
     expect_true(TRUE)

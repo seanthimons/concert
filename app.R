@@ -35,6 +35,9 @@ for (f in list.files("R", recursive = TRUE, pattern = "\\.R$", full.names = TRUE
   source(f)
 }
 
+# Load reference lists (cached locally for fast startup)
+reference_lists <- load_all_reference_lists(here::here("data", "reference_cache"))
+
 # Application configuration
 options(
   shiny.maxRequestSize = 50 * 1024^2 # 50MB upload limit
@@ -90,6 +93,10 @@ ui <- page_sidebar(
       icon = bsicons::bs_icon("file-text"),
       mod_raw_data_ui("raw")
     ),
+    nav_panel("Clean Data", value = "clean_data",
+      icon = bsicons::bs_icon("broom"),
+      mod_clean_data_ui("cleaning")
+    ),
     nav_panel("Tag Columns", value = "tag_columns",
       icon = bsicons::bs_icon("tags"),
       mod_tag_columns_ui("tags")
@@ -111,6 +118,7 @@ server <- function(input, output, session) {
   data_store <- reactiveValues(
     raw = NULL, clean = NULL, detection = NULL, file_info = NULL,
     selected_columns = NULL, column_tags = NULL,
+    cleaning_audit = NULL, cleaned_data = NULL, reference_lists = NULL,
     curation_results = NULL, curation_report = NULL, curation_status = NULL,
     dedup_preview = NULL, consensus_data = NULL, consensus_summary = NULL,
     resolution_state = NULL, dtxsid_cols = NULL, priority_order = NULL,
@@ -118,10 +126,14 @@ server <- function(input, output, session) {
     selected_error_rows = NULL, manual_queue = list()
   )
 
+  # Store reference lists in data_store
+  data_store$reference_lists <- reference_lists
+
   # --- Gated Navigation ---
   session$onFlushed(function() {
     nav_hide("main_tabs", target = "detection_info", session = session)
     nav_hide("main_tabs", target = "raw_data", session = session)
+    nav_hide("main_tabs", target = "clean_data", session = session)
     nav_hide("main_tabs", target = "tag_columns", session = session)
     nav_hide("main_tabs", target = "run_curation_tab", session = session)
     nav_hide("main_tabs", target = "review_results", session = session)
@@ -142,6 +154,8 @@ server <- function(input, output, session) {
   }
 
   reset_all_downstream <- function() {
+    data_store$cleaning_audit <- NULL
+    data_store$cleaned_data <- NULL
     data_store$column_tags <- NULL
     data_store$curation_results <- NULL
     data_store$curation_report <- NULL
@@ -154,6 +168,7 @@ server <- function(input, output, session) {
     data_store$priority_order <- NULL
     nav_hide("main_tabs", target = "detection_info", session = session)
     nav_hide("main_tabs", target = "raw_data", session = session)
+    nav_hide("main_tabs", target = "clean_data", session = session)
     nav_hide("main_tabs", target = "tag_columns", session = session)
     nav_hide("main_tabs", target = "run_curation_tab", session = session)
     nav_hide("main_tabs", target = "review_results", session = session)
@@ -165,12 +180,18 @@ server <- function(input, output, session) {
     req(data_store$clean)
     show_tab_with_pulse("detection_info")
     show_tab_with_pulse("raw_data")
+    show_tab_with_pulse("clean_data")
+  })
+
+  # Show Tag Columns tab after cleaning
+  observe({
+    req(data_store$cleaned_data)
     show_tab_with_pulse("tag_columns")
   })
 
   # Sidebar visibility based on active tab
   observeEvent(input$main_tabs, {
-    curation_tabs <- c("tag_columns", "run_curation_tab", "review_results")
+    curation_tabs <- c("clean_data", "tag_columns", "run_curation_tab", "review_results")
     is_curation <- input$main_tabs %in% curation_tabs
     toggle_sidebar("main_sidebar", open = !is_curation, session = session)
   })
@@ -182,6 +203,12 @@ server <- function(input, output, session) {
   mod_data_preview_server("preview", data_store, preview_rows)
   mod_detection_info_server("detection", data_store)
   mod_raw_data_server("raw", data_store)
+
+  mod_clean_data_server("cleaning", data_store,
+    on_cleaning_complete = function() {
+      show_tab_with_pulse("tag_columns")
+    }
+  )
 
   mod_tag_columns_server("tags", data_store,
     on_tags_applied = function() {
