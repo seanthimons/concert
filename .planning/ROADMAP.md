@@ -40,7 +40,7 @@
 **Milestone Goal:** Add staged pre- and post-curation cleaning pipeline with interactive UI, editable reference lists, smart multi-sheet Excel export, and re-import detection.
 
 - [ ] **Phase 9: Modularization** - Extract existing 6 tabs into Shiny modules to prevent app.R from becoming unmaintainable
-- [ ] **Phase 10: Foundation & Clean Data Tab** - Add audit trail infrastructure, reference data loaders, and new gated workflow tab
+- [x] **Phase 10: Foundation & Clean Data Tab** - Add audit trail infrastructure, reference data loaders, and new gated workflow tab
 - [ ] **Phase 11: CAS Pipeline** - Implement CAS-RN rescue, normalization, validation, and multi-CAS splitting with UI preview
 - [ ] **Phase 12: Name Cleaning** - Extract formulas and synonyms, strip quality adjectives, protect IUPAC inverted names
 - [ ] **Phase 13: Reference Filters & Editable Lists** - Flag functional categories and bare formulas, enable in-app reference list editing
@@ -79,8 +79,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 10-01-PLAN.md — Cleaning pipeline functions, audit trail infrastructure, reference data loaders with caching, and tests
-- [ ] 10-02-PLAN.md — Clean Data tab Shiny module, app.R wiring, gated navigation updates
+- [x] 10-01-PLAN.md — Cleaning pipeline functions, audit trail infrastructure, reference data loaders with caching, and tests (353s, 2 tasks, 5 files)
+- [x] 10-02-PLAN.md — Clean Data tab Shiny module, app.R wiring, gated navigation updates (448s, 2 tasks, 3 files)
 
 ### Phase 11: CAS Pipeline
 **Goal**: Users can see CAS-RNs rescued from names, normalized to canonical format, validated, and multi-CAS cells split
@@ -178,4 +178,4 @@ Phases execute sequentially: 9 → 10 → 11 → 12 → 13 → 14 → 15
 | 15. Post-Curation QC | 0/TBD | Not started | - |
 
 ---
-*Last updated: 2026-03-05 after Phase 10 planning*
+*Last updated: 2026-03-05 after Phase 10 completion*
