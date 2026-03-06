@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Data Cleaning Pipeline
-status: executing
-stopped_at: Completed 12-02-PLAN.md
-last_updated: "2026-03-06T20:32:17.629Z"
-last_activity: 2026-03-06 — Phase 12 Plan 01 complete (name cleaning functions)
+status: idle
+stopped_at: Phase 12 complete
+last_updated: "2026-03-06"
+last_activity: 2026-03-06 — Phase 12 complete (name cleaning pipeline + UI)
 progress:
   total_phases: 7
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 8
   completed_plans: 8
-  percent: 80
+  percent: 86
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-06)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, tag, curate, resolve, export.
-**Current focus:** Phase 12 - Name Cleaning
+**Current focus:** Phase 12 complete, Phase 13 next (Reference Filters & Editable Lists)
 
 ## Current Position
 
-Phase: 12 of 15 (Name Cleaning)
+Phase: 12 of 15 (Name Cleaning) — COMPLETE
 Plan: 2 of 2
 Status: Complete
-Last activity: 2026-03-06 — Phase 12 Plan 02 complete (name cleaning UI integration)
+Last activity: 2026-03-06 — Phase 12 verified and complete
 
-Progress: [████████████░░░░░░░░] 12/15 phases complete across all milestones (80%)
+Progress: [█████████████░░░░░░░] 13/15 phases complete across all milestones (86%)
 
 ## Performance Metrics
 
@@ -125,11 +125,11 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-06T20:32:17.626Z
-Stopped at: Completed 12-02-PLAN.md
+Last session: 2026-03-06
+Stopped at: Phase 12 complete
 Resume file: None
 
-**Next step:** Execute Phase 12 Plan 02 (Name Cleaning UI) — visual statistics, before/after preview, integration with Clean Data tab.
+**Next step:** Phase 13 — Reference Filters & Editable Lists (discuss → plan → execute)
 
 ---
-*STATE.md updated: 2026-03-06 after Phase 11 → Phase 12 transition*
+*STATE.md updated: 2026-03-06 after Phase 12 completion*
