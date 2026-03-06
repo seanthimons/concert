@@ -25,6 +25,8 @@ mod_clean_data_ui <- function(id) {
 
       DT::dataTableOutput(ns("cleaned_table")),
 
+      uiOutput(ns("audit_section")),
+
       uiOutput(ns("multi_cas_section"))
     ),
 
@@ -72,27 +74,27 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
             tag_map <- data_store$column_tags
             all_audits <- list()
 
-            incProgress(0.10, detail = "Adding row lineage...")
+            incProgress(0.05, detail = "Adding row lineage...")
             df <- inject_row_lineage(df)
 
-            incProgress(0.15, detail = "Converting unicode to ASCII...")
+            incProgress(0.10, detail = "Converting unicode to ASCII...")
             df_before <- df
             df <- dplyr::mutate(df, dplyr::across(where(is.character), clean_unicode_field))
             all_audits[[length(all_audits) + 1]] <- build_audit_trail(df_before, df, "unicode_to_ascii", function(f) paste0("Unicode to ASCII in ", f))
 
-            incProgress(0.15, detail = "Trimming whitespace...")
+            incProgress(0.10, detail = "Trimming whitespace...")
             df_before <- df
             df <- dplyr::mutate(df, dplyr::across(where(is.character), clean_text_field))
             all_audits[[length(all_audits) + 1]] <- build_audit_trail(df_before, df, "trim_whitespace_punctuation", function(f) paste0("Trim in ", f))
 
             new_tags <- list()
             if (!is.null(tag_map) && length(tag_map) > 0) {
-              incProgress(0.20, detail = "Normalizing CAS-RNs...")
+              incProgress(0.15, detail = "Normalizing CAS-RNs...")
               cas_result <- normalize_cas_fields(df, tag_map)
               df <- cas_result$cleaned_data
               all_audits[[length(all_audits) + 1]] <- cas_result$audit_trail
 
-              incProgress(0.20, detail = "Rescuing CAS from names...")
+              incProgress(0.15, detail = "Rescuing CAS from names...")
               rescue_result <- rescue_cas_from_text(df, tag_map)
               df <- rescue_result$cleaned_data
               all_audits[[length(all_audits) + 1]] <- rescue_result$audit_trail
@@ -101,9 +103,75 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
               incProgress(0.10, detail = "Detecting multi-CAS rows...")
               updated_tag_map <- c(tag_map, new_tags)
               df <- detect_multi_cas(df, updated_tag_map)
+
+              # Name cleaning steps (if Name columns present)
+              name_cols <- names(tag_map)[tag_map == "Name"]
+
+              if (length(name_cols) > 0) {
+                incProgress(0.10, detail = "Stripping parentheticals...")
+                enclosure_result <- strip_terminal_enclosures(df, name_cols)
+                df <- enclosure_result$cleaned_data
+                all_audits[[length(all_audits) + 1]] <- enclosure_result$audit_trail
+                if (length(enclosure_result$new_tags) > 0) {
+                  new_tags <- c(new_tags, enclosure_result$new_tags)
+                  updated_tag_map <- c(updated_tag_map, enclosure_result$new_tags)
+                }
+
+                incProgress(0.05, detail = "Removing quality adjectives...")
+                quality_result <- strip_quality_adjectives(df, name_cols)
+                df <- quality_result$cleaned_data
+                all_audits[[length(all_audits) + 1]] <- quality_result$audit_trail
+
+                incProgress(0.05, detail = "Removing salt references...")
+                salt_result <- strip_salt_references(df, name_cols)
+                df <- salt_result$cleaned_data
+                all_audits[[length(all_audits) + 1]] <- salt_result$audit_trail
+
+                incProgress(0.05, detail = "Removing unspecified suffixes...")
+                unspec_result <- strip_terminal_unspecified(df, name_cols)
+                df <- unspec_result$cleaned_data
+                all_audits[[length(all_audits) + 1]] <- unspec_result$audit_trail
+
+                # Cleanup before second enclosure stripping
+                df <- df %>%
+                  dplyr::mutate(dplyr::across(dplyr::all_of(name_cols), ~ {
+                    .x %>%
+                      stringr::str_squish() %>%
+                      stringr::str_remove("\\(\\s*\\)\\s*$") %>%
+                      stringr::str_trim() %>%
+                      stringr::str_remove("[,;-]+$") %>%
+                      stringr::str_trim()
+                  }))
+
+                # Second pass enclosure stripping
+                enclosure_result2 <- strip_terminal_enclosures(df, name_cols)
+                df <- enclosure_result2$cleaned_data
+                all_audits[[length(all_audits) + 1]] <- enclosure_result2$audit_trail
+
+                incProgress(0.10, detail = "Splitting synonyms...")
+                synonym_result <- split_synonyms(df, name_cols, updated_tag_map)
+                df <- synonym_result$cleaned_data
+                all_audits[[length(all_audits) + 1]] <- synonym_result$audit_trail
+
+                # Final cleanup
+                df <- df %>%
+                  dplyr::mutate(dplyr::across(dplyr::all_of(name_cols), ~ {
+                    .x %>%
+                      stringr::str_squish() %>%
+                      stringr::str_remove_all("\\(\\s*\\)") %>%
+                      stringr::str_trim()
+                  }))
+
+                # Remove rows where all name columns are empty or NA
+                name_check <- df[, name_cols, drop = FALSE]
+                all_empty <- apply(name_check, 1, function(row) {
+                  all(is.na(row) | row == "")
+                })
+                df <- df[!all_empty, ]
+              }
             }
 
-            incProgress(0.10, detail = "Finalizing...")
+            incProgress(0.05, detail = "Finalizing...")
             audit_combined <- dplyr::bind_rows(all_audits)
             data_store$cleaned_data <- df
             data_store$cleaning_audit <- audit_combined
@@ -171,50 +239,129 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       # Count multi-CAS flags
       n_multi_cas <- if ("multi_cas" %in% names(cleaned_data)) sum(cleaned_data$multi_cas, na.rm = TRUE) else 0
 
-      div(
-        class = "mb-3 mt-3",
+      # Count name cleaning steps
+      n_parentheticals <- sum(audit$step == "strip_terminal_enclosures")
+      n_synonyms <- sum(audit$step == "split_synonyms")
+      n_adjectives <- sum(audit$step %in% c("strip_quality_adjectives", "strip_salt_references", "strip_terminal_unspecified"))
+
+      # Check if name cleaning occurred
+      has_name_cleaning <- n_parentheticals > 0 || n_synonyms > 0 || n_adjectives > 0
+
+      # Build rows
+      row1 <- bslib::layout_columns(
+        col_widths = c(4, 4, 4),
+        bslib::value_box(
+          title = "CAS Rescued",
+          value = n_rescue,
+          showcase = bsicons::bs_icon("search"),
+          theme = "primary"
+        ),
+        bslib::value_box(
+          title = "CAS Normalized",
+          value = n_normalize,
+          showcase = bsicons::bs_icon("check-circle"),
+          theme = "success"
+        ),
+        bslib::value_box(
+          title = "CAS Invalid",
+          value = n_invalid,
+          showcase = bsicons::bs_icon("x-circle"),
+          theme = "danger"
+        )
+      )
+
+      row2 <- bslib::layout_columns(
+        col_widths = c(4, 4, 4),
+        bslib::value_box(
+          title = "Multi-CAS Flagged",
+          value = n_multi_cas,
+          showcase = bsicons::bs_icon("flag"),
+          theme = "warning"
+        ),
+        bslib::value_box(
+          title = "Unicode Cleaned",
+          value = n_unicode,
+          showcase = bsicons::bs_icon("globe"),
+          theme = "info"
+        ),
+        bslib::value_box(
+          title = "Fields Trimmed",
+          value = n_trim,
+          showcase = bsicons::bs_icon("scissors"),
+          theme = "info"
+        )
+      )
+
+      # Name cleaning row (only if applicable)
+      row3 <- if (has_name_cleaning) {
         bslib::layout_columns(
           col_widths = c(4, 4, 4),
           bslib::value_box(
-            title = "CAS Rescued",
-            value = n_rescue,
-            showcase = bsicons::bs_icon("search"),
+            title = "Parentheticals Stripped",
+            value = n_parentheticals,
+            showcase = bsicons::bs_icon("scissors"),
+            theme = "info"
+          ),
+          bslib::value_box(
+            title = "Synonyms Split",
+            value = n_synonyms,
+            showcase = bsicons::bs_icon("list"),
             theme = "primary"
           ),
           bslib::value_box(
-            title = "CAS Normalized",
-            value = n_normalize,
-            showcase = bsicons::bs_icon("check-circle"),
-            theme = "success"
-          ),
-          bslib::value_box(
-            title = "CAS Invalid",
-            value = n_invalid,
-            showcase = bsicons::bs_icon("x-circle"),
-            theme = "danger"
-          )
-        ),
-        bslib::layout_columns(
-          col_widths = c(4, 4, 4),
-          bslib::value_box(
-            title = "Multi-CAS Flagged",
-            value = n_multi_cas,
-            showcase = bsicons::bs_icon("flag"),
-            theme = "warning"
-          ),
-          bslib::value_box(
-            title = "Unicode Cleaned",
-            value = n_unicode,
-            showcase = bsicons::bs_icon("globe"),
-            theme = "info"
-          ),
-          bslib::value_box(
-            title = "Fields Trimmed",
-            value = n_trim,
-            showcase = bsicons::bs_icon("scissors"),
+            title = "Adjectives Removed",
+            value = n_adjectives,
+            showcase = bsicons::bs_icon("eraser"),
             theme = "info"
           )
         )
+      } else {
+        NULL
+      }
+
+      div(
+        class = "mb-3 mt-3",
+        row1,
+        row2,
+        row3
+      )
+    })
+
+    # Audit trail section
+    output$audit_section <- renderUI({
+      req(data_store$cleaning_audit)
+
+      audit <- data_store$cleaning_audit
+      n_changes <- nrow(audit)
+
+      if (n_changes == 0) {
+        return(NULL)
+      }
+
+      bslib::accordion(
+        id = session$ns("audit_accordion"),
+        open = FALSE,
+        bslib::accordion_panel(
+          title = sprintf("Cleaning Audit Trail -- %d Changes", n_changes),
+          icon = bsicons::bs_icon("file-text"),
+          DT::dataTableOutput(session$ns("audit_table"))
+        )
+      )
+    })
+
+    # Audit table
+    output$audit_table <- DT::renderDataTable({
+      req(data_store$cleaning_audit)
+
+      DT::datatable(
+        data_store$cleaning_audit,
+        options = list(
+          pageLength = 25,
+          scrollX = TRUE,
+          order = list(list(0, "asc"))
+        ),
+        filter = "top",
+        rownames = FALSE
       )
     })
 
