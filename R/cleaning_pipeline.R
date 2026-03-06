@@ -346,6 +346,512 @@ detect_multi_cas <- function(df, tag_map) {
     )
 }
 
+#' Strip terminal enclosures (parentheticals and brackets) from name fields
+#'
+#' Removes terminal (...) and [...] from Name-tagged columns, with protection
+#' for chemical names containing "yl" (except exception words).
+#' Preserves stripped content in formula_extract_{source} columns.
+#'
+#' @param df Dataframe with name columns
+#' @param name_cols Character vector of Name-tagged column names
+#' @return List with cleaned_data, audit_trail, and new_tags (empty list)
+#'
+#' @examples
+#' df <- tibble::tibble(chemical_name = c("Acetone (ACS reagent)", "ethanol (ethyl alcohol)"))
+#' strip_terminal_enclosures(df, "chemical_name")
+strip_terminal_enclosures <- function(df, name_cols) {
+  # Initialize result
+  df_result <- df
+  audit_rows <- list()
+
+  # Process each name column
+  for (col_name in name_cols) {
+    # Create formula_extract column name (if it doesn't exist)
+    extract_col_name <- paste0("formula_extract_", col_name)
+    if (!extract_col_name %in% names(df_result)) {
+      df_result[[extract_col_name]] <- NA_character_
+    }
+
+    # Process each row
+    for (idx in seq_len(nrow(df))) {
+      original_value <- df[[col_name]][idx]
+
+      # Skip NA
+      if (is.na(original_value)) {
+        next
+      }
+
+      stripped_value <- original_value
+      extracted_content <- NA_character_
+
+      # Try to strip terminal parenthetical (...) - check for empty content first
+      parenth_match <- stringr::str_match(stripped_value, "^(.*)\\(([^)]*)\\)\\s*$")
+      if (!is.na(parenth_match[1, 1])) {
+        content <- parenth_match[1, 3]
+        base <- parenth_match[1, 2]
+
+        # Skip empty parentheticals
+        content_trimmed <- stringr::str_trim(content)
+        if (content_trimmed == "") {
+          # Remove empty parenthetical without audit
+          stripped_value <- stringr::str_trim(base)
+        } else {
+          # Check if we should keep it (contains "yl" but not exception words, OR contains %)
+          exception_words <- c("density", "probably", "average", "combination")
+          has_yl <- stringr::str_detect(content, "yl")
+          has_exception <- any(sapply(exception_words, function(w) stringr::str_detect(stringr::str_to_lower(content), w)))
+          has_percentage <- stringr::str_detect(content, "%")
+
+          # Strip if: (no yl OR has exception) AND no percentage
+          should_strip <- (!has_yl || has_exception) && !has_percentage
+
+          if (should_strip) {
+            # Strip it
+            stripped_value <- stringr::str_trim(base)
+            extracted_content <- content
+          }
+        }
+      }
+
+      # Try to strip terminal bracket [...] - check for empty content first
+      bracket_match <- stringr::str_match(stripped_value, "^(.*)\\[([^]]*)\\]\\s*$")
+      if (!is.na(bracket_match[1, 1])) {
+        content <- bracket_match[1, 3]
+        base <- bracket_match[1, 2]
+
+        # Skip empty brackets
+        content_trimmed <- stringr::str_trim(content)
+        if (content_trimmed == "") {
+          # Remove empty bracket without audit
+          stripped_value <- stringr::str_trim(base)
+        } else {
+          # Same logic for brackets
+          exception_words <- c("density", "probably", "average", "combination")
+          has_yl <- stringr::str_detect(content, "yl")
+          has_exception <- any(sapply(exception_words, function(w) stringr::str_detect(stringr::str_to_lower(content), w)))
+          has_percentage <- stringr::str_detect(content, "%")
+
+          # Strip if: (no yl OR has exception) AND no percentage
+          should_strip <- (!has_yl || has_exception) && !has_percentage
+
+          if (should_strip) {
+            # Strip it
+            stripped_value <- stringr::str_trim(base)
+            # If we already extracted from parenthetical, combine
+            if (!is.na(extracted_content)) {
+              extracted_content <- paste(extracted_content, content, sep = "; ")
+            } else {
+              extracted_content <- content
+            }
+          }
+        }
+      }
+
+      # Update result
+      if (stripped_value != original_value) {
+        df_result[[col_name]][idx] <- stripped_value
+        # Only update extract column if we extracted something new (don't overwrite existing)
+        if (!is.na(extracted_content)) {
+          # If there's already content, append
+          if (!is.na(df_result[[extract_col_name]][idx]) && df_result[[extract_col_name]][idx] != "") {
+            df_result[[extract_col_name]][idx] <- paste(df_result[[extract_col_name]][idx], extracted_content, sep = "; ")
+          } else {
+            df_result[[extract_col_name]][idx] <- extracted_content
+          }
+        }
+
+        # Add audit entry
+        audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
+          row_id = as.integer(idx),
+          field = col_name,
+          step = "strip_terminal_enclosures",
+          original_value = original_value,
+          new_value = stripped_value,
+          reason = paste0("Strip terminal enclosure from ", col_name, "; content saved to ", extract_col_name)
+        )
+      }
+    }
+  }
+
+  # Combine audit rows
+  audit_trail <- if (length(audit_rows) == 0) {
+    tibble::tibble(
+      row_id = integer(),
+      field = character(),
+      step = character(),
+      original_value = character(),
+      new_value = character(),
+      reason = character()
+    )
+  } else {
+    dplyr::bind_rows(audit_rows)
+  }
+
+  list(
+    cleaned_data = df_result,
+    audit_trail = audit_trail,
+    new_tags = list()  # formula_extract columns are informational, not auto-tagged
+  )
+}
+
+#' Strip quality adjectives from name fields
+#'
+#' Removes quality words like "pure", "purified", "technical", "grade", "chemical"
+#' from Name-tagged columns. Uses word boundaries for clean removal.
+#'
+#' @param df Dataframe with name columns
+#' @param name_cols Character vector of Name-tagged column names
+#' @return List with cleaned_data and audit_trail
+#'
+#' @examples
+#' df <- tibble::tibble(chemical_name = c("technical grade ethanol", "purified water"))
+#' strip_quality_adjectives(df, "chemical_name")
+strip_quality_adjectives <- function(df, name_cols) {
+  # Save before state
+  df_before <- df
+
+  # Quality word pattern
+  pattern <- "\\b(pure|purif\\w*|tech\\w*|grade|chemical)\\b"
+
+  # Apply to each name column
+  df_after <- df
+  for (col_name in name_cols) {
+    df_after[[col_name]] <- df[[col_name]] %>%
+      stringr::str_remove_all(stringr::regex(pattern, ignore_case = TRUE)) %>%
+      stringr::str_squish()
+  }
+
+  # Build audit trail manually
+  audit_rows <- list()
+
+  for (col_name in name_cols) {
+    original_vals <- as.character(df_before[[col_name]])
+    cleaned_vals <- as.character(df_after[[col_name]])
+
+    # Find changes
+    for (idx in seq_along(original_vals)) {
+      orig <- original_vals[idx]
+      new <- cleaned_vals[idx]
+
+      if (!is.na(orig) && !is.na(new) && orig != new) {
+        audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
+          row_id = as.integer(idx),
+          field = col_name,
+          step = "strip_quality_adjectives",
+          original_value = orig,
+          new_value = new,
+          reason = paste0("Remove quality adjectives from ", col_name)
+        )
+      }
+    }
+  }
+
+  # Combine audit rows
+  audit_trail <- if (length(audit_rows) == 0) {
+    tibble::tibble(
+      row_id = integer(),
+      field = character(),
+      step = character(),
+      original_value = character(),
+      new_value = character(),
+      reason = character()
+    )
+  } else {
+    dplyr::bind_rows(audit_rows)
+  }
+
+  list(
+    cleaned_data = df_after,
+    audit_trail = audit_trail
+  )
+}
+
+#' Strip salt references from name fields
+#'
+#' Removes "and its [adjective] salts" patterns from Name-tagged columns.
+#'
+#' @param df Dataframe with name columns
+#' @param name_cols Character vector of Name-tagged column names
+#' @return List with cleaned_data and audit_trail
+#'
+#' @examples
+#' df <- tibble::tibble(chemical_name = c("lead and its salts", "mercury and its inorganic salts"))
+#' strip_salt_references(df, "chemical_name")
+strip_salt_references <- function(df, name_cols) {
+  # Save before state
+  df_before <- df
+
+  # Salt pattern
+  pattern <- "and its (\\w+ )?salts"
+
+  # Apply to each name column
+  df_after <- df
+  for (col_name in name_cols) {
+    df_after[[col_name]] <- df[[col_name]] %>%
+      stringr::str_remove_all(stringr::regex(pattern, ignore_case = TRUE)) %>%
+      stringr::str_trim()
+  }
+
+  # Build audit trail manually
+  audit_rows <- list()
+
+  for (col_name in name_cols) {
+    original_vals <- as.character(df_before[[col_name]])
+    cleaned_vals <- as.character(df_after[[col_name]])
+
+    # Find changes
+    for (idx in seq_along(original_vals)) {
+      orig <- original_vals[idx]
+      new <- cleaned_vals[idx]
+
+      if (!is.na(orig) && !is.na(new) && orig != new) {
+        audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
+          row_id = as.integer(idx),
+          field = col_name,
+          step = "strip_salt_references",
+          original_value = orig,
+          new_value = new,
+          reason = paste0("Remove ambiguous salt reference from ", col_name)
+        )
+      }
+    }
+  }
+
+  # Combine audit rows
+  audit_trail <- if (length(audit_rows) == 0) {
+    tibble::tibble(
+      row_id = integer(),
+      field = character(),
+      step = character(),
+      original_value = character(),
+      new_value = character(),
+      reason = character()
+    )
+  } else {
+    dplyr::bind_rows(audit_rows)
+  }
+
+  list(
+    cleaned_data = df_after,
+    audit_trail = audit_trail
+  )
+}
+
+#' Strip terminal "unspecified" suffixes from name fields
+#'
+#' Removes terminal "[,;-]? unspecified" patterns from Name-tagged columns.
+#'
+#' @param df Dataframe with name columns
+#' @param name_cols Character vector of Name-tagged column names
+#' @return List with cleaned_data and audit_trail
+#'
+#' @examples
+#' df <- tibble::tibble(chemical_name = c("compound, unspecified", "chemical - unspecified"))
+#' strip_terminal_unspecified(df, "chemical_name")
+strip_terminal_unspecified <- function(df, name_cols) {
+  # Save before state
+  df_before <- df
+
+  # Terminal unspecified pattern
+  pattern <- "[,;-]?\\s*unspecified\\s*$"
+
+  # Apply to each name column
+  df_after <- df
+  for (col_name in name_cols) {
+    df_after[[col_name]] <- df[[col_name]] %>%
+      stringr::str_remove_all(stringr::regex(pattern, ignore_case = TRUE)) %>%
+      stringr::str_trim()
+  }
+
+  # Build audit trail manually
+  audit_rows <- list()
+
+  for (col_name in name_cols) {
+    original_vals <- as.character(df_before[[col_name]])
+    cleaned_vals <- as.character(df_after[[col_name]])
+
+    # Find changes
+    for (idx in seq_along(original_vals)) {
+      orig <- original_vals[idx]
+      new <- cleaned_vals[idx]
+
+      if (!is.na(orig) && !is.na(new) && orig != new) {
+        audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
+          row_id = as.integer(idx),
+          field = col_name,
+          step = "strip_terminal_unspecified",
+          original_value = orig,
+          new_value = new,
+          reason = paste0("Remove terminal 'unspecified' suffix from ", col_name)
+        )
+      }
+    }
+  }
+
+  # Combine audit rows
+  audit_trail <- if (length(audit_rows) == 0) {
+    tibble::tibble(
+      row_id = integer(),
+      field = character(),
+      step = character(),
+      original_value = character(),
+      new_value = character(),
+      reason = character()
+    )
+  } else {
+    dplyr::bind_rows(audit_rows)
+  }
+
+  list(
+    cleaned_data = df_after,
+    audit_trail = audit_trail
+  )
+}
+
+#' Split synonyms in name fields with IUPAC comma protection
+#'
+#' Splits comma/semicolon-separated synonyms into separate rows.
+#' Protects digit-comma-digit patterns (IUPAC inverted names like "butane, 2,2-dimethyl").
+#' Primary name keeps original row; synonyms get new rows with CAS columns set to NA.
+#'
+#' @param df Dataframe with name columns
+#' @param name_cols Character vector of Name-tagged column names
+#' @param tag_map Named list mapping column names to types
+#' @return List with cleaned_data and audit_trail
+#'
+#' @examples
+#' df <- tibble::tibble(
+#'   original_row_id = 1L,
+#'   cas_number = "67-64-1",
+#'   chemical_name = "xylene, dimethylbenzene, xylol"
+#' )
+#' tag_map <- list(cas_number = "CASRN", chemical_name = "Name")
+#' split_synonyms(df, "chemical_name", tag_map)
+split_synonyms <- function(df, name_cols, tag_map) {
+  # Get CASRN columns
+  cas_cols <- names(tag_map)[tag_map == "CASRN"]
+
+  # Initialize result
+  df_result <- df
+  audit_rows <- list()
+
+  # Process each name column
+  for (col_name in name_cols) {
+    # Build expanded dataframe
+    expanded_rows <- list()
+
+    for (idx in seq_len(nrow(df_result))) {
+      row_data <- df_result[idx, ]
+      original_name <- row_data[[col_name]]
+
+      # Skip NA
+      if (is.na(original_name)) {
+        expanded_rows[[length(expanded_rows) + 1]] <- row_data %>%
+          dplyr::mutate(
+            synonym_count = 1L,
+            synonym_index = 1L
+          )
+        next
+      }
+
+      # Step 1: Protect digit-comma-digit patterns (IUPAC locants like 2,4- or 1,3-)
+      protected_name <- stringr::str_replace_all(original_name, "(\\d+),(\\d+)", "\\1@@@\\2")
+
+      # Step 2: Protect IUPAC inverted names (e.g., "butane, 2,2-dimethyl")
+      # Pattern: comma followed by space and digit indicates inverted IUPAC name
+      # Replace that comma with a different placeholder
+      protected_name <- stringr::str_replace_all(protected_name, ",\\s+(\\d)", "%%%\\1")
+
+      # Step 3: Split on semicolons first, then commas
+      parts <- protected_name %>%
+        stringr::str_split(";") %>%
+        unlist() %>%
+        stringr::str_split(",") %>%
+        unlist() %>%
+        stringr::str_trim() %>%
+        stringr::str_replace_all("@@@", ",") %>%   # Restore digit-comma-digit
+        stringr::str_replace_all("%%%", ", ")      # Restore inverted name comma
+
+      # Remove empty strings
+      parts <- parts[parts != "" & !is.na(parts)]
+
+      # If no split occurred (single name), keep as-is
+      if (length(parts) <= 1) {
+        expanded_rows[[length(expanded_rows) + 1]] <- row_data %>%
+          dplyr::mutate(
+            synonym_count = 1L,
+            synonym_index = 1L
+          )
+        next
+      }
+
+      # Multiple synonyms found - expand rows
+      synonym_count <- length(parts)
+
+      # Add audit entry for original row
+      audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
+        row_id = as.integer(row_data$original_row_id),
+        field = col_name,
+        step = "split_synonyms",
+        original_value = original_name,
+        new_value = paste0("Split into ", synonym_count, " synonyms: ", paste(parts, collapse = "; ")),
+        reason = paste0("Split comma/semicolon-separated synonyms in ", col_name)
+      )
+
+      # Create rows for each synonym
+      for (syn_idx in seq_along(parts)) {
+        new_row <- row_data
+        new_row[[col_name]] <- parts[syn_idx]
+        new_row$synonym_count <- as.integer(synonym_count)
+        new_row$synonym_index <- as.integer(syn_idx)
+
+        # Set CAS columns to NA for synonym rows (index > 1)
+        if (syn_idx > 1) {
+          for (cas_col in cas_cols) {
+            if (cas_col %in% names(new_row)) {
+              new_row[[cas_col]] <- NA_character_
+            }
+          }
+
+          # Add audit entry for synonym row
+          audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
+            row_id = as.integer(row_data$original_row_id),
+            field = col_name,
+            step = "split_synonyms",
+            original_value = original_name,
+            new_value = paste0("Synonym row ", syn_idx, ": ", parts[syn_idx]),
+            reason = paste0("Synonym from row ", row_data$original_row_id)
+          )
+        }
+
+        expanded_rows[[length(expanded_rows) + 1]] <- new_row
+      }
+    }
+
+    # Combine all expanded rows
+    df_result <- dplyr::bind_rows(expanded_rows)
+  }
+
+  # Combine audit rows
+  audit_trail <- if (length(audit_rows) == 0) {
+    tibble::tibble(
+      row_id = integer(),
+      field = character(),
+      step = character(),
+      original_value = character(),
+      new_value = character(),
+      reason = character()
+    )
+  } else {
+    dplyr::bind_rows(audit_rows)
+  }
+
+  list(
+    cleaned_data = df_result,
+    audit_trail = audit_trail
+  )
+}
+
 #' Run complete cleaning pipeline with audit trail tracking
 #'
 #' Orchestrates multiple cleaning steps:
@@ -406,7 +912,7 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
   # Initialize new_tags
   new_tags <- list()
 
-  # If tag_map provided, run CAS steps
+  # If tag_map provided, run CAS and name steps
   if (!is.null(tag_map)) {
     # Step 3: Normalize CAS fields
     cas_result <- normalize_cas_fields(df_after_trim, tag_map)
@@ -423,7 +929,77 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
     tag_map_updated <- c(tag_map, new_tags)
 
     # Step 5: Detect multi-CAS
-    df_final <- detect_multi_cas(df_after_rescue, tag_map_updated)
+    df_after_multi_cas <- detect_multi_cas(df_after_rescue, tag_map_updated)
+
+    # Step 6: Name cleaning (if Name columns present)
+    name_cols <- names(tag_map)[tag_map == "Name"]
+
+    if (length(name_cols) > 0) {
+      # Step 6a: Strip terminal enclosures
+      enclosure_result <- strip_terminal_enclosures(df_after_multi_cas, name_cols)
+      df_after_enclosures <- enclosure_result$cleaned_data
+      audit_combined <- dplyr::bind_rows(audit_combined, enclosure_result$audit_trail)
+      # Merge new_tags from formula_extract columns (though currently empty)
+      new_tags <- c(new_tags, enclosure_result$new_tags)
+
+      # Update tag_map with formula_extract columns if needed
+      tag_map_updated <- c(tag_map_updated, enclosure_result$new_tags)
+
+      # Step 6b: Strip quality adjectives
+      quality_result <- strip_quality_adjectives(df_after_enclosures, name_cols)
+      df_after_quality <- quality_result$cleaned_data
+      audit_combined <- dplyr::bind_rows(audit_combined, quality_result$audit_trail)
+
+      # Step 6c: Strip salt references
+      salt_result <- strip_salt_references(df_after_quality, name_cols)
+      df_after_salts <- salt_result$cleaned_data
+      audit_combined <- dplyr::bind_rows(audit_combined, salt_result$audit_trail)
+
+      # Step 6d: Strip terminal unspecified
+      unspec_result <- strip_terminal_unspecified(df_after_salts, name_cols)
+      df_after_unspec <- unspec_result$cleaned_data
+      audit_combined <- dplyr::bind_rows(audit_combined, unspec_result$audit_trail)
+
+      # Step 6d2: Final cleanup BEFORE second stripping - str_squish and remove trailing punctuation
+      df_before_second_strip <- df_after_unspec %>%
+        dplyr::mutate(dplyr::across(dplyr::all_of(name_cols), ~ {
+          .x %>%
+            stringr::str_squish() %>%
+            stringr::str_remove("\\(\\s*\\)\\s*$") %>%  # Remove empty parentheticals
+            stringr::str_trim() %>%
+            stringr::str_remove("[,;-]+$") %>%  # Remove trailing punctuation
+            stringr::str_trim()
+        }))
+
+      # Step 6d3: Strip terminal enclosures AGAIN (after text cleaning exposes new terminal enclosures)
+      enclosure_result2 <- strip_terminal_enclosures(df_before_second_strip, name_cols)
+      df_after_enclosures2 <- enclosure_result2$cleaned_data
+      audit_combined <- dplyr::bind_rows(audit_combined, enclosure_result2$audit_trail)
+
+      # Step 6e: Split synonyms (MUST be LAST)
+      synonym_result <- split_synonyms(df_after_enclosures2, name_cols, tag_map_updated)
+      df_after_synonyms <- synonym_result$cleaned_data
+      audit_combined <- dplyr::bind_rows(audit_combined, synonym_result$audit_trail)
+
+      # Step 6f: Final cleanup after synonym split - str_squish and remove empty parentheticals
+      df_after_synonyms <- df_after_synonyms %>%
+        dplyr::mutate(dplyr::across(dplyr::all_of(name_cols), ~ {
+          .x %>%
+            stringr::str_squish() %>%
+            stringr::str_remove_all("\\(\\s*\\)") %>%  # Remove empty parentheticals
+            stringr::str_trim()
+        }))
+
+      # Remove rows where all name columns are empty or NA
+      name_check <- df_after_synonyms[, name_cols, drop = FALSE]
+      all_empty <- apply(name_check, 1, function(row) {
+        all(is.na(row) | row == "")
+      })
+      df_final <- df_after_synonyms[!all_empty, ]
+    } else {
+      # No name columns - skip name cleaning
+      df_final <- df_after_multi_cas
+    }
   } else {
     # No CAS processing - just basic cleaning
     df_final <- df_after_trim
