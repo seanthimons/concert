@@ -43,6 +43,12 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - ✓ Manual DTXSID entry with bulk validation — v1.2
 - ✓ Error row retry: filter → re-tag → re-curate → merge-back — v1.2
 - ✓ Unresolvable status and Excel export needs_review flagging — v1.2
+- ✓ CAS placeholder detection (no cas, n/a, proprietary) set to NA with audit — v1.3 Phase 11
+- ✓ CAS-RN normalization to NNN-NN-N format with checksum validation — v1.3 Phase 11
+- ✓ CAS-RN extraction from non-CASRN columns with auto-tagging — v1.3 Phase 11
+- ✓ Multi-CAS row flagging with user-initiated split — v1.3 Phase 11
+- ✓ Value box dashboard for cleaning statistics — v1.3 Phase 11
+- ✓ Step-by-step progress indicator for cleaning pipeline — v1.3 Phase 11
 
 ### Active
 
@@ -125,6 +131,10 @@ Test dataset extended to 172 records covering all pre-curation edge cases (`data
 | Vector indexing over dplyr joins in mapping | Prevents row duplication from many-to-many joins | ✓ Good — v1.2 |
 | Unresolvable = error before AND after retry | Distinguishes first-attempt failures from exhausted retries | ✓ Good — v1.2 |
 | Queue-then-validate for manual DTXSIDs | Batch API calls reduce overhead vs per-cell validation | ✓ Good — v1.2 |
+| WIDE data shape for multi-CAS | New columns (cas_extract_*) not new rows; validated against EPA scripts | ✓ Good — v1.3 |
+| Tab reorder: Tag → Clean | CAS pipeline needs column type info from tagging first | ✓ Good — v1.3 |
+| ComptoxR direct for CAS ops | as_cas, extract_cas used directly — no custom implementations | ✓ Good — v1.3 |
+| Value boxes over text alerts | Unified visual language for cleaning statistics dashboard | ✓ Good — v1.3 |
 
 ---
-*Last updated: 2026-03-04 after v1.3 milestone start*
+*Last updated: 2026-03-06 after Phase 11 (CAS Pipeline)*

@@ -18,19 +18,19 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-04)
+See: .planning/PROJECT.md (updated 2026-03-06)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, tag, curate, resolve, export.
-**Current focus:** Phase 9 - Modularization
+**Current focus:** Phase 12 - Name Cleaning
 
 ## Current Position
 
-Phase: 11 of 15 (CAS Pipeline)
-Plan: 02 of 02 complete
-Status: Complete
-Last activity: 2026-03-06 — Completed Phase 11 Plan 02 (CAS Pipeline UI Integration)
+Phase: 12 of 15 (Name Cleaning)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-03-06 — Phase 11 complete, transitioning to Phase 12
 
-Progress: [██████████░░░░░░░░░░] 10/15 phases complete across all milestones (71%)
+Progress: [███████████░░░░░░░░░] 11/15 phases complete across all milestones (73%)
 
 ## Performance Metrics
 
@@ -104,11 +104,6 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-**Phase 9 Critical Path:**
-- App.R currently 2,275 lines; adding cleaning UI inline would push to 3,000+ lines
-- Modularization is prerequisite for all v1.3 features, not optional
-- Must extract 6 existing tabs (Data Preview, Detection Info, Raw Data, Tag Columns, Run Curation, Review Results) before proceeding
-
 **Phase 12 Risk:**
 - Synonym splitting IUPAC protection requires careful testing (20+ test cases per research)
 - Highest-risk operation in entire pipeline
@@ -119,11 +114,11 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-06T15:24:36.000Z
-Stopped at: Completed 11-02-PLAN.md
+Last session: 2026-03-06
+Stopped at: Phase 11 complete, ready to plan Phase 12
 Resume file: None
 
-**Next step:** Phase 11 complete (CAS Pipeline). Ready for Phase 12 planning (Synonym Splitting) or continue with next milestone.
+**Next step:** Plan Phase 12 (Name Cleaning) — synonym splitting, parenthetical extraction, quality adjective stripping.
 
 ---
-*STATE.md updated: 2026-03-06 after Phase 11 Plan 02 completion*
+*STATE.md updated: 2026-03-06 after Phase 11 → Phase 12 transition*
