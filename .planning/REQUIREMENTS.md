@@ -21,10 +21,10 @@ Requirements for v1.3 Data Cleaning Pipeline. Each maps to roadmap phases.
 
 ### CAS-RN Cleaning (CAS)
 
-- [ ] **CAS-01**: User can see placeholder text in CAS fields ('no cas', 'n/a', 'proprietary', '-', 'withheld', etc.) detected and set to NA with audit comment
-- [ ] **CAS-02**: User can see CAS-RNs normalized to canonical NNN-NN-N format with checksum validation; invalid CAS set to NA with audit comment
-- [ ] **CAS-03**: User can see CAS-RNs embedded in chemical name columns extracted, moved to the CAS column, and stripped from the name
-- [ ] **CAS-04**: User can see rows with multiple CAS-RNs split into separate rows with audit comment logging the original multi-CAS value
+- [x] **CAS-01**: User can see placeholder text in CAS fields ('no cas', 'n/a', 'proprietary', '-', 'withheld', etc.) detected and set to NA with audit comment ✅ 11-01
+- [x] **CAS-02**: User can see CAS-RNs normalized to canonical NNN-NN-N format with checksum validation; invalid CAS set to NA with audit comment ✅ 11-01
+- [x] **CAS-03**: User can see CAS-RNs embedded in chemical name columns extracted, moved to the CAS column, and stripped from the name ✅ 11-01
+- [x] **CAS-04**: User can see rows with multiple CAS-RNs split into separate rows with audit comment logging the original multi-CAS value ✅ 11-01
 
 ### Chemical Name Cleaning (NAME)
 
@@ -99,10 +99,10 @@ Deferred to future releases. Tracked but not in current roadmap.
 | INFRA-03 | Phase 10 | Complete |
 | INFRA-04 | Phase 10 | Complete |
 | UIUX-01 | Phase 10 | Pending |
-| CAS-01 | Phase 11 | Pending |
-| CAS-02 | Phase 11 | Pending |
-| CAS-03 | Phase 11 | Pending |
-| CAS-04 | Phase 11 | Pending |
+| CAS-01 | Phase 11 | Complete (11-01) |
+| CAS-02 | Phase 11 | Complete (11-01) |
+| CAS-03 | Phase 11 | Complete (11-01) |
+| CAS-04 | Phase 11 | Complete (11-01) |
 | UIUX-02 | Phase 11 | Pending |
 | UIUX-04 | Phase 11 | Pending |
 | NAME-01 | Phase 12 | Pending |

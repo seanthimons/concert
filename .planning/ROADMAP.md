@@ -97,7 +97,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 11-01-PLAN.md — CAS pipeline functions (normalize, rescue, multi-CAS detect) with TDD tests
+- [x] 11-01-PLAN.md — CAS pipeline functions (normalize, rescue, multi-CAS detect) with TDD tests ✅ 2026-03-06
 - [ ] 11-02-PLAN.md — UI integration: tab reorder, value boxes, progress indicator, multi-CAS split UI
 
 ### Phase 12: Name Cleaning
@@ -179,4 +179,4 @@ Phases execute sequentially: 9 → 10 → 11 → 12 → 13 → 14 → 15
 | 15. Post-Curation QC | 0/TBD | Not started | - |
 
 ---
-*Last updated: 2026-03-06 after Phase 11 planning*
+*Last updated: 2026-03-06 after Phase 11 Plan 01 completion*
