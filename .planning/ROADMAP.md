@@ -41,7 +41,7 @@
 
 - [ ] **Phase 9: Modularization** - Extract existing 6 tabs into Shiny modules to prevent app.R from becoming unmaintainable
 - [x] **Phase 10: Foundation & Clean Data Tab** - Add audit trail infrastructure, reference data loaders, and new gated workflow tab
-- [ ] **Phase 11: CAS Pipeline** - Implement CAS-RN rescue, normalization, validation, and multi-CAS splitting with UI preview
+- [x] **Phase 11: CAS Pipeline** - Implement CAS-RN rescue, normalization, validation, and multi-CAS splitting with UI preview ✅ 2026-03-06
 - [ ] **Phase 12: Name Cleaning** - Extract formulas and synonyms, strip quality adjectives, protect IUPAC inverted names
 - [ ] **Phase 13: Reference Filters & Editable Lists** - Flag functional categories and bare formulas, enable in-app reference list editing
 - [ ] **Phase 14: Multi-Sheet Export & Re-Import** - Export complete state as 7-sheet workbook, detect and restore ChemReg exports
@@ -98,7 +98,7 @@ Plans:
 
 Plans:
 - [x] 11-01-PLAN.md — CAS pipeline functions (normalize, rescue, multi-CAS detect) with TDD tests ✅ 2026-03-06
-- [ ] 11-02-PLAN.md — UI integration: tab reorder, value boxes, progress indicator, multi-CAS split UI
+- [x] 11-02-PLAN.md — UI integration: tab reorder, value boxes, progress indicator, multi-CAS split UI ✅ 2026-03-06
 
 ### Phase 12: Name Cleaning
 **Goal**: Users can see chemical names cleaned via parenthetical extraction, synonym splitting, and quality adjective stripping
@@ -179,4 +179,4 @@ Phases execute sequentially: 9 → 10 → 11 → 12 → 13 → 14 → 15
 | 15. Post-Curation QC | 0/TBD | Not started | - |
 
 ---
-*Last updated: 2026-03-06 after Phase 11 Plan 01 completion*
+*Last updated: 2026-03-06 after Phase 11 Plan 02 completion*
