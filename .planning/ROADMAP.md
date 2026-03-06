@@ -42,7 +42,7 @@
 - [ ] **Phase 9: Modularization** - Extract existing 6 tabs into Shiny modules to prevent app.R from becoming unmaintainable
 - [x] **Phase 10: Foundation & Clean Data Tab** - Add audit trail infrastructure, reference data loaders, and new gated workflow tab
 - [x] **Phase 11: CAS Pipeline** - Implement CAS-RN rescue, normalization, validation, and multi-CAS splitting with UI preview ✅ 2026-03-06
-- [ ] **Phase 12: Name Cleaning** - Extract formulas and synonyms, strip quality adjectives, protect IUPAC inverted names
+- [x] **Phase 12: Name Cleaning** - Extract formulas and synonyms, strip quality adjectives, protect IUPAC inverted names (completed 2026-03-06)
 - [ ] **Phase 13: Reference Filters & Editable Lists** - Flag functional categories and bare formulas, enable in-app reference list editing
 - [ ] **Phase 14: Multi-Sheet Export & Re-Import** - Export complete state as 7-sheet workbook, detect and restore ChemReg exports
 - [ ] **Phase 15: Post-Curation QC** - Re-validate CAS and check for remaining non-ASCII characters after curation
@@ -174,7 +174,7 @@ Phases execute sequentially: 9 → 10 → 11 → 12 → 13 → 14 → 15
 | 9. Modularization | 0/TBD | Not started | - |
 | 10. Foundation & Clean Data Tab | 2/2 | Complete    | 2026-03-05 |
 | 11. CAS Pipeline | 2/2 | Complete    | 2026-03-06 |
-| 12. Name Cleaning | 1/2 | In progress | - |
+| 12. Name Cleaning | 2/2 | Complete   | 2026-03-06 |
 | 13. Reference Filters & Editable Lists | 0/TBD | Not started | - |
 | 14. Multi-Sheet Export & Re-Import | 0/TBD | Not started | - |
 | 15. Post-Curation QC | 0/TBD | Not started | - |
