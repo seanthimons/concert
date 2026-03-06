@@ -93,13 +93,13 @@ ui <- page_sidebar(
       icon = bsicons::bs_icon("file-text"),
       mod_raw_data_ui("raw")
     ),
-    nav_panel("Clean Data", value = "clean_data",
-      icon = bsicons::bs_icon("magic"),
-      mod_clean_data_ui("cleaning")
-    ),
     nav_panel("Tag Columns", value = "tag_columns",
       icon = bsicons::bs_icon("tags"),
       mod_tag_columns_ui("tags")
+    ),
+    nav_panel("Clean Data", value = "clean_data",
+      icon = bsicons::bs_icon("magic"),
+      mod_clean_data_ui("cleaning")
     ),
     nav_panel("Run Curation", value = "run_curation_tab",
       icon = bsicons::bs_icon("play-circle"),
@@ -180,13 +180,13 @@ server <- function(input, output, session) {
     req(data_store$clean)
     show_tab_with_pulse("detection_info")
     show_tab_with_pulse("raw_data")
-    show_tab_with_pulse("clean_data")
+    show_tab_with_pulse("tag_columns")
   })
 
-  # Show Tag Columns tab after cleaning
+  # Show Clean Data tab after tagging
   observe({
-    req(data_store$cleaned_data)
-    show_tab_with_pulse("tag_columns")
+    req(data_store$column_tags)
+    show_tab_with_pulse("clean_data")
   })
 
   # Sidebar visibility based on active tab
@@ -206,13 +206,14 @@ server <- function(input, output, session) {
 
   mod_clean_data_server("cleaning", data_store,
     on_cleaning_complete = function() {
-      show_tab_with_pulse("tag_columns")
+      show_tab_with_pulse("run_curation_tab")
     }
   )
 
   mod_tag_columns_server("tags", data_store,
     on_tags_applied = function() {
-      show_tab_with_pulse("run_curation_tab")
+      show_tab_with_pulse("clean_data")
+      nav_hide("main_tabs", target = "run_curation_tab", session = session)
       nav_hide("main_tabs", target = "review_results", session = session)
     }
   )
