@@ -83,7 +83,7 @@ Plans:
 - [x] 10-02-PLAN.md — Clean Data tab Shiny module, app.R wiring, gated navigation updates (448s, 2 tasks, 3 files)
 
 ### Phase 11: CAS Pipeline
-**Goal**: Users can see CAS-RNs rescued from names, normalized to canonical format, validated, and multi-CAS cells split
+**Goal**: Users can see CAS-RNs rescued from names, normalized to canonical format, validated, and multi-CAS cells flagged
 **Depends on**: Phase 10
 **Requirements**: CAS-01, CAS-02, CAS-03, CAS-04, UIUX-02, UIUX-04
 **Success Criteria** (what must be TRUE):
@@ -94,10 +94,11 @@ Plans:
   5. User can see rows with multiple CAS-RNs split into separate rows with audit comment logging the original multi-CAS value
   6. User can see summary cards showing "X CAS rescued", "Y CAS validated", "Z multi-CAS split"
   7. User can run CAS cleaning pipeline with step-by-step progress indicator showing each transformation
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 11-01: TBD
+- [ ] 11-01-PLAN.md — CAS pipeline functions (normalize, rescue, multi-CAS detect) with TDD tests
+- [ ] 11-02-PLAN.md — UI integration: tab reorder, value boxes, progress indicator, multi-CAS split UI
 
 ### Phase 12: Name Cleaning
 **Goal**: Users can see chemical names cleaned via parenthetical extraction, synonym splitting, and quality adjective stripping
@@ -170,12 +171,12 @@ Phases execute sequentially: 9 → 10 → 11 → 12 → 13 → 14 → 15
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 9. Modularization | 0/TBD | Not started | - |
-| 10. Foundation & Clean Data Tab | 1/2 | Complete    | 2026-03-05 |
-| 11. CAS Pipeline | 0/TBD | Not started | - |
+| 10. Foundation & Clean Data Tab | 2/2 | Complete    | 2026-03-05 |
+| 11. CAS Pipeline | 0/2 | In progress | - |
 | 12. Name Cleaning | 0/TBD | Not started | - |
 | 13. Reference Filters & Editable Lists | 0/TBD | Not started | - |
 | 14. Multi-Sheet Export & Re-Import | 0/TBD | Not started | - |
 | 15. Post-Curation QC | 0/TBD | Not started | - |
 
 ---
-*Last updated: 2026-03-05 after Phase 10 completion*
+*Last updated: 2026-03-06 after Phase 11 planning*
