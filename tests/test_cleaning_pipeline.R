@@ -49,13 +49,15 @@ test_that("run_cleaning_pipeline returns cleaned data and audit trail", {
 
   result <- run_cleaning_pipeline(test_df)
 
-  # Check structure
+  # Check structure (now includes new_tags and original_row_id)
   expect_type(result, "list")
-  expect_named(result, c("cleaned_data", "audit_trail"))
+  expect_named(result, c("cleaned_data", "audit_trail", "new_tags"))
 
   # Check cleaned data
   cleaned <- result$cleaned_data
   expect_equal(nrow(cleaned), 3)
+  expect_true("original_row_id" %in% names(cleaned))  # Now injected by default
+  expect_equal(cleaned$original_row_id, 1:3)
   expect_equal(cleaned$chemical_name[1], "acetone")
   expect_equal(cleaned$chemical_name[2], "cafe")
   expect_equal(cleaned$chemical_name[3], "ethanol")
@@ -90,12 +92,17 @@ test_that("run_cleaning_pipeline on clean data returns empty audit trail", {
 
   result <- run_cleaning_pipeline(clean_df)
 
-  # Cleaned data should be identical
-  expect_equal(result$cleaned_data, clean_df)
+  # Cleaned data should be identical except for original_row_id
+  expect_equal(result$cleaned_data$chemical_name, clean_df$chemical_name)
+  expect_equal(result$cleaned_data$cas_number, clean_df$cas_number)
+  expect_true("original_row_id" %in% names(result$cleaned_data))
 
   # Audit trail should be empty (or 0 rows if tibble structure)
   expect_equal(nrow(result$audit_trail), 0)
   expect_named(result$audit_trail, c("row_id", "field", "step", "original_value", "new_value", "reason"))
+
+  # new_tags should be empty list when no tag_map provided
+  expect_equal(result$new_tags, list())
 })
 
 test_that("audit trail only contains rows where original_value != new_value", {
