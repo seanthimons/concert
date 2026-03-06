@@ -173,11 +173,11 @@ Phases execute sequentially: 9 → 10 → 11 → 12 → 13 → 14 → 15
 |-------|----------------|--------|-----------|
 | 9. Modularization | 0/TBD | Not started | - |
 | 10. Foundation & Clean Data Tab | 2/2 | Complete    | 2026-03-05 |
-| 11. CAS Pipeline | 0/2 | Complete    | 2026-03-06 |
-| 12. Name Cleaning | 0/2 | Planning    | - |
+| 11. CAS Pipeline | 2/2 | Complete    | 2026-03-06 |
+| 12. Name Cleaning | 1/2 | In progress | - |
 | 13. Reference Filters & Editable Lists | 0/TBD | Not started | - |
 | 14. Multi-Sheet Export & Re-Import | 0/TBD | Not started | - |
 | 15. Post-Curation QC | 0/TBD | Not started | - |
 
 ---
-*Last updated: 2026-03-06 after Phase 12 planning*
+*Last updated: 2026-03-06 after Phase 12 Plan 01 completion*

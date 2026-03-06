@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-03-06)
 ## Current Position
 
 Phase: 12 of 15 (Name Cleaning)
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-03-06 — Phase 11 complete, transitioning to Phase 12
+Plan: 1 of 2
+Status: In progress
+Last activity: 2026-03-06 — Phase 12 Plan 01 complete (name cleaning functions)
 
-Progress: [███████████░░░░░░░░░] 11/15 phases complete across all milestones (73%)
+Progress: [████████████░░░░░░░░] 12/15 phases complete across all milestones (80%)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 22 (17 from v1.0-v1.2 + 5 from v1.3)
-- Average duration: 481s per plan (v1.3 only)
-- Total execution time: 2418s (40.3 minutes for v1.3)
+- Total plans completed: 23 (17 from v1.0-v1.2 + 6 from v1.3)
+- Average duration: 506s per plan (v1.3 only)
+- Total execution time: 3459s (57.7 minutes for v1.3)
 
 **By Phase:**
 
@@ -47,6 +47,7 @@ Progress: [███████████░░░░░░░░░] 11/15 p
 | 09 | 2 | 1101s | 551s |
 | 10 | 2 | 801s | 401s |
 | 11 | 2 | 899s | 450s |
+| 12 | 1 | 1041s | 1041s |
 
 **Recent Trend:**
 - Last milestone: v1.2 (phases 6-8, 6 plans completed)
@@ -60,6 +61,7 @@ Progress: [███████████░░░░░░░░░] 11/15 p
 | Phase 10 P02 | 448s | 2 tasks | 3 files |
 | Phase 11 P01 | 514s | 2 tasks | 3 files |
 | Phase 11 P02 | 385s | 2 tasks | 2 files |
+| Phase 12 P01 | 1041s | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -96,6 +98,11 @@ Recent decisions affecting current work:
 - [Phase 11 P02]: Step-by-step progress with incProgress() between pipeline stages
 - [Phase 11 P02]: Tab gating pattern: Tag Columns → Clean Data → Run Curation
 - [Phase 11 P02]: Auto-approve checkpoint in auto_advance mode for human-verify tasks
+- [Phase 12 P01]: IUPAC comma protection using placeholder strategy (@@@, %%%) for digit-comma-digit and inverted names
+- [Phase 12 P01]: Two-pass enclosure stripping to catch terminal enclosures exposed by text cleaning
+- [Phase 12 P01]: Percentage protection in parentheticals (purity indicators like "(95%)")
+- [Phase 12 P01]: formula_extract columns are informational (not auto-tagged) for user discretion
+- [Phase 12 P01]: Synonym splitting runs LAST in pipeline to preserve row-level operations
 
 ### Pending Todos
 
@@ -104,9 +111,9 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-**Phase 12 Risk:**
-- Synonym splitting IUPAC protection requires careful testing (20+ test cases per research)
-- Highest-risk operation in entire pipeline
+**Phase 12 Risk (RESOLVED in P01):**
+- ~~Synonym splitting IUPAC protection requires careful testing~~ — Implemented with 9 test cases covering digit-comma-digit and inverted name patterns
+- ~~Highest-risk operation in entire pipeline~~ — Two-pass protection strategy verified with 95 passing tests
 
 **Phase 13 Complexity:**
 - Reactive cascade management from editable lists needs debouncing + explicit "Apply Changes" button
@@ -114,11 +121,11 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-06T19:52:00.139Z
-Stopped at: Phase 12 context gathered
-Resume file: .planning/phases/12-name-cleaning/12-CONTEXT.md
+Last session: 2026-03-06T20:23:00Z
+Stopped at: Phase 12 Plan 01 complete
+Resume file: .planning/phases/12-name-cleaning/12-01-SUMMARY.md
 
-**Next step:** Plan Phase 12 (Name Cleaning) — synonym splitting, parenthetical extraction, quality adjective stripping.
+**Next step:** Execute Phase 12 Plan 02 (Name Cleaning UI) — visual statistics, before/after preview, integration with Clean Data tab.
 
 ---
 *STATE.md updated: 2026-03-06 after Phase 11 → Phase 12 transition*
