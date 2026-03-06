@@ -23,7 +23,9 @@ mod_clean_data_ui <- function(id) {
 
       uiOutput(ns("cleaning_summary")),
 
-      DT::dataTableOutput(ns("cleaned_table"))
+      DT::dataTableOutput(ns("cleaned_table")),
+
+      uiOutput(ns("multi_cas_section"))
     ),
 
     # Empty state when no data loaded
@@ -32,8 +34,8 @@ mod_clean_data_ui <- function(id) {
       div(
         class = "text-center text-muted py-5",
         bsicons::bs_icon("eraser", size = "3em"),
-        h4("No data loaded"),
-        p("Upload a file and it will appear here for cleaning.")
+        h4("No columns tagged"),
+        p("Tag your columns first, then run cleaning.")
       )
     )
   )
@@ -51,7 +53,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
 
     # Has data indicator for conditionalPanel
     output$has_data <- reactive({
-      !is.null(data_store$clean)
+      !is.null(data_store$column_tags) && length(data_store$column_tags) > 0
     })
     outputOptions(output, "has_data", suspendWhenHidden = FALSE)
 
@@ -66,20 +68,51 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       tryCatch(
         {
           withProgress(message = "Cleaning data...", value = 0, {
-            incProgress(0.3, detail = "Converting unicode to ASCII")
-            incProgress(0.6, detail = "Trimming whitespace and punctuation")
+            df <- data_store$clean
+            tag_map <- data_store$column_tags
+            all_audits <- list()
 
-            # Run the cleaning pipeline
-            result <- run_cleaning_pipeline(data_store$clean)
+            incProgress(0.10, detail = "Adding row lineage...")
+            df <- inject_row_lineage(df)
 
-            incProgress(1.0, detail = "Complete")
+            incProgress(0.15, detail = "Converting unicode to ASCII...")
+            df_before <- df
+            df <- dplyr::mutate(df, dplyr::across(where(is.character), clean_unicode_field))
+            all_audits[[length(all_audits) + 1]] <- build_audit_trail(df_before, df, "unicode_to_ascii", function(f) paste0("Unicode to ASCII in ", f))
 
-            # Store results in data_store
-            data_store$cleaned_data <- result$cleaned_data
-            data_store$cleaning_audit <- result$audit_trail
+            incProgress(0.15, detail = "Trimming whitespace...")
+            df_before <- df
+            df <- dplyr::mutate(df, dplyr::across(where(is.character), clean_text_field))
+            all_audits[[length(all_audits) + 1]] <- build_audit_trail(df_before, df, "trim_whitespace_punctuation", function(f) paste0("Trim in ", f))
+
+            new_tags <- list()
+            if (!is.null(tag_map) && length(tag_map) > 0) {
+              incProgress(0.20, detail = "Normalizing CAS-RNs...")
+              cas_result <- normalize_cas_fields(df, tag_map)
+              df <- cas_result$cleaned_data
+              all_audits[[length(all_audits) + 1]] <- cas_result$audit_trail
+
+              incProgress(0.20, detail = "Rescuing CAS from names...")
+              rescue_result <- rescue_cas_from_text(df, tag_map)
+              df <- rescue_result$cleaned_data
+              all_audits[[length(all_audits) + 1]] <- rescue_result$audit_trail
+              new_tags <- rescue_result$new_tags
+
+              incProgress(0.10, detail = "Detecting multi-CAS rows...")
+              updated_tag_map <- c(tag_map, new_tags)
+              df <- detect_multi_cas(df, updated_tag_map)
+            }
+
+            incProgress(0.10, detail = "Finalizing...")
+            audit_combined <- dplyr::bind_rows(all_audits)
+            data_store$cleaned_data <- df
+            data_store$cleaning_audit <- audit_combined
+            if (length(new_tags) > 0) {
+              data_store$column_tags <- c(data_store$column_tags, new_tags)
+            }
 
             # Show success notification
-            n_changes <- nrow(result$audit_trail)
+            n_changes <- nrow(audit_combined)
             showNotification(
               sprintf("Cleaning complete: %d transformations applied", n_changes),
               type = "message",
@@ -111,30 +144,77 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       req(data_store$cleaning_audit, data_store$cleaned_data)
 
       audit <- data_store$cleaning_audit
+      cleaned_data <- data_store$cleaned_data
       n_total <- nrow(audit)
 
       if (n_total == 0) {
         return(div(
-          class = "alert alert-info mb-3 mt-3",
-          p("No transformations needed — data is already clean")
+          class = "mb-3 mt-3",
+          bslib::value_box(
+            title = "All Clean",
+            value = "No transformations needed",
+            showcase = bsicons::bs_icon("check-circle"),
+            theme = "success"
+          )
         ))
       }
 
       # Count by step
       n_unicode <- sum(audit$step == "unicode_to_ascii")
       n_trim <- sum(audit$step == "trim_whitespace_punctuation")
+      n_normalize <- sum(audit$step == "normalize_cas")
+      n_rescue <- sum(audit$step == "rescue_cas")
 
-      # Count unique rows affected
-      n_rows <- length(unique(audit$row_id))
+      # Count CAS invalid (normalize_cas entries where new_value is NA or "[NA]")
+      n_invalid <- sum(audit$step == "normalize_cas" & (audit$new_value == "[NA]" | is.na(audit$new_value)))
+
+      # Count multi-CAS flags
+      n_multi_cas <- if ("multi_cas" %in% names(cleaned_data)) sum(cleaned_data$multi_cas, na.rm = TRUE) else 0
 
       div(
-        class = "alert alert-info mb-3 mt-3",
-        p(sprintf(
-          "%d rows cleaned, %d unicode chars fixed, %d fields trimmed",
-          n_rows,
-          n_unicode,
-          n_trim
-        ))
+        class = "mb-3 mt-3",
+        bslib::layout_columns(
+          col_widths = c(4, 4, 4),
+          bslib::value_box(
+            title = "CAS Rescued",
+            value = n_rescue,
+            showcase = bsicons::bs_icon("search"),
+            theme = "primary"
+          ),
+          bslib::value_box(
+            title = "CAS Normalized",
+            value = n_normalize,
+            showcase = bsicons::bs_icon("check-circle"),
+            theme = "success"
+          ),
+          bslib::value_box(
+            title = "CAS Invalid",
+            value = n_invalid,
+            showcase = bsicons::bs_icon("x-circle"),
+            theme = "danger"
+          )
+        ),
+        bslib::layout_columns(
+          col_widths = c(4, 4, 4),
+          bslib::value_box(
+            title = "Multi-CAS Flagged",
+            value = n_multi_cas,
+            showcase = bsicons::bs_icon("flag"),
+            theme = "warning"
+          ),
+          bslib::value_box(
+            title = "Unicode Cleaned",
+            value = n_unicode,
+            showcase = bsicons::bs_icon("globe"),
+            theme = "info"
+          ),
+          bslib::value_box(
+            title = "Fields Trimmed",
+            value = n_trim,
+            showcase = bsicons::bs_icon("scissors"),
+            theme = "info"
+          )
+        )
       )
     })
 
@@ -142,13 +222,196 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
     output$cleaned_table <- DT::renderDataTable({
       req(data_store$cleaned_data)
 
+      # Hide internal columns from display
+      hidden_cols <- which(names(data_store$cleaned_data) %in% c("original_row_id", "multi_cas", "multi_cas_count")) - 1
+
       DT::datatable(
         data_store$cleaned_data,
         options = list(
           pageLength = 25,
+          scrollX = TRUE,
+          columnDefs = list(list(visible = FALSE, targets = hidden_cols))
+        ),
+        rownames = FALSE
+      )
+    })
+
+    # Multi-CAS flagged rows section
+    output$multi_cas_section <- renderUI({
+      req(data_store$cleaned_data)
+
+      cleaned_data <- data_store$cleaned_data
+
+      # Check if multi_cas column exists and has any TRUE values
+      if (!("multi_cas" %in% names(cleaned_data))) {
+        return(NULL)
+      }
+
+      multi_cas_rows <- cleaned_data[cleaned_data$multi_cas == TRUE, ]
+
+      if (nrow(multi_cas_rows) == 0) {
+        return(NULL)
+      }
+
+      # Show multi-CAS section
+      div(
+        class = "card mt-4",
+        div(
+          class = "card-header bg-warning text-dark",
+          h5(class = "mb-0", "Multi-CAS Flagged Rows")
+        ),
+        div(
+          class = "card-body",
+          p("These rows contain multiple CAS-RNs. Review them and split if they represent separate chemicals."),
+          DT::dataTableOutput(ns("multi_cas_table")),
+          actionButton(
+            ns("split_row"),
+            "Split Selected Row",
+            class = "btn-warning mt-2",
+            icon = icon("scissors")
+          )
+        )
+      )
+    })
+
+    # Multi-CAS table
+    output$multi_cas_table <- DT::renderDataTable({
+      req(data_store$cleaned_data)
+
+      cleaned_data <- data_store$cleaned_data
+      multi_cas_rows <- cleaned_data[cleaned_data$multi_cas == TRUE, ]
+
+      DT::datatable(
+        multi_cas_rows,
+        selection = "single",
+        options = list(
+          pageLength = 10,
           scrollX = TRUE
         ),
         rownames = FALSE
+      )
+    })
+
+    # Split row button handler
+    observeEvent(input$split_row, {
+      req(data_store$cleaned_data)
+
+      # Get selected row from DT
+      selected <- input$multi_cas_table_rows_selected
+
+      if (is.null(selected) || length(selected) == 0) {
+        showNotification(
+          "Please select a row to split",
+          type = "warning",
+          duration = 3
+        )
+        return()
+      }
+
+      # Get multi-CAS rows
+      cleaned_data <- data_store$cleaned_data
+      multi_cas_rows <- cleaned_data[cleaned_data$multi_cas == TRUE, ]
+      row_to_split <- multi_cas_rows[selected, ]
+
+      # Get all CASRN columns
+      tag_map <- data_store$column_tags
+      cas_cols <- names(tag_map)[tag_map == "CASRN"]
+
+      # Extract non-NA CAS values
+      cas_values <- unlist(row_to_split[cas_cols])
+      cas_values <- cas_values[!is.na(cas_values)]
+
+      if (length(cas_values) <= 1) {
+        showNotification(
+          "This row does not have multiple CAS-RNs to split",
+          type = "warning",
+          duration = 3
+        )
+        return()
+      }
+
+      # Show confirmation modal
+      showModal(modalDialog(
+        title = "Confirm Row Split",
+        sprintf("This will split the selected row into %d separate rows, one for each CAS-RN:", length(cas_values)),
+        tags$ul(
+          lapply(cas_values, function(cas) tags$li(cas))
+        ),
+        footer = tagList(
+          modalButton("Cancel"),
+          actionButton(ns("confirm_split"), "Confirm Split", class = "btn-warning")
+        )
+      ))
+    })
+
+    # Confirm split handler
+    observeEvent(input$confirm_split, {
+      req(data_store$cleaned_data)
+
+      # Get selected row
+      selected <- input$multi_cas_table_rows_selected
+      cleaned_data <- data_store$cleaned_data
+      multi_cas_rows <- cleaned_data[cleaned_data$multi_cas == TRUE, ]
+      row_to_split <- multi_cas_rows[selected, ]
+
+      # Get all CASRN columns
+      tag_map <- data_store$column_tags
+      cas_cols <- names(tag_map)[tag_map == "CASRN"]
+
+      # Extract non-NA CAS values
+      cas_values <- unlist(row_to_split[cas_cols])
+      cas_values <- cas_values[!is.na(cas_values)]
+
+      # Create new rows (one per CAS)
+      new_rows <- lapply(seq_along(cas_values), function(i) {
+        new_row <- row_to_split
+        # Set primary CAS column to this CAS value
+        new_row[[cas_cols[1]]] <- cas_values[i]
+        # Set all other CAS columns to NA
+        if (length(cas_cols) > 1) {
+          for (j in 2:length(cas_cols)) {
+            new_row[[cas_cols[j]]] <- NA_character_
+          }
+        }
+        # Update multi_cas flags
+        new_row$multi_cas <- FALSE
+        new_row$multi_cas_count <- 1L
+        return(new_row)
+      })
+
+      # Combine new rows
+      new_rows_df <- dplyr::bind_rows(new_rows)
+
+      # Remove original row from cleaned_data
+      original_row_id <- row_to_split$original_row_id
+      cleaned_data_updated <- cleaned_data[cleaned_data$original_row_id != original_row_id, ]
+
+      # Append new rows
+      cleaned_data_updated <- dplyr::bind_rows(cleaned_data_updated, new_rows_df)
+
+      # Update data_store
+      data_store$cleaned_data <- cleaned_data_updated
+
+      # Add audit entry
+      audit_entry <- tibble::tibble(
+        row_id = as.integer(original_row_id),
+        field = "multi_cas_split",
+        step = "manual_split",
+        original_value = paste(cas_values, collapse = "; "),
+        new_value = sprintf("Split into %d rows", length(cas_values)),
+        reason = "User-initiated multi-CAS row split"
+      )
+
+      data_store$cleaning_audit <- dplyr::bind_rows(data_store$cleaning_audit, audit_entry)
+
+      # Close modal
+      removeModal()
+
+      # Show success notification
+      showNotification(
+        sprintf("Row split into %d separate entries", length(cas_values)),
+        type = "message",
+        duration = 5
       )
     })
 
