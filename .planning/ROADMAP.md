@@ -111,10 +111,11 @@ Plans:
   4. User can see comma/semicolon-separated synonyms split into separate entries, with IUPAC inverted-name protection (digit-comma-digit patterns preserved)
   5. User can see quality adjectives ('tech grade', 'pure'), salt references ('and its salts'), and 'unspecified' suffixes stripped with audit comments
   6. User can see before/after data comparison showing name cleaning transformations applied to their dataset
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 12-01: TBD
+- [ ] 12-01-PLAN.md — Name cleaning pipeline functions (parentheticals, adjectives, salts, synonym splitting) with TDD tests
+- [ ] 12-02-PLAN.md — UI integration: audit trail accordion, name cleaning value boxes, extended progress indicator
 
 ### Phase 13: Reference Filters & Editable Lists
 **Goal**: Users can see reference-based flags and edit all reference lists in-app with re-run capability
@@ -173,10 +174,10 @@ Phases execute sequentially: 9 → 10 → 11 → 12 → 13 → 14 → 15
 | 9. Modularization | 0/TBD | Not started | - |
 | 10. Foundation & Clean Data Tab | 2/2 | Complete    | 2026-03-05 |
 | 11. CAS Pipeline | 0/2 | Complete    | 2026-03-06 |
-| 12. Name Cleaning | 0/TBD | Not started | - |
+| 12. Name Cleaning | 0/2 | Planning    | - |
 | 13. Reference Filters & Editable Lists | 0/TBD | Not started | - |
 | 14. Multi-Sheet Export & Re-Import | 0/TBD | Not started | - |
 | 15. Post-Curation QC | 0/TBD | Not started | - |
 
 ---
-*Last updated: 2026-03-06 after Phase 11 Plan 02 completion*
+*Last updated: 2026-03-06 after Phase 12 planning*
