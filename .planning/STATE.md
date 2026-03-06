@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Data Cleaning Pipeline
-status: completed
-stopped_at: Completed 10-02-PLAN.md
-last_updated: "2026-03-05T22:00:00.000Z"
-last_activity: 2026-03-05 — Completed Phase 11 context gathering (CAS Pipeline)
+status: in_progress
+stopped_at: Completed 11-01-PLAN.md
+last_updated: "2026-03-06T15:14:49.000Z"
+last_activity: 2026-03-06 — Completed Phase 11 Plan 01 (CAS Pipeline Core Functions)
 progress:
   total_phases: 7
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
-  percent: 60
+  total_plans: 5
+  completed_plans: 5
+  percent: 71
 ---
 
 # Project State
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 ## Current Position
 
 Phase: 11 of 15 (CAS Pipeline)
-Plan: Context gathered, ready for planning
+Plan: 01 of 02 complete
 Status: In Progress
-Last activity: 2026-03-05 — Completed Phase 11 context gathering (CAS Pipeline)
+Last activity: 2026-03-06 — Completed Phase 11 Plan 01 (CAS Pipeline Core Functions)
 
-Progress: [█████████░░░░░░░░░░░] 9/15 phases complete across all milestones (60%)
+Progress: [██████████░░░░░░░░░░] 10/15 phases complete across all milestones (71%)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 21 (17 from v1.0-v1.2 + 4 from v1.3)
-- Average duration: 476s per plan (v1.3 only)
-- Total execution time: 1904s (31.7 minutes for v1.3)
+- Total plans completed: 22 (17 from v1.0-v1.2 + 5 from v1.3)
+- Average duration: 481s per plan (v1.3 only)
+- Total execution time: 2418s (40.3 minutes for v1.3)
 
 **By Phase:**
 
@@ -46,17 +46,19 @@ Progress: [█████████░░░░░░░░░░░] 9/15 ph
 | 1-8 | 17 | - | - |
 | 09 | 2 | 1101s | 551s |
 | 10 | 2 | 801s | 401s |
+| 11 | 1 | 514s | 514s |
 
 **Recent Trend:**
 - Last milestone: v1.2 (phases 6-8, 6 plans completed)
-- Current phase: Phase 10 complete (2 plans, ~13 minutes total)
-- Trend: Accelerating (Phase 10 faster than Phase 9; modular architecture paying off)
+- Current phase: Phase 11 in progress (1 of 2 plans, ~8.6 minutes)
+- Trend: Consistent velocity (~8-10 min per plan for TDD tasks)
 
 *Detailed metrics tracking begins with v1.3*
 | Phase 09 P01 | 399s | 2 tasks | 7 files |
 | Phase 09 P02 | 702s | 3 tasks | 3 files |
 | Phase 10 P01 | 353s | 2 tasks | 5 files |
 | Phase 10 P02 | 448s | 2 tasks | 3 files |
+| Phase 11 P01 | 514s | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -85,6 +87,10 @@ Recent decisions affecting current work:
 - [Phase 11]: Tab reorder: Tag Columns → Clean Data (CAS pipeline needs column type info from tagging)
 - [Phase 11]: Multi-CAS flagged for user decision, not auto-split (mixtures vs errors)
 - [Phase 11]: Value boxes replace text summary for unified visual language
+- [Phase 11 P01]: Use ComptoxR directly for CAS operations (as_cas, extract_cas) — no custom implementations
+- [Phase 11 P01]: Manual audit trail building for normalize_cas_fields to track NA transitions
+- [Phase 11 P01]: Tag map pattern for column type tracking (CASRN/Name/Other)
+- [Phase 11 P01]: Auto-tag rescued CAS columns for downstream multi-CAS detection
 
 ### Pending Todos
 
@@ -108,11 +114,11 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-05T22:00:00.000Z
-Stopped at: Phase 11 context gathered
+Last session: 2026-03-06T15:14:49.000Z
+Stopped at: Completed 11-01-PLAN.md
 Resume file: None
 
-**Next step:** Phase 11 context complete. Run `/gsd:plan-phase 11` to create execution plans.
+**Next step:** Phase 11 Plan 01 complete. Ready for Phase 11 Plan 02 (CAS UI Module) or continue with next phase planning.
 
 ---
-*STATE.md updated: 2026-03-04 after roadmap creation*
+*STATE.md updated: 2026-03-06 after Phase 11 Plan 01 completion*
