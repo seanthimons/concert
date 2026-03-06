@@ -130,10 +130,11 @@ Plans:
   6. User can edit all reference lists (add/remove entries) via rhandsontable editors and re-run cleaning with updated lists
   7. User can see blocking flags (red) visually distinguished from warning flags (yellow) with clear indication which block curation vs which annotate only
   8. User can re-run cleaning after modifying reference lists, with downstream state (tags, curation) properly invalidated and reset
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 13-01: TBD
+- [ ] 13-01-PLAN.md — Provenance-tracked reference loaders, bare formula detection, and flag matching functions with TDD tests
+- [ ] 13-02-PLAN.md — UI integration: rhandsontable editors, DT flag display, CSV upload, re-run cascade, value box extension
 
 ### Phase 14: Multi-Sheet Export & Re-Import
 **Goal**: Users can export complete state as multi-sheet Excel workbook and re-import it to restore session
@@ -175,9 +176,9 @@ Phases execute sequentially: 9 → 10 → 11 → 12 → 13 → 14 → 15
 | 10. Foundation & Clean Data Tab | 2/2 | Complete    | 2026-03-05 |
 | 11. CAS Pipeline | 2/2 | Complete    | 2026-03-06 |
 | 12. Name Cleaning | 2/2 | Complete   | 2026-03-06 |
-| 13. Reference Filters & Editable Lists | 0/TBD | Not started | - |
+| 13. Reference Filters & Editable Lists | 0/2 | Planned | - |
 | 14. Multi-Sheet Export & Re-Import | 0/TBD | Not started | - |
 | 15. Post-Curation QC | 0/TBD | Not started | - |
 
 ---
-*Last updated: 2026-03-06 after Phase 12 completion*
+*Last updated: 2026-03-06 after Phase 13 planning*
