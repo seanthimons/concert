@@ -28,10 +28,10 @@ Requirements for v1.3 Data Cleaning Pipeline. Each maps to roadmap phases.
 
 ### Chemical Name Cleaning (NAME)
 
-- [ ] **NAME-01**: User can see trailing parentheticals and brackets stripped from chemical names, with protection for chemical name fragments containing "yl"
-- [ ] **NAME-02**: User can see formulas and CAS-RNs extracted from parentheticals and preserved as separate tagged values for curation
-- [ ] **NAME-03**: User can see comma/semicolon-separated synonyms split into separate entries, with IUPAC inverted-name comma protection (digit-comma-digit patterns preserved)
-- [ ] **NAME-04**: User can see quality adjectives ('tech grade', 'pure'), salt references ('and its salts'), and 'unspecified' suffixes stripped from names with audit comments
+- [x] **NAME-01**: User can see trailing parentheticals and brackets stripped from chemical names, with protection for chemical name fragments containing "yl"
+- [x] **NAME-02**: User can see formulas and CAS-RNs extracted from parentheticals and preserved as separate tagged values for curation
+- [x] **NAME-03**: User can see comma/semicolon-separated synonyms split into separate entries, with IUPAC inverted-name comma protection (digit-comma-digit patterns preserved)
+- [x] **NAME-04**: User can see quality adjectives ('tech grade', 'pure'), salt references ('and its salts'), and 'unspecified' suffixes stripped from names with audit comments
 
 ### Reference Data Filters (FILT)
 
@@ -105,10 +105,10 @@ Deferred to future releases. Tracked but not in current roadmap.
 | CAS-04 | Phase 11 | Complete (11-01) |
 | UIUX-02 | Phase 11 | Complete (11-02) |
 | UIUX-04 | Phase 11 | Complete (11-02) |
-| NAME-01 | Phase 12 | Pending |
-| NAME-02 | Phase 12 | Pending |
-| NAME-03 | Phase 12 | Pending |
-| NAME-04 | Phase 12 | Pending |
+| NAME-01 | Phase 12 | Complete (P01) |
+| NAME-02 | Phase 12 | Complete (P01) |
+| NAME-03 | Phase 12 | Complete (P01) |
+| NAME-04 | Phase 12 | Complete (P01) |
 | UIUX-03 | Phase 12 | Pending |
 | FILT-01 | Phase 13 | Pending |
 | FILT-02 | Phase 13 | Pending |
