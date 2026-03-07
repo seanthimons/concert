@@ -35,10 +35,10 @@ Requirements for v1.3 Data Cleaning Pipeline. Each maps to roadmap phases.
 
 ### Reference Data Filters (FILT)
 
-- [ ] **FILT-01**: Functional and product use category reference lists are seeded from ComptoxR functions and cached locally as baseline data
+- [x] **FILT-01**: Functional and product use category reference lists are seeded from ComptoxR functions and cached locally as baseline data
 - [ ] **FILT-02**: User can enrich all reference lists (functional/product categories, stop words, block list) via file upload or manual entry on top of seeded baseline
-- [ ] **FILT-03**: User can see names matching reference list entries flagged as warning, with match source indicated (ComptoxR-seeded vs user-added vs app-default)
-- [ ] **FILT-04**: User can see bare molecular formulas (H2O, NaCl, CuSO4) detected and flagged as blocking (name set to NA, CAS still curated)
+- [x] **FILT-03**: User can see names matching reference list entries flagged as warning, with match source indicated (ComptoxR-seeded vs user-added vs app-default)
+- [x] **FILT-04**: User can see bare molecular formulas (H2O, NaCl, CuSO4) detected and flagged as blocking (name set to NA, CAS still curated)
 - [ ] **FILT-05**: User can edit all reference lists (add/remove entries) via in-app editors and re-run cleaning with updated lists
 - [ ] **FILT-06**: User can see blocking flags (red) visually distinguished from warning flags (yellow) with clear indication of which block curation vs which annotate only
 
@@ -110,10 +110,10 @@ Deferred to future releases. Tracked but not in current roadmap.
 | NAME-03 | Phase 12 | Complete (P01) |
 | NAME-04 | Phase 12 | Complete (P01) |
 | UIUX-03 | Phase 12 | Complete |
-| FILT-01 | Phase 13 | Pending |
+| FILT-01 | Phase 13 | Complete |
 | FILT-02 | Phase 13 | Pending |
-| FILT-03 | Phase 13 | Pending |
-| FILT-04 | Phase 13 | Pending |
+| FILT-03 | Phase 13 | Complete |
+| FILT-04 | Phase 13 | Complete |
 | FILT-05 | Phase 13 | Pending |
 | FILT-06 | Phase 13 | Pending |
 | UIUX-05 | Phase 13 | Pending |
