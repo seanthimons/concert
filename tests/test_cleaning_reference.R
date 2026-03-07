@@ -98,10 +98,10 @@ test_that("load_all_reference_lists returns expected structure", {
     expect_type(result, "list")
     expect_named(result, c("stop_words", "block_patterns", "functional_categories"))
 
-    # Check types
-    expect_type(result$stop_words, "character")
-    expect_type(result$block_patterns, "character")
-    expect_true(inherits(result$functional_categories, "data.frame") || inherits(result$functional_categories, "tbl_df"))
+    # Check types - all should be tibbles now (Phase 13 change)
+    expect_true(tibble::is_tibble(result$stop_words))
+    expect_true(tibble::is_tibble(result$block_patterns))
+    expect_true(tibble::is_tibble(result$functional_categories))
   })
 })
 
@@ -111,15 +111,16 @@ test_that("load_stop_words returns expected default stop words", {
 
     result <- load_stop_words(cache_dir)
 
-    # Check type
-    expect_type(result, "character")
+    # Check type - now returns tibble (Phase 13 change)
+    expect_true(tibble::is_tibble(result))
+    expect_named(result, c("term", "source", "active"))
 
-    # Check for expected keywords
-    expect_true("test" %in% result)
-    expect_true("sample" %in% result)
-    expect_true("unknown" %in% result)
-    expect_true("blank" %in% result)
-    expect_true("standard" %in% result)
+    # Check for expected keywords in term column
+    expect_true("test" %in% result$term)
+    expect_true("sample" %in% result$term)
+    expect_true("unknown" %in% result$term)
+    expect_true("blank" %in% result$term)
+    expect_true("standard" %in% result$term)
   })
 })
 
@@ -129,14 +130,15 @@ test_that("load_block_patterns returns expected default block patterns", {
 
     result <- load_block_patterns(cache_dir)
 
-    # Check type
-    expect_type(result, "character")
+    # Check type - now returns tibble (Phase 13 change)
+    expect_true(tibble::is_tibble(result))
+    expect_named(result, c("term", "source", "active"))
 
-    # Check for expected patterns (partial match since they're regex)
-    expect_true(any(grepl("proprietary", result, ignore.case = TRUE)))
-    expect_true(any(grepl("confidential", result, ignore.case = TRUE)))
+    # Check for expected patterns in term column (partial match since they're regex)
+    expect_true(any(grepl("proprietary", result$term, ignore.case = TRUE)))
+    expect_true(any(grepl("confidential", result$term, ignore.case = TRUE)))
 
     # Should be regex patterns (not empty strings)
-    expect_true(all(nchar(result) > 0))
+    expect_true(all(nchar(result$term) > 0))
   })
 })
