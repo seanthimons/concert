@@ -7,6 +7,7 @@
 
 library(fs)
 library(tibble)
+library(dplyr)
 
 #' Generic cache-or-fetch function
 #'
@@ -41,7 +42,7 @@ load_or_fetch_reference <- function(cache_path, fetch_fn, name) {
 
 #' Load stop words list
 #'
-#' Returns a character vector of chemistry-specific stop words.
+#' Returns a tibble of chemistry-specific stop words with provenance tracking.
 #' These are domain knowledge defaults, not ComptoxR-seeded.
 #'
 #' Stop words are terms that indicate placeholder/test entries:
@@ -49,16 +50,22 @@ load_or_fetch_reference <- function(cache_path, fetch_fn, name) {
 #' - placeholder, tbd, tba
 #' - na, n/a, none, not available, not applicable
 #'
+#' NOTE: Cache format changed in Phase 13 - delete existing cache files if needed.
+#'
 #' @param cache_dir Directory for cache files (e.g., "data/reference_cache")
-#' @return Character vector of stop words
+#' @return Tibble with columns: term, source, active
 load_stop_words <- function(cache_dir) {
   cache_path <- file.path(cache_dir, "stop_words.rds")
 
   fetch_fn <- function() {
-    c(
-      "test", "sample", "unknown", "blank", "standard", "control",
-      "reference", "placeholder", "tbd", "tba", "na", "n/a",
-      "none", "not available", "not applicable"
+    tibble::tibble(
+      term = c(
+        "test", "sample", "unknown", "blank", "standard", "control",
+        "reference", "placeholder", "tbd", "tba", "na", "n/a",
+        "none", "not available", "not applicable"
+      ),
+      source = "app_default",
+      active = TRUE
     )
   }
 
@@ -67,28 +74,35 @@ load_stop_words <- function(cache_dir) {
 
 #' Load block patterns list
 #'
-#' Returns a character vector of regex patterns for substances that should
-#' be blocked from curation. These match empty/redacted/proprietary entries.
+#' Returns a tibble of regex patterns for substances that should
+#' be blocked from curation with provenance tracking.
+#' These match empty/redacted/proprietary entries.
 #'
 #' Patterns:
 #' - Empty strings, dashes, dots
 #' - Proprietary/confidential/trade secret indicators
 #' - "Not disclosed" phrases
 #'
+#' NOTE: Cache format changed in Phase 13 - delete existing cache files if needed.
+#'
 #' @param cache_dir Directory for cache files (e.g., "data/reference_cache")
-#' @return Character vector of regex patterns
+#' @return Tibble with columns: term, source, active
 load_block_patterns <- function(cache_dir) {
   cache_path <- file.path(cache_dir, "block_patterns.rds")
 
   fetch_fn <- function() {
-    c(
-      "^\\s*$",             # Empty or whitespace-only
-      "^-+$",               # Only dashes
-      "^[.]+$",             # Only dots
-      "^proprietary",       # Proprietary (case-insensitive via grep flags)
-      "^confidential",      # Confidential
-      "^trade\\s*secret",   # Trade secret
-      "^not\\s+disclosed"   # Not disclosed
+    tibble::tibble(
+      term = c(
+        "^\\s*$",             # Empty or whitespace-only
+        "^-+$",               # Only dashes
+        "^[.]+$",             # Only dots
+        "^proprietary",       # Proprietary (case-insensitive via grep flags)
+        "^confidential",      # Confidential
+        "^trade\\s*secret",   # Trade secret
+        "^not\\s+disclosed"   # Not disclosed
+      ),
+      source = "app_default",
+      active = TRUE
     )
   }
 
@@ -97,11 +111,13 @@ load_block_patterns <- function(cache_dir) {
 
 #' Load functional use categories
 #'
-#' Returns a tibble of functional use categories from ComptoxR.
+#' Returns a tibble of functional use categories from ComptoxR with provenance tracking.
 #' Falls back gracefully if ComptoxR is unavailable or API fails.
 #'
+#' NOTE: Cache format changed in Phase 13 - delete existing cache files if needed.
+#'
 #' @param cache_dir Directory for cache files (e.g., "data/reference_cache")
-#' @return Tibble with functional category data (or empty tibble on failure)
+#' @return Tibble with columns: term, source, active
 load_functional_categories <- function(cache_dir) {
   cache_path <- file.path(cache_dir, "functional_categories.rds")
 
@@ -111,15 +127,25 @@ load_functional_categories <- function(cache_dir) {
         # Attempt to load from ComptoxR
         # Note: ComptoxR::ct_functional_use requires API key and network access
         if (requireNamespace("ComptoxR", quietly = TRUE)) {
-          ComptoxR::ct_functional_use("", domain = "func_use")
+          # Fetch from ComptoxR and add provenance columns
+          comptoxr_data <- ComptoxR::ct_functional_use("", domain = "func_use")
+
+          # Rename 'name' to 'term' and add provenance
+          comptoxr_data %>%
+            dplyr::rename(term = name) %>%
+            dplyr::mutate(
+              source = "comptoxr",
+              active = TRUE
+            ) %>%
+            dplyr::select(term, source, active)
         } else {
           message("ComptoxR package not available, using empty functional categories")
-          tibble::tibble(name = character())
+          tibble::tibble(term = character(), source = character(), active = logical())
         }
       },
       error = function(e) {
         message(sprintf("ComptoxR unavailable (%s), using empty functional categories", e$message))
-        tibble::tibble(name = character())
+        tibble::tibble(term = character(), source = character(), active = logical())
       }
     )
   }
