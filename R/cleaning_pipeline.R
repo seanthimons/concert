@@ -852,6 +852,250 @@ split_synonyms <- function(df, name_cols, tag_map) {
   )
 }
 
+#' Detect bare molecular formulas
+#'
+#' Uses ComptoxR's validator regex to identify bare molecular formulas (H2O, NaCl, CuSO4).
+#' Bare formulas are blocked because they lack chemical context needed for curation.
+#' Detected formulas are moved to formula_blocked_{col} columns and name set to NA.
+#'
+#' @param df Dataframe with name columns
+#' @param name_cols Character vector of Name-tagged column names
+#' @return List with cleaned_data and audit_trail
+#'
+#' @examples
+#' df <- tibble::tibble(chemical_name = c("H2O", "acetone", "NaCl"))
+#' detect_bare_formulas(df, c("chemical_name"))
+detect_bare_formulas <- function(df, name_cols) {
+  # Check if ComptoxR is available
+  if (!requireNamespace("ComptoxR", quietly = TRUE)) {
+    warning("ComptoxR not available - skipping bare formula detection")
+    return(list(
+      cleaned_data = df,
+      audit_trail = tibble::tibble(
+        row_id = integer(),
+        field = character(),
+        step = character(),
+        original_value = character(),
+        new_value = character(),
+        reason = character()
+      )
+    ))
+  }
+
+  # Extract validator regex from ComptoxR
+  validator_obj <- ComptoxR:::create_formula_extractor_final()
+  validator_env <- environment(validator_obj)
+  validator_regex <- validator_env$validator_regex
+
+  # Initialize result
+  df_result <- df
+  audit_rows <- list()
+
+  # Add cleaning_flag column if it doesn't exist
+  if (!"cleaning_flag" %in% names(df_result)) {
+    df_result$cleaning_flag <- NA_character_
+  }
+
+  # Process each name column
+  for (col_name in name_cols) {
+    # Create formula_blocked column if it doesn't exist
+    blocked_col_name <- paste0("formula_blocked_", col_name)
+    if (!blocked_col_name %in% names(df_result)) {
+      df_result[[blocked_col_name]] <- NA_character_
+    }
+
+    # Process each row
+    for (idx in seq_len(nrow(df))) {
+      original_value <- df[[col_name]][idx]
+
+      # Skip NA
+      if (is.na(original_value)) {
+        next
+      }
+
+      # Clean the value same way ComptoxR does: remove spaces and dots
+      cleaned_for_test <- original_value %>%
+        stringr::str_remove_all("\\s+") %>%
+        stringr::str_remove_all("\\.")
+
+      # Test if the ENTIRE cleaned string matches the validator regex
+      is_bare_formula <- stringr::str_detect(cleaned_for_test, paste0("^", validator_regex, "$"))
+
+      if (is_bare_formula) {
+        # Block this row
+        df_result$cleaning_flag[idx] <- "BLOCK: bare formula"
+        df_result[[blocked_col_name]][idx] <- original_value
+        df_result[[col_name]][idx] <- NA_character_
+
+        # Add audit entry
+        audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
+          row_id = as.integer(idx),
+          field = col_name,
+          step = "detect_bare_formula",
+          original_value = original_value,
+          new_value = "[NA]",
+          reason = paste0("Bare molecular formula detected in ", col_name, "; preserved in ", blocked_col_name)
+        )
+      }
+    }
+  }
+
+  # Combine audit rows
+  audit_trail <- if (length(audit_rows) == 0) {
+    tibble::tibble(
+      row_id = integer(),
+      field = character(),
+      step = character(),
+      original_value = character(),
+      new_value = character(),
+      reason = character()
+    )
+  } else {
+    dplyr::bind_rows(audit_rows)
+  }
+
+  list(
+    cleaned_data = df_result,
+    audit_trail = audit_trail
+  )
+}
+
+#' Flag rows matching reference list entries
+#'
+#' Two-pass matching: exact match first (tolower comparison), then substring match.
+#' Only active=TRUE reference entries are matched against.
+#' Match type and source are recorded in audit trail.
+#'
+#' @param df Dataframe with name columns
+#' @param name_cols Character vector of Name-tagged column names
+#' @param reference_list Tibble with columns: term, source, active
+#' @param flag_type Either "warning" or "blocking"
+#' @param flag_label Human-readable label for the flag (e.g., "functional category")
+#' @return List with cleaned_data and audit_trail
+#'
+#' @examples
+#' df <- tibble::tibble(chemical_name = c("plasticizer", "dibutyl phthalate plasticizer"))
+#' ref <- tibble::tibble(term = "plasticizer", source = "app_default", active = TRUE)
+#' flag_reference_matches(df, c("chemical_name"), ref, "warning", "functional category")
+flag_reference_matches <- function(df, name_cols, reference_list, flag_type, flag_label) {
+  # Initialize result
+  df_result <- df
+  audit_rows <- list()
+
+  # Add cleaning_flag column if it doesn't exist
+  if (!"cleaning_flag" %in% names(df_result)) {
+    df_result$cleaning_flag <- NA_character_
+  }
+
+  # Filter to active entries only
+  active_refs <- reference_list %>%
+    dplyr::filter(active == TRUE)
+
+  # Skip if no active references
+  if (nrow(active_refs) == 0) {
+    return(list(
+      cleaned_data = df_result,
+      audit_trail = tibble::tibble(
+        row_id = integer(),
+        field = character(),
+        step = character(),
+        original_value = character(),
+        new_value = character(),
+        reason = character()
+      )
+    ))
+  }
+
+  # Determine flag prefix
+  flag_prefix <- if (flag_type == "blocking") "BLOCK" else "WARN"
+
+  # Process each name column
+  for (col_name in name_cols) {
+    # Process each row
+    for (idx in seq_len(nrow(df))) {
+      # Skip if already flagged (first flag wins - bare formula has priority)
+      if (!is.na(df_result$cleaning_flag[idx]) && df_result$cleaning_flag[idx] != "") {
+        next
+      }
+
+      original_value <- df[[col_name]][idx]
+
+      # Skip NA
+      if (is.na(original_value)) {
+        next
+      }
+
+      # Two-pass matching
+      matched <- FALSE
+      match_type <- NA_character_
+      matched_term <- NA_character_
+      matched_source <- NA_character_
+
+      # Pass 1: Exact match (case-insensitive)
+      for (ref_idx in seq_len(nrow(active_refs))) {
+        ref_term <- active_refs$term[ref_idx]
+        if (tolower(original_value) == tolower(ref_term)) {
+          matched <- TRUE
+          match_type <- "exact"
+          matched_term <- ref_term
+          matched_source <- active_refs$source[ref_idx]
+          break
+        }
+      }
+
+      # Pass 2: Substring match (only if no exact match)
+      if (!matched) {
+        for (ref_idx in seq_len(nrow(active_refs))) {
+          ref_term <- active_refs$term[ref_idx]
+          if (stringr::str_detect(original_value, stringr::regex(ref_term, ignore_case = TRUE))) {
+            matched <- TRUE
+            match_type <- "substring"
+            matched_term <- ref_term
+            matched_source <- active_refs$source[ref_idx]
+            break
+          }
+        }
+      }
+
+      # If matched, set flag
+      if (matched) {
+        df_result$cleaning_flag[idx] <- paste0(flag_prefix, ": ", flag_label, " [", match_type, "]")
+
+        # Add audit entry
+        audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
+          row_id = as.integer(idx),
+          field = col_name,
+          step = paste0("flag_", flag_type),
+          original_value = original_value,
+          new_value = df_result$cleaning_flag[idx],
+          reason = paste0(
+            "Matched '", matched_term, "' (source: ", matched_source, ", match type: ", match_type, ") in ", col_name
+          )
+        )
+      }
+    }
+  }
+
+  # Combine audit rows
+  audit_trail <- if (length(audit_rows) == 0) {
+    tibble::tibble(
+      row_id = integer(),
+      field = character(),
+      step = character(),
+      original_value = character(),
+      new_value = character(),
+      reason = character()
+    )
+  } else {
+    dplyr::bind_rows(audit_rows)
+  }
+
+  list(
+    cleaned_data = df_result,
+    audit_trail = audit_trail
+  )
+}
+
 #' Run complete cleaning pipeline with audit trail tracking
 #'
 #' Orchestrates multiple cleaning steps:
