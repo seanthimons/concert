@@ -27,6 +27,15 @@ mod_clean_data_ui <- function(id) {
 
       uiOutput(ns("audit_section")),
 
+      # Reference list editors
+      fileInput(
+        ns("csv_upload"),
+        "Upload Reference List CSV",
+        accept = ".csv"
+      ),
+
+      uiOutput(ns("reference_editors_section")),
+
       uiOutput(ns("multi_cas_section"))
     ),
 
@@ -53,6 +62,13 @@ mod_clean_data_ui <- function(id) {
 mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
   moduleServer(id, function(input, output, session) {
 
+    # Initialize reference lists if not yet loaded
+    observe({
+      if (is.null(data_store$reference_lists)) {
+        data_store$reference_lists <- load_all_reference_lists("data/reference_cache")
+      }
+    })
+
     # Has data indicator for conditionalPanel
     output$has_data <- reactive({
       !is.null(data_store$column_tags) && length(data_store$column_tags) > 0
@@ -74,33 +90,33 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
             tag_map <- data_store$column_tags
             all_audits <- list()
 
-            incProgress(0.05, detail = "Adding row lineage...")
+            incProgress(0.04, detail = "Adding row lineage...")
             df <- inject_row_lineage(df)
 
-            incProgress(0.10, detail = "Converting unicode to ASCII...")
+            incProgress(0.08, detail = "Converting unicode to ASCII...")
             df_before <- df
             df <- dplyr::mutate(df, dplyr::across(where(is.character), clean_unicode_field))
             all_audits[[length(all_audits) + 1]] <- build_audit_trail(df_before, df, "unicode_to_ascii", function(f) paste0("Unicode to ASCII in ", f))
 
-            incProgress(0.10, detail = "Trimming whitespace...")
+            incProgress(0.08, detail = "Trimming whitespace...")
             df_before <- df
             df <- dplyr::mutate(df, dplyr::across(where(is.character), clean_text_field))
             all_audits[[length(all_audits) + 1]] <- build_audit_trail(df_before, df, "trim_whitespace_punctuation", function(f) paste0("Trim in ", f))
 
             new_tags <- list()
             if (!is.null(tag_map) && length(tag_map) > 0) {
-              incProgress(0.15, detail = "Normalizing CAS-RNs...")
+              incProgress(0.12, detail = "Normalizing CAS-RNs...")
               cas_result <- normalize_cas_fields(df, tag_map)
               df <- cas_result$cleaned_data
               all_audits[[length(all_audits) + 1]] <- cas_result$audit_trail
 
-              incProgress(0.15, detail = "Rescuing CAS from names...")
+              incProgress(0.12, detail = "Rescuing CAS from names...")
               rescue_result <- rescue_cas_from_text(df, tag_map)
               df <- rescue_result$cleaned_data
               all_audits[[length(all_audits) + 1]] <- rescue_result$audit_trail
               new_tags <- rescue_result$new_tags
 
-              incProgress(0.10, detail = "Detecting multi-CAS rows...")
+              incProgress(0.08, detail = "Detecting multi-CAS rows...")
               updated_tag_map <- c(tag_map, new_tags)
               df <- detect_multi_cas(df, updated_tag_map)
 
@@ -108,7 +124,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
               name_cols <- names(tag_map)[tag_map == "Name"]
 
               if (length(name_cols) > 0) {
-                incProgress(0.10, detail = "Stripping parentheticals...")
+                incProgress(0.08, detail = "Stripping parentheticals...")
                 enclosure_result <- strip_terminal_enclosures(df, name_cols)
                 df <- enclosure_result$cleaned_data
                 all_audits[[length(all_audits) + 1]] <- enclosure_result$audit_trail
@@ -117,17 +133,17 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
                   updated_tag_map <- c(updated_tag_map, enclosure_result$new_tags)
                 }
 
-                incProgress(0.05, detail = "Removing quality adjectives...")
+                incProgress(0.04, detail = "Removing quality adjectives...")
                 quality_result <- strip_quality_adjectives(df, name_cols)
                 df <- quality_result$cleaned_data
                 all_audits[[length(all_audits) + 1]] <- quality_result$audit_trail
 
-                incProgress(0.05, detail = "Removing salt references...")
+                incProgress(0.04, detail = "Removing salt references...")
                 salt_result <- strip_salt_references(df, name_cols)
                 df <- salt_result$cleaned_data
                 all_audits[[length(all_audits) + 1]] <- salt_result$audit_trail
 
-                incProgress(0.05, detail = "Removing unspecified suffixes...")
+                incProgress(0.04, detail = "Removing unspecified suffixes...")
                 unspec_result <- strip_terminal_unspecified(df, name_cols)
                 df <- unspec_result$cleaned_data
                 all_audits[[length(all_audits) + 1]] <- unspec_result$audit_trail
@@ -148,7 +164,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
                 df <- enclosure_result2$cleaned_data
                 all_audits[[length(all_audits) + 1]] <- enclosure_result2$audit_trail
 
-                incProgress(0.10, detail = "Splitting synonyms...")
+                incProgress(0.08, detail = "Splitting synonyms...")
                 synonym_result <- split_synonyms(df, name_cols, updated_tag_map)
                 df <- synonym_result$cleaned_data
                 all_audits[[length(all_audits) + 1]] <- synonym_result$audit_trail
@@ -168,16 +184,55 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
                   all(is.na(row) | row == "")
                 })
                 df <- df[!all_empty, ]
+
+                # Phase 13: Bare formula detection (after all name cleaning)
+                incProgress(0.05, detail = "Detecting bare formulas...")
+                formula_result <- detect_bare_formulas(df, name_cols)
+                df <- formula_result$cleaned_data
+                all_audits[[length(all_audits) + 1]] <- formula_result$audit_trail
+
+                # Phase 13: Reference list flagging
+                if (!is.null(data_store$reference_lists)) {
+                  incProgress(0.05, detail = "Flagging reference list matches...")
+
+                  # Flag functional categories (warning)
+                  func_cats <- data_store$reference_lists$functional_categories
+                  if (nrow(func_cats) > 0) {
+                    func_result <- flag_reference_matches(df, name_cols, func_cats, "warning", "functional category")
+                    df <- func_result$cleaned_data
+                    all_audits[[length(all_audits) + 1]] <- func_result$audit_trail
+                  }
+
+                  # Flag stop words (warning)
+                  stop_words <- data_store$reference_lists$stop_words
+                  if (nrow(stop_words) > 0) {
+                    stop_result <- flag_reference_matches(df, name_cols, stop_words, "warning", "stop word")
+                    df <- stop_result$cleaned_data
+                    all_audits[[length(all_audits) + 1]] <- stop_result$audit_trail
+                  }
+
+                  # Flag block patterns (blocking)
+                  block_pats <- data_store$reference_lists$block_patterns
+                  if (nrow(block_pats) > 0) {
+                    block_result <- flag_reference_matches(df, name_cols, block_pats, "blocking", "block pattern")
+                    df <- block_result$cleaned_data
+                    all_audits[[length(all_audits) + 1]] <- block_result$audit_trail
+                  }
+                }
               }
             }
 
-            incProgress(0.05, detail = "Finalizing...")
+            incProgress(0.04, detail = "Finalizing...")
             audit_combined <- dplyr::bind_rows(all_audits)
             data_store$cleaned_data <- df
             data_store$cleaning_audit <- audit_combined
             if (length(new_tags) > 0) {
               data_store$column_tags <- c(data_store$column_tags, new_tags)
             }
+
+            # Cascade reset: invalidate downstream state
+            data_store$curation_results <- NULL
+            data_store$resolved_data <- NULL
 
             # Show success notification
             n_changes <- nrow(audit_combined)
@@ -319,11 +374,39 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         NULL
       }
 
+      # Flag statistics row (always visible)
+      n_formulas_blocked <- sum(audit$step == "detect_bare_formula")
+      n_categories_flagged <- sum(audit$step == "flag_warning" & grepl("functional category", audit$reason, ignore.case = TRUE))
+      n_stop_words_matched <- sum(audit$step == "flag_warning" & grepl("stop word", audit$reason, ignore.case = TRUE))
+
+      row4 <- bslib::layout_columns(
+        col_widths = c(4, 4, 4),
+        bslib::value_box(
+          title = "Formulas Blocked",
+          value = n_formulas_blocked,
+          showcase = bsicons::bs_icon("calculator"),
+          theme = "danger"
+        ),
+        bslib::value_box(
+          title = "Categories Flagged",
+          value = n_categories_flagged,
+          showcase = bsicons::bs_icon("tag"),
+          theme = "warning"
+        ),
+        bslib::value_box(
+          title = "Stop Words Matched",
+          value = n_stop_words_matched,
+          showcase = bsicons::bs_icon("hand-thumbs-down"),
+          theme = "warning"
+        )
+      )
+
       div(
         class = "mb-3 mt-3",
         row1,
         row2,
-        row3
+        row3,
+        row4
       )
     })
 
@@ -365,15 +448,240 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       )
     })
 
+    # Reference list editors section
+    output$reference_editors_section <- renderUI({
+      req(data_store$reference_lists)
+
+      ref_lists <- data_store$reference_lists
+
+      # Count active entries
+      n_func_cats <- sum(ref_lists$functional_categories$active, na.rm = TRUE)
+      n_stop_words <- sum(ref_lists$stop_words$active, na.rm = TRUE)
+      n_block_patterns <- sum(ref_lists$block_patterns$active, na.rm = TRUE)
+
+      bslib::accordion(
+        id = session$ns("reference_editors"),
+        open = FALSE,
+        multiple = TRUE,
+        bslib::accordion_panel(
+          title = sprintf("Functional Categories (%d)", n_func_cats),
+          icon = bsicons::bs_icon("tag"),
+          rhandsontable::rHandsontableOutput(session$ns("func_cat_editor"))
+        ),
+        bslib::accordion_panel(
+          title = sprintf("Stop Words (%d)", n_stop_words),
+          icon = bsicons::bs_icon("hand-thumbs-down"),
+          rhandsontable::rHandsontableOutput(session$ns("stop_words_editor"))
+        ),
+        bslib::accordion_panel(
+          title = sprintf("Block Patterns (%d)", n_block_patterns),
+          icon = bsicons::bs_icon("calculator"),
+          rhandsontable::rHandsontableOutput(session$ns("block_patterns_editor"))
+        )
+      )
+    })
+
+    # Functional categories editor
+    output$func_cat_editor <- rhandsontable::renderRHandsontable({
+      req(data_store$reference_lists)
+
+      rhandsontable::rhandsontable(
+        data_store$reference_lists$functional_categories,
+        rowHeaders = NULL,
+        height = 300
+      ) %>%
+        rhandsontable::hot_col("term", readOnly = FALSE) %>%
+        rhandsontable::hot_col("source", readOnly = TRUE) %>%
+        rhandsontable::hot_col("active", type = "checkbox") %>%
+        rhandsontable::hot_context_menu(allowRowEdit = TRUE, allowColEdit = FALSE)
+    })
+
+    # Stop words editor
+    output$stop_words_editor <- rhandsontable::renderRHandsontable({
+      req(data_store$reference_lists)
+
+      rhandsontable::rhandsontable(
+        data_store$reference_lists$stop_words,
+        rowHeaders = NULL,
+        height = 300
+      ) %>%
+        rhandsontable::hot_col("term", readOnly = FALSE) %>%
+        rhandsontable::hot_col("source", readOnly = TRUE) %>%
+        rhandsontable::hot_col("active", type = "checkbox") %>%
+        rhandsontable::hot_context_menu(allowRowEdit = TRUE, allowColEdit = FALSE)
+    })
+
+    # Block patterns editor
+    output$block_patterns_editor <- rhandsontable::renderRHandsontable({
+      req(data_store$reference_lists)
+
+      rhandsontable::rhandsontable(
+        data_store$reference_lists$block_patterns,
+        rowHeaders = NULL,
+        height = 300
+      ) %>%
+        rhandsontable::hot_col("term", readOnly = FALSE) %>%
+        rhandsontable::hot_col("source", readOnly = TRUE) %>%
+        rhandsontable::hot_col("active", type = "checkbox") %>%
+        rhandsontable::hot_context_menu(allowRowEdit = TRUE, allowColEdit = FALSE)
+    })
+
+    # Handle edits to functional categories
+    observeEvent(input$func_cat_editor, {
+      req(input$func_cat_editor)
+
+      edited_data <- rhandsontable::hot_to_r(input$func_cat_editor)
+
+      # Handle new rows (source = NA)
+      if (any(is.na(edited_data$source))) {
+        edited_data$source[is.na(edited_data$source)] <- "user"
+        edited_data$active[is.na(edited_data$active)] <- TRUE
+      }
+
+      data_store$reference_lists$functional_categories <- edited_data
+    })
+
+    # Handle edits to stop words
+    observeEvent(input$stop_words_editor, {
+      req(input$stop_words_editor)
+
+      edited_data <- rhandsontable::hot_to_r(input$stop_words_editor)
+
+      # Handle new rows (source = NA)
+      if (any(is.na(edited_data$source))) {
+        edited_data$source[is.na(edited_data$source)] <- "user"
+        edited_data$active[is.na(edited_data$active)] <- TRUE
+      }
+
+      data_store$reference_lists$stop_words <- edited_data
+    })
+
+    # Handle edits to block patterns
+    observeEvent(input$block_patterns_editor, {
+      req(input$block_patterns_editor)
+
+      edited_data <- rhandsontable::hot_to_r(input$block_patterns_editor)
+
+      # Handle new rows (source = NA)
+      if (any(is.na(edited_data$source))) {
+        edited_data$source[is.na(edited_data$source)] <- "user"
+        edited_data$active[is.na(edited_data$active)] <- TRUE
+      }
+
+      data_store$reference_lists$block_patterns <- edited_data
+    })
+
+    # CSV upload handler
+    observeEvent(input$csv_upload, {
+      req(input$csv_upload)
+
+      tryCatch(
+        {
+          # Read CSV
+          uploaded_data <- readr::read_csv(input$csv_upload$datapath, show_col_types = FALSE)
+
+          # Validate required columns
+          if (!("type" %in% names(uploaded_data))) {
+            showModal(modalDialog(
+              title = "Invalid CSV",
+              "The CSV must have a 'type' column.",
+              "Allowed values: functional_category, stop_word, block_pattern",
+              easyClose = TRUE,
+              footer = modalButton("OK")
+            ))
+            return()
+          }
+
+          if (!("term" %in% names(uploaded_data))) {
+            showModal(modalDialog(
+              title = "Invalid CSV",
+              "The CSV must have a 'term' column containing the reference list entries.",
+              easyClose = TRUE,
+              footer = modalButton("OK")
+            ))
+            return()
+          }
+
+          # Validate type values
+          allowed_types <- c("functional_category", "stop_word", "block_pattern")
+          unknown_types <- setdiff(unique(uploaded_data$type), allowed_types)
+
+          if (length(unknown_types) > 0) {
+            showModal(modalDialog(
+              title = "Invalid Type Values",
+              sprintf("Unknown type values found: %s", paste(unknown_types, collapse = ", ")),
+              sprintf("Allowed types: %s", paste(allowed_types, collapse = ", ")),
+              easyClose = TRUE,
+              footer = modalButton("OK")
+            ))
+            return()
+          }
+
+          # Route entries to correct lists
+          n_added <- 0
+
+          for (i in seq_len(nrow(uploaded_data))) {
+            type_val <- uploaded_data$type[i]
+            term_val <- uploaded_data$term[i]
+
+            if (is.na(term_val) || term_val == "") {
+              next
+            }
+
+            new_row <- tibble::tibble(
+              term = term_val,
+              source = "user",
+              active = TRUE
+            )
+
+            if (type_val == "functional_category") {
+              data_store$reference_lists$functional_categories <- dplyr::bind_rows(
+                data_store$reference_lists$functional_categories,
+                new_row
+              )
+              n_added <- n_added + 1
+            } else if (type_val == "stop_word") {
+              data_store$reference_lists$stop_words <- dplyr::bind_rows(
+                data_store$reference_lists$stop_words,
+                new_row
+              )
+              n_added <- n_added + 1
+            } else if (type_val == "block_pattern") {
+              data_store$reference_lists$block_patterns <- dplyr::bind_rows(
+                data_store$reference_lists$block_patterns,
+                new_row
+              )
+              n_added <- n_added + 1
+            }
+          }
+
+          showNotification(
+            sprintf("Successfully added %d entries to reference lists", n_added),
+            type = "message",
+            duration = 5
+          )
+        },
+        error = function(e) {
+          showNotification(
+            paste("CSV upload failed:", e$message),
+            type = "error",
+            duration = NULL
+          )
+        }
+      )
+    })
+
     # Cleaned data table
     output$cleaned_table <- DT::renderDataTable({
       req(data_store$cleaned_data)
 
-      # Hide internal columns from display
-      hidden_cols <- which(names(data_store$cleaned_data) %in% c("original_row_id", "multi_cas", "multi_cas_count")) - 1
+      df <- data_store$cleaned_data
 
-      DT::datatable(
-        data_store$cleaned_data,
+      # Hide internal columns from display
+      hidden_cols <- which(names(df) %in% c("original_row_id", "multi_cas", "multi_cas_count")) - 1
+
+      dt <- DT::datatable(
+        df,
         options = list(
           pageLength = 25,
           scrollX = TRUE,
@@ -381,6 +689,31 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         ),
         rownames = FALSE
       )
+
+      # Add conditional formatting if cleaning_flag column exists
+      if ("cleaning_flag" %in% names(df)) {
+        # Use JavaScript callback for prefix matching
+        dt <- dt %>%
+          DT::formatStyle(
+            "cleaning_flag",
+            target = "row",
+            backgroundColor = DT::JS(
+              "function(rowData, rowIndex, colIndex, row) {
+                var flag = rowData[colIndex];
+                if (flag && typeof flag === 'string') {
+                  if (flag.startsWith('BLOCK:')) {
+                    return '#ffcccc';
+                  } else if (flag.startsWith('WARN:')) {
+                    return '#fff3cd';
+                  }
+                }
+                return '';
+              }"
+            )
+          )
+      }
+
+      dt
     })
 
     # Multi-CAS flagged rows section
