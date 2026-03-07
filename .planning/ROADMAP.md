@@ -43,7 +43,7 @@
 - [x] **Phase 10: Foundation & Clean Data Tab** - Add audit trail infrastructure, reference data loaders, and new gated workflow tab
 - [x] **Phase 11: CAS Pipeline** - Implement CAS-RN rescue, normalization, validation, and multi-CAS splitting with UI preview ✅ 2026-03-06
 - [x] **Phase 12: Name Cleaning** - Extract formulas and synonyms, strip quality adjectives, protect IUPAC inverted names (completed 2026-03-06)
-- [ ] **Phase 13: Reference Filters & Editable Lists** - Flag functional categories and bare formulas, enable in-app reference list editing
+- [x] **Phase 13: Reference Filters & Editable Lists** - Flag functional categories and bare formulas, enable in-app reference list editing (completed 2026-03-07)
 - [ ] **Phase 14: Multi-Sheet Export & Re-Import** - Export complete state as 7-sheet workbook, detect and restore ChemReg exports
 - [ ] **Phase 15: Post-Curation QC** - Re-validate CAS and check for remaining non-ASCII characters after curation
 
@@ -176,7 +176,7 @@ Phases execute sequentially: 9 → 10 → 11 → 12 → 13 → 14 → 15
 | 10. Foundation & Clean Data Tab | 2/2 | Complete    | 2026-03-05 |
 | 11. CAS Pipeline | 2/2 | Complete    | 2026-03-06 |
 | 12. Name Cleaning | 2/2 | Complete   | 2026-03-06 |
-| 13. Reference Filters & Editable Lists | 1/2 | In Progress|  |
+| 13. Reference Filters & Editable Lists | 2/2 | Complete   | 2026-03-07 |
 | 14. Multi-Sheet Export & Re-Import | 0/TBD | Not started | - |
 | 15. Post-Curation QC | 0/TBD | Not started | - |
 
