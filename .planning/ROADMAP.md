@@ -176,7 +176,7 @@ Phases execute sequentially: 9 → 10 → 11 → 12 → 13 → 14 → 15
 | 10. Foundation & Clean Data Tab | 2/2 | Complete    | 2026-03-05 |
 | 11. CAS Pipeline | 2/2 | Complete    | 2026-03-06 |
 | 12. Name Cleaning | 2/2 | Complete   | 2026-03-06 |
-| 13. Reference Filters & Editable Lists | 0/2 | Planned | - |
+| 13. Reference Filters & Editable Lists | 1/2 | In Progress|  |
 | 14. Multi-Sheet Export & Re-Import | 0/TBD | Not started | - |
 | 15. Post-Curation QC | 0/TBD | Not started | - |
 

@@ -25,19 +25,19 @@ See: .planning/PROJECT.md (updated 2026-03-06)
 
 ## Current Position
 
-Phase: 12 of 15 (Name Cleaning) — COMPLETE
-Plan: 2 of 2
-Status: Complete
-Last activity: 2026-03-06 — Phase 12 verified and complete
+Phase: 13 of 15 (Reference Filters & Editable Lists) — IN PROGRESS
+Plan: 1 of 2
+Status: Plan 01 complete
+Last activity: 2026-03-07 — Phase 13 Plan 01 executed (provenance & formula detection)
 
 Progress: [█████████████░░░░░░░] 13/15 phases complete across all milestones (86%)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 24 (17 from v1.0-v1.2 + 7 from v1.3)
-- Average duration: 471s per plan (v1.3 only)
-- Total execution time: 3612s (60.2 minutes for v1.3)
+- Total plans completed: 25 (17 from v1.0-v1.2 + 8 from v1.3)
+- Average duration: 524s per plan (v1.3 only)
+- Total execution time: 4598s (76.6 minutes for v1.3)
 
 **By Phase:**
 
@@ -48,6 +48,7 @@ Progress: [█████████████░░░░░░░] 13/15 p
 | 10 | 2 | 801s | 401s |
 | 11 | 2 | 899s | 450s |
 | 12 | 2 | 1194s | 597s |
+| 13 | 1 | 986s | 986s |
 
 **Recent Trend:**
 - Last milestone: v1.2 (phases 6-8, 6 plans completed)
@@ -62,7 +63,8 @@ Progress: [█████████████░░░░░░░] 13/15 p
 | Phase 11 P01 | 514s | 2 tasks | 3 files |
 | Phase 11 P02 | 385s | 2 tasks | 2 files |
 | Phase 12 P01 | 1041s | 2 tasks | 2 files |
-| Phase 12 P02 | 153 | 2 tasks | 1 files |
+| Phase 12 P02 | 153s | 2 tasks | 1 files |
+| Phase 13 P01 | 986s | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -107,6 +109,11 @@ Recent decisions affecting current work:
 - [Phase 12]: Inline name cleaning steps in mod_clean_data server for granular progress tracking
 - [Phase 12]: Show name cleaning value box row only when name cleaning occurred (conditional rendering)
 - [Phase 12]: Auto-approved checkpoint:human-verify in auto_advance mode (config.json workflow.auto_advance=true)
+- [Phase 13 P01]: Reference lists use tibble format with (term, source, active) columns for provenance tracking
+- [Phase 13 P01]: Bare formula detection uses ComptoxR validator regex (H2O, NaCl, CuSO4 blocked)
+- [Phase 13 P01]: Exact match takes priority over substring in flag_reference_matches
+- [Phase 13 P01]: First flag wins - bare formula blocking takes priority over reference warnings
+- [Phase 13 P01]: Soft delete via active=FALSE column for reference list entries
 
 ### Pending Todos
 
@@ -125,11 +132,11 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-06T23:09:38.591Z
-Stopped at: Phase 13 context gathered
-Resume file: .planning/phases/13-reference-filters-editable-lists/13-CONTEXT.md
+Last session: 2026-03-07T16:00:21Z
+Stopped at: Completed Phase 13 Plan 01 (provenance & formula detection)
+Resume file: .planning/phases/13-reference-filters-editable-lists/13-01-SUMMARY.md
 
-**Next step:** Phase 13 — Reference Filters & Editable Lists (discuss → plan → execute)
+**Next step:** Phase 13 Plan 02 — Build UI editors for reference lists
 
 ---
 *STATE.md updated: 2026-03-06 after Phase 12 completion*
