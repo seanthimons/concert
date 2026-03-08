@@ -137,7 +137,7 @@ Plans:
 - [ ] 13-02-PLAN.md — UI integration: rhandsontable editors, DT flag display, CSV upload, re-run cascade, value box extension
 
 ### Phase 14: Multi-Sheet Export & Re-Import
-**Goal**: Users can export complete state as multi-sheet Excel workbook and re-import it to restore session
+**Goal**: Users can export complete state as multi-sheet Excel workbook and re-import config to restore reference lists and settings
 **Depends on**: Phase 13
 **Requirements**: EXPO-01, EXPO-02, EXPO-03
 **Success Criteria** (what must be TRUE):
@@ -146,10 +146,11 @@ Plans:
   3. User can re-import a ChemReg export and see a confirmation modal offering to restore embedded reference lists and pipeline state
   4. User can see the multi-sheet export serve as both a standalone audit document (readable in Excel) and a ChemReg re-entry point
   5. User can see export validation that prevents Excel cell/column limit failures before attempting to write the file
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 14-01: TBD
+- [ ] 14-01-PLAN.md — Export builder, config import parser, Excel validation functions with TDD tests
+- [ ] 14-02-PLAN.md — UI integration: replace 3-sheet export with 7-sheet, add sidebar config import with modal confirmation
 
 ### Phase 15: Post-Curation QC
 **Goal**: Users can see resolved CAS-RNs re-validated and remaining non-ASCII characters flagged after curation completes
@@ -177,8 +178,8 @@ Phases execute sequentially: 9 → 10 → 11 → 12 → 13 → 14 → 15
 | 11. CAS Pipeline | 2/2 | Complete    | 2026-03-06 |
 | 12. Name Cleaning | 2/2 | Complete   | 2026-03-06 |
 | 13. Reference Filters & Editable Lists | 2/2 | Complete    | 2026-03-07 |
-| 14. Multi-Sheet Export & Re-Import | 0/TBD | Not started | - |
+| 14. Multi-Sheet Export & Re-Import | 0/2 | Not started | - |
 | 15. Post-Curation QC | 0/TBD | Not started | - |
 
 ---
-*Last updated: 2026-03-06 after Phase 13 planning*
+*Last updated: 2026-03-07 after Phase 14 planning*
