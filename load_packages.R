@@ -123,6 +123,7 @@
 			'bsicons', # Icons for Shiny UI
 			'DT',
 			'shinyjs', # JavaScript helpers for Shiny
+			'rhandsontable', # Editable data tables for reference list editors
 			# 'plotly',
 
 			### Reporting ----
