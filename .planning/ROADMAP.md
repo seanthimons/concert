@@ -45,7 +45,7 @@
 - [x] **Phase 12: Name Cleaning** - Extract formulas and synonyms, strip quality adjectives, protect IUPAC inverted names (completed 2026-03-06)
 - [x] **Phase 13: Reference Filters & Editable Lists** - Flag functional categories and bare formulas, enable in-app reference list editing (completed 2026-03-07)
 - [x] **Phase 14: Multi-Sheet Export & Re-Import** - Export complete state as 7-sheet workbook, detect and restore ChemReg exports (completed 2026-03-09)
-- [ ] **Phase 15: Post-Curation QC** - Re-validate CAS and check for remaining non-ASCII characters after curation
+- [x] **Phase 15: Post-Curation QC** - Re-validate CAS and check for remaining non-ASCII characters after curation (completed 2026-03-09)
 
 ## Phase Details
 
@@ -180,7 +180,7 @@ Phases execute sequentially: 9 -> 10 -> 11 -> 12 -> 13 -> 14 -> 15
 | 12. Name Cleaning | 2/2 | Complete   | 2026-03-06 |
 | 13. Reference Filters & Editable Lists | 2/2 | Complete    | 2026-03-07 |
 | 14. Multi-Sheet Export & Re-Import | 2/2 | Complete    | 2026-03-09 |
-| 15. Post-Curation QC | 1/2 | In Progress|  |
+| 15. Post-Curation QC | 2/2 | Complete   | 2026-03-09 |
 
 ---
 *Last updated: 2026-03-09 after Phase 15 planning complete*
