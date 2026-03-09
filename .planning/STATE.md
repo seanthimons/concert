@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Data Cleaning Pipeline
 status: completed
-stopped_at: Completed 15-01-PLAN.md
-last_updated: "2026-03-09T20:33:53.945Z"
-last_activity: 2026-03-09 — Phase 14 Plan 02 executed (UI integration for export and import)
+stopped_at: Completed 15-02-PLAN.md
+last_updated: "2026-03-09T20:42:38.580Z"
+last_activity: 2026-03-09 — Phase 15 Plan 02 executed (QC UI integration)
 progress:
   total_phases: 7
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 14
-  completed_plans: 13
+  completed_plans: 14
   percent: 100
 ---
 
@@ -25,19 +25,19 @@ See: .planning/PROJECT.md (updated 2026-03-06)
 
 ## Current Position
 
-Phase: 15 of 15 (Post-Curation QC) — IN PROGRESS
-Plan: 1 of 2 — COMPLETE
-Status: In progress
-Last activity: 2026-03-09 — Phase 15 Plan 01 executed (ComptoxR unicode + QC detection)
+Phase: 15 of 15 (Post-Curation QC) — COMPLETE
+Plan: 2 of 2 — COMPLETE
+Status: Milestone v1.3 complete
+Last activity: 2026-03-09 — Phase 15 Plan 02 executed (QC UI integration)
 
-Progress: [█████████░] 93% (13/14 plans complete across milestone v1.3)
+Progress: [██████████] 100% (14/14 plans complete across milestone v1.3)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 27 (17 from v1.0-v1.2 + 10 from v1.3)
-- Average duration: 506s per plan (v1.3 only)
-- Total execution time: 5258s (87.6 minutes for v1.3)
+- Total plans completed: 28 (17 from v1.0-v1.2 + 14 from v1.3)
+- Average duration: 469s per plan (v1.3 only)
+- Total execution time: 6531s (108.9 minutes for v1.3)
 
 **By Phase:**
 
@@ -50,7 +50,7 @@ Progress: [█████████░] 93% (13/14 plans complete across mile
 | 12 | 2 | 1194s | 597s |
 | 13 | 2 | 1191s | 596s |
 | 14 | 2 | 660s | 330s |
-| 15 | 1 | 627s | 627s |
+| 15 | 2 | 949s | 475s |
 
 **Recent Trend:**
 - Last milestone: v1.2 (phases 6-8, 6 plans completed)
@@ -71,7 +71,7 @@ Progress: [█████████░] 93% (13/14 plans complete across mile
 | Phase 14 P01 | 283 | 1 tasks | 3 files |
 | Phase 14 P02 | 377 | 3 tasks | 2 files |
 | Phase 15 P01 | 627s | 2 tasks | 5 files |
-| Phase 15 P01 | 627 | 2 tasks | 5 files |
+| Phase 15 P02 | 322s | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -132,6 +132,9 @@ Recent decisions affecting current work:
 - [Phase 15]: Replaced custom clean_unicode_field with ComptoxR::clean_unicode for 157 chemistry-specific mappings
 - [Phase 15]: Greek letters convert to dot-notation (.alpha., .beta.) following chemistry conventions
 - [Phase 15]: perform_unicode_qc is read-only QC function - detects issues without modifying data
+- [Phase 15]: QC warnings are advisory only - export never gated on QC results
+- [Phase 15]: qc_flag column added in DT render only - excluded from export
+- [Phase 15]: Auto-run QC on curation complete without user action
 
 ### Pending Todos
 
@@ -150,8 +153,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-09T20:33:53.940Z
-Stopped at: Completed 15-01-PLAN.md
+Last session: 2026-03-09T20:42:38.576Z
+Stopped at: Completed 15-02-PLAN.md
 Resume file: None
 
 **Next step:** Phase 13 Plan 02 — Build UI editors for reference lists
