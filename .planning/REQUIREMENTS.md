@@ -52,9 +52,9 @@ Requirements for v1.3 Data Cleaning Pipeline. Each maps to roadmap phases.
 
 ### Export & Re-Import (EXPO)
 
-- [ ] **EXPO-01**: User can export a multi-sheet Excel file containing curated data, cleaning audit trail, reference list state, and pipeline configuration
-- [ ] **EXPO-02**: User can re-import a ChemReg export and see a confirmation modal offering to restore embedded reference lists and pipeline state
-- [ ] **EXPO-03**: User can see the multi-sheet export serve as both a standalone audit document and a ChemReg re-entry point
+- [x] **EXPO-01**: User can export a multi-sheet Excel file containing curated data, cleaning audit trail, reference list state, and pipeline configuration
+- [x] **EXPO-02**: User can re-import a ChemReg export and see a confirmation modal offering to restore embedded reference lists and pipeline state
+- [x] **EXPO-03**: User can see the multi-sheet export serve as both a standalone audit document and a ChemReg re-entry point
 
 ### Post-Curation QC (POST)
 
@@ -117,9 +117,9 @@ Deferred to future releases. Tracked but not in current roadmap.
 | FILT-05 | Phase 13 | Complete |
 | FILT-06 | Phase 13 | Complete |
 | UIUX-05 | Phase 13 | Complete |
-| EXPO-01 | Phase 14 | Pending |
-| EXPO-02 | Phase 14 | Pending |
-| EXPO-03 | Phase 14 | Pending |
+| EXPO-01 | Phase 14 | Complete |
+| EXPO-02 | Phase 14 | Complete |
+| EXPO-03 | Phase 14 | Complete |
 | POST-01 | Phase 15 | Pending |
 | POST-02 | Phase 15 | Pending |
 
