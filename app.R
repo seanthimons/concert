@@ -75,7 +75,17 @@ ui <- page_sidebar(
   sidebar = sidebar(
     id = "main_sidebar",
     width = 300,
-    mod_file_upload_ui("upload")
+    mod_file_upload_ui("upload"),
+    hr(),
+    h6("Import Configuration", class = "text-muted"),
+    fileInput(
+      "config_import",
+      label = NULL,
+      accept = ".xlsx",
+      buttonLabel = "Browse...",
+      placeholder = "ChemReg export (.xlsx)"
+    ),
+    helpText("Optional: restore reference lists from a previous ChemReg export", class = "small")
   ),
 
   # Main Content — module UIs in tabs
@@ -128,6 +138,110 @@ server <- function(input, output, session) {
 
   # Store reference lists in data_store
   data_store$reference_lists <- reference_lists
+
+  # --- Config Import Handlers ---
+
+  # Store parsed config data between modal show and confirm
+  imported_config <- reactiveVal(NULL)
+
+  # Handle config file upload
+  observeEvent(input$config_import, {
+    req(input$config_import)
+
+    # Parse the uploaded file
+    parsed <- parse_chemreg_export(input$config_import$datapath)
+
+    if (is.null(parsed)) {
+      showNotification(
+        "Not a valid ChemReg export file. Upload a file exported from ChemReg with Pipeline Config sheet.",
+        type = "warning",
+        duration = 5
+      )
+      return()
+    }
+
+    # Store parsed data
+    imported_config(parsed)
+
+    # Show confirmation modal
+    showModal(modalDialog(
+      title = "ChemReg Export Detected",
+      p("This file contains configuration data from a previous ChemReg session."),
+      p("Select what you want to import:"),
+      checkboxInput("restore_ref_lists", "Restore reference lists", value = TRUE),
+      checkboxInput("restore_col_tags", "Restore column tags", value = TRUE),
+      p(class = "text-muted small", "Note: Imported reference lists will merge with existing lists."),
+      footer = tagList(
+        modalButton("Cancel"),
+        actionButton("confirm_config_import", "Import", class = "btn-primary")
+      ),
+      size = "m",
+      easyClose = TRUE
+    ))
+  })
+
+  # Handle import confirmation
+  observeEvent(input$confirm_config_import, {
+    req(imported_config())
+
+    # Capture checkbox states before modal closes
+    restore_refs <- input$restore_ref_lists
+    restore_tags <- input$restore_col_tags
+
+    # Remove modal
+    removeModal()
+
+    # Import reference lists
+    if (restore_refs) {
+      tryCatch(
+        {
+          data_store$reference_lists <- merge_reference_lists(
+            data_store$reference_lists,
+            imported_config()$reference_lists
+          )
+          showNotification(
+            "Reference lists imported and merged successfully",
+            type = "message",
+            duration = 3
+          )
+        },
+        error = function(e) {
+          showNotification(
+            paste("Failed to import reference lists:", conditionMessage(e)),
+            type = "error",
+            duration = 5
+          )
+        }
+      )
+    }
+
+    # Import column tags
+    if (restore_tags) {
+      tryCatch(
+        {
+          # Convert column_tags tibble (Column, Type) to named list
+          tags_df <- imported_config()$column_tags
+          data_store$column_tags <- setNames(tags_df$Type, tags_df$Column)
+
+          showNotification(
+            "Column tags imported successfully",
+            type = "message",
+            duration = 3
+          )
+        },
+        error = function(e) {
+          showNotification(
+            paste("Failed to import column tags:", conditionMessage(e)),
+            type = "error",
+            duration = 5
+          )
+        }
+      )
+    }
+
+    # Clear imported config
+    imported_config(NULL)
+  })
 
   # --- Gated Navigation ---
   session$onFlushed(function() {
