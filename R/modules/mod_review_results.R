@@ -43,6 +43,9 @@ mod_review_results_ui <- function(id) {
       # Statistics value boxes at top
       uiOutput(ns("curation_stats")),
 
+      # QC statistics (conditional on qc_results being available)
+      uiOutput(ns("qc_stats")),
+
       # En masse priority controls
       div(
         class = "card mb-3",
@@ -53,6 +56,9 @@ mod_review_results_ui <- function(id) {
           actionButton(ns("apply_priority"), "Apply Priority", class = "btn-warning btn-sm mt-2")
         )
       ),
+
+      # QC summary card (conditional on unhandled characters)
+      uiOutput(ns("qc_summary_card")),
 
       # Header with Download button top-right and action buttons
       div(
@@ -81,6 +87,12 @@ mod_review_results_ui <- function(id) {
               icon = icon("check"),
               class = "btn-sm btn-success"
             )
+          ),
+          actionButton(
+            ns("rerun_qc"),
+            "Re-run QC",
+            icon = bsicons::bs_icon("arrow-repeat"),
+            class = "btn-sm btn-outline-secondary"
           ),
           downloadButton(
             ns("download_curated"),
@@ -159,6 +171,70 @@ mod_review_results_server <- function(id, data_store) {
       )
     })
 
+    # QC statistics value boxes
+    output$qc_stats <- renderUI({
+      req(data_store$qc_results)
+
+      qc_results <- data_store$qc_results
+
+      # Determine themes based on counts
+      rows_theme <- if (qc_results$rows_with_non_ascii == 0) "success" else "warning"
+      chars_theme <- if (length(qc_results$unhandled_chars) == 0) "success" else "info"
+
+      layout_columns(
+        col_widths = c(6, 6),
+        value_box(
+          title = "Rows with Non-ASCII",
+          value = qc_results$rows_with_non_ascii,
+          showcase = bsicons::bs_icon("exclamation-circle"),
+          theme = rows_theme
+        ),
+        value_box(
+          title = "Unhandled Characters",
+          value = length(qc_results$unhandled_chars),
+          showcase = bsicons::bs_icon("question-circle"),
+          theme = chars_theme
+        )
+      )
+    })
+
+    # QC summary card (only show if unhandled characters exist)
+    output$qc_summary_card <- renderUI({
+      req(data_store$qc_results)
+
+      qc_results <- data_store$qc_results
+
+      # Return NULL if no unhandled characters
+      if (length(qc_results$unhandled_chars) == 0) {
+        return(NULL)
+      }
+
+      # Build list of unhandled characters
+      char_items <- lapply(names(qc_results$unhandled_chars), function(codepoint) {
+        char_info <- qc_results$unhandled_chars[[codepoint]]
+        tags$li(
+          sprintf("%s (%s) found in %d rows", codepoint, char_info$char, char_info$count)
+        )
+      })
+
+      div(
+        class = "card border-warning mb-3",
+        div(
+          class = "card-header bg-warning text-dark",
+          bsicons::bs_icon("exclamation-triangle"),
+          " QC Warning: Unmapped Unicode Characters"
+        ),
+        div(
+          class = "card-body",
+          tags$ul(char_items)
+        ),
+        div(
+          class = "card-footer text-muted small",
+          "These characters will remain in your exported data."
+        )
+      )
+    })
+
     # Curation results table
     output$curation_table <- renderDT(server = FALSE, {
       req(data_store$resolution_state, data_store$dtxsid_cols)
@@ -222,6 +298,14 @@ mod_review_results_server <- function(id, data_store) {
 
       # Position match_type after consensus columns but before Resolution
       df <- dplyr::relocate(df, match_type, .after = consensus_status)
+
+      # Add QC flag column if QC results are available
+      if (!is.null(data_store$qc_results) && length(data_store$qc_results$row_indices) > 0) {
+        df$qc_flag <- NA_character_
+        df$qc_flag[data_store$qc_results$row_indices] <- "WARN: non-ASCII"
+        # Position qc_flag after match_type
+        df <- dplyr::relocate(df, qc_flag, .after = match_type)
+      }
 
       # Build Resolution column with enhanced context
       df$Resolution <- sapply(seq_len(nrow(df)), function(i) {
@@ -462,6 +546,15 @@ mod_review_results_server <- function(id, data_store) {
           )
         )
       )
+
+      # Add QC flag highlighting (yellow background for rows with non-ASCII)
+      if ("qc_flag" %in% names(display_df)) {
+        dt <- dt %>% formatStyle(
+          'qc_flag',
+          target = 'row',
+          backgroundColor = styleEqual("WARN: non-ASCII", "#fff3cd")
+        )
+      }
 
       dt
     })
@@ -721,6 +814,40 @@ mod_review_results_server <- function(id, data_store) {
       # Update consensus summary to reflect manual resolutions
       updated_df <- data_store$resolution_state
       data_store$consensus_summary <- recalc_consensus_summary(updated_df)
+    })
+
+    # Handle Re-run QC button
+    observeEvent(input$rerun_qc, {
+      req(data_store$resolution_state)
+
+      withProgress(message = "Running QC checks...", value = 0, {
+        incProgress(0.3, detail = "Scanning for non-ASCII characters...")
+
+        # Run QC on current resolution state
+        qc_results <- perform_unicode_qc(data_store$resolution_state)
+        data_store$qc_results <- qc_results
+
+        incProgress(0.7, detail = "Complete")
+
+        # Show result summary notification
+        if (qc_results$rows_with_non_ascii == 0) {
+          showNotification(
+            "QC complete: No non-ASCII characters found",
+            type = "message",
+            duration = 3
+          )
+        } else {
+          showNotification(
+            sprintf(
+              "QC complete: %d rows contain non-ASCII characters (%d unique characters)",
+              qc_results$rows_with_non_ascii,
+              length(qc_results$unhandled_chars)
+            ),
+            type = "warning",
+            duration = 5
+          )
+        }
+      })
     })
 
     # Handle en masse priority application
