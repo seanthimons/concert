@@ -110,11 +110,11 @@
 - **Files:** `R/modules/mod_clean_data.R` (lines 488-526)
 - **Fix:** Set explicit column widths via `rhandsontable::hot_col()` width parameter, or increase table height/use `stretchH = "all"`
 
-### [ ] Functional Categories list is blank after cache rebuild
-- **Impact:** Users see an empty accordion panel — no functional categories available for reference matching
-- **Source:** Phase 13 ComptoxR integration, discovered during Phase 14 UAT
-- **Files:** `R/cleaning_reference.R` (lines 121-149)
-- **Fix:** Either provide fallback seed data when ComptoxR API fails, or show an informative empty-state message explaining how to populate categories
+### [ ] ComptoxR functional use API has drifted — ct_functional_use() broken
+- **Impact:** Functional categories list is always empty; no categories available for reference matching
+- **Source:** ComptoxR package API changed — `ct_functional_use("", domain = "func_use")` no longer works
+- **Files:** `R/cleaning_reference.R` (lines 124-151) — marked with `#TODO` block
+- **Fix:** Identify correct ComptoxR function/endpoint for fetching functional use category lists, update the call
 
 ---
 
