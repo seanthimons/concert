@@ -133,7 +133,8 @@ server <- function(input, output, session) {
     dedup_preview = NULL, consensus_data = NULL, consensus_summary = NULL,
     resolution_state = NULL, dtxsid_cols = NULL, priority_order = NULL,
     error_filter_active = FALSE, display_row_map = NULL,
-    selected_error_rows = NULL, manual_queue = list()
+    selected_error_rows = NULL, manual_queue = list(),
+    qc_results = NULL
   )
 
   # Store reference lists in data_store
@@ -278,6 +279,7 @@ server <- function(input, output, session) {
     data_store$consensus_data <- NULL
     data_store$consensus_summary <- NULL
     data_store$resolution_state <- NULL
+    data_store$qc_results <- NULL
     data_store$dtxsid_cols <- NULL
     data_store$priority_order <- NULL
     nav_hide("main_tabs", target = "detection_info", session = session)
@@ -335,6 +337,16 @@ server <- function(input, output, session) {
   mod_run_curation_server("curation", data_store,
     on_curation_complete = function() {
       show_tab_with_pulse("review_results")
+
+      # Auto-run post-curation QC
+      qc_results <- perform_unicode_qc(data_store$resolution_state)
+      data_store$qc_results <- qc_results
+      if (qc_results$rows_with_non_ascii > 0) {
+        showNotification(
+          sprintf("QC: %d rows contain non-ASCII characters", qc_results$rows_with_non_ascii),
+          type = "warning", duration = 5
+        )
+      }
     }
   )
 
