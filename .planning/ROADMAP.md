@@ -178,7 +178,7 @@ Phases execute sequentially: 9 → 10 → 11 → 12 → 13 → 14 → 15
 | 11. CAS Pipeline | 2/2 | Complete    | 2026-03-06 |
 | 12. Name Cleaning | 2/2 | Complete   | 2026-03-06 |
 | 13. Reference Filters & Editable Lists | 2/2 | Complete    | 2026-03-07 |
-| 14. Multi-Sheet Export & Re-Import | 2/2 | Complete   | 2026-03-09 |
+| 14. Multi-Sheet Export & Re-Import | 2/2 | Complete    | 2026-03-09 |
 | 15. Post-Curation QC | 0/TBD | Not started | - |
 
 ---
