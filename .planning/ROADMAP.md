@@ -149,8 +149,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 14-01-PLAN.md — Export builder, config import parser, Excel validation functions with TDD tests
-- [ ] 14-02-PLAN.md — UI integration: replace 3-sheet export with 7-sheet, add sidebar config import with modal confirmation
+- [x] 14-01-PLAN.md — Export builder, config import parser, Excel validation functions with TDD tests (completed 2026-03-09, 283s, implemented inline with 14-02)
+- [x] 14-02-PLAN.md — UI integration: replace 3-sheet export with 7-sheet, add sidebar config import with modal confirmation (completed 2026-03-09, 377s)
 
 ### Phase 15: Post-Curation QC
 **Goal**: Users can see resolved CAS-RNs re-validated and remaining non-ASCII characters flagged after curation completes
@@ -182,4 +182,4 @@ Phases execute sequentially: 9 → 10 → 11 → 12 → 13 → 14 → 15
 | 15. Post-Curation QC | 0/TBD | Not started | - |
 
 ---
-*Last updated: 2026-03-07 after Phase 14 planning*
+*Last updated: 2026-03-09 after Phase 14 execution complete*
