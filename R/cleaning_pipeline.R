@@ -1078,6 +1078,147 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
   )
 }
 
+#' Detect non-ASCII characters in a character vector
+#'
+#' Helper function that scans a character vector for non-ASCII characters.
+#' Returns a list of unique non-ASCII characters with their Unicode codepoints
+#' and occurrence counts.
+#'
+#' @param x Character vector to scan
+#' @return Named list keyed by "U+XXXX" with elements: char, codepoint, count
+detect_non_ascii_chars <- function(x) {
+  # Handle NA and empty vectors
+  if (length(x) == 0 || all(is.na(x))) {
+    return(list())
+  }
+
+  # Remove NAs for processing
+  x_clean <- x[!is.na(x)]
+
+  # Find all non-ASCII characters
+  non_ascii_list <- list()
+
+  for (val in x_clean) {
+    # Check if value contains non-ASCII
+    if (grepl("[^\x01-\x7F]", val)) {
+      # Extract individual characters
+      chars <- strsplit(val, "")[[1]]
+
+      for (char in chars) {
+        # Check if this character is non-ASCII
+        if (grepl("[^\x01-\x7F]", char)) {
+          # Get codepoint
+          codepoint_int <- utf8ToInt(char)
+          codepoint_str <- sprintf("U+%04X", codepoint_int)
+
+          # Add or increment count
+          if (codepoint_str %in% names(non_ascii_list)) {
+            non_ascii_list[[codepoint_str]]$count <- non_ascii_list[[codepoint_str]]$count + 1
+          } else {
+            non_ascii_list[[codepoint_str]] <- list(
+              char = char,
+              codepoint = codepoint_str,
+              count = 1
+            )
+          }
+        }
+      }
+    }
+  }
+
+  return(non_ascii_list)
+}
+
+#' Perform post-curation Unicode QC (read-only detection)
+#'
+#' Scans a dataframe for non-ASCII characters without modifying the data.
+#' This is a QC function for post-curation detection of Unicode that may
+#' not have been handled by ComptoxR::clean_unicode.
+#'
+#' Returns a report of:
+#' - How many rows contain non-ASCII characters
+#' - Which row indices have non-ASCII
+#' - What specific Unicode characters were found (with codepoints and counts)
+#'
+#' @param df Dataframe to scan (typically post-curation resolution_state)
+#' @return List with: rows_with_non_ascii (integer), row_indices (integer vector),
+#'   unhandled_chars (named list keyed by "U+XXXX")
+#'
+#' @examples
+#' df <- tibble::tibble(name = c("acetone", "\u03B1-tocopherol"))
+#' result <- perform_unicode_qc(df)
+#' result$rows_with_non_ascii  # => 1
+#' result$row_indices  # => c(2)
+#' result$unhandled_chars[["U+03B1"]]$count  # => 1
+perform_unicode_qc <- function(df) {
+  # Handle empty dataframe
+  if (nrow(df) == 0 || ncol(df) == 0) {
+    return(list(
+      rows_with_non_ascii = 0,
+      row_indices = integer(),
+      unhandled_chars = list()
+    ))
+  }
+
+  # Get character columns
+  char_cols <- names(df)[sapply(df, is.character)]
+
+  # Handle no character columns
+  if (length(char_cols) == 0) {
+    return(list(
+      rows_with_non_ascii = 0,
+      row_indices = integer(),
+      unhandled_chars = list()
+    ))
+  }
+
+  # Track rows with non-ASCII
+  rows_with_issues <- integer()
+  all_non_ascii_chars <- list()
+
+  # Scan each character column
+  for (col_name in char_cols) {
+    col_data <- df[[col_name]]
+
+    # Find rows with non-ASCII in this column
+    for (row_idx in seq_along(col_data)) {
+      val <- col_data[row_idx]
+
+      # Skip NA
+      if (is.na(val)) {
+        next
+      }
+
+      # Check for non-ASCII
+      if (grepl("[^\x01-\x7F]", val)) {
+        # Record row index (if not already recorded)
+        if (!(row_idx %in% rows_with_issues)) {
+          rows_with_issues <- c(rows_with_issues, row_idx)
+        }
+
+        # Extract non-ASCII characters from this value
+        non_ascii_found <- detect_non_ascii_chars(val)
+
+        # Merge into all_non_ascii_chars (accumulating counts)
+        for (codepoint in names(non_ascii_found)) {
+          if (codepoint %in% names(all_non_ascii_chars)) {
+            all_non_ascii_chars[[codepoint]]$count <- all_non_ascii_chars[[codepoint]]$count + non_ascii_found[[codepoint]]$count
+          } else {
+            all_non_ascii_chars[[codepoint]] <- non_ascii_found[[codepoint]]
+          }
+        }
+      }
+    }
+  }
+
+  # Return result
+  list(
+    rows_with_non_ascii = length(rows_with_issues),
+    row_indices = sort(rows_with_issues),
+    unhandled_chars = all_non_ascii_chars
+  )
+}
+
 #' Run complete cleaning pipeline with audit trail tracking
 #'
 #' Orchestrates multiple cleaning steps:
