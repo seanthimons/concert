@@ -153,7 +153,7 @@ Plans:
 - [x] 14-02-PLAN.md — UI integration: replace 3-sheet export with 7-sheet, add sidebar config import with modal confirmation (completed 2026-03-09, 377s)
 
 ### Phase 15: Post-Curation QC
-**Goal**: Users can see resolved CAS-RNs re-validated and remaining non-ASCII characters flagged after curation completes
+**Goal**: Users can see remaining non-ASCII characters flagged after curation completes, with ComptoxR chemistry-specific unicode cleaning replacing generic transliteration
 **Depends on**: Phase 14
 **Requirements**: POST-01, POST-02
 **Success Criteria** (what must be TRUE):
@@ -161,15 +161,16 @@ Plans:
   2. User can see resolved CAS-RNs from CompTox re-validated after curation, with any invalid CAS flagged in Review Results table
   3. User can see any remaining non-ASCII characters flagged in the final curated output as a QC check
   4. User can see post-curation QC results integrated into Review Results tab without requiring separate navigation
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 15-01: TBD
+- [ ] 15-01-PLAN.md — Replace clean_unicode_field() with ComptoxR::clean_unicode(), create perform_unicode_qc() function and tests
+- [ ] 15-02-PLAN.md — UI integration: QC value boxes, DT flags, summary card, re-run button in Review Results + auto-run wiring
 
 ## Progress
 
 **Execution Order:**
-Phases execute sequentially: 9 → 10 → 11 → 12 → 13 → 14 → 15
+Phases execute sequentially: 9 -> 10 -> 11 -> 12 -> 13 -> 14 -> 15
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -179,7 +180,7 @@ Phases execute sequentially: 9 → 10 → 11 → 12 → 13 → 14 → 15
 | 12. Name Cleaning | 2/2 | Complete   | 2026-03-06 |
 | 13. Reference Filters & Editable Lists | 2/2 | Complete    | 2026-03-07 |
 | 14. Multi-Sheet Export & Re-Import | 2/2 | Complete    | 2026-03-09 |
-| 15. Post-Curation QC | 0/TBD | Not started | - |
+| 15. Post-Curation QC | 0/2 | Not started | - |
 
 ---
-*Last updated: 2026-03-09 after Phase 14 execution complete*
+*Last updated: 2026-03-09 after Phase 15 planning complete*
