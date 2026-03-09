@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Data Cleaning Pipeline
 status: completed
-stopped_at: Phase 15 context gathered
-last_updated: "2026-03-09T19:59:15.405Z"
+stopped_at: Completed 15-01-PLAN.md
+last_updated: "2026-03-09T20:33:53.945Z"
 last_activity: 2026-03-09 — Phase 14 Plan 02 executed (UI integration for export and import)
 progress:
   total_phases: 7
   completed_phases: 6
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 14
+  completed_plans: 13
   percent: 100
 ---
 
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-06)
 
 ## Current Position
 
-Phase: 14 of 15 (Multi-Sheet Export & Re-import) — COMPLETE
-Plan: 2 of 2 — COMPLETE
-Status: Phase complete
-Last activity: 2026-03-09 — Phase 14 Plan 02 executed (UI integration for export and import)
+Phase: 15 of 15 (Post-Curation QC) — IN PROGRESS
+Plan: 1 of 2 — COMPLETE
+Status: In progress
+Last activity: 2026-03-09 — Phase 15 Plan 01 executed (ComptoxR unicode + QC detection)
 
-Progress: [██████████] 100% (12/12 plans complete across milestone v1.3)
+Progress: [█████████░] 93% (13/14 plans complete across milestone v1.3)
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ Progress: [██████████] 100% (12/12 plans complete across mil
 | 12 | 2 | 1194s | 597s |
 | 13 | 2 | 1191s | 596s |
 | 14 | 2 | 660s | 330s |
+| 15 | 1 | 627s | 627s |
 
 **Recent Trend:**
 - Last milestone: v1.2 (phases 6-8, 6 plans completed)
@@ -69,6 +70,8 @@ Progress: [██████████] 100% (12/12 plans complete across mil
 | Phase 13 P02 | 205 | 2 tasks | 1 files |
 | Phase 14 P01 | 283 | 1 tasks | 3 files |
 | Phase 14 P02 | 377 | 3 tasks | 2 files |
+| Phase 15 P01 | 627s | 2 tasks | 5 files |
+| Phase 15 P01 | 627 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -126,6 +129,9 @@ Recent decisions affecting current work:
 - [Phase 14 P02]: Modal confirmation prevents accidental config overwrites during import
 - [Phase 14 P02]: Checkboxes allow selective import (reference lists vs column tags independently)
 - [Phase 14 P02]: Plan 14-01 implemented inline as Rule 3 deviation to unblock dependency (merged two plans into one session)
+- [Phase 15]: Replaced custom clean_unicode_field with ComptoxR::clean_unicode for 157 chemistry-specific mappings
+- [Phase 15]: Greek letters convert to dot-notation (.alpha., .beta.) following chemistry conventions
+- [Phase 15]: perform_unicode_qc is read-only QC function - detects issues without modifying data
 
 ### Pending Todos
 
@@ -144,9 +150,9 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-09T19:59:15.398Z
-Stopped at: Phase 15 context gathered
-Resume file: .planning/phases/15-post-curation-qc/15-CONTEXT.md
+Last session: 2026-03-09T20:33:53.940Z
+Stopped at: Completed 15-01-PLAN.md
+Resume file: None
 
 **Next step:** Phase 13 Plan 02 — Build UI editors for reference lists
 
