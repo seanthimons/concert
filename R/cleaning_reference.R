@@ -124,20 +124,13 @@ load_functional_categories <- function(cache_dir) {
   fetch_fn <- function() {
     tryCatch(
       {
-        # Attempt to load from ComptoxR
-        # Note: ComptoxR::ct_functional_use requires API key and network access
+        # TODO: ComptoxR package API has drifted — ct_functional_use() no longer
+        # accepts empty string queries. Need to identify the correct ComptoxR
+        # function/endpoint for fetching functional use category lists.
+        # See TODO.md for tracking. For now, returns empty tibble.
         if (requireNamespace("ComptoxR", quietly = TRUE)) {
-          # Fetch from ComptoxR and add provenance columns
-          comptoxr_data <- ComptoxR::ct_functional_use("", domain = "func_use")
-
-          # Rename 'name' to 'term' and add provenance
-          comptoxr_data %>%
-            dplyr::rename(term = name) %>%
-            dplyr::mutate(
-              source = "comptoxr",
-              active = TRUE
-            ) %>%
-            dplyr::select(term, source, active)
+          message("ComptoxR available but functional use API needs updating — returning empty list")
+          tibble::tibble(term = character(), source = character(), active = logical())
         } else {
           message("ComptoxR package not available, using empty functional categories")
           tibble::tibble(term = character(), source = character(), active = logical())
