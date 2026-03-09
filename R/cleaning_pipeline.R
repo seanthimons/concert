@@ -2,7 +2,7 @@
 # Pure R functions for text cleaning with audit trail tracking
 #
 # Core functions:
-# - clean_unicode_field: Convert unicode to ASCII using stringi
+# - Unicode cleaning: Uses ComptoxR::clean_unicode for chemistry-specific mappings
 # - clean_text_field: Strip leading/trailing whitespace and punctuation artifacts
 # - build_audit_trail: Compare two dataframes and record changes
 # - run_cleaning_pipeline: Orchestrate cleaning steps with audit trail
@@ -12,24 +12,6 @@ library(stringr)
 library(stringi)
 library(tibble)
 
-#' Clean unicode characters to ASCII equivalents
-#'
-#' Uses stringi::stri_trans_general for transliteration (NOT iconv which drops chars).
-#' Handles NA values by passing them through unchanged.
-#' Works with both scalar and vector inputs.
-#'
-#' @param x Character vector
-#' @return Character vector with unicode converted to ASCII
-#'
-#' @examples
-#' clean_unicode_field("cafe\u0301")  # => "cafe"
-#' clean_unicode_field("\u03B1-tocopherol")  # => "a-tocopherol"
-#' clean_unicode_field(NA)  # => NA
-clean_unicode_field <- function(x) {
-  # Handle NA values
-  result <- ifelse(is.na(x), NA_character_, stringi::stri_trans_general(x, "Any-Latin; Latin-ASCII"))
-  return(result)
-}
 
 #' Clean text field by stripping whitespace and punctuation artifacts
 #'
@@ -1128,9 +1110,9 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
   # Step 0: Inject row lineage
   df_after_lineage <- inject_row_lineage(df)
 
-  # Step 1: Unicode to ASCII
+  # Step 1: Unicode to ASCII (using ComptoxR for chemistry-specific mappings)
   df_after_unicode <- df_after_lineage %>%
-    dplyr::mutate(dplyr::across(where(is.character), clean_unicode_field))
+    dplyr::mutate(dplyr::across(where(is.character), ComptoxR::clean_unicode))
 
   audit_unicode <- build_audit_trail(
     df_original = df_after_lineage,

@@ -7,16 +7,16 @@ library(here)
 # Source the cleaning pipeline module
 source(here::here("R", "cleaning_pipeline.R"))
 
-test_that("clean_unicode_field converts unicode to ASCII", {
-  # Test: cafe with combining accent mark becomes cafe
-  expect_equal(clean_unicode_field("cafe\u0301"), "cafe")
+test_that("ComptoxR::clean_unicode handles chemistry-specific unicode", {
+  # Test: Greek alpha becomes '.alpha.' (chemistry dot-notation)
+  expect_equal(ComptoxR::clean_unicode("\u03B1-tocopherol"), ".alpha.-tocopherol")
 
-  # Test: Greek alpha becomes 'a'
-  expect_equal(clean_unicode_field("\u03B1-tocopherol"), "a-tocopherol")
+  # Test: Greek beta becomes '.beta.'
+  expect_equal(ComptoxR::clean_unicode("\u03B2-carotene"), ".beta.-carotene")
 
   # Test: NA passthrough
-  expect_equal(clean_unicode_field(NA_character_), NA_character_)
-  expect_true(is.na(clean_unicode_field(NA)))
+  expect_equal(ComptoxR::clean_unicode(NA_character_), NA_character_)
+  expect_true(is.na(ComptoxR::clean_unicode(NA)))
 })
 
 test_that("clean_text_field strips whitespace and punctuation artifacts", {
@@ -40,9 +40,9 @@ test_that("clean_text_field strips whitespace and punctuation artifacts", {
 })
 
 test_that("run_cleaning_pipeline returns cleaned data and audit trail", {
-  # Create test dataframe with unicode and whitespace issues
+  # Create test dataframe with chemistry unicode (Greek letters) and whitespace issues
   test_df <- tibble::tibble(
-    chemical_name = c("  acetone  ", "cafe\u0301", "__ethanol__"),
+    chemical_name = c("  acetone  ", "\u03B1-tocopherol", "__ethanol__"),
     cas_number = c("67-64-1", "  58-08-2  ", "*108-95-2*"),
     supplier = c("Sigma", "  Fisher  ", "VWR")
   )
@@ -59,7 +59,7 @@ test_that("run_cleaning_pipeline returns cleaned data and audit trail", {
   expect_true("original_row_id" %in% names(cleaned))  # Now injected by default
   expect_equal(cleaned$original_row_id, 1:3)
   expect_equal(cleaned$chemical_name[1], "acetone")
-  expect_equal(cleaned$chemical_name[2], "cafe")
+  expect_equal(cleaned$chemical_name[2], ".alpha.-tocopherol")  # Greek alpha -> chemistry dot-notation
   expect_equal(cleaned$chemical_name[3], "ethanol")
   expect_equal(cleaned$cas_number[1], "67-64-1")
   expect_equal(cleaned$cas_number[2], "58-08-2")
