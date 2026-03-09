@@ -783,56 +783,35 @@ mod_review_results_server <- function(id, data_store) {
       content = function(file) {
         req(data_store$resolution_state, data_store$consensus_summary)
 
-        # Sheet 1: Curated Data with full audit trail
-        # Add needs_review flag (TRUE for error/No Match rows only), remove .pinned
-        export_data <- data_store$resolution_state %>%
-          dplyr::mutate(
-            needs_review = (consensus_status %in% c("error", "unresolvable"))
-          ) %>%
-          dplyr::select(-tidyselect::any_of(c(".pinned", ".manual_entry"))) %>%
-          dplyr::relocate(needs_review, .after = tidyselect::last_col())
-
-        # Sheet 2: Summary
-        summary_df <- tibble::tibble(
-          Metric = c(
-            "Total Rows",
-            "Consensus - Agree",
-            "Consensus - Disagree",
-            "Consensus - Agree (Caveat)",
-            "Consensus - Single Source",
-            "Consensus - Manual",
-            "Consensus - Error",
-            "Consensus - Unresolvable",
-            "Match Rate (%)"
-          ),
-          Value = c(
-            nrow(data_store$resolution_state),
-            data_store$consensus_summary$n_agree,
-            data_store$consensus_summary$n_disagree,
-            data_store$consensus_summary$n_agree_caveat,
-            data_store$consensus_summary$n_single,
-            data_store$consensus_summary$n_manual %||% 0,
-            data_store$consensus_summary$n_error,
-            data_store$consensus_summary$n_unresolvable %||% 0,
-            round((sum(!is.na(data_store$resolution_state$consensus_dtxsid)) / nrow(data_store$resolution_state)) * 100, 1)
-          )
+        # Validate curated data size before export
+        tryCatch(
+          {
+            validate_excel_size(data_store$resolution_state, "Curated Data")
+          },
+          error = function(e) {
+            showNotification(
+              paste("Export blocked:", conditionMessage(e)),
+              type = "error",
+              duration = NULL
+            )
+            return()
+          }
         )
 
-        # Sheet 3: Column Tags
-        tags_df <- tibble::tibble(
-          Column = names(data_store$column_tags),
-          Type = unlist(data_store$column_tags)
+        # Build all 7 export sheets
+        sheets <- build_export_sheets(
+          raw = data_store$raw,
+          resolution_state = data_store$resolution_state,
+          consensus_summary = data_store$consensus_summary,
+          cleaning_audit = data_store$cleaning_audit,
+          reference_lists = data_store$reference_lists,
+          column_tags = data_store$column_tags,
+          detection = data_store$detection,
+          file_info = data_store$file_info
         )
 
-        # Write to Excel with multiple sheets
-        writexl::write_xlsx(
-          list(
-            "Curated Data" = export_data,
-            "Summary" = summary_df,
-            "Column Tags" = tags_df
-          ),
-          path = file
-        )
+        # Write to Excel
+        writexl::write_xlsx(sheets, path = file)
       }
     )
 
