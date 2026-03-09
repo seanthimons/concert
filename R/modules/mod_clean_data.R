@@ -95,7 +95,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
 
             incProgress(0.08, detail = "Converting unicode to ASCII...")
             df_before <- df
-            df <- dplyr::mutate(df, dplyr::across(where(is.character), clean_unicode_field))
+            df <- dplyr::mutate(df, dplyr::across(where(is.character), ComptoxR::clean_unicode))
             all_audits[[length(all_audits) + 1]] <- build_audit_trail(df_before, df, "unicode_to_ascii", function(f) paste0("Unicode to ASCII in ", f))
 
             incProgress(0.08, detail = "Trimming whitespace...")
