@@ -229,3 +229,45 @@ test_that("flag_reference_matches works across multiple name columns", {
   # solvent in product_name should be flagged
   expect_equal(result$cleaned_data$cleaning_flag[1], "WARN: functional category [exact]")
 })
+
+test_that("flag_reference_matches does NOT flag chemical names containing stop word substrings", {
+  df <- tibble::tibble(
+    chemical_name = c("Naphthalene", "Sodium bicarbonate", "acetone")
+  )
+
+  reference_list <- tibble::tibble(
+    term = c("na", "test", "sample"),
+    source = "stop_words",
+    active = TRUE
+  )
+
+  result <- flag_reference_matches(df, c("chemical_name"), reference_list, "blocking", "stop word")
+
+  # None should be flagged - "na" should not match inside "Naphthalene" or "Sodium"
+  expect_true(is.na(result$cleaned_data$cleaning_flag[1]) || result$cleaned_data$cleaning_flag[1] == "")
+  expect_true(is.na(result$cleaned_data$cleaning_flag[2]) || result$cleaned_data$cleaning_flag[2] == "")
+  expect_true(is.na(result$cleaned_data$cleaning_flag[3]) || result$cleaned_data$cleaning_flag[3] == "")
+})
+
+test_that("flag_reference_matches still flags whole-word stop words in longer text", {
+  df <- tibble::tibble(
+    chemical_name = c("test sample unknown", "na", "N/A")
+  )
+
+  reference_list <- tibble::tibble(
+    term = c("test", "na", "n/a", "unknown"),
+    source = "stop_words",
+    active = TRUE
+  )
+
+  result <- flag_reference_matches(df, c("chemical_name"), reference_list, "blocking", "stop word")
+
+  # "test sample unknown" should be flagged (contains standalone "test" word)
+  expect_equal(result$cleaned_data$cleaning_flag[1], "BLOCK: stop word [substring]")
+
+  # "na" should be flagged as exact match
+  expect_equal(result$cleaned_data$cleaning_flag[2], "BLOCK: stop word [exact]")
+
+  # "N/A" should be flagged as exact match for "n/a"
+  expect_equal(result$cleaned_data$cleaning_flag[3], "BLOCK: stop word [exact]")
+})
