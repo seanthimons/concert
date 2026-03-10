@@ -158,14 +158,15 @@ Plans:
 **Requirements**: POST-01, POST-02
 **Success Criteria** (what must be TRUE):
   1. **Smoke test**: App starts without error, post-curation QC integrates into Review Results without breaking existing UI
-  2. User can see resolved CAS-RNs from CompTox re-validated after curation, with any invalid CAS flagged in Review Results table
+  2. User can see resolved CAS-RNs validated (pre-curation by Phase 11 CAS pipeline + CompTox API server-side validation; no additional post-curation re-validation needed per user decision)
   3. User can see any remaining non-ASCII characters flagged in the final curated output as a QC check
   4. User can see post-curation QC results integrated into Review Results tab without requiring separate navigation
-**Plans**: 2 plans
+**Plans**: 3 plans
 
 Plans:
-- [ ] 15-01-PLAN.md — Replace clean_unicode_field() with ComptoxR::clean_unicode(), create perform_unicode_qc() function and tests
-- [ ] 15-02-PLAN.md — UI integration: QC value boxes, DT flags, summary card, re-run button in Review Results + auto-run wiring
+- [x] 15-01-PLAN.md — Replace clean_unicode_field() with ComptoxR::clean_unicode(), create perform_unicode_qc() function and tests (completed 2026-03-09, 627s)
+- [x] 15-02-PLAN.md — UI integration: QC value boxes, DT flags, summary card, re-run button in Review Results + auto-run wiring (completed 2026-03-09, 322s)
+- [ ] 15-03-PLAN.md — Gap closure: fix icon crash on Re-run QC button, document POST-01 coverage by existing pipeline
 
 ## Progress
 
