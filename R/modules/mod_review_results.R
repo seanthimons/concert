@@ -91,7 +91,7 @@ mod_review_results_ui <- function(id) {
           actionButton(
             ns("rerun_qc"),
             "Re-run QC",
-            icon = bsicons::bs_icon("arrow-repeat"),
+            icon = icon("arrows-rotate"),
             class = "btn-sm btn-outline-secondary"
           ),
           downloadButton(
