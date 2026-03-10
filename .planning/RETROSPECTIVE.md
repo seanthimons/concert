@@ -2,6 +2,44 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
+## Milestone: v1.4 — Cleaning Pipeline Fixes
+
+**Shipped:** 2026-03-10
+**Phases:** 1 | **Plans:** 2 | **Sessions:** 1
+
+### What Was Built
+- Fixed bare formula detection false positives using consecutive-lowercase and abbreviation heuristics
+- Fixed stop word substring matching with word boundary wrapping (`\b`)
+- Protected letter-comma-letter IUPAC patterns (N,N- O,O- S,S-) from synonym splitting
+- Created 42-assertion end-to-end validation test suite confirming all three fixes through full pipeline
+
+### What Worked
+- Single-phase milestone with clear scope — all 7 requirements targeted the same file, completed in one session
+- Wave-based execution (fixes first, validation second) ensured tests could exercise the actual fixes
+- Heuristic approach (consecutive lowercase) was simpler and more maintainable than trying to perfect the regex
+- Reusing existing @@@ placeholder pattern for letter-comma-letter kept the codebase consistent
+- All 241 tests passed with zero regressions — existing test suite provided confidence
+
+### What Was Inefficient
+- Nothing notable — this was a clean, focused bug fix milestone with no rework
+
+### Patterns Established
+- Heuristic pre-checks before regex validation (filter obvious non-matches before expensive checks)
+- Word boundary wrapping for substring matching safety
+- Extending placeholder protection patterns to new character classes (letters, not just digits)
+
+### Key Lessons
+1. **Small, focused milestones execute cleanly** — 1 phase, 2 plans, 7 requirements, done in one session. No scope creep, no rework.
+2. **Heuristics beat perfection** — Instead of perfecting a regex to distinguish formulas from names, adding pre-checks that filter obvious non-formulas was simpler and more maintainable.
+3. **Existing test suites are safety nets** — 199 existing tests catching regressions meant each fix could be verified immediately.
+
+### Cost Observations
+- Model mix: sonnet for execution/verification, opus for orchestration
+- Sessions: 1 (execute + UAT + audit + complete in single session)
+- Notable: Total execution time ~24 minutes for both plans (913s + 551s). Fastest milestone to date.
+
+---
+
 ## Milestone: v1.3 — Data Cleaning Pipeline
 
 **Shipped:** 2026-03-10
@@ -190,6 +228,7 @@
 | v1.1 | ~4 | 3 | 6 | Added TDD, prototype-first approach, UAT verification |
 | v1.2 | ~5 | 3 | 6 | UAT-driven bugfixing, JS modal workarounds, helper extraction |
 | v1.3 | ~8 | 7 | 15 | Modularization, smoke tests, 12-step pipeline, milestone auditing |
+| v1.4 | 1 | 1 | 2 | Focused bug fix milestone, heuristic pre-checks, fastest completion |
 
 ### Top Lessons (Verified Across Milestones)
 
@@ -198,3 +237,4 @@
 3. **UAT and smoke tests reveal what unit tests miss** — All milestones found issues during testing that specs didn't anticipate. v1.3 added mandatory smoke tests.
 4. **Check for shadowing before debugging logic** — v1.2 auto-sourcing order, v1.3 icon library confusion. The problem is often environmental, not logical.
 5. **Run verification for every phase** — v1.3 Phase 12 skipped verification; caught only by milestone audit. No exceptions.
+6. **Small milestones execute fastest** — v1.4 completed in a single session with zero rework. Tight scope eliminates coordination overhead.
