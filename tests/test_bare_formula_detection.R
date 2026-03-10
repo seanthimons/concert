@@ -146,3 +146,56 @@ test_that("detect_bare_formulas works across multiple name columns", {
   expect_equal(result$cleaned_data$chemical_name[2], "acetone")
   expect_equal(result$cleaned_data$product_name[1], "ethanol")
 })
+
+test_that("detect_bare_formulas does NOT flag valid chemical names as formulas", {
+  df <- tibble::tibble(
+    chemical_name = c("Naphthalene", "Sodium chloride", "Ethanol", "Methanol")
+  )
+
+  result <- detect_bare_formulas(df, c("chemical_name"))
+
+  # None of these should be blocked (they are real chemical names, not bare formulas)
+  expect_equal(result$cleaned_data$chemical_name[1], "Naphthalene")
+  expect_equal(result$cleaned_data$chemical_name[2], "Sodium chloride")
+  expect_equal(result$cleaned_data$chemical_name[3], "Ethanol")
+  expect_equal(result$cleaned_data$chemical_name[4], "Methanol")
+
+  # No blocking flags
+  expect_true(all(is.na(result$cleaned_data$cleaning_flag) | result$cleaned_data$cleaning_flag != "BLOCK: bare formula"))
+})
+
+test_that("detect_bare_formulas does NOT flag abbreviations as formulas", {
+  df <- tibble::tibble(
+    chemical_name = c("DEHP", "PFOA", "DDT", "PCB")
+  )
+
+  result <- detect_bare_formulas(df, c("chemical_name"))
+
+  # Abbreviations should NOT be blocked (all uppercase, no lowercase element symbols)
+  expect_equal(result$cleaned_data$chemical_name[1], "DEHP")
+  expect_equal(result$cleaned_data$chemical_name[2], "PFOA")
+  expect_equal(result$cleaned_data$chemical_name[3], "DDT")
+  expect_equal(result$cleaned_data$chemical_name[4], "PCB")
+
+  # No blocking flags
+  expect_true(all(is.na(result$cleaned_data$cleaning_flag) | result$cleaned_data$cleaning_flag != "BLOCK: bare formula"))
+})
+
+test_that("detect_bare_formulas still correctly identifies true bare formulas after fix", {
+  df <- tibble::tibble(
+    chemical_name = c("C10H22", "NaCl", "CaCl2", "H2O")
+  )
+
+  result <- detect_bare_formulas(df, c("chemical_name"))
+
+  # All of these SHOULD be blocked (true bare formulas)
+  expect_true(is.na(result$cleaned_data$chemical_name[1]))
+  expect_true(is.na(result$cleaned_data$chemical_name[2]))
+  expect_true(is.na(result$cleaned_data$chemical_name[3]))
+  expect_true(is.na(result$cleaned_data$chemical_name[4]))
+
+  expect_equal(result$cleaned_data$cleaning_flag[1], "BLOCK: bare formula")
+  expect_equal(result$cleaned_data$cleaning_flag[2], "BLOCK: bare formula")
+  expect_equal(result$cleaned_data$cleaning_flag[3], "BLOCK: bare formula")
+  expect_equal(result$cleaned_data$cleaning_flag[4], "BLOCK: bare formula")
+})

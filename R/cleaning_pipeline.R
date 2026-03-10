@@ -900,8 +900,25 @@ detect_bare_formulas <- function(df, name_cols) {
         stringr::str_remove_all("\\s+") %>%
         stringr::str_remove_all("\\.")
 
+      # Heuristic pre-check: real formulas never contain 2+ consecutive lowercase letters
+      # "NaCl" has only single lowercase chars; "Naphthalene" has "aphthalene"
+      # This prevents false positives from chemical names that look like element sequences
+      has_word_pattern <- stringr::str_detect(original_value, "[a-z]{2}")
+
+      # Additional heuristic: pure uppercase with no digits is almost always an abbreviation, not a formula
+      # Real formulas have numbers (C10H22, CaCl2) or mixed case (NaCl, CuSO4)
+      # Abbreviations are all uppercase letters (DEHP, PFOA, PCB, DDT)
+      is_all_uppercase_no_digits <- stringr::str_detect(original_value, "^[A-Z]+$")
+
       # Test if the ENTIRE cleaned string matches the validator regex
-      is_bare_formula <- stringr::str_detect(cleaned_for_test, paste0("^", validator_regex, "$"))
+      # Skip the regex check if:
+      # 1. It looks like a word (has 2+ consecutive lowercase letters), OR
+      # 2. It's all uppercase with no digits (abbreviation)
+      is_bare_formula <- if (has_word_pattern || is_all_uppercase_no_digits) {
+        FALSE
+      } else {
+        stringr::str_detect(cleaned_for_test, paste0("^", validator_regex, "$"))
+      }
 
       if (is_bare_formula) {
         # Block this row
