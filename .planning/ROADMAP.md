@@ -1,52 +1,51 @@
-# Roadmap: ChemReg
+# Roadmap: ChemReg v1.4
 
-## Milestones
+**Milestone:** v1.4 Cleaning Pipeline Fixes
+**Created:** 2026-03-10
+**Granularity:** Coarse
+**Coverage:** 7/7 requirements mapped
+
+## Phases
+
+- [ ] **Phase 16: Cleaning Pipeline Bug Fixes** - Fix formula detection, stop word matching, and synonym splitting false positives
+
+## Phase Details
+
+### Phase 16: Cleaning Pipeline Bug Fixes
+**Goal:** Cleaning pipeline correctly distinguishes valid chemical names from formulas, uses whole-word stop word matching, and protects letter-comma-letter IUPAC patterns
+
+**Depends on:** Nothing (standalone bug fixes)
+
+**Requirements:** FORM-01, FORM-02, STOP-01, STOP-02, SPLIT-01, SPLIT-02, VAL-01
+
+**Success Criteria** (what must be TRUE):
+1. Valid chemical names like "Naphthalene" and "Sodium chloride" are not falsely flagged as bare formulas
+2. Actual bare formulas like "C10H22" and "CaCl2" are still detected and blocked correctly
+3. Chemical names containing stop word substrings ("Naphthalene" with "na", "Sodium bicarbonate" with "na") are not flagged
+4. IUPAC patterns like "N,N-Dimethylformamide" are not split at the comma
+5. Normal comma/semicolon-separated synonym lists still split correctly
+6. Validation test script confirms all three fixes against known-good and known-bad cases
+
+**Plans:** TBD
+
+---
+
+## Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 16. Cleaning Pipeline Bug Fixes | 0/? | Not started | - |
+
+---
+
+## Historical Milestones
 
 - ✅ **v1.0 Curation UI Iteration** - Phases 1-2 (shipped 2026-02-27)
 - ✅ **v1.1 Curation Process Update** - Phases 3-5 (shipped 2026-03-01)
 - ✅ **v1.2 Curation Refinement** - Phases 6-8 (shipped 2026-03-03)
 - ✅ **v1.3 Data Cleaning Pipeline** - Phases 9-15 (shipped 2026-03-10)
 
-## Phases
-
-<details>
-<summary>✅ v1.0 Curation UI Iteration (Phases 1-2) - SHIPPED 2026-02-27</summary>
-
-- [x] Phase 1: Multi-Tab Structure (1/1 plans) - completed 2026-02-26
-- [x] Phase 2: Gated Navigation (1/1 plans) - completed 2026-02-26
-
-</details>
-
-<details>
-<summary>✅ v1.1 Curation Process Update (Phases 3-5) - SHIPPED 2026-03-01</summary>
-
-- [x] Phase 3: Prototype Pipeline (2/2 plans) - completed 2026-03-01
-- [x] Phase 4: Consensus Logic (2/2 plans) - completed 2026-03-01
-- [x] Phase 5: Shiny Integration (2/2 plans) - completed 2026-03-01
-
-</details>
-
-<details>
-<summary>✅ v1.2 Curation Refinement (Phases 6-8) - SHIPPED 2026-03-03</summary>
-
-- [x] Phase 6: Search Pipeline Refinement (2/2 plans) - completed 2026-03-01
-- [x] Phase 7: UI Polish (1/1 plan) - completed 2026-03-01
-- [x] Phase 8: Error Recovery Workflows (3/3 plans) - completed 2026-03-03
-
-</details>
-
-<details>
-<summary>✅ v1.3 Data Cleaning Pipeline (Phases 9-15) - SHIPPED 2026-03-10</summary>
-
-- [x] Phase 9: Modularization (2/2 plans) - completed 2026-03-04
-- [x] Phase 10: Foundation & Clean Data Tab (2/2 plans) - completed 2026-03-05
-- [x] Phase 11: CAS Pipeline (2/2 plans) - completed 2026-03-06
-- [x] Phase 12: Name Cleaning (2/2 plans) - completed 2026-03-06
-- [x] Phase 13: Reference Filters & Editable Lists (2/2 plans) - completed 2026-03-07
-- [x] Phase 14: Multi-Sheet Export & Re-Import (2/2 plans) - completed 2026-03-09
-- [x] Phase 15: Post-Curation QC (3/3 plans) - completed 2026-03-10
-
-</details>
-
 ---
-*Last updated: 2026-03-10 after v1.3 milestone completion*
+
+*Roadmap created: 2026-03-10*
+*Last updated: 2026-03-10*
