@@ -44,7 +44,7 @@ Requirements for v1.3 Data Cleaning Pipeline. Each maps to roadmap phases.
 
 ### Clean Data Tab & UX (UIUX)
 
-- [ ] **UIUX-01**: User can access a "Clean Data" tab between Data Preview and Tag Columns in the gated workflow
+- [x] **UIUX-01**: User can access a "Clean Data" tab between Data Preview and Tag Columns in the gated workflow
 - [x] **UIUX-02**: User can see summary cards showing cleaning statistics (CAS rescued, formulas detected, synonyms split, rows flagged, etc.) ✅ 11-02
 - [x] **UIUX-03**: User can see before/after data comparison showing cleaning transformations applied to their data
 - [x] **UIUX-04**: User can run cleaning pipeline with step-by-step progress indicator ✅ 11-02
@@ -98,7 +98,7 @@ Deferred to future releases. Tracked but not in current roadmap.
 | INFRA-02 | Phase 10 | Complete |
 | INFRA-03 | Phase 10 | Complete |
 | INFRA-04 | Phase 10 | Complete |
-| UIUX-01 | Phase 10 | Pending |
+| UIUX-01 | Phase 10 | Complete |
 | CAS-01 | Phase 11 | Complete (11-01) |
 | CAS-02 | Phase 11 | Complete (11-01) |
 | CAS-03 | Phase 11 | Complete (11-01) |
