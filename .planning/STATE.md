@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.4
-milestone_name: "Cleaning Pipeline Fixes"
-status: roadmap_created
-stopped_at: null
-last_updated: "2026-03-10T21:00:00Z"
-last_activity: "2026-03-10 — Roadmap created for v1.4"
+milestone_name: milestone
+current_phase: "- Plans: TBD"
+status: planning
+last_updated: "2026-03-10T16:42:31.607Z"
 progress:
   total_phases: 1
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 2
+  completed_plans: 1
+  percent: 50
 ---
 
 # Project State: ChemReg v1.4
@@ -33,9 +32,9 @@ progress:
 ## Current Position
 
 **Phase:** 16 - Cleaning Pipeline Bug Fixes
-**Plan:** None (roadmap just created)
-**Status:** Not started
-**Progress:** ░░░░░░░░░░ 0% (0/7 requirements satisfied)
+**Plan:** 01 (completed) / 02 (next)
+**Status:** In Progress (50% complete)
+**Progress:** [█████░░░░░] 50% (1/2 plans completed, 6/7 requirements satisfied)
 
 ---
 
@@ -69,6 +68,15 @@ progress:
 |------|----------|-----------|
 | 2026-03-10 | Single phase for all bug fixes | All 7 requirements target same 2 files (cleaning_pipeline.R, cleaning_reference.R); no natural decomposition boundary |
 | 2026-03-10 | Coarse granularity maintained | Small bug fix milestone, no need for fine-grained phases |
+| 2026-03-10 | Use consecutive-lowercase heuristic to distinguish chemical names from formulas | Simpler than perfecting regex; filters obvious non-formulas before validation |
+| 2026-03-10 | Apply word boundaries to stop word substring matching | Prevents "na" from matching inside "Naphthalene"; maintains whole-word detection |
+| 2026-03-10 | Reuse @@@ placeholder for letter-comma-letter IUPAC patterns | Consistent with existing digit-comma-digit protection; same restore logic |
+
+**Execution Metrics:**
+
+| Phase | Plan | Duration (s) | Tasks | Files |
+|-------|------|--------------|-------|-------|
+| 16 | 01 | 913 | 3 | 4 |
 
 ### Known Issues / Blockers
 
@@ -96,16 +104,17 @@ progress:
 
 ### What Just Happened
 
-Roadmap created for v1.4 Cleaning Pipeline Fixes milestone:
-- Phase 16 defined with 6 success criteria covering all 7 requirements
-- All requirements mapped to Phase 16
-- 100% coverage validated
-- Files written: ROADMAP.md, STATE.md
-- REQUIREMENTS.md traceability already has Phase 16 mappings
+Completed Phase 16 Plan 01: Cleaning Pipeline Bug Fixes
+- Fixed three false positive bugs in cleaning pipeline
+- All 199 tests pass (57 + 37 + 105) with zero failures
+- 3 commits created: e11e2d2, 3247f4d, 1fde620
+- 6/7 requirements satisfied (FORM-01, FORM-02, STOP-01, STOP-02, SPLIT-01, SPLIT-02)
+- Files modified: R/cleaning_pipeline.R, 3 test files
+- SUMMARY.md created: .planning/phases/16-cleaning-pipeline-bug-fixes/16-01-SUMMARY.md
 
 ### Next Action
 
-Run `/gsd:plan-phase 16` to decompose Phase 16 into executable plans.
+Execute Phase 16 Plan 02: Validation Error Message Improvements (VAL-01)
 
 ### Context for Next Session
 

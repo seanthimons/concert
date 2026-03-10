@@ -9,18 +9,18 @@ Requirements for Cleaning Pipeline Fixes. Each maps to roadmap phases.
 
 ### Formula Detection
 
-- [ ] **FORM-01**: Valid chemical names (e.g., Naphthalene, Sodium chloride) are not falsely flagged as bare formulas
-- [ ] **FORM-02**: Actual bare formulas (e.g., C10H22, NaCl, CaCl2) are still correctly detected and blocked
+- [x] **FORM-01**: Valid chemical names (e.g., Naphthalene, Sodium chloride) are not falsely flagged as bare formulas
+- [x] **FORM-02**: Actual bare formulas (e.g., C10H22, NaCl, CaCl2) are still correctly detected and blocked
 
 ### Stop Word Matching
 
-- [ ] **STOP-01**: Stop word matching uses whole-word or exact matching, not substring
-- [ ] **STOP-02**: Legitimate chemical names containing stop word substrings (e.g., "Naphthalene", "Sodium bicarbonate") are not flagged
+- [x] **STOP-01**: Stop word matching uses whole-word or exact matching, not substring
+- [x] **STOP-02**: Legitimate chemical names containing stop word substrings (e.g., "Naphthalene", "Sodium bicarbonate") are not flagged
 
 ### Synonym Splitting
 
-- [ ] **SPLIT-01**: Letter-comma-letter IUPAC patterns (N,N- O,O- S,S-) are protected from splitting
-- [ ] **SPLIT-02**: Normal comma/semicolon-separated synonyms still split correctly
+- [x] **SPLIT-01**: Letter-comma-letter IUPAC patterns (N,N- O,O- S,S-) are protected from splitting
+- [x] **SPLIT-02**: Normal comma/semicolon-separated synonyms still split correctly
 
 ### Validation
 
@@ -43,12 +43,12 @@ None — this is a bug fix milestone.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FORM-01 | Phase 16 | Pending |
-| FORM-02 | Phase 16 | Pending |
-| STOP-01 | Phase 16 | Pending |
-| STOP-02 | Phase 16 | Pending |
-| SPLIT-01 | Phase 16 | Pending |
-| SPLIT-02 | Phase 16 | Pending |
+| FORM-01 | Phase 16 | Complete |
+| FORM-02 | Phase 16 | Complete |
+| STOP-01 | Phase 16 | Complete |
+| STOP-02 | Phase 16 | Complete |
+| SPLIT-01 | Phase 16 | Complete |
+| SPLIT-02 | Phase 16 | Complete |
 | VAL-01 | Phase 16 | Pending |
 
 **Coverage:**

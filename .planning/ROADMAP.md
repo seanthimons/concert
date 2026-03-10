@@ -26,7 +26,7 @@
 5. Normal comma/semicolon-separated synonym lists still split correctly
 6. Validation test script confirms all three fixes against known-good and known-bad cases
 
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 16-01-PLAN.md — Fix three false positive bugs (formula detection, stop word matching, IUPAC splitting)
@@ -38,7 +38,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 16. Cleaning Pipeline Bug Fixes | 0/2 | Planned | - |
+| 16. Cleaning Pipeline Bug Fixes | 1/2 | In Progress|  |
 
 ---
 
