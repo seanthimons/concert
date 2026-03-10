@@ -2,11 +2,11 @@
 
 ## What This Is
 
-A Shiny application for uploading, cleaning, and validating chemical inventory data with intelligent frontmatter detection and DTXSID-based consensus curation. Users upload messy CSV/XLSX files, the app detects where actual data begins, then provides tools to tag columns and curate chemical identifiers against EPA's CompTox Dashboard via tiered search (exact, starts-with, CAS validation). Results are classified by consensus across tagged columns with per-row and en masse conflict resolution.
+A Shiny application for uploading, cleaning, and validating chemical inventory data with intelligent frontmatter detection, a 12-step pre-curation cleaning pipeline, DTXSID-based consensus curation, and post-curation QC. Users upload messy CSV/XLSX files, the app detects where actual data begins, cleans CAS numbers and chemical names, flags reference matches, then curates chemical identifiers against EPA's CompTox Dashboard via tiered search. Results are classified by consensus with per-row conflict resolution, exported as 7-sheet audit workbooks, and can be re-imported to restore state.
 
 ## Core Value
 
-Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, tag, curate, resolve, export.
+Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
 
 ## Requirements
 
@@ -43,28 +43,23 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - ✓ Manual DTXSID entry with bulk validation — v1.2
 - ✓ Error row retry: filter → re-tag → re-curate → merge-back — v1.2
 - ✓ Unresolvable status and Excel export needs_review flagging — v1.2
-- ✓ CAS placeholder detection (no cas, n/a, proprietary) set to NA with audit — v1.3 Phase 11
-- ✓ CAS-RN normalization to NNN-NN-N format with checksum validation — v1.3 Phase 11
-- ✓ CAS-RN extraction from non-CASRN columns with auto-tagging — v1.3 Phase 11
-- ✓ Multi-CAS row flagging with user-initiated split — v1.3 Phase 11
-- ✓ Value box dashboard for cleaning statistics — v1.3 Phase 11
-- ✓ Step-by-step progress indicator for cleaning pipeline — v1.3 Phase 11
+- ✓ Shiny modules for all tabs (app.R orchestration-only) — v1.3 Phase 9
+- ✓ Per-row audit trail for all cleaning transformations — v1.3 Phase 10
+- ✓ Reference list loaders with ComptoxR seeding and local RDS caching — v1.3 Phase 10
+- ✓ Unicode-to-ASCII cleaning via ComptoxR::clean_unicode (157 chemistry mappings) — v1.3 Phase 10/15
+- ✓ Clean Data tab with gated workflow between Data Preview and Tag Columns — v1.3 Phase 10
+- ✓ CAS placeholder detection, normalization, rescue from names, multi-CAS flagging — v1.3 Phase 11
+- ✓ Value box dashboard and step-by-step progress for cleaning pipeline — v1.3 Phase 11
+- ✓ Name cleaning: parenthetical stripping, synonym splitting with IUPAC protection, quality adjective removal — v1.3 Phase 12
+- ✓ Provenance-tracked reference lists with blocking/warning flag system — v1.3 Phase 13
+- ✓ In-app reference list editors with re-run cascade — v1.3 Phase 13
+- ✓ 7-sheet Excel export with audit trail, reference lists, and pipeline config — v1.3 Phase 14
+- ✓ Re-import detection with selective config restore — v1.3 Phase 14
+- ✓ Post-curation QC: unicode detection and CAS re-validation — v1.3 Phase 15
 
 ### Active
 
-#### Current Milestone: v1.3 Data Cleaning Pipeline
-
-**Goal:** Add a staged pre- and post-curation cleaning pipeline with interactive UI, editable reference lists, smart multi-sheet Excel export, and re-import detection.
-
-**Target features:**
-- Pre-curation cleaning pipeline (unicode, string canonicalization, CAS pipeline, name cleaning, reference data filters)
-- New "Clean Data" tab between Data Preview and Tag Columns
-- Editable reference lists (stop words, block lists, functional categories, food names) — configurable before and after cleaning, with re-run
-- Per-flag-type curation behavior (blocking vs annotating flags)
-- Audit trail per row (comment columns tracking every transformation)
-- Post-curation QC (CAS re-validation, unicode check, functional use enrichment, safety flags)
-- Multi-sheet Excel export carrying data, audit trail, reference list state, flags, and pipeline config
-- Re-import detection: recognize ChemReg exports and hot-load embedded state
+(No active milestone — planning next)
 
 ### Out of Scope
 
@@ -75,33 +70,38 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - Session persistence across browser refresh — high complexity, defer to future
 - Contains search tier — too fuzzy, may produce unreliable matches
 - CompToxR wrapper functions — CompToxR functions already vectorized, call directly
+- Drag-and-drop pipeline builder — high complexity, low ROI; fixed pipeline with reference list editing is sufficient
+- Real-time cleaning as-you-type — confusing UX; explicit "Run Cleaning" button preferred
+- AI/ML-powered cleaning — opaque audit trail, chemical names too domain-specific
+- Cell-by-cell manual editing in cleaning tab — doesn't scale; batch operations preferred
 
 ## Context
 
-Shipped v1.2 Curation Refinement with 4,109 LOC R across 5 files.
-Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, writexl.
+Shipped v1.3 Data Cleaning Pipeline with 14,548 LOC R across 18 files.
+Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, openxlsx2, rhandsontable.
 
-The app has 6 top-level tabs: Data Preview, Detection Info, Raw Data, Tag Columns, Run Curation, Review Results. On startup only Upload (sidebar) is visible; tabs appear progressively as the user advances through the workflow.
+The app has 8 top-level tabs: Data Preview, Detection Info, Raw Data, Clean Data, Tag Columns, Run Curation, Review Results, plus sidebar upload and config import. On startup only Upload is visible; tabs appear progressively as the user advances.
 
 Key files:
-- `app.R` — main UI/server definition (2,275 lines)
-- `R/curation.R` — self-contained pipeline orchestrator (954 lines)
-- `R/consensus.R` — consensus classification and resolution functions (257 lines)
+- `app.R` — orchestration-only UI/server (203 lines)
+- `R/modules/` — 8 Shiny modules (mod_upload, mod_data_preview, mod_detection_info, mod_raw_data, mod_clean_data, mod_tag_columns, mod_run_curation, mod_review_results)
+- `R/curation.R` — curation pipeline orchestrator (954 lines)
+- `R/consensus.R` — consensus classification and resolution (257 lines)
+- `R/cleaning_pipeline.R` — 12-step pre-curation cleaning pipeline
+- `R/cleaning_reference.R` — reference list loaders with provenance tracking
 - `R/file_handlers.R` — file reading/validation (218 lines)
 - `R/data_detection.R` — frontmatter detection algorithms (405 lines)
 
-New files planned for v1.3:
-- `R/pre_curation.R` — all pre-curation cleaning and flagging functions
-- `R/post_curation.R` — post-curation QC checks and audit trail export
-- `R/cleaning_reference.R` — reference data loaders (stop words, block lists, functional categories)
-
-Detailed plan: `PRE_POST_CURATION_PLAN.md` (function mapping from Python clean_chems.py, ComptoxR equivalents, pipeline order, test dataset coverage).
-Test dataset extended to 172 records covering all pre-curation edge cases (`data/chemical_validation_test.csv`).
+Known tech debt carried forward:
+- Resolution dropdown context could be richer (carried from v1.2)
+- Review Results table column visibility could be improved (carried from v1.2)
+- SUMMARY frontmatter `requirements_completed` field missing from most phases
+- Nyquist compliance partial across all v1.3 phases
 
 ## Constraints
 
 - **Tech stack**: R/Shiny with bslib, must stay within existing package ecosystem
-- **No new dependencies**: Use existing bslib tab/navigation primitives
+- **No new dependencies**: Use existing bslib tab/navigation primitives (openxlsx2 and rhandsontable added in v1.3)
 - **Backward compatible**: Upload → detection → preview flow must remain untouched
 - **API key**: ComptoxR requires `ctx_api_key` environment variable
 
@@ -112,29 +112,24 @@ Test dataset extended to 172 records covering all pre-curation edge cases (`data
 | Top-level tabs over sub-tabs | More visible workflow steps, consistent with existing tab pattern | ✓ Good |
 | Gated flow over free access | Enforces correct order, prevents confusion from empty states | ✓ Good |
 | Dropdown tagging over drag-and-drop | Simplest, familiar, minimal implementation effort | ✓ Good |
-| nav_panel + session$onFlushed hide over nav_panel_hidden | nav_panel_hidden lacks title param; startup hide preserves titles | ✓ Good |
+| nav_panel + session$onFlushed hide | nav_panel_hidden lacks title param; startup hide preserves titles | ✓ Good |
 | Cascade reset on tag changes | Strict invalidation prevents stale curation results | ✓ Good |
 | Confirmation modal on re-upload | Prevents accidental data loss; easyClose=FALSE forces explicit choice | ✓ Good |
 | Prototype script before Shiny integration | Prove pipeline logic works in isolation before wiring into reactive app | ✓ Good — v1.1 |
-| Tiered search (equal → starts-with) | Maximizes match rate while keeping exact matches highest confidence | ✓ Good — v1.1 |
+| Tiered search (exact → CAS → starts-with) | Maximizes match rate while keeping exact matches highest confidence | ✓ Good — v1.1/v1.2 |
 | DTXSID as consensus key | Universal identifier from CompTox; most reliable cross-column comparison | ✓ Good — v1.1 |
-| Migrate pipeline into R/curation.R | Self-contained module, prototype kept as historical reference | ✓ Good — v1.1 |
-| withProgress() for pipeline UX | Built-in Shiny progress with per-tier callbacks | ✓ Good — v1.1 |
-| DT inline select for resolution | escape=FALSE + JS callback for immediate resolution UX | ✓ Good — v1.1 |
-| TDD for pipeline and consensus functions | Tests written first, ensuring reliable functions before Shiny integration | ✓ Good — v1.1 |
-| Direct CompToxR calls (no wrappers) | CompToxR functions already vectorized and optimized | ✓ Good — v1.1 |
-| Tier reorder: exact → CAS → starts-with | CAS validation before fuzzy search increases precision | ✓ Good — v1.2 |
-| 3-char minimum on starts-with | Reduces API noise from short strings | ✓ Good — v1.2 |
-| Other tags as full tier chain participants | Enables curation of arbitrary identifier columns | ✓ Good — v1.2 |
-| match_type derived in app.R not curation.R | Keeps UI transformations in UI layer | ✓ Good — v1.2 |
-| JS-triggered modal buttons over actionButton | Shiny actionButton in modals fails to re-register on reopen | ✓ Good — v1.2 |
-| Vector indexing over dplyr joins in mapping | Prevents row duplication from many-to-many joins | ✓ Good — v1.2 |
-| Unresolvable = error before AND after retry | Distinguishes first-attempt failures from exhausted retries | ✓ Good — v1.2 |
-| Queue-then-validate for manual DTXSIDs | Batch API calls reduce overhead vs per-cell validation | ✓ Good — v1.2 |
-| WIDE data shape for multi-CAS | New columns (cas_extract_*) not new rows; validated against EPA scripts | ✓ Good — v1.3 |
-| Tab reorder: Tag → Clean | CAS pipeline needs column type info from tagging first | ✓ Good — v1.3 |
-| ComptoxR direct for CAS ops | as_cas, extract_cas used directly — no custom implementations | ✓ Good — v1.3 |
-| Value boxes over text alerts | Unified visual language for cleaning statistics dashboard | ✓ Good — v1.3 |
+| DT escape=FALSE + JS Shiny.setInputValue | Reliable modal buttons and inline interactive controls | ✓ Good — v1.2 |
+| Modularization before cleaning pipeline | Prevented app.R from crossing 3,000 lines | ✓ Good — v1.3 |
+| INTERLEAVED phase structure | Pipeline + UI built together per phase, not separated | ✓ Good — v1.3 |
+| ComptoxR direct usage | as_cas, extract_cas, clean_unicode used directly — no custom implementations | ✓ Good — v1.3 |
+| WIDE data shape for CAS operations | New columns not new rows; validated against EPA production scripts | ✓ Good — v1.3 |
+| IUPAC comma protection via placeholders | @@@/%%% placeholders protect digit-comma-digit and inverted names during synonym split | ✓ Good — v1.3 |
+| Two-pass enclosure stripping | Text cleaning exposes previously non-terminal enclosures; second pass catches them | ✓ Good — v1.3 |
+| Provenance-tracked reference lists | (term, source, active) tibble format with soft delete and import merge | ✓ Good — v1.3 |
+| Blocking vs warning flag taxonomy | Red blocking flags prevent curation; yellow warnings annotate only | ✓ Good — v1.3 |
+| 7-sheet Excel export | Data + audit + refs + config in one file serves as both audit doc and re-entry point | ✓ Good — v1.3 |
+| Post-curation QC advisory-only | QC warnings don't gate export; user decides what to act on | ✓ Good — v1.3 |
+| icon() wrapper for actionButton icons | bsicons::bs_icon() fails Shiny's validateIcon(); icon() wrapper works | ✓ Good — v1.3 |
 
 ---
-*Last updated: 2026-03-06 after Phase 11 (CAS Pipeline)*
+*Last updated: 2026-03-10 after v1.3 milestone*

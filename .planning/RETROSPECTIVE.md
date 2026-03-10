@@ -2,6 +2,61 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
+## Milestone: v1.3 — Data Cleaning Pipeline
+
+**Shipped:** 2026-03-10
+**Phases:** 7 | **Plans:** 15 | **Sessions:** ~8
+
+### What Was Built
+- Extracted 7 Shiny modules from monolithic app.R (2,276 → 203 lines)
+- 12-step cleaning pipeline: unicode, whitespace/punctuation, CAS normalization, CAS rescue, multi-CAS detection, parenthetical stripping, quality adjective removal, salt reference removal, unspecified suffix removal, two-pass enclosure stripping, synonym splitting, empty row cleanup
+- IUPAC-aware synonym splitting with placeholder-based comma protection
+- Provenance-tracked reference lists (ComptoxR-seeded + user-editable) with blocking/warning flag taxonomy
+- 7-sheet Excel export with re-import detection and selective config restore
+- Post-curation QC with ComptoxR's 157 chemistry-specific unicode mappings
+- Value box dashboard, step-by-step progress, and audit trail accordion
+
+### What Worked
+- Modularization-first approach (Phase 9) prevented app.R from becoming unmaintainable — all subsequent phases built cleanly on module architecture
+- INTERLEAVED phase structure (pipeline + UI per phase) kept each phase self-contained and testable
+- TDD continued to pay off — 95 name cleaning tests, 65 CAS tests, 40 pipeline tests caught regressions early
+- ComptoxR direct usage eliminated custom implementation overhead for CAS operations and unicode cleaning
+- Two-pass enclosure stripping pattern (discovered during Phase 12 testing) elegantly handled edge cases
+- Smoke test requirement (added after Phase 10 icon crash) caught startup issues before UAT
+
+### What Was Inefficient
+- ROADMAP checkboxes STILL lagged behind completion (Phase 9 and 12 unchecked at audit time) — 4th milestone with this issue
+- Phase 12 verification never formally run — caught only by milestone audit
+- bsicons icon name assumptions caused Phase 10 and Phase 15 crashes (`bs_icon("broom")` and `bs_icon("arrow-clockwise")` don't exist) — unit tests don't catch icon-level failures
+- Plan 14-01 had to be merged inline with 14-02 as a deviation because the TDD structure didn't fit the export builder pattern
+- SUMMARY frontmatter `requirements_completed` field only added to 3 of 15 summaries — inconsistent metadata
+
+### Patterns Established
+- Shiny module architecture: `mod_{name}_ui()` / `mod_{name}_server()` with NS namespacing
+- `data_store` reactiveValues with single-writer pattern (upload module owns writes)
+- Navigation callbacks as function parameters (`on_tags_applied`, `on_curation_complete`)
+- Value box dashboard pattern for cleaning statistics
+- `incProgress()` between inline pipeline steps for granular progress
+- Placeholder-based protection (`@@@`, `%%%`) for IUPAC comma patterns in synonym splitting
+- `icon()` wrapper instead of `bsicons::bs_icon()` for actionButton icons (Shiny's validateIcon check)
+- Provenance tibble format `(term, source, active)` for reference list tracking
+- Two-stage ChemReg export detection (sheet presence → marker validation)
+- Smoke test as mandatory post-UI-change verification step
+
+### Key Lessons
+1. **Always smoke test after UI changes** — unit tests don't catch missing icons, broken module wiring, or source() failures. Phase 10 and 15 both crashed at startup despite all tests passing.
+2. **Verify icon names exist in the specific library** — bsicons has a different icon set than fontawesome. Check before using.
+3. **Run formal verification for every phase** — Phase 12 skipped verification and it became a milestone audit gap.
+4. **Traceability automation is overdue** — 4 milestones of manual checkbox tracking with consistent lag. Consider automating checkbox updates at plan completion.
+5. **Two-pass patterns emerge from testing** — the enclosure stripping two-pass pattern wasn't in the plan but emerged naturally from edge case testing. Let tests drive design.
+
+### Cost Observations
+- Model mix: sonnet for all plan execution, opus for orchestration/auditing
+- Sessions: ~8 (modularization, foundation, CAS pipeline, name cleaning, reference filters, export, QC, milestone completion)
+- Notable: 15 plans executed in ~113 minutes total (~7.5 min average per plan). Phase 12 P01 was slowest (1041s / 17 min) due to TDD with 95 tests.
+
+---
+
 ## Milestone: v1.1 — Curation Process Update
 
 **Shipped:** 2026-03-01
@@ -129,15 +184,17 @@
 
 ### Process Evolution
 
-| Milestone | Sessions | Phases | Key Change |
-|-----------|----------|--------|------------|
-| v1.0 | ~3 | 2 | Established GSD workflow, learned bslib API |
-| v1.1 | ~4 | 3 | Added TDD, prototype-first approach, UAT verification |
-| v1.2 | ~5 | 3 | UAT-driven bugfixing, JS modal workarounds, helper extraction |
+| Milestone | Sessions | Phases | Plans | Key Change |
+|-----------|----------|--------|-------|------------|
+| v1.0 | ~3 | 2 | 2 | Established GSD workflow, learned bslib API |
+| v1.1 | ~4 | 3 | 6 | Added TDD, prototype-first approach, UAT verification |
+| v1.2 | ~5 | 3 | 6 | UAT-driven bugfixing, JS modal workarounds, helper extraction |
+| v1.3 | ~8 | 7 | 15 | Modularization, smoke tests, 12-step pipeline, milestone auditing |
 
 ### Top Lessons (Verified Across Milestones)
 
-1. **Traceability must update atomically** — v1.0 and v1.1 had tracking lag. v1.2 improved but roadmap checkboxes still lagged.
-2. **Verify framework APIs before implementing** — v1.0 nav_panel_hidden bug, v1.2 Shiny modal actionButton limitation. Research → verify → implement.
-3. **UAT reveals needs that specs miss** — All three milestones found issues during UAT that weren't in specs.
-4. **Check for shadowing before debugging logic** — v1.2 row duplication: 3 fix attempts on join logic when the real cause was file auto-sourcing order.
+1. **Traceability must update atomically** — v1.0-v1.3 all had checkbox tracking lag. 4 milestones confirms this needs automation.
+2. **Verify framework APIs before implementing** — v1.0 nav_panel_hidden, v1.2 modal actionButton, v1.3 bsicons icon names. Always check the actual API.
+3. **UAT and smoke tests reveal what unit tests miss** — All milestones found issues during testing that specs didn't anticipate. v1.3 added mandatory smoke tests.
+4. **Check for shadowing before debugging logic** — v1.2 auto-sourcing order, v1.3 icon library confusion. The problem is often environmental, not logical.
+5. **Run verification for every phase** — v1.3 Phase 12 skipped verification; caught only by milestone audit. No exceptions.
