@@ -39,7 +39,7 @@
 
 **Milestone Goal:** Add staged pre- and post-curation cleaning pipeline with interactive UI, editable reference lists, smart multi-sheet Excel export, and re-import detection.
 
-- [ ] **Phase 9: Modularization** - Extract existing 6 tabs into Shiny modules to prevent app.R from becoming unmaintainable
+- [x] **Phase 9: Modularization** - Extract existing 6 tabs into Shiny modules to prevent app.R from becoming unmaintainable
 - [x] **Phase 10: Foundation & Clean Data Tab** - Add audit trail infrastructure, reference data loaders, and new gated workflow tab
 - [x] **Phase 11: CAS Pipeline** - Implement CAS-RN rescue, normalization, validation, and multi-CAS splitting with UI preview ✅ 2026-03-06
 - [x] **Phase 12: Name Cleaning** - Extract formulas and synonyms, strip quality adjectives, protect IUPAC inverted names (completed 2026-03-06)
@@ -62,8 +62,8 @@
 **Plans**: 2 plans
 
 Plans:
-- [ ] 09-01-PLAN.md — Extract all 7 modules (upload, data_preview, detection_info, raw_data, tag_columns, run_curation, review_results) into R/modules/
-- [ ] 09-02-PLAN.md — Rewrite app.R to orchestration-only code + add module render tests + smoke test
+- [x] 09-01-PLAN.md — Extract all 7 modules (upload, data_preview, detection_info, raw_data, tag_columns, run_curation, review_results) into R/modules/
+- [x] 09-02-PLAN.md — Rewrite app.R to orchestration-only code + add module render tests + smoke test
 
 ### Phase 10: Foundation & Clean Data Tab
 **Goal**: Users can access a new "Clean Data" tab with audit trail infrastructure and reference data loaded
@@ -114,8 +114,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 12-01-PLAN.md — Name cleaning pipeline functions (parentheticals, adjectives, salts, synonym splitting) with TDD tests
-- [ ] 12-02-PLAN.md — UI integration: audit trail accordion, name cleaning value boxes, extended progress indicator
+- [x] 12-01-PLAN.md — Name cleaning pipeline functions (parentheticals, adjectives, salts, synonym splitting) with TDD tests
+- [x] 12-02-PLAN.md — UI integration: audit trail accordion, name cleaning value boxes, extended progress indicator
 
 ### Phase 13: Reference Filters & Editable Lists
 **Goal**: Users can see reference-based flags and edit all reference lists in-app with re-run capability
@@ -166,7 +166,7 @@ Plans:
 Plans:
 - [x] 15-01-PLAN.md — Replace clean_unicode_field() with ComptoxR::clean_unicode(), create perform_unicode_qc() function and tests (completed 2026-03-09, 627s)
 - [x] 15-02-PLAN.md — UI integration: QC value boxes, DT flags, summary card, re-run button in Review Results + auto-run wiring (completed 2026-03-09, 322s)
-- [ ] 15-03-PLAN.md — Gap closure: fix icon crash on Re-run QC button, document POST-01 coverage by existing pipeline
+- [x] 15-03-PLAN.md — Gap closure: fix icon crash on Re-run QC button, document POST-01 coverage by existing pipeline
 
 ## Progress
 
@@ -175,7 +175,7 @@ Phases execute sequentially: 9 -> 10 -> 11 -> 12 -> 13 -> 14 -> 15
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 9. Modularization | 0/TBD | Not started | - |
+| 9. Modularization | 2/2 | Complete | 2026-03-04 |
 | 10. Foundation & Clean Data Tab | 2/2 | Complete    | 2026-03-05 |
 | 11. CAS Pipeline | 2/2 | Complete    | 2026-03-06 |
 | 12. Name Cleaning | 2/2 | Complete   | 2026-03-06 |
