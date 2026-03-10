@@ -4,13 +4,13 @@ milestone: v1.4
 milestone_name: milestone
 current_phase: "- Plans: TBD"
 status: planning
-last_updated: "2026-03-10T16:42:31.607Z"
+last_updated: "2026-03-10T16:55:17.905Z"
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
-  percent: 50
+  completed_plans: 2
+  percent: 100
 ---
 
 # Project State: ChemReg v1.4
@@ -32,9 +32,9 @@ progress:
 ## Current Position
 
 **Phase:** 16 - Cleaning Pipeline Bug Fixes
-**Plan:** 01 (completed) / 02 (next)
-**Status:** In Progress (50% complete)
-**Progress:** [█████░░░░░] 50% (1/2 plans completed, 6/7 requirements satisfied)
+**Plan:** 02 (completed)
+**Status:** Complete (100%)
+**Progress:** [██████████] 100% (2/2 plans completed, 7/7 requirements satisfied)
 
 ---
 
@@ -71,12 +71,14 @@ progress:
 | 2026-03-10 | Use consecutive-lowercase heuristic to distinguish chemical names from formulas | Simpler than perfecting regex; filters obvious non-formulas before validation |
 | 2026-03-10 | Apply word boundaries to stop word substring matching | Prevents "na" from matching inside "Naphthalene"; maintains whole-word detection |
 | 2026-03-10 | Reuse @@@ placeholder for letter-comma-letter IUPAC patterns | Consistent with existing digit-comma-digit protection; same restore logic |
+| 2026-03-10 | Use here::here() for cross-platform path resolution in test files | Follows existing test pattern for consistent cross-platform compatibility |
 
 **Execution Metrics:**
 
 | Phase | Plan | Duration (s) | Tasks | Files |
 |-------|------|--------------|-------|-------|
 | 16 | 01 | 913 | 3 | 4 |
+| 16 | 02 | 551 | 1 | 1 |
 
 ### Known Issues / Blockers
 
@@ -104,17 +106,18 @@ progress:
 
 ### What Just Happened
 
-Completed Phase 16 Plan 01: Cleaning Pipeline Bug Fixes
-- Fixed three false positive bugs in cleaning pipeline
-- All 199 tests pass (57 + 37 + 105) with zero failures
-- 3 commits created: e11e2d2, 3247f4d, 1fde620
-- 6/7 requirements satisfied (FORM-01, FORM-02, STOP-01, STOP-02, SPLIT-01, SPLIT-02)
-- Files modified: R/cleaning_pipeline.R, 3 test files
-- SUMMARY.md created: .planning/phases/16-cleaning-pipeline-bug-fixes/16-01-SUMMARY.md
+Completed Phase 16 Plan 02: End-to-End Pipeline Validation Tests
+- Created comprehensive validation test suite with 42 assertions
+- Tests confirm all three bug fixes from 16-01 work correctly through full pipeline
+- 1 commit created: eec9269
+- 7/7 requirements satisfied (all 6 from 16-01 + VAL-01)
+- Files created: tests/test_cleaning_pipeline_validation.R
+- SUMMARY.md created: .planning/phases/16-cleaning-pipeline-bug-fixes/16-02-SUMMARY.md
+- Phase 16 complete: 2/2 plans, 100% done
 
 ### Next Action
 
-Execute Phase 16 Plan 02: Validation Error Message Improvements (VAL-01)
+Phase 16 complete. Milestone v1.4 complete. Ready for next milestone planning or feature work.
 
 ### Context for Next Session
 
