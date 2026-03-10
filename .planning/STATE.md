@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: null
-milestone_name: null
-status: idle
+milestone: v1.4
+milestone_name: "Cleaning Pipeline Fixes"
+status: defining_requirements
 stopped_at: null
-last_updated: "2026-03-10T20:00:00Z"
-last_activity: "2026-03-10 — v1.3 milestone completed and archived"
+last_updated: "2026-03-10T21:00:00Z"
+last_activity: "2026-03-10 — Milestone v1.4 started"
 progress:
   total_phases: 0
   completed_phases: 0
@@ -21,13 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-10)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
-**Current focus:** Planning next milestone
+**Current focus:** v1.4 Cleaning Pipeline Fixes
 
 ## Current Position
 
-Status: Idle — between milestones
-Last milestone: v1.3 Data Cleaning Pipeline (shipped 2026-03-10)
-Next step: `/gsd:new-milestone` to start next milestone
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-10 — Milestone v1.4 started
 
 ## Performance Metrics
 
@@ -36,12 +37,6 @@ Next step: `/gsd:new-milestone` to start next milestone
 - Total phases: 15 (Phases 1-15)
 - Total plans: 29
 - LOC: 14,548 R
-
-**v1.3 Velocity:**
-- Plans: 15 across 7 phases
-- Total execution time: ~6,800s (~113 minutes)
-- Average: ~450s per plan
-- Timeline: 7 days (2026-03-04 → 2026-03-10)
 
 ## Accumulated Context
 
@@ -52,15 +47,13 @@ Next step: `/gsd:new-milestone` to start next milestone
 
 ### Blockers/Concerns
 
-None — between milestones.
+None.
 
 ## Session Continuity
 
 Last session: 2026-03-10
-Stopped at: v1.3 milestone completion
+Stopped at: Milestone v1.4 requirements definition
 Resume file: None
 
-**Next step:** `/gsd:new-milestone` to plan next milestone
-
 ---
-*STATE.md updated: 2026-03-10 after v1.3 milestone completion*
+*STATE.md updated: 2026-03-10 after v1.4 milestone start*
