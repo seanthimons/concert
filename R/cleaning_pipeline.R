@@ -1042,11 +1042,16 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
         }
       }
 
-      # Pass 2: Substring match (only if no exact match)
+      # Pass 2: Substring match with word boundaries (only if no exact match)
       if (!matched) {
         for (ref_idx in seq_len(nrow(active_refs))) {
           ref_term <- active_refs$term[ref_idx]
-          if (stringr::str_detect(original_value, stringr::regex(ref_term, ignore_case = TRUE))) {
+          # Use word boundaries to prevent substring false positives
+          # e.g., stop word "na" should NOT match inside "Naphthalene"
+          # Escape special regex characters in ref_term, then wrap in \b boundaries
+          escaped_term <- stringr::str_replace_all(ref_term, "([/.])", "\\\\\\1")
+          bounded_pattern <- paste0("\\b", escaped_term, "\\b")
+          if (stringr::str_detect(original_value, stringr::regex(bounded_pattern, ignore_case = TRUE))) {
             matched <- TRUE
             match_type <- "substring"
             matched_term <- ref_term
