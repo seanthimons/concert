@@ -736,8 +736,12 @@ split_synonyms <- function(df, name_cols, tag_map) {
         next
       }
 
+      # Step 0: Protect letter-comma-letter IUPAC patterns (N,N- O,O- S,S- etc.)
+      # These are single-letter substituent prefixes, NOT synonym separators
+      protected_name <- stringr::str_replace_all(original_name, "([A-Za-z]),([A-Za-z])", "\\1@@@\\2")
+
       # Step 1: Protect digit-comma-digit patterns (IUPAC locants like 2,4- or 1,3-)
-      protected_name <- stringr::str_replace_all(original_name, "(\\d+),(\\d+)", "\\1@@@\\2")
+      protected_name <- stringr::str_replace_all(protected_name, "(\\d+),(\\d+)", "\\1@@@\\2")
 
       # Step 2: Protect IUPAC inverted names (e.g., "butane, 2,2-dimethyl")
       # Pattern: comma followed by space and digit indicates inverted IUPAC name

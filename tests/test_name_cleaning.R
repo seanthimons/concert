@@ -284,6 +284,44 @@ test_that("split_synonyms returns audit trail with split information", {
   expect_gt(nrow(audit), 0)
 })
 
+test_that("split_synonyms protects letter-comma-letter IUPAC patterns", {
+  df <- tibble::tibble(
+    original_row_id = c(1L, 2L, 3L),
+    chemical_name = c("N,N-Dimethylformamide", "O,O-Diethyl phosphorothioate", "S,S-Dimethyl dithiocarbonate")
+  )
+  tag_map <- list(chemical_name = "Name")
+
+  result <- split_synonyms(df, names(tag_map)[tag_map == "Name"], tag_map)
+  cleaned <- result$cleaned_data
+
+  # All should remain unsplit (1 row each)
+  expect_equal(nrow(cleaned), 3)
+  expect_equal(cleaned$chemical_name[1], "N,N-Dimethylformamide")
+  expect_equal(cleaned$chemical_name[2], "O,O-Diethyl phosphorothioate")
+  expect_equal(cleaned$chemical_name[3], "S,S-Dimethyl dithiocarbonate")
+
+  # All should have synonym_count = 1 (not split)
+  expect_equal(cleaned$synonym_count[1], 1)
+  expect_equal(cleaned$synonym_count[2], 1)
+  expect_equal(cleaned$synonym_count[3], 1)
+})
+
+test_that("split_synonyms still splits normal comma-separated names after IUPAC fix", {
+  df <- tibble::tibble(
+    original_row_id = 1L,
+    chemical_name = "xylene, dimethylbenzene"
+  )
+  tag_map <- list(chemical_name = "Name")
+
+  result <- split_synonyms(df, names(tag_map)[tag_map == "Name"], tag_map)
+  cleaned <- result$cleaned_data
+
+  # Should split into 2 rows
+  expect_equal(nrow(cleaned), 2)
+  expect_equal(cleaned$chemical_name[1], "xylene")
+  expect_equal(cleaned$chemical_name[2], "dimethylbenzene")
+})
+
 # ==============================================================================
 # NAME-04: strip_quality_adjectives
 # ==============================================================================
