@@ -59,7 +59,14 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ### Active
 
-(No active milestone — planning next)
+## Current Milestone: v1.4 Cleaning Pipeline Fixes
+
+**Goal:** Fix three cleaning pipeline bugs that produce false positives — aggressive formula detection, broad stop word substring matching, and incomplete IUPAC comma protection.
+
+**Target fixes:**
+- Formula detection falsely blocking valid chemical names (Naphthalene, NaCl treated as formulas)
+- Stop word "na" substring-matching inside legitimate names (Sodium bicarbonate, Naphthalene)
+- N,N-Dimethylformamide split incorrectly by synonym splitter (letter-comma-letter not protected)
 
 ### Out of Scope
 
@@ -132,4 +139,4 @@ Known tech debt carried forward:
 | icon() wrapper for actionButton icons | bsicons::bs_icon() fails Shiny's validateIcon(); icon() wrapper works | ✓ Good — v1.3 |
 
 ---
-*Last updated: 2026-03-10 after v1.3 milestone*
+*Last updated: 2026-03-10 after v1.4 milestone start*
