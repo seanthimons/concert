@@ -58,7 +58,7 @@ Requirements for v1.3 Data Cleaning Pipeline. Each maps to roadmap phases.
 
 ### Post-Curation QC (POST)
 
-- [ ] **POST-01**: User can see resolved CAS-RNs re-validated after curation, with any invalid CAS flagged
+- [x] **POST-01**: User can see resolved CAS-RNs re-validated after curation, with any invalid CAS flagged
 - [x] **POST-02**: User can see any remaining non-ASCII characters flagged in the final output as a QC check
 
 ## v1.4+ Requirements
@@ -120,7 +120,7 @@ Deferred to future releases. Tracked but not in current roadmap.
 | EXPO-01 | Phase 14 | Complete |
 | EXPO-02 | Phase 14 | Complete |
 | EXPO-03 | Phase 14 | Complete |
-| POST-01 | Phase 15 | Pending |
+| POST-01 | Phase 15 | Complete (covered by Phase 11 CAS validation + CompTox API server-side validation) |
 | POST-02 | Phase 15 | Complete |
 
 **Coverage:**
