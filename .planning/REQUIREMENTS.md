@@ -24,7 +24,7 @@ Requirements for Cleaning Pipeline Fixes. Each maps to roadmap phases.
 
 ### Validation
 
-- [ ] **VAL-01**: Lightweight test script validates all three fixes against known-good/known-bad cases
+- [x] **VAL-01**: Lightweight test script validates all three fixes against known-good/known-bad cases
 
 ## Future Requirements
 
@@ -49,7 +49,7 @@ None — this is a bug fix milestone.
 | STOP-02 | Phase 16 | Complete |
 | SPLIT-01 | Phase 16 | Complete |
 | SPLIT-02 | Phase 16 | Complete |
-| VAL-01 | Phase 16 | Pending |
+| VAL-01 | Phase 16 | Complete |
 
 **Coverage:**
 - v1.4 requirements: 7 total
