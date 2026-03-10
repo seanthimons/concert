@@ -56,17 +56,14 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - ✓ 7-sheet Excel export with audit trail, reference lists, and pipeline config — v1.3 Phase 14
 - ✓ Re-import detection with selective config restore — v1.3 Phase 14
 - ✓ Post-curation QC: unicode detection and CAS re-validation — v1.3 Phase 15
+- ✓ Bare formula detection with heuristic pre-checks (consecutive lowercase, abbreviation filter) — v1.4
+- ✓ Whole-word stop word matching via word boundaries — v1.4
+- ✓ Letter-comma-letter IUPAC pattern protection in synonym splitting — v1.4
+- ✓ End-to-end validation test suite for cleaning pipeline fixes (42 assertions) — v1.4
 
 ### Active
 
-## Current Milestone: v1.4 Cleaning Pipeline Fixes
-
-**Goal:** Fix three cleaning pipeline bugs that produce false positives — aggressive formula detection, broad stop word substring matching, and incomplete IUPAC comma protection.
-
-**Target fixes:**
-- Formula detection falsely blocking valid chemical names (Naphthalene, NaCl treated as formulas)
-- Stop word "na" substring-matching inside legitimate names (Sodium bicarbonate, Naphthalene)
-- N,N-Dimethylformamide split incorrectly by synonym splitter (letter-comma-letter not protected)
+(No active requirements — planning next milestone)
 
 ### Out of Scope
 
@@ -84,7 +81,7 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ## Context
 
-Shipped v1.3 Data Cleaning Pipeline with 14,548 LOC R across 18 files.
+Shipped v1.4 Cleaning Pipeline Fixes with ~14,950 LOC R across 18 files.
 Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, openxlsx2, rhandsontable.
 
 The app has 8 top-level tabs: Data Preview, Detection Info, Raw Data, Clean Data, Tag Columns, Run Curation, Review Results, plus sidebar upload and config import. On startup only Upload is visible; tabs appear progressively as the user advances.
@@ -102,8 +99,6 @@ Key files:
 Known tech debt carried forward:
 - Resolution dropdown context could be richer (carried from v1.2)
 - Review Results table column visibility could be improved (carried from v1.2)
-- SUMMARY frontmatter `requirements_completed` field missing from most phases
-- Nyquist compliance partial across all v1.3 phases
 
 ## Constraints
 
@@ -137,6 +132,9 @@ Known tech debt carried forward:
 | 7-sheet Excel export | Data + audit + refs + config in one file serves as both audit doc and re-entry point | ✓ Good — v1.3 |
 | Post-curation QC advisory-only | QC warnings don't gate export; user decides what to act on | ✓ Good — v1.3 |
 | icon() wrapper for actionButton icons | bsicons::bs_icon() fails Shiny's validateIcon(); icon() wrapper works | ✓ Good — v1.3 |
+| Consecutive-lowercase heuristic for formula detection | Filters obvious non-formulas before regex; more maintainable than perfecting regex | ✓ Good — v1.4 |
+| Word boundary matching for stop words | `\b` wrapping prevents substring false positives; simple and performant | ✓ Good — v1.4 |
+| Reuse @@@ placeholder for letter-comma-letter | Consistent with existing digit-comma-digit protection; same restore logic | ✓ Good — v1.4 |
 
 ---
-*Last updated: 2026-03-10 after v1.4 milestone start*
+*Last updated: 2026-03-10 after v1.4 milestone*

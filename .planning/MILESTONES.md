@@ -1,5 +1,14 @@
 # Milestones
 
+## v1.4 Cleaning Pipeline Fixes (Shipped: 2026-03-10)
+
+**Phases completed:** 1 phases, 2 plans, 4 tasks
+
+**Key accomplishments:**
+- (none recorded)
+
+---
+
 ## v1.3 Data Cleaning Pipeline (Shipped: 2026-03-10)
 
 **Phases completed:** 7 phases, 15 plans, 16 tasks
