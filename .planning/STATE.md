@@ -1,12 +1,12 @@
 ---
 gsd_state_version: 1.0
-milestone: null
-milestone_name: null
-current_phase: null
-status: between_milestones
-last_updated: "2026-03-10T18:55:00.000Z"
+milestone: v1.5
+milestone_name: Disagreement Enrichment
+current_phase: 17
+status: phase_ready
+last_updated: "2026-03-10T19:00:00.000Z"
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -16,8 +16,8 @@ progress:
 # Project State: ChemReg
 
 **Last Updated:** 2026-03-10
-**Milestone:** Between milestones (v1.4 shipped)
-**Status:** Planning next milestone
+**Milestone:** v1.5 Disagreement Enrichment
+**Status:** Phase 17 ready for planning
 
 ---
 
@@ -26,13 +26,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-10)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
-**Current focus:** Planning next milestone
+**Current focus:** Enrich disagreement candidates with CompTox metadata and build comparison modal
 
 ---
 
 ## Current Position
 
-No active milestone. v1.4 Cleaning Pipeline Fixes shipped 2026-03-10.
+Phase 17 (Enrichment Pipeline) ready for planning. No plans created yet.
 
 ---
 
@@ -50,12 +50,13 @@ No active milestone. v1.4 Cleaning Pipeline Fixes shipped 2026-03-10.
 
 ### Pending Todos (Carried Forward)
 
-1. Add richer context to resolution dropdown (ui) — carried from v1.2
-2. Revisit Review Results table column visibility (ui) — carried from v1.2
+1. ~~Add richer context to resolution dropdown~~ → being addressed by v1.5 comparison modal
+2. ~~Revisit Review Results table column visibility~~ → being addressed by v1.5 enrichment
 
 ### Known Issues / Blockers
 
-None
+- `ct_chemical_detail` requires API key environment variable (`ctx_api_key`) — same as existing search functions
+- API may not return all fields for every DTXSID — enrichment must handle NAs gracefully
 
 ---
 
@@ -63,16 +64,15 @@ None
 
 ### What Just Happened
 
-Completed and archived milestone v1.4 Cleaning Pipeline Fixes:
-- 1 phase, 2 plans, 7/7 requirements satisfied
-- Fixed formula detection, stop word matching, and IUPAC comma splitting false positives
-- 241 tests pass, 0 regressions
-- UAT 5/5 passed, audit passed
-- Archived to .planning/milestones/
+Kicked off v1.5 Disagreement Enrichment milestone:
+- Gathered requirements through questioning
+- Scoped: CASRN + formula + MW enrichment via ct_chemical_detail, side-by-side comparison modal
+- Created REQUIREMENTS.md (11 requirements), ROADMAP.md (2 phases: 17-18)
+- Updated PROJECT.md with active requirements
 
 ### Next Action
 
-Start next milestone with `/gsd:new-milestone`
+Plan Phase 17 with `/gsd:plan-phase 17`
 
 ---
 

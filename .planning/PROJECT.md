@@ -63,7 +63,10 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ### Active
 
-(No active requirements — planning next milestone)
+- Enrichment of disagreement candidates with CASRN, molecular formula, molecular weight via CompTox API — v1.5
+- Side-by-side comparison modal for disagreement resolution — v1.5
+- Source column and search tier attribution per candidate — v1.5
+- Export enrichment metadata (consensus_casrn, consensus_formula, consensus_mw) — v1.5
 
 ### Out of Scope
 
@@ -81,7 +84,7 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ## Context
 
-Shipped v1.4 Cleaning Pipeline Fixes with ~14,950 LOC R across 18 files.
+Shipped v1.4 Cleaning Pipeline Fixes with ~14,950 LOC R across 18 files. Starting v1.5 Disagreement Enrichment.
 Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, openxlsx2, rhandsontable.
 
 The app has 8 top-level tabs: Data Preview, Detection Info, Raw Data, Clean Data, Tag Columns, Run Curation, Review Results, plus sidebar upload and config import. On startup only Upload is visible; tabs appear progressively as the user advances.
@@ -137,4 +140,4 @@ Known tech debt carried forward:
 | Reuse @@@ placeholder for letter-comma-letter | Consistent with existing digit-comma-digit protection; same restore logic | ✓ Good — v1.4 |
 
 ---
-*Last updated: 2026-03-10 after v1.4 milestone*
+*Last updated: 2026-03-10 after v1.5 milestone kickoff*
