@@ -21,7 +21,7 @@
 #' @export
 build_export_sheets <- function(raw, resolution_state, consensus_summary,
                                  cleaning_audit, reference_lists, column_tags,
-                                 detection, file_info) {
+                                 detection, file_info, enrichment_cache = NULL) {
 
   # Sheet 1: Raw Data (as-is)
   raw_data_sheet <- raw
@@ -31,7 +31,21 @@ build_export_sheets <- function(raw, resolution_state, consensus_summary,
     dplyr::mutate(
       needs_review = (consensus_status %in% c("error", "unresolvable"))
     ) %>%
-    dplyr::select(-tidyselect::any_of(c(".pinned", ".manual_entry"))) %>%
+    dplyr::select(-tidyselect::any_of(c(".pinned", ".manual_entry")))
+
+  # Add enrichment columns (consensus_casrn, consensus_formula, consensus_mw)
+  if (!is.null(enrichment_cache) && nrow(enrichment_cache) > 0) {
+    enrich_lookup <- enrichment_cache[, c("dtxsid", "casrn", "molecular_formula", "molecular_weight")]
+    names(enrich_lookup) <- c("consensus_dtxsid", "consensus_casrn", "consensus_formula", "consensus_mw")
+    curated_data_sheet <- curated_data_sheet %>%
+      dplyr::left_join(enrich_lookup, by = "consensus_dtxsid")
+  } else {
+    curated_data_sheet$consensus_casrn <- NA_character_
+    curated_data_sheet$consensus_formula <- NA_character_
+    curated_data_sheet$consensus_mw <- NA_real_
+  }
+
+  curated_data_sheet <- curated_data_sheet %>%
     dplyr::relocate(needs_review, .after = tidyselect::last_col())
 
   # Sheet 3: Summary statistics
