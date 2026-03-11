@@ -1,23 +1,21 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.5
-milestone_name: Disagreement Enrichment
-current_phase: 17
-status: phase_ready
-last_updated: "2026-03-10T19:00:00.000Z"
+milestone_name: milestone
+status: planning
+last_updated: "2026-03-11T16:46:00.462Z"
 progress:
   total_phases: 2
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
 ---
 
 # Project State: ChemReg
 
-**Last Updated:** 2026-03-10
+**Last Updated:** 2026-03-11
 **Milestone:** v1.5 Disagreement Enrichment
-**Status:** Phase 17 ready for planning
+**Status:** Phase 17 complete, Phase 18 ready
 
 ---
 
@@ -26,13 +24,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-10)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
-**Current focus:** Enrich disagreement candidates with CompTox metadata and build comparison modal
+**Current focus:** Build comparison modal UI consuming enrichment data from Phase 17
 
 ---
 
 ## Current Position
 
-Phase 17 (Enrichment Pipeline) ready for planning. No plans created yet.
+Phase 17 (Enrichment Pipeline) complete. Plan 17-01 executed: refactored enrich_candidates(), extended get_resolution_options(), wired auto-trigger enrichment, added consensus columns to export. Phase 18 (Comparison Modal) ready for planning.
 
 ---
 
@@ -40,13 +38,24 @@ Phase 17 (Enrichment Pipeline) ready for planning. No plans created yet.
 
 **Cumulative (all milestones):**
 - Total milestones shipped: 5 (v1.0, v1.1, v1.2, v1.3, v1.4)
-- Total phases: 16 (Phases 1-16)
-- Total plans: 31
-- LOC: ~14,950 R
+- Total phases: 17 (Phases 1-17)
+- Total plans: 32
+- LOC: ~15,250 R
+
+| Phase | Plan | Duration | Tasks | Files |
+|-------|------|----------|-------|-------|
+| 17    | 01   | 31min    | 3     | 7     |
 
 ---
 
 ## Accumulated Context
+
+### Decisions (Phase 17)
+
+1. Refactored enrich_candidates to accept dtxsid vector with incremental caching
+2. Enrichment cache uses structured tibble(dtxsid, casrn, molecular_formula, molecular_weight)
+3. All DTXSIDs enriched (agree+single+disagree) for comprehensive export
+4. Source tier labels: exact->Exact match, cas->CAS lookup, starts_with->Starts-with, miss->No match
 
 ### Pending Todos (Carried Forward)
 
@@ -56,7 +65,7 @@ Phase 17 (Enrichment Pipeline) ready for planning. No plans created yet.
 ### Known Issues / Blockers
 
 - `ct_chemical_detail` requires API key environment variable (`ctx_api_key`) — same as existing search functions
-- API may not return all fields for every DTXSID — enrichment must handle NAs gracefully
+- API may not return all fields for every DTXSID — enrichment handles NAs gracefully (resolved in Phase 17)
 
 ---
 
@@ -64,15 +73,16 @@ Phase 17 (Enrichment Pipeline) ready for planning. No plans created yet.
 
 ### What Just Happened
 
-Kicked off v1.5 Disagreement Enrichment milestone:
-- Gathered requirements through questioning
-- Scoped: CASRN + formula + MW enrichment via ct_chemical_detail, side-by-side comparison modal
-- Created REQUIREMENTS.md (11 requirements), ROADMAP.md (2 phases: 17-18)
-- Updated PROJECT.md with active requirements
+Completed Phase 17 Plan 01 (Enrichment Pipeline):
+- Refactored enrich_candidates() with structured cache tibble and incremental caching
+- Extended get_resolution_options() with source_column, source_tier labels, enrichment metadata
+- Wired auto-trigger enrichment after curation in mod_run_curation
+- Added consensus_casrn, consensus_formula, consensus_mw to Curated Data export
+- 59 new enrichment tests, all passing
 
 ### Next Action
 
-Plan Phase 17 with `/gsd:plan-phase 17`
+Plan Phase 18 with `/gsd:plan-phase 18`
 
 ---
 
