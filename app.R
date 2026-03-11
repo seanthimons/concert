@@ -134,7 +134,9 @@ server <- function(input, output, session) {
     resolution_state = NULL, dtxsid_cols = NULL, priority_order = NULL,
     error_filter_active = FALSE, display_row_map = NULL,
     selected_error_rows = NULL, manual_queue = list(),
-    qc_results = NULL
+    qc_results = NULL,
+    enrichment_cache = NULL,
+    enrichment_failed = NULL
   )
 
   # Store reference lists in data_store

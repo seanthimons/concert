@@ -349,7 +349,7 @@ mod_review_results_server <- function(id, data_store) {
             }
           } else {
             # Unpinned disagree: dropdown with enhanced options
-            options <- get_resolution_options(df, i, dtxsid_cols)
+            options <- get_resolution_options(df, i, dtxsid_cols, enrichment_cache = data_store$enrichment_cache)
             if (length(options) > 0) {
               # Options already sorted by rank from get_resolution_options
               options_html <- paste0(
@@ -934,7 +934,8 @@ mod_review_results_server <- function(id, data_store) {
           reference_lists = data_store$reference_lists,
           column_tags = data_store$column_tags,
           detection = data_store$detection,
-          file_info = data_store$file_info
+          file_info = data_store$file_info,
+          enrichment_cache = data_store$enrichment_cache
         )
 
         # Write to Excel
