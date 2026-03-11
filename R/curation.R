@@ -715,6 +715,129 @@ run_curation_pipeline <- function(clean_data, column_tags, progress_callback = N
 }
 
 # ============================================================================
+# enrich_candidates
+# ============================================================================
+
+#' Fetch CompTox chemical details for DTXSIDs and return structured cache
+#'
+#' Calls ct_details with a configurable projection to retrieve CASRN,
+#' molecular formula, and molecular weight for each unique DTXSID.
+#' Supports incremental caching: pass existing_cache to skip already-fetched DTXSIDs.
+#'
+#' @param dtxsids Character vector of DTXSIDs to enrich
+#' @param existing_cache Optional tibble from a previous enrich_candidates() call.
+#'   DTXSIDs already present in the cache will not be re-fetched.
+#' @param projection Character: ct_details projection level.
+#'   One of "all", "standard", "id", "structure", "nta", "compact".
+#'   Default "standard".
+#' @return Named list with:
+#'   - cache: tibble(dtxsid, casrn, molecular_formula, molecular_weight)
+#'   - failed_dtxsids: character vector of DTXSIDs that could not be fetched
+enrich_candidates <- function(dtxsids, existing_cache = NULL, projection = "standard") {
+  empty_cache <- tibble::tibble(
+    dtxsid = character(0),
+    casrn = character(0),
+    molecular_formula = character(0),
+    molecular_weight = numeric(0)
+  )
+
+  # Handle empty input
+  if (length(dtxsids) == 0) {
+    return(list(cache = existing_cache %||% empty_cache, failed_dtxsids = character(0)))
+  }
+
+  unique_dtxsids <- unique(dtxsids[!is.na(dtxsids) & dtxsids != ""])
+
+  if (length(unique_dtxsids) == 0) {
+    return(list(cache = existing_cache %||% empty_cache, failed_dtxsids = character(0)))
+  }
+
+  # Incremental caching: filter out already-cached DTXSIDs
+  dtxsids_to_fetch <- unique_dtxsids
+  if (!is.null(existing_cache) && nrow(existing_cache) > 0) {
+    already_cached <- existing_cache$dtxsid
+    dtxsids_to_fetch <- setdiff(unique_dtxsids, already_cached)
+  }
+
+  # If all DTXSIDs are already cached, return immediately
+
+  if (length(dtxsids_to_fetch) == 0) {
+    message("[enrich] All DTXSIDs already cached — skipping API call")
+    return(list(cache = existing_cache, failed_dtxsids = character(0)))
+  }
+
+  message(sprintf("[enrich] Fetching details for %d unique DTXSIDs (projection: %s)...", length(dtxsids_to_fetch), projection))
+
+  safe_detail <- purrr::safely(ComptoxR::ct_details)
+  api_result <- safe_detail(dtxsids_to_fetch, projection = projection)
+
+  if (!is.null(api_result$error)) {
+    warning(sprintf("[enrich] API call failed: %s", api_result$error$message))
+    # On total failure: return existing cache + all to-fetch as failed
+    return(list(
+      cache = existing_cache %||% empty_cache,
+      failed_dtxsids = dtxsids_to_fetch
+    ))
+  }
+
+  raw <- api_result$result
+
+  if (is.null(raw) || (is.data.frame(raw) && nrow(raw) == 0)) {
+    message("[enrich] API returned no results")
+    # All queried DTXSIDs are effectively missing
+    missing_rows <- tibble::tibble(
+      dtxsid = dtxsids_to_fetch,
+      casrn = NA_character_,
+      molecular_formula = NA_character_,
+      molecular_weight = NA_real_
+    )
+    combined <- dplyr::bind_rows(existing_cache, missing_rows)
+    return(list(cache = combined, failed_dtxsids = character(0)))
+  }
+
+  message(sprintf("[enrich] Got %d rows, %d columns: %s", nrow(raw), ncol(raw), paste(names(raw), collapse = ", ")))
+
+  # Extract and rename columns from API response (camelCase)
+  dtxsid_col <- grep("^dtxsid$", names(raw), ignore.case = TRUE, value = TRUE)
+  casrn_col <- grep("^casrn$", names(raw), ignore.case = TRUE, value = TRUE)
+  formula_col <- grep("^mol.?formula$", names(raw), ignore.case = TRUE, value = TRUE)
+  mw_col <- grep("^molecular.?weight$", names(raw), ignore.case = TRUE, value = TRUE)
+  if (length(mw_col) == 0) {
+    mw_col <- grep("^monoisotopic.?mass$", names(raw), ignore.case = TRUE, value = TRUE)
+  }
+
+  new_cache <- tibble::tibble(
+    dtxsid = if (length(dtxsid_col) > 0) raw[[dtxsid_col[1]]] else NA_character_,
+    casrn = if (length(casrn_col) > 0) raw[[casrn_col[1]]] else NA_character_,
+    molecular_formula = if (length(formula_col) > 0) raw[[formula_col[1]]] else NA_character_,
+    molecular_weight = if (length(mw_col) > 0) as.numeric(raw[[mw_col[1]]]) else NA_real_
+  )
+
+  # Handle partial response: add NA rows for DTXSIDs not in API result
+  returned_dtxsids <- new_cache$dtxsid[!is.na(new_cache$dtxsid)]
+  missing_dtxsids <- setdiff(dtxsids_to_fetch, returned_dtxsids)
+  if (length(missing_dtxsids) > 0) {
+    missing_rows <- tibble::tibble(
+      dtxsid = missing_dtxsids,
+      casrn = NA_character_,
+      molecular_formula = NA_character_,
+      molecular_weight = NA_real_
+    )
+    new_cache <- dplyr::bind_rows(new_cache, missing_rows)
+  }
+
+  # Combine with existing cache
+  combined <- dplyr::bind_rows(existing_cache, new_cache)
+
+  message(sprintf("[enrich] Cache now has %d entries", nrow(combined)))
+
+  list(
+    cache = combined,
+    failed_dtxsids = character(0)
+  )
+}
+
+# ============================================================================
 # get_dedup_preview
 # ============================================================================
 

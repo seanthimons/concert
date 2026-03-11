@@ -153,10 +153,20 @@ init_resolution_state <- function(df) {
 #' @param dtxsid_cols Character vector of DTXSID column names
 #' @return Named list of column_name = list(dtxsid, preferredName, rank) for columns with data.
 #'         Sorted by rank (best first). Empty list if row is not "disagree".
-get_resolution_options <- function(df, row_idx, dtxsid_cols) {
+get_resolution_options <- function(df, row_idx, dtxsid_cols, enrichment_cache = NULL) {
   if (df$consensus_status[row_idx] != "disagree") {
     return(list())
   }
+
+  # Source tier human-readable labels
+  tier_labels <- c(
+    "exact" = "Exact match",
+    "cas" = "CAS lookup",
+    "starts_with" = "Starts-with",
+    "miss" = "No match",
+    "cas_no_match" = "No match",
+    "cas_invalid" = "No match"
+  )
 
   options <- list()
   for (col in dtxsid_cols) {
@@ -165,13 +175,41 @@ get_resolution_options <- function(df, row_idx, dtxsid_cols) {
       # Get corresponding preferredName and rank
       pref_col <- sub("^dtxsid_", "preferredName_", col)
       rank_col <- sub("^dtxsid_", "rank_", col)
+      tier_col <- sub("^dtxsid_", "source_tier_", col)
       pref_name <- if (pref_col %in% names(df)) df[[pref_col]][row_idx] else NA_character_
       rank_val <- if (rank_col %in% names(df)) df[[rank_col]][row_idx] else NA_real_
+
+      # Source attribution
+      source_column <- sub("^dtxsid_", "", col)
+      raw_tier <- if (tier_col %in% names(df)) df[[tier_col]][row_idx] else NA_character_
+      source_tier <- if (!is.na(raw_tier) && raw_tier %in% names(tier_labels)) {
+        unname(tier_labels[raw_tier])
+      } else {
+        "Unknown"
+      }
+
+      # Enrichment metadata from cache
+      enrich_casrn <- NA_character_
+      enrich_formula <- NA_character_
+      enrich_mw <- NA_real_
+      if (!is.null(enrichment_cache) && nrow(enrichment_cache) > 0) {
+        match_idx <- which(enrichment_cache$dtxsid == val)
+        if (length(match_idx) > 0) {
+          enrich_casrn <- enrichment_cache$casrn[match_idx[1]]
+          enrich_formula <- enrichment_cache$molecular_formula[match_idx[1]]
+          enrich_mw <- enrichment_cache$molecular_weight[match_idx[1]]
+        }
+      }
 
       options[[col]] <- list(
         dtxsid = val,
         preferredName = pref_name,
-        rank = rank_val
+        rank = rank_val,
+        source_column = source_column,
+        source_tier = source_tier,
+        casrn = enrich_casrn,
+        molecular_formula = enrich_formula,
+        molecular_weight = enrich_mw
       )
     }
   }
