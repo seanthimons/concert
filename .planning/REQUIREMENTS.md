@@ -9,9 +9,9 @@ Requirements for Disagreement Enrichment. Each maps to roadmap phases.
 
 ### Enrichment Data
 
-- [ ] **ENRCH-01**: After curation completes, unique DTXSID candidates from disagree rows are enriched via `ct_chemical_detail` with CASRN, molecular formula, and molecular weight
-- [ ] **ENRCH-02**: Enrichment data is cached per-session to avoid redundant API calls when the table re-renders
-- [ ] **ENRCH-03**: Each candidate in a disagreement carries its source column name (which tagged column produced it) and search tier (exact/CAS/starts-with)
+- [x] **ENRCH-01**: After curation completes, unique DTXSID candidates from disagree rows are enriched via `ct_chemical_detail` with CASRN, molecular formula, and molecular weight
+- [x] **ENRCH-02**: Enrichment data is cached per-session to avoid redundant API calls when the table re-renders
+- [x] **ENRCH-03**: Each candidate in a disagreement carries its source column name (which tagged column produced it) and search tier (exact/CAS/starts-with)
 
 ### Comparison UI
 
@@ -25,7 +25,7 @@ Requirements for Disagreement Enrichment. Each maps to roadmap phases.
 
 - [ ] **COMPAT-01**: Existing resolution dropdown continues to work as before for quick resolution without opening the modal
 - [ ] **COMPAT-02**: Enrichment failures (API errors, missing data) degrade gracefully — modal still shows available data with "N/A" for missing fields
-- [ ] **COMPAT-03**: Export includes enrichment metadata for resolved rows (consensus_casrn, consensus_formula, consensus_mw columns)
+- [x] **COMPAT-03**: Export includes enrichment metadata for resolved rows (consensus_casrn, consensus_formula, consensus_mw columns)
 
 ## Future Requirements
 
@@ -46,9 +46,9 @@ Requirements for Disagreement Enrichment. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ENRCH-01 | Phase 17 | Pending |
-| ENRCH-02 | Phase 17 | Pending |
-| ENRCH-03 | Phase 17 | Pending |
+| ENRCH-01 | Phase 17 | Complete |
+| ENRCH-02 | Phase 17 | Complete |
+| ENRCH-03 | Phase 17 | Complete |
 | COMP-01 | Phase 18 | Pending |
 | COMP-02 | Phase 18 | Pending |
 | COMP-03 | Phase 18 | Pending |
@@ -56,7 +56,7 @@ Requirements for Disagreement Enrichment. Each maps to roadmap phases.
 | COMP-05 | Phase 18 | Pending |
 | COMPAT-01 | Phase 18 | Pending |
 | COMPAT-02 | Phase 18 | Pending |
-| COMPAT-03 | Phase 17 | Pending |
+| COMPAT-03 | Phase 17 | Complete |
 
 **Coverage:**
 - v1.5 requirements: 11 total

@@ -7,7 +7,7 @@
 
 ## Phases
 
-- [ ] **Phase 17: Enrichment Pipeline** - Fetch and store CompTox chemical details for disagreement candidates
+- [x] **Phase 17: Enrichment Pipeline** - Fetch and store CompTox chemical details for disagreement candidates (completed 2026-03-11)
 - [ ] **Phase 18: Comparison Modal UI** - Side-by-side candidate comparison modal with in-modal resolution
 
 ## Phase Details
@@ -55,7 +55,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 17. Enrichment Pipeline | 0/1 | Pending | — |
+| 17. Enrichment Pipeline | 1/1 | Complete   | 2026-03-11 |
 | 18. Comparison Modal UI | 0/1 | Pending | — |
 
 ---
