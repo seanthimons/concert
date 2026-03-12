@@ -33,8 +33,32 @@ mod_review_results_ui <- function(id) {
     });
   ", ns("resolve_row_choice"))))
 
+  # Compare button JavaScript (for modal-based resolution)
+  compare_js <- tags$script(HTML(sprintf("
+    $(document).on('click', '.compare-btn', function() {
+      var row = $(this).data('row');
+      Shiny.setInputValue('%s', {row: row, t: Math.random()}, {priority: 'event'});
+    });
+
+    $(document).on('click', '.change-resolution-link', function() {
+      var row = $(this).data('row');
+      Shiny.setInputValue('%s', {row: row, t: Math.random()}, {priority: 'event'});
+    });
+
+    $(document).on('click', '.modal-select-btn', function() {
+      var column = $(this).data('column');
+      Shiny.setInputValue('%s', {column: column, t: Math.random()}, {priority: 'event'});
+      // Highlight selected card, unhighlight others
+      $('.candidate-card').css({'border-color': '#dee2e6', 'background-color': '#fff'});
+      $(this).closest('.candidate-card').css({'border-color': '#0d6efd', 'background-color': '#f0f7ff'});
+      // Show confirm button
+      $('#%s').show();
+    });
+  ", ns("compare_row_click"), ns("compare_row_click"), ns("modal_candidate_select"), ns("confirm_container"))))
+
   tagList(
     resolution_js,
+    compare_js,
 
     # Content when curation completed
     conditionalPanel(
@@ -331,9 +355,9 @@ mod_review_results_server <- function(id, data_store) {
           }
         } else if (status == "disagree") {
           if (isTRUE(df$.pinned[i])) {
-            # Pinned: show pin icon with resolved value and name
+            # Pinned: show pin icon with resolved value and name + Change link
             dtxsid <- df$consensus_dtxsid[i]
-            if (!is.na(dtxsid)) {
+            base_display <- if (!is.na(dtxsid)) {
               pref_cols <- grep("^preferredName_", names(df), value = TRUE)
               pref_name <- NA_character_
               for (pc in pref_cols) {
@@ -347,33 +371,18 @@ mod_review_results_server <- function(id, data_store) {
             } else {
               paste0("\U0001F4CC (None selected)")
             }
+            # Append Change link
+            paste0(base_display,
+              ' <a href="#" class="change-resolution-link small text-primary" data-row="', i,
+              '" style="text-decoration:underline;cursor:pointer;">Change</a>')
           } else {
-            # Unpinned disagree: dropdown with enhanced options
-            options <- get_resolution_options(df, i, dtxsid_cols, enrichment_cache = data_store$enrichment_cache)
-            if (length(options) > 0) {
-              # Options already sorted by rank from get_resolution_options
-              options_html <- paste0(
-                sapply(names(options), function(col) {
-                  opt <- options[[col]]
-                  label <- if (!is.na(opt$preferredName)) {
-                    paste0(htmltools::htmlEscape(opt$dtxsid), " \u2014 ", htmltools::htmlEscape(opt$preferredName))
-                  } else {
-                    htmltools::htmlEscape(opt$dtxsid)
-                  }
-                  paste0('<option value="', htmltools::htmlEscape(col), '">', label, '</option>')
-                }),
-                collapse = ""
-              )
-              paste0(
-                '<select class="resolve-select form-select form-select-sm" data-row="', i, '">',
-                '<option value="">Select...</option>',
-                options_html,
-                '<option value="__none__">None (skip this row)</option>',
-                '</select>'
-              )
-            } else {
-              ""
-            }
+            # Unpinned disagree: Compare button instead of dropdown
+            search_icon <- as.character(shiny::icon("search"))
+            paste0(
+              '<button class="compare-btn btn btn-sm btn-outline-primary" data-row="', i, '">',
+              search_icon, ' Compare',
+              '</button>'
+            )
           }
         } else if (status == "manual") {
           # Manual entry: show checkmark + DTXSID + preferredName + manual badge
@@ -729,6 +738,198 @@ mod_review_results_server <- function(id, data_store) {
           type = "error"
         )
       })
+    })
+
+    # Handle Compare button click - open modal with candidate comparison
+    observeEvent(input$compare_row_click, {
+      req(data_store$resolution_state, data_store$dtxsid_cols)
+
+      row_idx <- input$compare_row_click$row
+
+      # Map display row to original row if error filter is active
+      if (isTRUE(data_store$error_filter_active)) {
+        row_map <- data_store$display_row_map
+        if (!is.null(row_map) && row_idx <= length(row_map)) {
+          row_idx <- row_map[row_idx]
+        }
+      }
+
+      # Get resolution options with enrichment metadata
+      options <- get_resolution_options(
+        data_store$resolution_state,
+        row_idx,
+        data_store$dtxsid_cols,
+        enrichment_cache = data_store$enrichment_cache
+      )
+
+      if (length(options) == 0) {
+        showNotification("No candidates available for this row", type = "warning")
+        return()
+      }
+
+      # Store modal state
+      data_store$modal_row_idx <- row_idx
+      data_store$modal_selected_column <- NULL
+
+      # Build tagged column summary for context
+      tagged_summary <- if (!is.null(data_store$column_tags) && length(data_store$column_tags) > 0) {
+        tag_values <- sapply(names(data_store$column_tags), function(col) {
+          if (col %in% names(data_store$resolution_state)) {
+            val <- data_store$resolution_state[[col]][row_idx]
+            if (!is.na(val)) paste0(col, " = '", val, "'") else NULL
+          } else {
+            NULL
+          }
+        })
+        tag_values <- tag_values[!sapply(tag_values, is.null)]
+        if (length(tag_values) > 0) {
+          div(class = "mb-3 text-muted small", paste(tag_values, collapse = ", "))
+        } else {
+          NULL
+        }
+      } else {
+        NULL
+      }
+
+      # Build candidate cards
+      cards <- lapply(names(options), function(col) {
+        opt <- options[[col]]
+        div(
+          class = "candidate-card card mb-2",
+          style = "border: 2px solid #dee2e6; border-radius: 8px; transition: border-color 0.2s;",
+          div(
+            class = "card-body",
+            div(class = "d-flex justify-content-between align-items-start",
+              div(
+                tags$h6(class = "mb-1 fw-bold", opt$dtxsid),
+                if (!is.na(opt$preferredName)) tags$p(class = "mb-1 text-muted", opt$preferredName) else NULL
+              ),
+              tags$button(
+                class = "modal-select-btn btn btn-sm btn-outline-success",
+                `data-column` = col,
+                "Select"
+              )
+            ),
+            tags$hr(class = "my-2"),
+            div(
+              class = "row small",
+              div(class = "col-4", tags$strong("CASRN"), tags$br(), if (!is.na(opt$casrn)) opt$casrn else "N/A"),
+              div(class = "col-4", tags$strong("Formula"), tags$br(), if (!is.na(opt$molecular_formula)) opt$molecular_formula else "N/A"),
+              div(class = "col-4", tags$strong("Mol. Weight"), tags$br(), if (!is.na(opt$molecular_weight)) round(opt$molecular_weight, 2) else "N/A")
+            ),
+            div(
+              class = "row small mt-2",
+              div(class = "col-4", tags$strong("Source"), tags$br(), opt$source_column),
+              div(class = "col-4", tags$strong("Match Type"), tags$br(), opt$source_tier),
+              div(class = "col-4", tags$strong("Rank"), tags$br(), if (!is.na(opt$rank)) opt$rank else "N/A")
+            )
+          )
+        )
+      })
+
+      # Build scrollable container
+      cards_container <- div(style = "max-height: 60vh; overflow-y: auto;", cards)
+
+      # Build modal footer
+      footer <- tagList(
+        div(
+          id = session$ns("confirm_container"),
+          style = "display:none;",
+          actionButton(session$ns("modal_confirm"), "Confirm & Close", class = "btn-primary")
+        ),
+        tags$button(
+          class = "btn btn-outline-secondary",
+          onclick = sprintf("Shiny.setInputValue('%s', {t: Math.random()}, {priority: 'event'});", session$ns("modal_skip")),
+          "Skip this row"
+        ),
+        modalButton("Cancel")
+      )
+
+      # Show modal
+      showModal(modalDialog(
+        title = "Compare Candidates",
+        tagList(tagged_summary, cards_container),
+        footer = footer,
+        size = "l",
+        easyClose = TRUE
+      ))
+    })
+
+    # Handle modal candidate selection
+    observeEvent(input$modal_candidate_select, {
+      data_store$modal_selected_column <- input$modal_candidate_select$column
+    })
+
+    # Handle modal confirm
+    observeEvent(input$modal_confirm, {
+      row_idx <- data_store$modal_row_idx
+      chosen_column <- data_store$modal_selected_column
+
+      if (is.null(chosen_column)) {
+        showNotification("Please select a candidate first", type = "warning")
+        return()
+      }
+
+      # Get options to find preferredName for notification
+      options <- get_resolution_options(
+        data_store$resolution_state,
+        row_idx,
+        data_store$dtxsid_cols,
+        enrichment_cache = data_store$enrichment_cache
+      )
+
+      # Resolve the row
+      updated_df <- resolve_row(
+        data_store$resolution_state,
+        row_idx,
+        chosen_column,
+        data_store$dtxsid_cols
+      )
+
+      data_store$resolution_state <- updated_df
+
+      # Recalculate consensus summary
+      data_store$consensus_summary <- recalc_consensus_summary(updated_df)
+
+      # Build notification with DTXSID and preferredName
+      opt <- options[[chosen_column]]
+      notification_msg <- if (!is.na(opt$preferredName)) {
+        paste0("Resolved: ", opt$dtxsid, " - ", opt$preferredName)
+      } else {
+        paste0("Resolved: ", opt$dtxsid)
+      }
+
+      removeModal()
+      showNotification(notification_msg, type = "message")
+
+      # Clear modal state
+      data_store$modal_row_idx <- NULL
+      data_store$modal_selected_column <- NULL
+    })
+
+    # Handle modal skip
+    observeEvent(input$modal_skip, {
+      row_idx <- data_store$modal_row_idx
+
+      if (is.null(row_idx)) {
+        return()
+      }
+
+      # Pin without DTXSID (same as "__none__" logic)
+      updated_df <- data_store$resolution_state
+      updated_df <- init_resolution_state(updated_df)
+      updated_df$.pinned[row_idx] <- TRUE
+      data_store$resolution_state <- updated_df
+
+      # Recalculate consensus summary
+      data_store$consensus_summary <- recalc_consensus_summary(updated_df)
+
+      removeModal()
+      showNotification(paste0("Row ", row_idx, " marked as skipped"), type = "message")
+
+      # Clear modal state
+      data_store$modal_row_idx <- NULL
+      data_store$modal_selected_column <- NULL
     })
 
     # Handle Validate All button for manual DTXSID entries
