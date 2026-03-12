@@ -56,7 +56,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 17. Enrichment Pipeline | 1/1 | Complete | 2026-03-11 |
-| 18. Comparison Modal UI | 1/1 | Complete | 2026-03-12 |
+| 18. Comparison Modal UI | 1/1 | Complete    | 2026-03-12 |
 
 ---
 
