@@ -2,20 +2,20 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
-status: planning
-last_updated: "2026-03-11T16:50:39.494Z"
+status: executing
+last_updated: "2026-03-12T01:04:55Z"
 progress:
   total_phases: 2
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  completed_phases: 2
+  total_plans: 2
+  completed_plans: 2
 ---
 
 # Project State: ChemReg
 
-**Last Updated:** 2026-03-11
+**Last Updated:** 2026-03-12
 **Milestone:** v1.5 Disagreement Enrichment
-**Status:** Ready to plan
+**Status:** Phase 18 complete
 
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-03-10)
 
 ## Current Position
 
-Phase 17 (Enrichment Pipeline) complete. Plan 17-01 executed: refactored enrich_candidates(), extended get_resolution_options(), wired auto-trigger enrichment, added consensus columns to export. Phase 18 (Comparison Modal) ready for planning.
+Phase 18 (Comparison Modal UI) complete. Plan 18-01 executed: replaced resolution dropdown with Compare button, implemented modal with candidate cards showing enriched metadata (CASRN, formula, MW), two-step resolution (Select then Confirm), Skip button, and Change link for pinned rows. Ready for user acceptance testing.
 
 ---
 
@@ -45,17 +45,27 @@ Phase 17 (Enrichment Pipeline) complete. Plan 17-01 executed: refactored enrich_
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 17    | 01   | 31min    | 3     | 7     |
+| 18    | 01   | 13min    | 2     | 1     |
 
 ---
 
 ## Accumulated Context
 
-### Decisions (Phase 17)
+### Decisions
 
+**Phase 17 (Enrichment Pipeline):**
 1. Refactored enrich_candidates to accept dtxsid vector with incremental caching
 2. Enrichment cache uses structured tibble(dtxsid, casrn, molecular_formula, molecular_weight)
 3. All DTXSIDs enriched (agree+single+disagree) for comprehensive export
 4. Source tier labels: exact->Exact match, cas->CAS lookup, starts_with->Starts-with, miss->No match
+
+**Phase 18 (Comparison Modal UI):**
+1. Replace dropdown with Compare button for unpinned disagree rows - cleaner UI, focuses user on comparison action
+2. Two-step resolution (Select + Confirm) prevents accidental resolution clicks
+3. Show enrichment metadata (CASRN, formula, MW) directly in modal cards for informed decisions
+4. Skip button pins row without DTXSID (same as previous '__none__' dropdown option)
+5. Change link on pinned rows reopens modal - allows users to revise resolution after bulk priority application
+6. Tagged column values shown in modal for row context - helps users confirm they're resolving the right row
 
 ### Pending Todos (Carried Forward)
 
@@ -73,16 +83,19 @@ Phase 17 (Enrichment Pipeline) complete. Plan 17-01 executed: refactored enrich_
 
 ### What Just Happened
 
-Completed Phase 17 Plan 01 (Enrichment Pipeline):
-- Refactored enrich_candidates() with structured cache tibble and incremental caching
-- Extended get_resolution_options() with source_column, source_tier labels, enrichment metadata
-- Wired auto-trigger enrichment after curation in mod_run_curation
-- Added consensus_casrn, consensus_formula, consensus_mw to Curated Data export
-- 59 new enrichment tests, all passing
+Completed Phase 18 Plan 01 (Comparison Modal UI):
+- Replaced resolution dropdown with Compare button for unpinned disagree rows
+- Implemented modal with candidate cards showing DTXSID, preferredName, CASRN, formula, MW, source, tier, rank
+- Two-step resolution: Select highlights card, Confirm & Close resolves and pins row
+- Skip button pins without DTXSID (same as previous '__none__' option)
+- Change link on pinned disagree rows reopens modal for revision
+- Tagged column values shown in modal for row context
+- Auto-approved human-verify checkpoint (auto_advance enabled)
+- All existing tests pass, Shiny smoke test passed
 
 ### Next Action
 
-Plan Phase 18 with `/gsd:plan-phase 18`
+Ready for user acceptance testing. Milestone v1.5 (Disagreement Enrichment) complete.
 
 ---
 

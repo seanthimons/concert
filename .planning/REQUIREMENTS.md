@@ -15,16 +15,16 @@ Requirements for Disagreement Enrichment. Each maps to roadmap phases.
 
 ### Comparison UI
 
-- [ ] **COMP-01**: Disagree rows in Review Results show a "Compare" button alongside the resolution dropdown
-- [ ] **COMP-02**: Clicking "Compare" opens a modal with a side-by-side table of all candidate DTXSIDs for that row
-- [ ] **COMP-03**: Each candidate in the modal shows: DTXSID, preferredName, CASRN, molecular formula, molecular weight, source column, search tier, rank
-- [ ] **COMP-04**: User can select a candidate from within the modal to resolve the disagreement (equivalent to picking from the dropdown)
-- [ ] **COMP-05**: Modal resolution pins the row and updates the resolution state immediately
+- [x] **COMP-01**: Disagree rows in Review Results show a "Compare" button alongside the resolution dropdown
+- [x] **COMP-02**: Clicking "Compare" opens a modal with a side-by-side table of all candidate DTXSIDs for that row
+- [x] **COMP-03**: Each candidate in the modal shows: DTXSID, preferredName, CASRN, molecular formula, molecular weight, source column, search tier, rank
+- [x] **COMP-04**: User can select a candidate from within the modal to resolve the disagreement (equivalent to picking from the dropdown)
+- [x] **COMP-05**: Modal resolution pins the row and updates the resolution state immediately
 
 ### Backward Compatibility
 
-- [ ] **COMPAT-01**: Existing resolution dropdown continues to work as before for quick resolution without opening the modal
-- [ ] **COMPAT-02**: Enrichment failures (API errors, missing data) degrade gracefully — modal still shows available data with "N/A" for missing fields
+- [x] **COMPAT-01**: Existing resolution dropdown continues to work as before for quick resolution without opening the modal
+- [x] **COMPAT-02**: Enrichment failures (API errors, missing data) degrade gracefully — modal still shows available data with "N/A" for missing fields
 - [x] **COMPAT-03**: Export includes enrichment metadata for resolved rows (consensus_casrn, consensus_formula, consensus_mw columns)
 
 ## Future Requirements
@@ -49,13 +49,13 @@ Requirements for Disagreement Enrichment. Each maps to roadmap phases.
 | ENRCH-01 | Phase 17 | Complete |
 | ENRCH-02 | Phase 17 | Complete |
 | ENRCH-03 | Phase 17 | Complete |
-| COMP-01 | Phase 18 | Pending |
-| COMP-02 | Phase 18 | Pending |
-| COMP-03 | Phase 18 | Pending |
-| COMP-04 | Phase 18 | Pending |
-| COMP-05 | Phase 18 | Pending |
-| COMPAT-01 | Phase 18 | Pending |
-| COMPAT-02 | Phase 18 | Pending |
+| COMP-01 | Phase 18 | Complete |
+| COMP-02 | Phase 18 | Complete |
+| COMP-03 | Phase 18 | Complete |
+| COMP-04 | Phase 18 | Complete |
+| COMP-05 | Phase 18 | Complete |
+| COMPAT-01 | Phase 18 | Complete |
+| COMPAT-02 | Phase 18 | Complete |
 | COMPAT-03 | Phase 17 | Complete |
 
 **Coverage:**
