@@ -2,6 +2,46 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
+## Milestone: v1.5 — Disagreement Enrichment
+
+**Shipped:** 2026-03-13
+**Phases:** 2 | **Plans:** 2 | **Sessions:** 1
+
+### What Was Built
+- CompTox enrichment pipeline with CASRN, molecular formula, molecular weight via `ct_chemical_detail` with incremental caching
+- Source column attribution and search tier labels per candidate
+- Rich comparison modal with candidate cards showing enriched metadata, replacing dropdown
+- Two-step resolution (Select + Confirm) with Skip and Change options
+- Consensus enrichment columns in Excel export
+
+### What Worked
+- Tight scope (2 phases, 2 plans) kept execution clean and fast — completed in a single session
+- Phase 17 enrichment pipeline provided clean data contract for Phase 18 modal UI
+- Incremental caching pattern (pass existing_cache to skip already-fetched DTXSIDs) avoided redundant API calls
+- Two-step resolution (Select + Confirm) was the right UX decision — prevents accidental clicks while keeping flow fast
+- Resolved both v1.2 tech debt items (dropdown context, column visibility) organically via the modal UI
+
+### What Was Inefficient
+- Nothing notable — cleanest milestone execution alongside v1.4. Two focused phases with clear contracts.
+
+### Patterns Established
+- Incremental caching: pass `existing_cache` tibble to enrichment function, skip already-fetched DTXSIDs
+- Card-based modal for complex selection: better than dropdown for multi-attribute comparison
+- Two-step confirm pattern (Select highlights, Confirm commits) for destructive/important actions
+- Enrichment cache as single reactive source of truth consumed across modules
+
+### Key Lessons
+1. **Modal UI beats dropdowns for multi-attribute decisions** — enrichment metadata (5+ fields per candidate) can't fit in a dropdown label. Modal cards with full metadata are the right pattern.
+2. **Clean data contracts between phases pay off** — Phase 17's `enrich_candidates()` returning a structured tibble made Phase 18 trivial to implement.
+3. **Tech debt resolves itself with the right feature** — v1.2's "richer dropdown context" and "column visibility" concerns both dissolved when the comparison modal was built.
+
+### Cost Observations
+- Model mix: sonnet for execution, opus for orchestration
+- Sessions: 1 (both phases executed + milestone completion)
+- Notable: Total execution time ~44 minutes for both plans (31min + 13min). Second fastest milestone after v1.4.
+
+---
+
 ## Milestone: v1.4 — Cleaning Pipeline Fixes
 
 **Shipped:** 2026-03-10
@@ -229,6 +269,7 @@
 | v1.2 | ~5 | 3 | 6 | UAT-driven bugfixing, JS modal workarounds, helper extraction |
 | v1.3 | ~8 | 7 | 15 | Modularization, smoke tests, 12-step pipeline, milestone auditing |
 | v1.4 | 1 | 1 | 2 | Focused bug fix milestone, heuristic pre-checks, fastest completion |
+| v1.5 | 1 | 2 | 2 | Enrichment + modal UI, tech debt resolved organically, clean data contracts |
 
 ### Top Lessons (Verified Across Milestones)
 

@@ -1,5 +1,21 @@
 # Milestones
 
+## v1.5 Disagreement Enrichment (Shipped: 2026-03-13)
+
+**Phases completed:** 2 phases, 2 plans, 5 tasks
+**Lines of code:** +822 across 7 R files
+**Requirements:** 11/11 satisfied (ENRCH, COMP, COMPAT)
+**Timeline:** 2 days (2026-03-10 → 2026-03-12)
+
+**Key accomplishments:**
+- CompTox enrichment pipeline with CASRN, molecular formula, and molecular weight via `ct_chemical_detail` with incremental caching
+- Source column attribution and search tier labels per candidate (Exact/CAS/Starts-with/No match)
+- Rich comparison modal replacing dropdown for disagree row resolution — card layout with enriched metadata
+- Two-step resolution pattern (Select + Confirm) preventing accidental clicks, with Skip and Change options
+- Consensus enrichment columns in 7-sheet Excel export (consensus_casrn, consensus_formula, consensus_mw)
+
+---
+
 ## v1.4 Cleaning Pipeline Fixes (Shipped: 2026-03-10)
 
 **Phases completed:** 1 phases, 2 plans, 4 tasks
