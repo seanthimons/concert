@@ -553,8 +553,27 @@ mod_review_results_server <- function(id, data_store) {
         }
       }
 
+      # Helper: build a select dropdown filter for a categorical column
+      table_id <- session$ns("curation_table")
+      make_select_filter <- function(choices, col_name) {
+        function(values, name) {
+          htmltools::tags$select(
+            onchange = sprintf(
+              "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+              table_id, col_name
+            ),
+            style = "width:100%;font-size:0.85em;padding:2px;",
+            htmltools::tags$option(value = "", "All"),
+            lapply(choices, function(val) {
+              htmltools::tags$option(value = val, val)
+            })
+          )
+        }
+      }
+
       # Badge: match_type
       if ("match_type" %in% names(df_display)) {
+        match_levels <- c("Exact Match", "CAS Lookup", "Starts-With", "No Match")
         match_colors <- c(
           "Exact Match" = "#28a745",
           "CAS Lookup" = "#007bff",
@@ -575,12 +594,21 @@ mod_review_results_server <- function(id, data_store) {
               ),
               val
             )
-          }
+          },
+          filterMethod = htmlwidgets::JS(
+            "function(rows, columnId, filterValue) {
+              return rows.filter(function(row) {
+                return row.values[columnId] === filterValue;
+              });
+            }"
+          ),
+          filterInput = make_select_filter(match_levels, "match_type")
         )
       }
 
       # Badge: consensus_status
       if ("consensus_status" %in% names(df_display)) {
+        status_levels <- c("agree", "agree_caveat", "single", "disagree", "error", "manual", "unresolvable")
         status_colors <- c(
           "agree" = "#28a745",
           "agree_caveat" = "#17a2b8",
@@ -603,8 +631,46 @@ mod_review_results_server <- function(id, data_store) {
               val
             )
           },
-          filterable = TRUE
+          filterMethod = htmlwidgets::JS(
+            "function(rows, columnId, filterValue) {
+              return rows.filter(function(row) {
+                return row.values[columnId] === filterValue;
+              });
+            }"
+          ),
+          filterInput = make_select_filter(status_levels, "consensus_status")
         )
+      }
+
+      # Dropdown filter: qc_flag (if present)
+      if ("qc_flag" %in% names(df_display)) {
+        qc_levels <- na.omit(unique(df_display$qc_flag))
+        if (length(qc_levels) > 0) {
+          col_defs[["qc_flag"]] <- reactable::colDef(
+            filterMethod = htmlwidgets::JS(
+              "function(rows, columnId, filterValue) {
+                return rows.filter(function(row) {
+                  var val = row.values[columnId];
+                  if (filterValue === '__na__') return val == null || val === '';
+                  return val === filterValue;
+                });
+              }"
+            ),
+            filterInput = function(values, name) {
+              htmltools::tags$select(
+                onchange = sprintf(
+                  "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                  table_id, "qc_flag"
+                ),
+                style = "width:100%;font-size:0.85em;padding:2px;",
+                htmltools::tags$option(value = "", "All"),
+                lapply(qc_levels, function(val) {
+                  htmltools::tags$option(value = val, val)
+                })
+              )
+            }
+          )
+        }
       }
 
       # Resolution: HTML content
@@ -682,7 +748,8 @@ mod_review_results_server <- function(id, data_store) {
         wrap = FALSE,
         compact = TRUE,
         bordered = TRUE,
-        highlight = TRUE
+        highlight = TRUE,
+        elementId = table_id
       )
     })
 
