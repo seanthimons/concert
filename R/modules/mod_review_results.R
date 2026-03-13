@@ -56,9 +56,49 @@ mod_review_results_ui <- function(id) {
     });
   ", ns("compare_row_click"), ns("compare_row_click"), ns("modal_candidate_select"), ns("confirm_container"))))
 
+  # Inline DTXSID editing JavaScript (namespace-aware)
+  dtxsid_edit_js <- tags$script(HTML(sprintf("
+    $(document).on('blur', '.dtxsid-edit', function() {
+      var row = parseInt($(this).data('row'));
+      var value = $(this).val().trim();
+      Shiny.setInputValue('%s', {row: row, value: value, t: Math.random()}, {priority: 'event'});
+    });
+    $(document).on('keypress', '.dtxsid-edit', function(e) {
+      if (e.which === 13) { $(this).blur(); }
+    });
+  ", ns("dtxsid_manual_edit"))))
+
+  # Copy table to clipboard JavaScript
+  copy_table_js <- tags$script(HTML(sprintf("
+    $(document).on('click', '#%s', function() {
+      var table = document.querySelector('.ReactTable');
+      if (!table) return;
+      var rows = table.querySelectorAll('.rt-tr-group');
+      var headers = table.querySelectorAll('.rt-th');
+      var text = '';
+      // Header row
+      var hdr = [];
+      headers.forEach(function(h) { if (h.offsetParent !== null) hdr.push(h.textContent.trim()); });
+      text += hdr.join('\\t') + '\\n';
+      // Data rows
+      rows.forEach(function(row) {
+        var cells = row.querySelectorAll('.rt-td');
+        var vals = [];
+        cells.forEach(function(c) { if (c.offsetParent !== null) vals.push(c.textContent.trim()); });
+        text += vals.join('\\t') + '\\n';
+      });
+      navigator.clipboard.writeText(text).then(function() {
+        Shiny.setInputValue('%s', {t: Math.random()});
+      });
+    });
+  ", ns("copy_table"), ns("copy_done"))))
+
   tagList(
     resolution_js,
     compare_js,
+    dtxsid_edit_js,
+    copy_table_js,
+    reactable.extras::reactable_extras_dependency(),
 
     # Content when curation completed
     conditionalPanel(
@@ -118,6 +158,17 @@ mod_review_results_ui <- function(id) {
             icon = icon("arrows-rotate"),
             class = "btn-sm btn-outline-secondary"
           ),
+          actionButton(
+            ns("copy_table"),
+            "Copy",
+            icon = icon("copy"),
+            class = "btn-sm btn-outline-secondary"
+          ),
+          downloadButton(
+            ns("download_csv"),
+            "CSV",
+            class = "btn-sm btn-outline-secondary"
+          ),
           downloadButton(
             ns("download_curated"),
             "Download Excel",
@@ -126,7 +177,23 @@ mod_review_results_ui <- function(id) {
         )
       ),
 
-      DTOutput(ns("curation_table"))
+      # Column visibility toggle
+      div(
+        class = "mb-2",
+        tags$details(
+          tags$summary(
+            class = "btn btn-sm btn-outline-secondary",
+            icon("columns"), " Toggle Columns"
+          ),
+          div(
+            class = "card card-body mt-1 p-2",
+            style = "max-height: 200px; overflow-y: auto;",
+            uiOutput(ns("col_visibility_checkboxes"))
+          )
+        )
+      ),
+
+      reactable::reactableOutput(ns("curation_table"))
     ),
 
     # Empty state when curation not completed
@@ -259,21 +326,64 @@ mod_review_results_server <- function(id, data_store) {
       )
     })
 
+    # Column visibility checkboxes (for untagged columns)
+    output$col_visibility_checkboxes <- renderUI({
+      req(data_store$resolution_state, data_store$column_tags, data_store$clean)
+
+      tagged_col_names <- names(data_store$column_tags)
+      all_original_cols <- names(data_store$clean)
+      df_names <- names(data_store$resolution_state)
+
+      untagged_cols <- setdiff(
+        all_original_cols[all_original_cols %in% df_names],
+        tagged_col_names
+      )
+
+      if (length(untagged_cols) == 0) {
+        return(tags$small(class = "text-muted", "No toggleable columns available"))
+      }
+
+      checkboxGroupInput(
+        session$ns("visible_cols"),
+        label = NULL,
+        choices = untagged_cols,
+        selected = character(0),
+        inline = TRUE
+      )
+    })
+
+    # Copy done notification
+    observeEvent(input$copy_done, {
+      showNotification("Table copied to clipboard", type = "message", duration = 2)
+    })
+
+    # CSV download handler
+    output$download_csv <- downloadHandler(
+      filename = function() {
+        file_base <- if (!is.null(data_store$file_info)) {
+          tools::file_path_sans_ext(data_store$file_info$name)
+        } else {
+          "curated_data"
+        }
+        paste0(file_base, "_curated_", format(Sys.Date(), "%Y%m%d"), ".csv")
+      },
+      content = function(file) {
+        req(data_store$resolution_state)
+        readr::write_csv(data_store$resolution_state, file)
+      }
+    )
+
     # Curation results table
-    output$curation_table <- renderDT(server = FALSE, {
+    output$curation_table <- reactable::renderReactable({
       req(data_store$resolution_state, data_store$dtxsid_cols)
 
       df <- data_store$resolution_state
       dtxsid_cols <- data_store$dtxsid_cols
 
-      # Ensure consensus_status is a factor with ordered levels (enables dropdown filter)
-      df$consensus_status <- factor(
-        df$consensus_status,
-        levels = c("agree", "agree_caveat", "single", "disagree", "error", "manual", "unresolvable")
-      )
+      # Ensure consensus_status is character for comparisons
+      df$consensus_status <- as.character(df$consensus_status)
 
       # Derive Match Type from source_tier columns
-      # Per user decision: show tier only, not which tagged column produced the match
       tier_label_map <- c(
         "exact" = "Exact Match",
         "cas" = "CAS Lookup",
@@ -284,14 +394,10 @@ mod_review_results_server <- function(id, data_store) {
       )
 
       df$match_type <- sapply(seq_len(nrow(df)), function(i) {
-        # Strategy: find the source_tier of the column that provided consensus_dtxsid
         tier_cols <- grep("^source_tier_", names(df), value = TRUE)
-
         if (length(tier_cols) == 0) return("Unknown")
 
-        # If consensus_dtxsid exists, find which column provided it
         if (!is.na(df$consensus_dtxsid[i])) {
-          # Check each source_tier column for a successful match
           for (tc in tier_cols) {
             tier_val <- df[[tc]][i]
             if (!is.na(tier_val) && tier_val %in% c("exact", "cas", "starts_with")) {
@@ -301,45 +407,35 @@ mod_review_results_server <- function(id, data_store) {
           }
         }
 
-        # No consensus_dtxsid: check if all tiers are miss/error
         all_tiers <- sapply(tier_cols, function(tc) df[[tc]][i])
         all_tiers <- all_tiers[!is.na(all_tiers)]
-
         if (length(all_tiers) == 0) return("No Match")
 
-        # Pick first non-miss tier if any
         for (tv in all_tiers) {
           if (tv %in% c("exact", "cas", "starts_with")) {
             return(tier_label_map[tv])
           }
         }
-
         return("No Match")
       })
 
-      # Convert match_type to factor for dropdown filter
-      df$match_type <- factor(df$match_type, levels = c("Exact Match", "CAS Lookup", "Starts-With", "No Match"))
-
-      # Position match_type after consensus columns but before Resolution
+      # Position match_type after consensus columns
       df <- dplyr::relocate(df, match_type, .after = consensus_status)
 
       # Add QC flag column if QC results are available
       if (!is.null(data_store$qc_results) && length(data_store$qc_results$row_indices) > 0) {
         df$qc_flag <- NA_character_
         df$qc_flag[data_store$qc_results$row_indices] <- "WARN: non-ASCII"
-        # Position qc_flag after match_type
         df <- dplyr::relocate(df, qc_flag, .after = match_type)
       }
 
       # Build Resolution column with enhanced context
       df$Resolution <- sapply(seq_len(nrow(df)), function(i) {
-        status <- as.character(df$consensus_status[i])
+        status <- df$consensus_status[i]
 
         if (status %in% c("agree", "agree_caveat", "single")) {
-          # Static display with checkmark for rows that have a DTXSID
           dtxsid <- df$consensus_dtxsid[i]
           if (!is.na(dtxsid)) {
-            # Find preferredName from any available column
             pref_cols <- grep("^preferredName_", names(df), value = TRUE)
             pref_name <- NA_character_
             for (pc in pref_cols) {
@@ -355,7 +451,6 @@ mod_review_results_server <- function(id, data_store) {
           }
         } else if (status == "disagree") {
           if (isTRUE(df$.pinned[i])) {
-            # Pinned: show pin icon with resolved value and name + Change link
             dtxsid <- df$consensus_dtxsid[i]
             base_display <- if (!is.na(dtxsid)) {
               pref_cols <- grep("^preferredName_", names(df), value = TRUE)
@@ -371,12 +466,10 @@ mod_review_results_server <- function(id, data_store) {
             } else {
               paste0("\U0001F4CC (None selected)")
             }
-            # Append Change link
             paste0(base_display,
               ' <a href="#" class="change-resolution-link small text-primary" data-row="', i,
               '" style="text-decoration:underline;cursor:pointer;">Change</a>')
           } else {
-            # Unpinned disagree: Compare button instead of dropdown
             search_icon <- as.character(shiny::icon("search"))
             paste0(
               '<button class="compare-btn btn btn-sm btn-outline-primary" data-row="', i, '">',
@@ -385,10 +478,8 @@ mod_review_results_server <- function(id, data_store) {
             )
           }
         } else if (status == "manual") {
-          # Manual entry: show checkmark + DTXSID + preferredName + manual badge
           dtxsid <- df$consensus_dtxsid[i]
           pref_name <- if ("manual_preferredName" %in% names(df)) df$manual_preferredName[i] else NA_character_
-          # Fall back to auto preferredName columns if manual not available
           if (is.na(pref_name)) {
             pref_cols <- grep("^preferredName_", names(df), value = TRUE)
             for (pc in pref_cols) {
@@ -404,12 +495,8 @@ mod_review_results_server <- function(id, data_store) {
             ""
           }
         } else if (status == "unresolvable") {
-          # Unresolvable: show warning icon
           "\u26A0\uFE0F Auto-curation failed"
-        } else if (status == "error") {
-          ""
         } else {
-          # other status
           ""
         }
       })
@@ -422,12 +509,11 @@ mod_review_results_server <- function(id, data_store) {
       } else {
         df_display <- df
       }
-      # Store mapping for row selection (filtered row -> original row)
       data_store$display_row_map <- display_indices
 
       # --- Three-tier column visibility ---
 
-      # Tier 1: Always hidden (permanently, excluded from colvis menu)
+      # Tier 1: Always hidden
       always_hidden <- c(
         dtxsid_cols,
         grep("^preferredName_", names(df), value = TRUE),
@@ -438,134 +524,166 @@ mod_review_results_server <- function(id, data_store) {
         ".manual_entry",
         "manual_preferredName"
       )
-      always_hidden_idx <- which(names(df) %in% always_hidden) - 1
 
-      # Tier 2: Hidden by default, toggleable via colvis (untagged original columns)
+      # Tier 2: Untagged original columns (toggleable)
       tagged_col_names <- names(data_store$column_tags)
       all_original_cols <- names(data_store$clean)
       untagged_cols <- setdiff(
         all_original_cols[all_original_cols %in% names(df)],
         tagged_col_names
       )
-      untagged_idx <- which(names(df) %in% untagged_cols) - 1
 
-      # Combined: both tiers hidden initially
-      all_hidden_idx <- unique(c(always_hidden_idx, untagged_idx))
+      # Get currently visible extra columns from checkbox
+      visible_extra <- input$visible_cols
 
-      # Column indices for badge rendering (0-indexed)
-      match_type_idx <- which(names(df) == "match_type") - 1
-      consensus_idx <- which(names(df) == "consensus_status") - 1
-      consensus_dtxsid_idx <- which(names(df) == "consensus_dtxsid") - 1
+      # Build column definitions
+      col_defs <- list()
 
-      # Prepare display dataframe (after filtering)
-      display_df <- df_display
+      for (col_name in names(df_display)) {
+        # Tier 1: Always hidden
+        if (col_name %in% always_hidden) {
+          col_defs[[col_name]] <- reactable::colDef(show = FALSE)
+          next
+        }
 
-      # Determine row selection mode based on filter state
-      selection_mode <- if (isTRUE(data_store$error_filter_active)) "multiple" else "none"
+        # Tier 2: Untagged - hidden unless toggled on
+        if (col_name %in% untagged_cols && !(col_name %in% visible_extra)) {
+          col_defs[[col_name]] <- reactable::colDef(show = FALSE)
+          next
+        }
+      }
 
-      # Create DT table with colvis, badges, and column visibility
-      dt <- datatable(
-        display_df,
-        selection = selection_mode,
-        editable = list(
-          target = "cell",
-          disable = list(
-            columns = setdiff(seq_len(ncol(display_df)) - 1, consensus_dtxsid_idx)
-          )
-        ),
-        options = list(
-          pageLength = 25,
-          scrollX = TRUE,
-          dom = 'Bfrtip',
-          buttons = list(
-            'copy', 'csv',
-            list(
-              extend = 'colvis',
-              text = 'Toggle Columns',
-              columns = as.list(untagged_idx)
-            )
-          ),
-          columnDefs = list(
-            list(visible = FALSE, targets = as.list(all_hidden_idx)),
-            # Match type badge rendering via JS callback
-            list(
-              targets = match_type_idx,
-              render = JS(
-                "function(data, type, row, meta) {",
-                "  if (type !== 'display') return data;",
-                "  var colors = {",
-                "    'Exact Match': '#28a745',",
-                "    'CAS Lookup': '#007bff',",
-                "    'Starts-With': '#ffc107',",
-                "    'No Match': '#dc3545'",
-                "  };",
-                "  var textColors = { 'Starts-With': '#212529' };",
-                "  var bg = colors[data] || '#6c757d';",
-                "  var fg = textColors[data] || '#fff';",
-                "  return '<span style=\"background:' + bg + ';color:' + fg +",
-                "    ';padding:2px 8px;border-radius:4px;font-weight:600;font-size:0.85em;display:inline-block;\">' +",
-                "    data + '</span>';",
-                "}"
-              )
-            ),
-            # Consensus status badge rendering via JS callback
-            list(
-              targets = consensus_idx,
-              render = JS(
-                "function(data, type, row, meta) {",
-                "  if (type !== 'display') return data;",
-                "  var colors = {",
-                "    'agree': '#28a745',",
-                "    'agree_caveat': '#17a2b8',",
-                "    'single': '#6c757d',",
-                "    'disagree': '#fd7e14',",
-                "    'error': '#343a40',",
-                "    'manual': '#6f42c1',",
-                "    'unresolvable': '#721c24'",
-                "  };",
-                "  var bg = colors[data] || '#6c757d';",
-                "  return '<span style=\"background:' + bg + ';color:#fff;padding:2px 8px;border-radius:4px;font-weight:600;font-size:0.85em;display:inline-block;\">' +",
-                "    data + '</span>';",
-                "}"
-              )
-            )
-          )
-        ),
-        extensions = 'Buttons',
-        class = 'cell-border stripe hover compact',
-        rownames = FALSE,
-        filter = "top",
-        escape = FALSE  # Allow HTML in Resolution column
-      )
-
-      # Add color-coded row backgrounds (error rows get light pink)
-      dt <- dt %>% formatStyle(
-        'consensus_status',
-        target = 'row',
-        backgroundColor = styleEqual(
-          c("agree", "agree_caveat", "disagree", "single", "error", "manual", "unresolvable"),
-          c(
-            "rgba(40, 167, 69, 0.08)",
-            "rgba(40, 167, 69, 0.05)",
-            "rgba(220, 53, 69, 0.08)",
-            "rgba(108, 117, 125, 0.05)",
-            "rgba(220, 53, 69, 0.12)",
-            "rgba(111, 66, 193, 0.08)",
-            "rgba(114, 28, 36, 0.12)"
-          )
+      # Badge: match_type
+      if ("match_type" %in% names(df_display)) {
+        match_colors <- c(
+          "Exact Match" = "#28a745",
+          "CAS Lookup" = "#007bff",
+          "Starts-With" = "#ffc107",
+          "No Match" = "#dc3545"
         )
-      )
+        match_text_colors <- c("Starts-With" = "#212529")
 
-      # Add QC flag highlighting (yellow background for rows with non-ASCII)
-      if ("qc_flag" %in% names(display_df)) {
-        dt <- dt %>% formatStyle(
-          'qc_flag',
-          target = 'row',
-          backgroundColor = styleEqual("WARN: non-ASCII", "#fff3cd")
+        col_defs[["match_type"]] <- reactable::colDef(
+          cell = function(value, index) {
+            val <- as.character(value)
+            bg <- match_colors[val] %||% "#6c757d"
+            fg <- match_text_colors[val] %||% "#fff"
+            htmltools::span(
+              style = sprintf(
+                "background:%s;color:%s;padding:2px 8px;border-radius:4px;font-weight:600;font-size:0.85em;display:inline-block;",
+                bg, fg
+              ),
+              val
+            )
+          }
         )
       }
 
-      dt
+      # Badge: consensus_status
+      if ("consensus_status" %in% names(df_display)) {
+        status_colors <- c(
+          "agree" = "#28a745",
+          "agree_caveat" = "#17a2b8",
+          "single" = "#6c757d",
+          "disagree" = "#fd7e14",
+          "error" = "#343a40",
+          "manual" = "#6f42c1",
+          "unresolvable" = "#721c24"
+        )
+
+        col_defs[["consensus_status"]] <- reactable::colDef(
+          cell = function(value, index) {
+            val <- as.character(value)
+            bg <- status_colors[val] %||% "#6c757d"
+            htmltools::span(
+              style = sprintf(
+                "background:%s;color:#fff;padding:2px 8px;border-radius:4px;font-weight:600;font-size:0.85em;display:inline-block;",
+                bg
+              ),
+              val
+            )
+          },
+          filterable = TRUE
+        )
+      }
+
+      # Resolution: HTML content
+      if ("Resolution" %in% names(df_display)) {
+        col_defs[["Resolution"]] <- reactable::colDef(
+          html = TRUE,
+          minWidth = 250
+        )
+      }
+
+      # consensus_dtxsid: inline editable for error/unresolvable rows
+      if ("consensus_dtxsid" %in% names(df_display)) {
+        col_defs[["consensus_dtxsid"]] <- reactable::colDef(
+          cell = function(value, index) {
+            status <- as.character(df_display$consensus_status[index])
+            original_idx <- display_indices[index]
+            if (status %in% c("error", "unresolvable")) {
+              htmltools::tags$input(
+                type = "text",
+                class = "form-control form-control-sm dtxsid-edit",
+                value = if (!is.na(value)) value else "",
+                `data-row` = original_idx,
+                placeholder = "DTXSID...",
+                style = "width:140px;font-size:0.85em;"
+              )
+            } else {
+              if (!is.na(value)) as.character(value) else ""
+            }
+          }
+        )
+      }
+
+      # Row style function (consensus_status colors + QC flag highlighting)
+      has_qc_flag <- "qc_flag" %in% names(df_display)
+
+      row_bg_colors <- c(
+        "agree" = "rgba(40, 167, 69, 0.08)",
+        "agree_caveat" = "rgba(40, 167, 69, 0.05)",
+        "disagree" = "rgba(220, 53, 69, 0.08)",
+        "single" = "rgba(108, 117, 125, 0.05)",
+        "error" = "rgba(220, 53, 69, 0.12)",
+        "manual" = "rgba(111, 66, 193, 0.08)",
+        "unresolvable" = "rgba(114, 28, 36, 0.12)"
+      )
+
+      row_style_fn <- function(index) {
+        # QC flag takes precedence
+        if (has_qc_flag) {
+          qc_val <- df_display$qc_flag[index]
+          if (!is.na(qc_val) && qc_val == "WARN: non-ASCII") {
+            return(list(backgroundColor = "#fff3cd"))
+          }
+        }
+        status <- as.character(df_display$consensus_status[index])
+        bg <- row_bg_colors[status]
+        if (!is.null(bg) && !is.na(bg)) {
+          list(backgroundColor = bg)
+        } else {
+          NULL
+        }
+      }
+
+      # Selection mode
+      selection_mode <- if (isTRUE(data_store$error_filter_active)) "multiple" else NULL
+
+      reactable::reactable(
+        df_display,
+        columns = col_defs,
+        filterable = TRUE,
+        selection = selection_mode,
+        onClick = if (!is.null(selection_mode)) "select" else NULL,
+        rowStyle = row_style_fn,
+        defaultPageSize = 25,
+        resizable = TRUE,
+        wrap = FALSE,
+        compact = TRUE,
+        bordered = TRUE,
+        highlight = TRUE
+      )
     })
 
     # Priority Controls UI
@@ -643,18 +761,13 @@ mod_review_results_server <- function(id, data_store) {
     })
 
     # Handle inline cell editing for manual DTXSID entry
-    observeEvent(input$curation_table_cell_edit, {
-      info <- input$curation_table_cell_edit
-      display_row <- info$row  # 1-based index in displayed table
+    observeEvent(input$dtxsid_manual_edit, {
+      info <- input$dtxsid_manual_edit
+      row_idx <- info$row  # Already mapped to original index via data-row attribute
       new_value <- trimws(as.character(info$value))
 
-      # Map displayed row to original row index when filter is active
-      row_map <- isolate(data_store$display_row_map)
-      if (!is.null(row_map) && display_row <= length(row_map)) {
-        row_idx <- row_map[display_row]
-      } else {
-        row_idx <- display_row
-      }
+      # Ignore empty values
+      if (new_value == "") return()
 
       # Only allow edits on error/unresolvable rows
       current_status <- as.character(isolate(data_store$resolution_state)$consensus_status[row_idx])
@@ -672,8 +785,7 @@ mod_review_results_server <- function(id, data_store) {
         return()
       }
 
-      # Queue for bulk validation only — don't update resolution_state here.
-      # The cell value is already visually updated by DT's inline editor.
+      # Queue for bulk validation only.
       # resolution_state gets updated when "Validate All" is clicked.
       data_store$manual_queue[[as.character(row_idx)]] <- new_value
 
@@ -1159,7 +1271,7 @@ mod_review_results_server <- function(id, data_store) {
 
     # Track selected rows and show/hide retag button
     observe({
-      selected <- input$curation_table_rows_selected
+      selected <- reactable::getReactableState("curation_table", "selected")
       if (!is.null(selected) && length(selected) > 0 && isTRUE(data_store$error_filter_active)) {
         # Map filtered indices back to original indices
         data_store$selected_error_rows <- data_store$display_row_map[selected]

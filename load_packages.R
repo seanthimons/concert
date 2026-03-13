@@ -121,9 +121,9 @@
 			'shiny',
 			'bslib',
 			'bsicons', # Icons for Shiny UI
-			'DT',
+			'reactable',
+			'reactable.extras',
 			'shinyjs', # JavaScript helpers for Shiny
-			'rhandsontable', # Editable data tables for reference list editors
 			# 'plotly',
 
 			### Reporting ----

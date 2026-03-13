@@ -13,7 +13,7 @@ mod_raw_data_ui <- function(id) {
     h4("Raw File Contents (First 20 Rows)"),
     div(
       class = "mt-3",
-      DTOutput(ns("raw_table"))
+      reactable::reactableOutput(ns("raw_table"))
     )
   )
 }
@@ -28,21 +28,19 @@ mod_raw_data_server <- function(id, data_store) {
   moduleServer(id, function(input, output, session) {
 
     # Output: Raw table
-    output$raw_table <- renderDT({
+    output$raw_table <- reactable::renderReactable({
       req(data_store$raw)
 
       raw_preview <- head(data_store$raw, 20)
 
-      datatable(
+      reactable::reactable(
         raw_preview,
-        options = list(
-          pageLength = 20,
-          scrollX = TRUE,
-          scrollY = "500px",
-          dom = 't'
-        ),
-        class = 'cell-border stripe compact',
-        rownames = TRUE
+        defaultPageSize = 20,
+        resizable = TRUE,
+        wrap = FALSE,
+        striped = TRUE,
+        compact = TRUE,
+        bordered = TRUE
       )
     })
   })
