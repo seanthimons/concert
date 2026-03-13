@@ -573,7 +573,10 @@ mod_review_results_server <- function(id, data_store) {
 
       # Badge: match_type
       if ("match_type" %in% names(df_display)) {
-        match_levels <- c("Exact Match", "CAS Lookup", "Starts-With", "No Match")
+        match_levels <- intersect(
+          c("Exact Match", "CAS Lookup", "Starts-With", "No Match"),
+          unique(as.character(df_display$match_type))
+        )
         match_colors <- c(
           "Exact Match" = "#28a745",
           "CAS Lookup" = "#007bff",
@@ -608,7 +611,10 @@ mod_review_results_server <- function(id, data_store) {
 
       # Badge: consensus_status
       if ("consensus_status" %in% names(df_display)) {
-        status_levels <- c("agree", "agree_caveat", "single", "disagree", "error", "manual", "unresolvable")
+        status_levels <- intersect(
+          c("agree", "agree_caveat", "single", "disagree", "error", "manual", "unresolvable"),
+          unique(as.character(df_display$consensus_status))
+        )
         status_colors <- c(
           "agree" = "#28a745",
           "agree_caveat" = "#17a2b8",
