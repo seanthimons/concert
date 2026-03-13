@@ -16,7 +16,12 @@ mod_data_preview_ui <- function(id) {
     # Data table (full width, no card wrapper)
     div(
       class = "mt-3",
-      DTOutput(ns("data_table"))
+      div(
+        class = "d-flex gap-2 mb-2",
+        downloadButton(ns("download_csv"), "Download CSV", class = "btn-sm btn-outline-secondary"),
+        downloadButton(ns("download_excel"), "Download Excel", class = "btn-sm btn-outline-secondary")
+      ),
+      reactable::reactableOutput(ns("data_table"))
     )
   )
 }
@@ -91,7 +96,7 @@ mod_data_preview_server <- function(id, data_store, preview_rows) {
     })
 
     # Output: Data table
-    output$data_table <- renderDT({
+    output$data_table <- reactable::renderReactable({
       req(data_store$clean)
       req(preview_rows)
 
@@ -99,36 +104,67 @@ mod_data_preview_server <- function(id, data_store, preview_rows) {
 
       # Validate data before rendering
       if (nrow(preview_data) == 0 || ncol(preview_data) == 0) {
-        # Return empty table with message
-        return(datatable(
+        return(reactable::reactable(
           data.frame(Message = "No data available after cleaning"),
-          options = list(dom = 't'),
-          rownames = FALSE
+          compact = TRUE
         ))
       }
 
-      datatable(
-        preview_data,
-        options = list(
-          pageLength = min(25, nrow(preview_data)),
-          scrollX = TRUE,
-          scrollY = "500px",
-          fixedHeader = TRUE,
-          dom = 'Bfrtip',
-          buttons = c('copy', 'csv', 'excel'),
-          columnDefs = list(
-            list(className = 'dt-center', targets = '_all')
-          )
-        ),
-        extensions = c('Buttons', 'FixedHeader'),
-        class = 'cell-border stripe hover',
-        rownames = FALSE,
-        filter = if (nrow(preview_data) > 0) 'top' else 'none'
-      ) %>%
-        formatStyle(
-          columns = names(preview_data),
-          backgroundColor = styleEqual(c(NA_character_), c('#f9f9f9'))
+      # Build column defs with NA styling
+      col_defs <- lapply(names(preview_data), function(col_name) {
+        reactable::colDef(
+          style = function(value) {
+            if (is.na(value)) {
+              list(backgroundColor = "#f9f9f9")
+            } else {
+              NULL
+            }
+          }
         )
+      })
+      names(col_defs) <- names(preview_data)
+
+      reactable::reactable(
+        preview_data,
+        columns = col_defs,
+        defaultPageSize = min(25, nrow(preview_data)),
+        filterable = TRUE,
+        resizable = TRUE,
+        wrap = FALSE,
+        striped = TRUE,
+        bordered = TRUE,
+        compact = TRUE,
+        highlight = TRUE
+      )
     })
+
+    # Download handlers
+    output$download_csv <- downloadHandler(
+      filename = function() {
+        file_base <- if (!is.null(data_store$file_info)) {
+          tools::file_path_sans_ext(data_store$file_info$name)
+        } else {
+          "preview_data"
+        }
+        paste0(file_base, "_preview.csv")
+      },
+      content = function(file) {
+        readr::write_csv(filtered_data(), file)
+      }
+    )
+
+    output$download_excel <- downloadHandler(
+      filename = function() {
+        file_base <- if (!is.null(data_store$file_info)) {
+          tools::file_path_sans_ext(data_store$file_info$name)
+        } else {
+          "preview_data"
+        }
+        paste0(file_base, "_preview.xlsx")
+      },
+      content = function(file) {
+        writexl::write_xlsx(filtered_data(), path = file)
+      }
+    )
   })
 }

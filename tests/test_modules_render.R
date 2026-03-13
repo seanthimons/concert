@@ -1,6 +1,7 @@
 library(testthat)
 library(shiny)
-library(DT)
+library(reactable)
+library(reactable.extras)
 library(bslib)
 library(htmltools)
 

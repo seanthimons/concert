@@ -10,6 +10,51 @@ mod_clean_data_ui <- function(id) {
   ns <- NS(id)
 
   tagList(
+    # Chip editor CSS
+    tags$style(HTML(sprintf("
+      .ref-chip { cursor: pointer; margin: 2px; display: inline-block; }
+      .ref-chip:hover { opacity: 0.8; }
+      .ref-chip-remove { cursor: pointer; margin-left: 4px; font-weight: bold; }
+      .ref-chip-remove:hover { color: red; }
+      .ref-chip-container { max-height: 200px; overflow-y: auto; padding: 6px; border: 1px solid #dee2e6; border-radius: 4px; background: #f8f9fa; }
+      .ref-term-input { margin-top: 6px; }
+    "))),
+    # Chip editor JS — delegated events
+    tags$script(HTML(sprintf("
+      $(document).on('click', '.ref-chip-body[data-ns=\"%s\"]', function() {
+        var $chip = $(this);
+        Shiny.setInputValue('%s', {
+          type: $chip.data('type'),
+          term: $chip.data('term'),
+          ts: Date.now()
+        });
+      });
+      $(document).on('click', '.ref-chip-remove[data-ns=\"%s\"]', function(e) {
+        e.stopPropagation();
+        var $btn = $(this);
+        Shiny.setInputValue('%s', {
+          type: $btn.data('type'),
+          term: $btn.data('term'),
+          ts: Date.now()
+        });
+      });
+      $(document).on('keypress', '.ref-term-input[data-ns=\"%s\"]', function(e) {
+        if (e.which === 13) {
+          e.preventDefault();
+          var $input = $(this);
+          var val = $input.val().trim();
+          if (val !== '') {
+            Shiny.setInputValue('%s', {
+              type: $input.data('type'),
+              term: val,
+              ts: Date.now()
+            });
+            $input.val('');
+          }
+        }
+      });
+    ", ns(""), ns("chip_toggle"), ns(""), ns("chip_remove"), ns(""), ns("chip_add")))),
+
     # Content when data is loaded
     conditionalPanel(
       condition = paste0("output['", ns("has_data"), "']"),
@@ -23,7 +68,7 @@ mod_clean_data_ui <- function(id) {
 
       uiOutput(ns("cleaning_summary")),
 
-      DT::dataTableOutput(ns("cleaned_table")),
+      reactable::reactableOutput(ns("cleaned_table")),
 
       uiOutput(ns("audit_section")),
 
@@ -66,6 +111,9 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
     observe({
       if (is.null(data_store$reference_lists)) {
         data_store$reference_lists <- load_all_reference_lists("data/reference_cache")
+      } else if (is.null(data_store$reference_lists$strip_terms)) {
+        # Backfill strip_terms for sessions initialized before this list existed
+        data_store$reference_lists$strip_terms <- load_strip_terms("data/reference_cache")
       }
     })
 
@@ -147,6 +195,13 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
                 unspec_result <- strip_terminal_unspecified(df, name_cols)
                 df <- unspec_result$cleaned_data
                 all_audits[[length(all_audits) + 1]] <- unspec_result$audit_trail
+
+                incProgress(0.04, detail = "Stripping user-defined terms...")
+                if (!is.null(data_store$reference_lists$strip_terms)) {
+                  strip_terms_result <- strip_reference_terms(df, name_cols, data_store$reference_lists$strip_terms)
+                  df <- strip_terms_result$cleaned_data
+                  all_audits[[length(all_audits) + 1]] <- strip_terms_result$audit_trail
+                }
 
                 # Cleanup before second enclosure stripping
                 df <- df %>%
@@ -427,148 +482,207 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         bslib::accordion_panel(
           title = sprintf("Cleaning Audit Trail -- %d Changes", n_changes),
           icon = bsicons::bs_icon("file-text"),
-          DT::dataTableOutput(session$ns("audit_table"))
+          reactable::reactableOutput(session$ns("audit_table"))
         )
       )
     })
 
     # Audit table
-    output$audit_table <- DT::renderDataTable({
+    output$audit_table <- reactable::renderReactable({
       req(data_store$cleaning_audit)
 
-      DT::datatable(
+      reactable::reactable(
         data_store$cleaning_audit,
-        options = list(
-          pageLength = 25,
-          scrollX = TRUE,
-          order = list(list(0, "asc"))
-        ),
-        filter = "top",
-        rownames = FALSE
+        defaultPageSize = 25,
+        filterable = TRUE,
+        resizable = TRUE,
+        wrap = FALSE,
+        striped = TRUE,
+        compact = TRUE,
+        defaultSorted = list(row_id = "asc")
       )
     })
 
-    # Reference list editors section
-    output$reference_editors_section <- renderUI({
+    # Helper: render chip editor for a reference list tibble
+    render_chip_editor <- function(ref_tibble, type) {
+      ns <- session$ns
+      chips <- lapply(seq_len(nrow(ref_tibble)), function(i) {
+        row <- ref_tibble[i, ]
+        is_active <- isTRUE(row$active)
+        is_default <- identical(row$source, "app_default")
+
+        # Badge class based on source and active status
+        if (is_active) {
+          badge_class <- switch(row$source,
+            app_default = "badge bg-success ref-chip",
+            user = "badge bg-primary ref-chip",
+            imported = "badge bg-info ref-chip",
+            "badge bg-secondary ref-chip"
+          )
+        } else {
+          badge_class <- "badge text-bg-light text-muted text-decoration-line-through ref-chip"
+        }
+
+        # X button only for non-default terms
+        remove_btn <- if (!is_default) {
+          tags$span(
+            class = "ref-chip-remove",
+            `data-ns` = ns(""),
+            `data-type` = type,
+            `data-term` = row$term,
+            HTML("&times;")
+          )
+        }
+
+        tags$span(
+          class = badge_class,
+          tags$span(
+            class = "ref-chip-body",
+            `data-ns` = ns(""),
+            `data-type` = type,
+            `data-term` = row$term,
+            row$term
+          ),
+          remove_btn
+        )
+      })
+
+      tagList(
+        div(class = "ref-chip-container", chips),
+        tags$input(
+          type = "text",
+          class = "form-control form-control-sm ref-term-input",
+          `data-ns` = ns(""),
+          `data-type` = type,
+          placeholder = "Type a term and press Enter..."
+        )
+      )
+    }
+
+    # Reference list editors section — static accordion wrapper (renders once)
+    # Track whether reference lists have been initialized (one-shot flag)
+    ref_lists_ready <- reactiveVal(FALSE)
+    observe({
       req(data_store$reference_lists)
+      if (!ref_lists_ready()) ref_lists_ready(TRUE)
+    })
 
-      ref_lists <- data_store$reference_lists
-
-      # Count active entries
-      n_func_cats <- sum(ref_lists$functional_categories$active, na.rm = TRUE)
-      n_stop_words <- sum(ref_lists$stop_words$active, na.rm = TRUE)
-      n_block_patterns <- sum(ref_lists$block_patterns$active, na.rm = TRUE)
+    output$reference_editors_section <- renderUI({
+      req(ref_lists_ready())
 
       bslib::accordion(
         id = session$ns("reference_editors"),
         open = FALSE,
         multiple = TRUE,
         bslib::accordion_panel(
-          title = sprintf("Functional Categories (%d)", n_func_cats),
+          title = "Functional Categories",
           icon = bsicons::bs_icon("tag"),
-          rhandsontable::rHandsontableOutput(session$ns("func_cat_editor"))
+          uiOutput(session$ns("chip_func_cats"))
         ),
         bslib::accordion_panel(
-          title = sprintf("Stop Words (%d)", n_stop_words),
+          title = "Stop Words",
           icon = bsicons::bs_icon("hand-thumbs-down"),
-          rhandsontable::rHandsontableOutput(session$ns("stop_words_editor"))
+          uiOutput(session$ns("chip_stop_words"))
         ),
         bslib::accordion_panel(
-          title = sprintf("Block Patterns (%d)", n_block_patterns),
+          title = "Block Patterns",
           icon = bsicons::bs_icon("calculator"),
-          rhandsontable::rHandsontableOutput(session$ns("block_patterns_editor"))
+          uiOutput(session$ns("chip_block_patterns"))
+        ),
+        bslib::accordion_panel(
+          title = "Strip Terms",
+          icon = bsicons::bs_icon("eraser"),
+          uiOutput(session$ns("chip_strip_terms"))
         )
       )
     })
 
-    # Functional categories editor
-    output$func_cat_editor <- rhandsontable::renderRHandsontable({
+    # Per-list chip renderers (isolated so toggling one doesn't re-render others)
+    output$chip_func_cats <- renderUI({
       req(data_store$reference_lists)
-
-      rhandsontable::rhandsontable(
-        data_store$reference_lists$functional_categories,
-        rowHeaders = NULL,
-        height = 300
-      ) %>%
-        rhandsontable::hot_col("term", readOnly = FALSE) %>%
-        rhandsontable::hot_col("source", readOnly = TRUE) %>%
-        rhandsontable::hot_col("active", type = "checkbox") %>%
-        rhandsontable::hot_context_menu(allowRowEdit = TRUE, allowColEdit = FALSE)
+      tbl <- data_store$reference_lists$functional_categories
+      n_active <- sum(tbl$active, na.rm = TRUE)
+      tagList(
+        tags$small(class = "text-muted mb-1 d-block", sprintf("%d active / %d total", n_active, nrow(tbl))),
+        render_chip_editor(tbl, "functional_categories")
+      )
     })
 
-    # Stop words editor
-    output$stop_words_editor <- rhandsontable::renderRHandsontable({
+    output$chip_stop_words <- renderUI({
       req(data_store$reference_lists)
-
-      rhandsontable::rhandsontable(
-        data_store$reference_lists$stop_words,
-        rowHeaders = NULL,
-        height = 300
-      ) %>%
-        rhandsontable::hot_col("term", readOnly = FALSE) %>%
-        rhandsontable::hot_col("source", readOnly = TRUE) %>%
-        rhandsontable::hot_col("active", type = "checkbox") %>%
-        rhandsontable::hot_context_menu(allowRowEdit = TRUE, allowColEdit = FALSE)
+      tbl <- data_store$reference_lists$stop_words
+      n_active <- sum(tbl$active, na.rm = TRUE)
+      tagList(
+        tags$small(class = "text-muted mb-1 d-block", sprintf("%d active / %d total", n_active, nrow(tbl))),
+        render_chip_editor(tbl, "stop_words")
+      )
     })
 
-    # Block patterns editor
-    output$block_patterns_editor <- rhandsontable::renderRHandsontable({
+    output$chip_block_patterns <- renderUI({
       req(data_store$reference_lists)
-
-      rhandsontable::rhandsontable(
-        data_store$reference_lists$block_patterns,
-        rowHeaders = NULL,
-        height = 300
-      ) %>%
-        rhandsontable::hot_col("term", readOnly = FALSE) %>%
-        rhandsontable::hot_col("source", readOnly = TRUE) %>%
-        rhandsontable::hot_col("active", type = "checkbox") %>%
-        rhandsontable::hot_context_menu(allowRowEdit = TRUE, allowColEdit = FALSE)
+      tbl <- data_store$reference_lists$block_patterns
+      n_active <- sum(tbl$active, na.rm = TRUE)
+      tagList(
+        tags$small(class = "text-muted mb-1 d-block", sprintf("%d active / %d total", n_active, nrow(tbl))),
+        render_chip_editor(tbl, "block_patterns")
+      )
     })
 
-    # Handle edits to functional categories
-    observeEvent(input$func_cat_editor, {
-      req(input$func_cat_editor)
+    output$chip_strip_terms <- renderUI({
+      req(data_store$reference_lists)
+      tbl <- data_store$reference_lists$strip_terms
+      n_active <- sum(tbl$active, na.rm = TRUE)
+      tagList(
+        tags$small(class = "text-muted mb-1 d-block", sprintf("%d active / %d total", n_active, nrow(tbl))),
+        render_chip_editor(tbl, "strip_terms")
+      )
+    })
 
-      edited_data <- rhandsontable::hot_to_r(input$func_cat_editor)
+    # Chip toggle — flip active status
+    observeEvent(input$chip_toggle, {
+      msg <- input$chip_toggle
+      req(msg$type, msg$term)
 
-      # Handle new rows (source = NA)
-      if (any(is.na(edited_data$source))) {
-        edited_data$source[is.na(edited_data$source)] <- "user"
-        edited_data$active[is.na(edited_data$active)] <- TRUE
+      tbl <- data_store$reference_lists[[msg$type]]
+      idx <- which(tbl$term == msg$term)
+      if (length(idx) > 0) {
+        tbl$active[idx[1]] <- !isTRUE(tbl$active[idx[1]])
+        data_store$reference_lists[[msg$type]] <- tbl
+      }
+    })
+
+    # Chip remove — delete non-default terms
+    observeEvent(input$chip_remove, {
+      msg <- input$chip_remove
+      req(msg$type, msg$term)
+
+      tbl <- data_store$reference_lists[[msg$type]]
+      idx <- which(tbl$term == msg$term & tbl$source != "app_default")
+      if (length(idx) > 0) {
+        tbl <- tbl[-idx[1], ]
+        data_store$reference_lists[[msg$type]] <- tbl
+      }
+    })
+
+    # Chip add — append new user term
+    observeEvent(input$chip_add, {
+      msg <- input$chip_add
+      req(msg$type, msg$term)
+
+      tbl <- data_store$reference_lists[[msg$type]]
+
+      # Duplicate check (case-insensitive)
+      if (tolower(msg$term) %in% tolower(tbl$term)) {
+        showNotification(
+          sprintf("'%s' already exists in this list", msg$term),
+          type = "warning",
+          duration = 3
+        )
+        return()
       }
 
-      data_store$reference_lists$functional_categories <- edited_data
-    })
-
-    # Handle edits to stop words
-    observeEvent(input$stop_words_editor, {
-      req(input$stop_words_editor)
-
-      edited_data <- rhandsontable::hot_to_r(input$stop_words_editor)
-
-      # Handle new rows (source = NA)
-      if (any(is.na(edited_data$source))) {
-        edited_data$source[is.na(edited_data$source)] <- "user"
-        edited_data$active[is.na(edited_data$active)] <- TRUE
-      }
-
-      data_store$reference_lists$stop_words <- edited_data
-    })
-
-    # Handle edits to block patterns
-    observeEvent(input$block_patterns_editor, {
-      req(input$block_patterns_editor)
-
-      edited_data <- rhandsontable::hot_to_r(input$block_patterns_editor)
-
-      # Handle new rows (source = NA)
-      if (any(is.na(edited_data$source))) {
-        edited_data$source[is.na(edited_data$source)] <- "user"
-        edited_data$active[is.na(edited_data$active)] <- TRUE
-      }
-
-      data_store$reference_lists$block_patterns <- edited_data
+      new_row <- tibble::tibble(term = msg$term, source = "user", active = TRUE)
+      data_store$reference_lists[[msg$type]] <- dplyr::bind_rows(tbl, new_row)
     })
 
     # CSV upload handler
@@ -603,7 +717,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
           }
 
           # Validate type values
-          allowed_types <- c("functional_category", "stop_word", "block_pattern")
+          allowed_types <- c("functional_category", "stop_word", "block_pattern", "strip_term")
           unknown_types <- setdiff(unique(uploaded_data$type), allowed_types)
 
           if (length(unknown_types) > 0) {
@@ -652,6 +766,12 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
                 new_row
               )
               n_added <- n_added + 1
+            } else if (type_val == "strip_term") {
+              data_store$reference_lists$strip_terms <- dplyr::bind_rows(
+                data_store$reference_lists$strip_terms,
+                new_row
+              )
+              n_added <- n_added + 1
             }
           }
 
@@ -672,48 +792,49 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
     })
 
     # Cleaned data table
-    output$cleaned_table <- DT::renderDataTable({
+    output$cleaned_table <- reactable::renderReactable({
       req(data_store$cleaned_data)
 
       df <- data_store$cleaned_data
 
-      # Hide internal columns from display
-      hidden_cols <- which(names(df) %in% c("original_row_id", "multi_cas", "multi_cas_count")) - 1
+      # Hidden columns
+      hidden_col_names <- intersect(c("original_row_id", "multi_cas", "multi_cas_count"), names(df))
 
-      dt <- DT::datatable(
-        df,
-        options = list(
-          pageLength = 25,
-          scrollX = TRUE,
-          columnDefs = list(list(visible = FALSE, targets = hidden_cols))
-        ),
-        rownames = FALSE
-      )
+      # Build column definitions
+      col_defs <- list()
 
-      # Add conditional formatting if cleaning_flag column exists
-      if ("cleaning_flag" %in% names(df)) {
-        # Use JavaScript callback for prefix matching
-        dt <- dt %>%
-          DT::formatStyle(
-            "cleaning_flag",
-            target = "row",
-            backgroundColor = DT::JS(
-              "function(rowData, rowIndex, colIndex, row) {
-                var flag = rowData[colIndex];
-                if (flag && typeof flag === 'string') {
-                  if (flag.startsWith('BLOCK:')) {
-                    return '#ffcccc';
-                  } else if (flag.startsWith('WARN:')) {
-                    return '#fff3cd';
-                  }
-                }
-                return '';
-              }"
-            )
-          )
+      # Hide internal columns
+      for (col_name in hidden_col_names) {
+        col_defs[[col_name]] <- reactable::colDef(show = FALSE)
       }
 
-      dt
+      # Row style function for cleaning_flag conditional formatting
+      row_style_fn <- if ("cleaning_flag" %in% names(df)) {
+        function(index) {
+          flag <- df$cleaning_flag[index]
+          if (!is.na(flag) && is.character(flag)) {
+            if (startsWith(flag, "BLOCK:")) {
+              return(list(backgroundColor = "#ffcccc"))
+            } else if (startsWith(flag, "WARN:")) {
+              return(list(backgroundColor = "#fff3cd"))
+            }
+          }
+          NULL
+        }
+      } else {
+        NULL
+      }
+
+      reactable::reactable(
+        df,
+        columns = col_defs,
+        defaultPageSize = 25,
+        resizable = TRUE,
+        wrap = FALSE,
+        striped = TRUE,
+        compact = TRUE,
+        rowStyle = row_style_fn
+      )
     })
 
     # Multi-CAS flagged rows section
@@ -743,7 +864,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         div(
           class = "card-body",
           p("These rows contain multiple CAS-RNs. Review them and split if they represent separate chemicals."),
-          DT::dataTableOutput(ns("multi_cas_table")),
+          reactable::reactableOutput(ns("multi_cas_table")),
           actionButton(
             ns("split_row"),
             "Split Selected Row",
@@ -755,20 +876,21 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
     })
 
     # Multi-CAS table
-    output$multi_cas_table <- DT::renderDataTable({
+    output$multi_cas_table <- reactable::renderReactable({
       req(data_store$cleaned_data)
 
       cleaned_data <- data_store$cleaned_data
       multi_cas_rows <- cleaned_data[cleaned_data$multi_cas == TRUE, ]
 
-      DT::datatable(
+      reactable::reactable(
         multi_cas_rows,
         selection = "single",
-        options = list(
-          pageLength = 10,
-          scrollX = TRUE
-        ),
-        rownames = FALSE
+        onClick = "select",
+        defaultPageSize = 10,
+        resizable = TRUE,
+        wrap = FALSE,
+        striped = TRUE,
+        compact = TRUE
       )
     })
 
@@ -776,8 +898,8 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
     observeEvent(input$split_row, {
       req(data_store$cleaned_data)
 
-      # Get selected row from DT
-      selected <- input$multi_cas_table_rows_selected
+      # Get selected row from reactable
+      selected <- reactable::getReactableState("multi_cas_table", "selected")
 
       if (is.null(selected) || length(selected) == 0) {
         showNotification(
@@ -829,7 +951,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       req(data_store$cleaned_data)
 
       # Get selected row
-      selected <- input$multi_cas_table_rows_selected
+      selected <- reactable::getReactableState("multi_cas_table", "selected")
       cleaned_data <- data_store$cleaned_data
       multi_cas_rows <- cleaned_data[cleaned_data$multi_cas == TRUE, ]
       row_to_split <- multi_cas_rows[selected, ]
