@@ -60,13 +60,14 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - ✓ Whole-word stop word matching via word boundaries — v1.4
 - ✓ Letter-comma-letter IUPAC pattern protection in synonym splitting — v1.4
 - ✓ End-to-end validation test suite for cleaning pipeline fixes (42 assertions) — v1.4
+- ✓ Enrichment of disagreement candidates with CASRN, molecular formula, molecular weight via CompTox API — v1.5
+- ✓ Side-by-side comparison modal for disagreement resolution — v1.5
+- ✓ Source column and search tier attribution per candidate — v1.5
+- ✓ Export enrichment metadata (consensus_casrn, consensus_formula, consensus_mw) — v1.5
 
 ### Active
 
-- Enrichment of disagreement candidates with CASRN, molecular formula, molecular weight via CompTox API — v1.5
-- Side-by-side comparison modal for disagreement resolution — v1.5
-- Source column and search tier attribution per candidate — v1.5
-- Export enrichment metadata (consensus_casrn, consensus_formula, consensus_mw) — v1.5
+(None — planning next milestone)
 
 ### Out of Scope
 
@@ -84,24 +85,22 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ## Context
 
-Shipped v1.4 Cleaning Pipeline Fixes with ~14,950 LOC R across 18 files. Starting v1.5 Disagreement Enrichment.
+Shipped v1.5 Disagreement Enrichment with ~15,750 LOC R across 18 files.
 Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, openxlsx2, rhandsontable.
 
 The app has 8 top-level tabs: Data Preview, Detection Info, Raw Data, Clean Data, Tag Columns, Run Curation, Review Results, plus sidebar upload and config import. On startup only Upload is visible; tabs appear progressively as the user advances.
 
 Key files:
-- `app.R` — orchestration-only UI/server (203 lines)
+- `app.R` — orchestration-only UI/server (207 lines)
 - `R/modules/` — 8 Shiny modules (mod_upload, mod_data_preview, mod_detection_info, mod_raw_data, mod_clean_data, mod_tag_columns, mod_run_curation, mod_review_results)
-- `R/curation.R` — curation pipeline orchestrator (954 lines)
-- `R/consensus.R` — consensus classification and resolution (257 lines)
+- `R/curation.R` — curation pipeline orchestrator with enrichment (~1,020 lines)
+- `R/consensus.R` — consensus classification, resolution, and enrichment (320+ lines)
 - `R/cleaning_pipeline.R` — 12-step pre-curation cleaning pipeline
 - `R/cleaning_reference.R` — reference list loaders with provenance tracking
 - `R/file_handlers.R` — file reading/validation (218 lines)
 - `R/data_detection.R` — frontmatter detection algorithms (405 lines)
 
-Known tech debt carried forward:
-- Resolution dropdown context could be richer (carried from v1.2)
-- Review Results table column visibility could be improved (carried from v1.2)
+Known tech debt: None actively tracked — v1.5 resolved prior dropdown/visibility concerns with the comparison modal.
 
 ## Constraints
 
@@ -138,6 +137,10 @@ Known tech debt carried forward:
 | Consecutive-lowercase heuristic for formula detection | Filters obvious non-formulas before regex; more maintainable than perfecting regex | ✓ Good — v1.4 |
 | Word boundary matching for stop words | `\b` wrapping prevents substring false positives; simple and performant | ✓ Good — v1.4 |
 | Reuse @@@ placeholder for letter-comma-letter | Consistent with existing digit-comma-digit protection; same restore logic | ✓ Good — v1.4 |
+| Incremental enrichment caching with structured tibble | Avoids redundant API calls; dtxsid→(casrn, formula, mw) tibble is clean and joins easily | ✓ Good — v1.5 |
+| Enrich all DTXSIDs not just disagree | Comprehensive export coverage; agree/single rows get enrichment too | ✓ Good — v1.5 |
+| Compare button + modal over richer dropdown | Modal gives space for tabular metadata; dropdowns get too wide | ✓ Good — v1.5 |
+| Two-step Select + Confirm resolution | Prevents accidental resolution; progressive disclosure pattern | ✓ Good — v1.5 |
 
 ---
-*Last updated: 2026-03-10 after v1.5 milestone kickoff*
+*Last updated: 2026-03-13 after v1.5 milestone*
