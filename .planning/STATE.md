@@ -1,36 +1,39 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Disagreement Enrichment
-status: archived
-last_updated: "2026-03-13"
+milestone: v1.6
+milestone_name: Cleaning Ruleset Fixes
+status: active
+last_updated: "2026-03-18"
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 2
-  completed_plans: 2
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State: ChemReg
 
-**Last Updated:** 2026-03-13
-**Milestone:** v1.5 Disagreement Enrichment — ARCHIVED
-**Status:** Planning next milestone
+**Last Updated:** 2026-03-18
+**Milestone:** v1.6 Cleaning Ruleset Fixes
+**Status:** Defining requirements
 
 ---
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-13)
+See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
-**Current focus:** Planning next milestone
+**Current focus:** v1.6 Cleaning Ruleset Fixes
 
 ---
 
 ## Current Position
 
-Milestone v1.5 archived. 6 milestones shipped (v1.0–v1.5), 18 phases, 34 plans total.
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-18 — Milestone v1.6 started
 
 ---
 
@@ -60,11 +63,11 @@ None active.
 
 ### What Just Happened
 
-Archived milestone v1.5 (Disagreement Enrichment). All requirements satisfied (11/11). Archives at `.planning/milestones/v1.5-ROADMAP.md` and `.planning/milestones/v1.5-REQUIREMENTS.md`.
+Started milestone v1.6 (Cleaning Ruleset Fixes). Defining requirements for synonym splitter fix, roman numeral misrouting, and unicode coverage gaps.
 
 ### Next Action
 
-Run `/gsd:new-milestone` to start the next milestone cycle.
+Define requirements and create roadmap.
 
 ---
 
