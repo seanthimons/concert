@@ -67,7 +67,15 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ### Active
 
-(None — planning next milestone)
+## Current Milestone: v1.6 Cleaning Ruleset Fixes
+
+**Goal:** Fix cleaning pipeline bugs and unicode coverage gaps discovered during live dataset roadtesting.
+
+**Target features:**
+- Fix multi-locant comma protection in synonym splitter (2,4,6- patterns)
+- Investigate and fix roman numeral → formula column misrouting (chromium iii/vi)
+- Fix unicode cleaning coverage (ensure α and ′ are caught, align tests with current ComptoxR mappings)
+- Extensible — add phases as roadtesting surfaces more issues
 
 ### Out of Scope
 
@@ -143,4 +151,4 @@ Known tech debt: None actively tracked — v1.5 resolved prior dropdown/visibili
 | Two-step Select + Confirm resolution | Prevents accidental resolution; progressive disclosure pattern | ✓ Good — v1.5 |
 
 ---
-*Last updated: 2026-03-13 after v1.5 milestone*
+*Last updated: 2026-03-18 after v1.6 milestone start*
