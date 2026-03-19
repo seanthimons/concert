@@ -633,3 +633,72 @@ test_that("run_cleaning_pipeline includes all name cleaning steps in audit trail
   expect_true("strip_quality_adjectives" %in% steps)
   expect_true("strip_terminal_unspecified" %in% steps)
 })
+
+# ==============================================================================
+# ROMAN-01/ROMAN-02: Roman numeral oxidation state protection
+# ==============================================================================
+
+test_that("strip_terminal_enclosures preserves terminal roman numeral oxidation states", {
+  df <- tibble::tibble(
+    chemical_name = c(
+      "chromium (III)",
+      "chromium (iii)",
+      "Copper (II)",
+      "Iron (IV)",
+      "Manganese (VII)"
+    )
+  )
+  result <- strip_terminal_enclosures(df, "chemical_name")
+  cleaned <- result$cleaned_data
+
+  # All should be unchanged — roman numerals are chemical identity
+  expect_equal(cleaned$chemical_name[1], "chromium (III)")
+  expect_equal(cleaned$chemical_name[2], "chromium (iii)")
+  expect_equal(cleaned$chemical_name[3], "Copper (II)")
+  expect_equal(cleaned$chemical_name[4], "Iron (IV)")
+  expect_equal(cleaned$chemical_name[5], "Manganese (VII)")
+
+  # formula_extract should be NA for all (nothing extracted)
+  expect_true(all(is.na(cleaned$formula_extract_chemical_name)))
+})
+
+test_that("strip_terminal_enclosures preserves element+numeral roman forms", {
+  df <- tibble::tibble(
+    chemical_name = c(
+      "Chromium (Cr III) complex", # non-terminal, won't match terminal regex anyway
+      "Some compound (Fe II)"      # terminal element+numeral
+    )
+  )
+  result <- strip_terminal_enclosures(df, "chemical_name")
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$chemical_name[1], "Chromium (Cr III) complex")
+  expect_equal(cleaned$chemical_name[2], "Some compound (Fe II)")
+})
+
+test_that("strip_terminal_enclosures preserves roman numerals in brackets", {
+  df <- tibble::tibble(
+    chemical_name = c("chromium [III]", "Iron [VI]")
+  )
+  result <- strip_terminal_enclosures(df, "chemical_name")
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$chemical_name[1], "chromium [III]")
+  expect_equal(cleaned$chemical_name[2], "Iron [VI]")
+})
+
+test_that("strip_terminal_enclosures still strips non-roman parentheticals (regression)", {
+  df <- tibble::tibble(
+    chemical_name = c(
+      "Acetone (ACS reagent)",
+      "Sodium chloride (NaCl)",
+      "Benzene (analytical grade)"
+    )
+  )
+  result <- strip_terminal_enclosures(df, "chemical_name")
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$chemical_name[1], "Acetone")
+  expect_equal(cleaned$chemical_name[2], "Sodium chloride")
+  expect_equal(cleaned$chemical_name[3], "Benzene")
+})
