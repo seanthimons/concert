@@ -2,13 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Cleaning Ruleset Fixes
-status: active
-last_updated: "2026-03-18"
+status: planning
+stopped_at: Phase 19 context gathered
+last_updated: "2026-03-19T16:50:29.191Z"
+last_activity: 2026-03-18 — v1.6 roadmap created (3 phases, 7 requirements mapped)
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 3
+  total_plans: 0
   completed_plans: 0
+  percent: 0
 ---
 
 # Project State: ChemReg
@@ -72,9 +75,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-18
-Stopped at: Roadmap created, awaiting plan-phase 19
-Resume file: None
+Last session: 2026-03-19T16:50:29.187Z
+Stopped at: Phase 19 context gathered
+Resume file: .planning/phases/19-synonym-splitter-comma-protection/19-CONTEXT.md
 
 ---
 
