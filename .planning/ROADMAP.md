@@ -69,6 +69,6 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 19. Synonym Splitter Comma Protection | 1/1 | Complete   | 2026-03-19 | - |
+| 19. Synonym Splitter Comma Protection | 1/1 | Complete    | 2026-03-19 | - |
 | 20. Roman Numeral Handling | v1.6 | 0/1 | Not started | - |
 | 21. Unicode Cleaning Coverage | v1.6 | 0/1 | Not started | - |
