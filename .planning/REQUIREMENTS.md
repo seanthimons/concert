@@ -41,19 +41,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SPLIT-01 | — | Pending |
-| SPLIT-02 | — | Pending |
-| ROMAN-01 | — | Pending |
-| ROMAN-02 | — | Pending |
-| UNIC-01 | — | Pending |
-| UNIC-02 | — | Pending |
-| UNIC-03 | — | Pending |
+| SPLIT-01 | Phase 19 | Pending |
+| SPLIT-02 | Phase 19 | Pending |
+| ROMAN-01 | Phase 20 | Pending |
+| ROMAN-02 | Phase 20 | Pending |
+| UNIC-01 | Phase 21 | Pending |
+| UNIC-02 | Phase 21 | Pending |
+| UNIC-03 | Phase 21 | Pending |
 
 **Coverage:**
 - v1.6 requirements: 7 total
-- Mapped to phases: 0
-- Unmapped: 7 ⚠️
+- Mapped to phases: 7
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-18*
-*Last updated: 2026-03-18 after initial definition*
+*Last updated: 2026-03-18 after roadmap creation*
