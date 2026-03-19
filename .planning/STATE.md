@@ -5,9 +5,9 @@ milestone_name: Cleaning Ruleset Fixes
 status: active
 last_updated: "2026-03-18"
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
-  total_plans: 0
+  total_plans: 3
   completed_plans: 0
 ---
 
@@ -15,7 +15,7 @@ progress:
 
 **Last Updated:** 2026-03-18
 **Milestone:** v1.6 Cleaning Ruleset Fixes
-**Status:** Defining requirements
+**Status:** Ready to plan Phase 19
 
 ---
 
@@ -24,16 +24,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
-**Current focus:** v1.6 Cleaning Ruleset Fixes
+**Current focus:** Phase 19 — Synonym Splitter Comma Protection
 
 ---
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-18 — Milestone v1.6 started
+Phase: 19 of 21 (Synonym Splitter Comma Protection)
+Plan: 0 of 1 in current phase
+Status: Ready to plan
+Last activity: 2026-03-18 — v1.6 roadmap created (3 phases, 7 requirements mapped)
+
+Progress: [░░░░░░░░░░] 0%
 
 ---
 
@@ -41,33 +43,38 @@ Last activity: 2026-03-18 — Milestone v1.6 started
 
 **Cumulative (all milestones):**
 - Total milestones shipped: 6 (v1.0, v1.1, v1.2, v1.3, v1.4, v1.5)
-- Total phases: 18 (Phases 1-18)
-- Total plans: 34
+- Total phases: 18 complete + 3 planned (v1.6)
+- Total plans: 34 complete + 3 planned (v1.6)
 - LOC: ~15,750 R
 
 ---
 
 ## Accumulated Context
 
-### Pending Todos (Carried Forward)
+### Decisions
 
-None — all prior tech debt resolved in v1.5.
+Decisions are logged in PROJECT.md Key Decisions table.
+Recent decisions affecting current work:
+
+- [v1.4]: Reuse @@@ placeholder for letter-comma-letter protection — extend same strategy to multi-locant patterns in Phase 19
+- [v1.3]: ComptoxR direct usage — clean_unicode called directly; Phase 21 must verify mapping table entries, not assume gaps
+
+### Pending Todos
+
+None.
 
 ### Known Issues / Blockers
 
-None active.
+- ROMAN-01/ROMAN-02: Root cause of roman numeral misrouting not yet diagnosed — Phase 20 plan must trace execution path before fixing
+- UNIC-01/UNIC-02: Need to verify ComptoxR mapping table includes α (U+03B1) and ′ (U+2032) before assuming pipeline gap
 
 ---
 
 ## Session Continuity
 
-### What Just Happened
-
-Started milestone v1.6 (Cleaning Ruleset Fixes). Defining requirements for synonym splitter fix, roman numeral misrouting, and unicode coverage gaps.
-
-### Next Action
-
-Define requirements and create roadmap.
+Last session: 2026-03-18
+Stopped at: Roadmap created, awaiting plan-phase 19
+Resume file: None
 
 ---
 
