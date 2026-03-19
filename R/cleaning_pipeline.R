@@ -12,6 +12,10 @@ library(stringr)
 library(stringi)
 library(tibble)
 
+# Roman numeral pattern for oxidation states (I through XII, case-insensitive)
+# Matches: pure roman numeral like "III", or element symbol + roman numeral like "Cr III"
+ROMAN_NUMERAL_PATTERN <- "(?i)^\\s*([A-Z][a-z]?\\s+)?(I{1,3}|IV|V|VI{0,3}|IX|X|XI{0,2})\\s*$"
+
 
 #' Clean text field by stripping whitespace and punctuation artifacts
 #'
@@ -383,9 +387,10 @@ strip_terminal_enclosures <- function(df, name_cols) {
           has_yl <- stringr::str_detect(content, "yl")
           has_exception <- any(sapply(exception_words, function(w) stringr::str_detect(stringr::str_to_lower(content), w)))
           has_percentage <- stringr::str_detect(content, "%")
+          has_roman <- stringr::str_detect(content_trimmed, ROMAN_NUMERAL_PATTERN)
 
-          # Strip if: (no yl OR has exception) AND no percentage
-          should_strip <- (!has_yl || has_exception) && !has_percentage
+          # Strip if: (no yl OR has exception) AND no percentage AND no roman numeral
+          should_strip <- (!has_yl || has_exception) && !has_percentage && !has_roman
 
           if (should_strip) {
             # Strip it
@@ -412,9 +417,10 @@ strip_terminal_enclosures <- function(df, name_cols) {
           has_yl <- stringr::str_detect(content, "yl")
           has_exception <- any(sapply(exception_words, function(w) stringr::str_detect(stringr::str_to_lower(content), w)))
           has_percentage <- stringr::str_detect(content, "%")
+          has_roman <- stringr::str_detect(content_trimmed, ROMAN_NUMERAL_PATTERN)
 
-          # Strip if: (no yl OR has exception) AND no percentage
-          should_strip <- (!has_yl || has_exception) && !has_percentage
+          # Strip if: (no yl OR has exception) AND no percentage AND no roman numeral
+          should_strip <- (!has_yl || has_exception) && !has_percentage && !has_roman
 
           if (should_strip) {
             # Strip it
