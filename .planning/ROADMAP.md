@@ -32,10 +32,10 @@
   1. A name like "2,4,6-trichlorophenol" passes through the synonym splitter as a single name (no split on the locant commas)
   2. The existing single-locant protection for names like "2,4-D" continues to work without regression
   3. A name with a plain non-locant comma (e.g., "acetone, purified") is still split correctly
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 19-01: Extend locant comma protection to multi-locant patterns and validate with test suite
+- [ ] 19-01-PLAN.md — Extend locant comma protection to multi-locant patterns with repeat-until-stable loop and validate with test suite
 
 #### Phase 20: Roman Numeral Handling
 **Goal**: Chemical names containing roman numeral oxidation states are cleaned and routed correctly without misassignment to the formula column
