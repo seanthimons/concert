@@ -60,6 +60,7 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - ✓ Whole-word stop word matching via word boundaries — v1.4
 - ✓ Letter-comma-letter IUPAC pattern protection in synonym splitting — v1.4
 - ✓ End-to-end validation test suite for cleaning pipeline fixes (42 assertions) — v1.4
+- ✓ Multi-locant IUPAC comma protection in synonym splitter (3+ locants via repeat-until-stable loop) — v1.6 Phase 19
 - ✓ Enrichment of disagreement candidates with CASRN, molecular formula, molecular weight via CompTox API — v1.5
 - ✓ Side-by-side comparison modal for disagreement resolution — v1.5
 - ✓ Source column and search tier attribution per candidate — v1.5
@@ -72,7 +73,7 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 **Goal:** Fix cleaning pipeline bugs and unicode coverage gaps discovered during live dataset roadtesting.
 
 **Target features:**
-- Fix multi-locant comma protection in synonym splitter (2,4,6- patterns)
+- ~~Fix multi-locant comma protection in synonym splitter (2,4,6- patterns)~~ — Done (Phase 19)
 - Investigate and fix roman numeral → formula column misrouting (chromium iii/vi)
 - Fix unicode cleaning coverage (ensure α and ′ are caught, align tests with current ComptoxR mappings)
 - Extensible — add phases as roadtesting surfaces more issues
