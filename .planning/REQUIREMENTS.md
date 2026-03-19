@@ -9,8 +9,8 @@ Requirements for cleaning ruleset fixes. Each maps to roadmap phases.
 
 ### Synonym Splitting
 
-- [ ] **SPLIT-01**: Multi-locant IUPAC names (e.g., 2,4,6-trichlorophenol) are not split by the synonym splitter
-- [ ] **SPLIT-02**: Existing single-locant protection (2,4-D) continues to work correctly
+- [x] **SPLIT-01**: Multi-locant IUPAC names (e.g., 2,4,6-trichlorophenol) are not split by the synonym splitter
+- [x] **SPLIT-02**: Existing single-locant protection (2,4-D) continues to work correctly
 
 ### Roman Numerals
 
@@ -41,8 +41,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SPLIT-01 | Phase 19 | Pending |
-| SPLIT-02 | Phase 19 | Pending |
+| SPLIT-01 | Phase 19 | Complete |
+| SPLIT-02 | Phase 19 | Complete |
 | ROMAN-01 | Phase 20 | Pending |
 | ROMAN-02 | Phase 20 | Pending |
 | UNIC-01 | Phase 21 | Pending |
