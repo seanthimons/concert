@@ -2,21 +2,21 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Cleaning Ruleset Fixes
-status: planning
-stopped_at: Phase 20 context gathered
-last_updated: "2026-03-19T18:48:32.812Z"
+status: executing
+stopped_at: Completed 20-01-PLAN.md
+last_updated: "2026-03-19T19:51:08.525Z"
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  completed_phases: 2
+  total_plans: 2
+  completed_plans: 2
 ---
 
 # Project State: ChemReg
 
 **Last Updated:** 2026-03-18
 **Milestone:** v1.6 Cleaning Ruleset Fixes
-**Status:** Ready to plan
+**Status:** Executing Phase 20
 
 ---
 
@@ -25,13 +25,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
-**Current focus:** Phase 19 — synonym-splitter-comma-protection
+**Current focus:** Phase 20 — roman-numeral-handling
 
 ---
 
 ## Current Position
 
-Phase: 19 (synonym-splitter-comma-protection) — EXECUTING
+Phase: 20 (roman-numeral-handling) — EXECUTING
 Plan: 1 of 1
 
 ## Performance Metrics
@@ -55,6 +55,7 @@ Recent decisions affecting current work:
 - [v1.4]: Reuse @@@ placeholder for letter-comma-letter protection — extend same strategy to multi-locant patterns in Phase 19
 - [v1.3]: ComptoxR direct usage — clean_unicode called directly; Phase 21 must verify mapping table entries, not assume gaps
 - [Phase 19-synonym-splitter-comma-protection]: Repeat-until-stable loop (for, 10 iterations) wraps digit-comma-digit and letter-comma-letter protection in split_synonyms()
+- [Phase 20-roman-numeral-handling]: ROMAN_NUMERAL_PATTERN module-level constant in cleaning_pipeline.R: anchored regex (I-XII, case-insensitive) used by both paren and bracket paths in strip_terminal_enclosures
 
 ### Pending Todos
 
@@ -69,9 +70,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-19T18:48:32.808Z
-Stopped at: Phase 20 context gathered
-Resume file: .planning/phases/20-roman-numeral-handling/20-CONTEXT.md
+Last session: 2026-03-19T19:51:08.522Z
+Stopped at: Completed 20-01-PLAN.md
+Resume file: None
 
 ---
 
