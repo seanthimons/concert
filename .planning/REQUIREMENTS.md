@@ -14,8 +14,8 @@ Requirements for cleaning ruleset fixes. Each maps to roadmap phases.
 
 ### Roman Numerals
 
-- [ ] **ROMAN-01**: Chemical names with roman numeral oxidation states (e.g., chromium III, chromium VI) retain the numeral as part of the name
-- [ ] **ROMAN-02**: Roman numerals in parenthetical form (e.g., chromium (III)) are not misrouted to formula column
+- [x] **ROMAN-01**: Chemical names with roman numeral oxidation states (e.g., chromium III, chromium VI) retain the numeral as part of the name
+- [x] **ROMAN-02**: Roman numerals in parenthetical form (e.g., chromium (III)) are not misrouted to formula column
 
 ### Unicode Cleaning
 
@@ -43,8 +43,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | SPLIT-01 | Phase 19 | Complete |
 | SPLIT-02 | Phase 19 | Complete |
-| ROMAN-01 | Phase 20 | Pending |
-| ROMAN-02 | Phase 20 | Pending |
+| ROMAN-01 | Phase 20 | Complete |
+| ROMAN-02 | Phase 20 | Complete |
 | UNIC-01 | Phase 21 | Pending |
 | UNIC-02 | Phase 21 | Pending |
 | UNIC-03 | Phase 21 | Pending |
