@@ -690,6 +690,115 @@ strip_terminal_unspecified <- function(df, name_cols) {
   )
 }
 
+#' Strip user-defined reference terms from name fields
+#'
+#' Removes terms from the strip_terms reference list from Name-tagged columns.
+#' Terms containing regex metacharacters (\w, +, *, ^, $) are applied as-is.
+#' Plain terms are wrapped in word boundaries for clean removal.
+#'
+#' @param df Dataframe with name columns
+#' @param name_cols Character vector of Name-tagged column names
+#' @param strip_terms_tbl Tibble with columns: term, source, active
+#' @return List with cleaned_data and audit_trail
+#'
+#' @examples
+#' df <- tibble::tibble(chemical_name = c("pure acetone", "technical ethanol"))
+#' terms <- tibble::tibble(term = c("pure", "technical"), source = "user", active = TRUE)
+#' strip_reference_terms(df, "chemical_name", terms)
+strip_reference_terms <- function(df, name_cols, strip_terms_tbl) {
+  # Save before state
+  df_before <- df
+
+  # Filter to active terms
+ active_terms <- strip_terms_tbl %>%
+    dplyr::filter(active == TRUE)
+
+  # Skip if no active terms
+  if (nrow(active_terms) == 0) {
+    return(list(
+      cleaned_data = df,
+      audit_trail = tibble::tibble(
+        row_id = integer(),
+        field = character(),
+        step = character(),
+        original_value = character(),
+        new_value = character(),
+        reason = character()
+      )
+    ))
+  }
+
+  # Regex metacharacters that indicate a term is already a regex pattern
+  regex_meta <- c("\\\\w", "\\+", "\\*", "\\^", "\\$")
+
+  # Apply each term to each name column
+  df_after <- df
+  for (col_name in name_cols) {
+    for (i in seq_len(nrow(active_terms))) {
+      term <- active_terms$term[i]
+
+      # Check if term contains regex metacharacters
+      is_regex <- any(sapply(regex_meta, function(m) grepl(m, term, fixed = FALSE)))
+
+      if (is_regex) {
+        # Apply as-is (it's already a regex pattern)
+        df_after[[col_name]] <- df_after[[col_name]] %>%
+          stringr::str_remove_all(stringr::regex(term, ignore_case = TRUE)) %>%
+          stringr::str_squish()
+      } else {
+        # Wrap in word boundaries for clean removal
+        pattern <- paste0("\\b", stringr::str_replace_all(term, "([/.])", "\\\\\\1"), "\\b")
+        df_after[[col_name]] <- df_after[[col_name]] %>%
+          stringr::str_remove_all(stringr::regex(pattern, ignore_case = TRUE)) %>%
+          stringr::str_squish()
+      }
+    }
+  }
+
+  # Build audit trail
+  audit_rows <- list()
+
+  for (col_name in name_cols) {
+    original_vals <- as.character(df_before[[col_name]])
+    cleaned_vals <- as.character(df_after[[col_name]])
+
+    for (idx in seq_along(original_vals)) {
+      orig <- original_vals[idx]
+      new <- cleaned_vals[idx]
+
+      if (!is.na(orig) && !is.na(new) && orig != new) {
+        audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
+          row_id = as.integer(idx),
+          field = col_name,
+          step = "strip_reference_terms",
+          original_value = orig,
+          new_value = new,
+          reason = paste0("Remove user-defined strip terms from ", col_name)
+        )
+      }
+    }
+  }
+
+  # Combine audit rows
+  audit_trail <- if (length(audit_rows) == 0) {
+    tibble::tibble(
+      row_id = integer(),
+      field = character(),
+      step = character(),
+      original_value = character(),
+      new_value = character(),
+      reason = character()
+    )
+  } else {
+    dplyr::bind_rows(audit_rows)
+  }
+
+  list(
+    cleaned_data = df_after,
+    audit_trail = audit_trail
+  )
+}
+
 #' Split synonyms in name fields with IUPAC comma protection
 #'
 #' Splits comma/semicolon-separated synonyms into separate rows.
@@ -736,12 +845,18 @@ split_synonyms <- function(df, name_cols, tag_map) {
         next
       }
 
-      # Step 0: Protect letter-comma-letter IUPAC patterns (N,N- O,O- S,S- etc.)
-      # These are single-letter substituent prefixes, NOT synonym separators
-      protected_name <- stringr::str_replace_all(original_name, "([A-Za-z]),([A-Za-z])", "\\1@@@\\2")
-
-      # Step 1: Protect digit-comma-digit patterns (IUPAC locants like 2,4- or 1,3-)
-      protected_name <- stringr::str_replace_all(protected_name, "(\\d+),(\\d+)", "\\1@@@\\2")
+      # Step 0+1: Protect IUPAC comma patterns with repeat-until-stable loop
+      # Single pass of (\d+),(\d+) only catches one pair per adjacency:
+      # "2,4,6" -> "2@@@4,6" (misses second comma). Loop until no changes.
+      protected_name <- original_name
+      for (iter in seq_len(10)) {
+        prev <- protected_name
+        # Protect letter-comma-letter (N,N- O,O- S,S- etc.)
+        protected_name <- stringr::str_replace_all(protected_name, "([A-Za-z]),([A-Za-z])", "\\1@@@\\2")
+        # Protect digit-comma-digit (IUPAC locants like 2,4- or 1,3-)
+        protected_name <- stringr::str_replace_all(protected_name, "(\\d+),(\\d+)", "\\1@@@\\2")
+        if (identical(prev, protected_name)) break
+      }
 
       # Step 2: Protect IUPAC inverted names (e.g., "butane, 2,2-dimethyl")
       # Pattern: comma followed by space and digit indicates inverted IUPAC name
@@ -1352,6 +1467,13 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
       unspec_result <- strip_terminal_unspecified(df_after_salts, name_cols)
       df_after_unspec <- unspec_result$cleaned_data
       audit_combined <- dplyr::bind_rows(audit_combined, unspec_result$audit_trail)
+
+      # Step 6d1: Strip user-defined reference terms
+      if (!is.null(reference_lists$strip_terms)) {
+        strip_ref_result <- strip_reference_terms(df_after_unspec, name_cols, reference_lists$strip_terms)
+        df_after_unspec <- strip_ref_result$cleaned_data
+        audit_combined <- dplyr::bind_rows(audit_combined, strip_ref_result$audit_trail)
+      }
 
       # Step 6d2: Final cleanup BEFORE second stripping - str_squish and remove trailing punctuation
       df_before_second_strip <- df_after_unspec %>%
