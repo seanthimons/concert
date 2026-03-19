@@ -45,10 +45,10 @@ Plans:
   1. "chromium III" and "chromium VI" retain their roman numerals as part of the name after cleaning
   2. "chromium (III)" in parenthetical form is not misrouted to the formula column
   3. The formula column receives only genuine molecular formula strings, not names containing roman numerals
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 20-01: Diagnose misrouting root cause, apply fix, and validate roman numeral cases
+- [ ] 20-01-PLAN.md — Add roman numeral protection to strip_terminal_enclosures with TDD tests and validation CSV coverage
 
 #### Phase 21: Unicode Cleaning Coverage
 **Goal**: The cleaning pipeline catches all known chemistry-relevant unicode characters before QC runs, and tests align with the current ComptoxR mapping format
