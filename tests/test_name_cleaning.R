@@ -322,6 +322,50 @@ test_that("split_synonyms still splits normal comma-separated names after IUPAC 
   expect_equal(cleaned$chemical_name[2], "dimethylbenzene")
 })
 
+test_that("split_synonyms protects multi-locant IUPAC patterns (3+ locants)", {
+  df <- tibble::tibble(
+    original_row_id = c(1L, 2L, 3L, 4L, 5L),
+    chemical_name = c(
+      "2,4,6-trichlorophenol",
+      "1,2,3,4,5,6-hexachlorocyclohexane",
+      "butane, 2,4,6-trimethyl",
+      "acetone, 2,4-dinitrophenylhydrazone",
+      "xylene, toluene"
+    )
+  )
+  tag_map <- list(chemical_name = "Name")
+
+  result <- split_synonyms(df, names(tag_map)[tag_map == "Name"], tag_map)
+  cleaned <- result$cleaned_data
+
+  # Row 1: multi-locant — must NOT split
+  row1 <- cleaned[cleaned$original_row_id == 1L, ]
+  expect_equal(nrow(row1), 1)
+  expect_equal(row1$chemical_name, "2,4,6-trichlorophenol")
+
+  # Row 2: 6-locant chain — must NOT split
+  row2 <- cleaned[cleaned$original_row_id == 2L, ]
+  expect_equal(nrow(row2), 1)
+  expect_equal(row2$chemical_name, "1,2,3,4,5,6-hexachlorocyclohexane")
+
+  # Row 3: inverted name + multi-locant — must NOT split
+  row3 <- cleaned[cleaned$original_row_id == 3L, ]
+  expect_equal(nrow(row3), 1)
+  expect_equal(row3$chemical_name, "butane, 2,4,6-trimethyl")
+
+  # Row 4: inverted name + locant — Step 2 inverted-name protection prevents split
+  # "acetone, 2,4-dinitrophenylhydrazone" has ", digit" pattern — treated as inverted name
+  row4 <- cleaned[cleaned$original_row_id == 4L, ]
+  expect_equal(nrow(row4), 1)
+  expect_equal(row4$chemical_name, "acetone, 2,4-dinitrophenylhydrazone")
+
+  # Row 5: plain synonyms — SHOULD split into 2
+  row5 <- cleaned[cleaned$original_row_id == 5L, ]
+  expect_equal(nrow(row5), 2)
+  expect_equal(row5$chemical_name[1], "xylene")
+  expect_equal(row5$chemical_name[2], "toluene")
+})
+
 # ==============================================================================
 # NAME-04: strip_quality_adjectives
 # ==============================================================================
