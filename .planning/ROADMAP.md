@@ -58,10 +58,10 @@ Plans:
   1. Greek alpha (U+03B1, α) in a chemical name is converted to its ASCII equivalent by the pipeline before post-curation QC runs
   2. Prime symbol (U+2032, ′) in a chemical name is converted to its ASCII equivalent by the pipeline before post-curation QC runs
   3. The unicode cleaning test suite passes without dot-notation format errors (tests use current ComptoxR mapping format)
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 21-01: Verify ComptoxR mapping coverage for α and ′, fix pipeline gaps, and align test format
+- [ ] 21-01-PLAN.md — Fix test format expectations (dot-notation to plain text), add prime symbol test, add unicode validation CSV rows and end-to-end test
 
 ## Progress
 
