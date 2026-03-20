@@ -377,8 +377,8 @@ strip_terminal_enclosures <- function(df, name_cols) {
         base <- parenth_match[1, 2]
 
         # Skip empty parentheticals
-        content_trimmed <- stringr::str_trim(content)
-        if (content_trimmed == "") {
+        paren_content_trimmed <- stringr::str_trim(content)
+        if (paren_content_trimmed == "") {
           # Remove empty parenthetical without audit
           stripped_value <- stringr::str_trim(base)
         } else {
@@ -387,7 +387,7 @@ strip_terminal_enclosures <- function(df, name_cols) {
           has_yl <- stringr::str_detect(content, "yl")
           has_exception <- any(sapply(exception_words, function(w) stringr::str_detect(stringr::str_to_lower(content), w)))
           has_percentage <- stringr::str_detect(content, "%")
-          has_roman <- stringr::str_detect(content_trimmed, ROMAN_NUMERAL_PATTERN)
+          has_roman <- stringr::str_detect(paren_content_trimmed, ROMAN_NUMERAL_PATTERN)
 
           # Strip if: (no yl OR has exception) AND no percentage AND no roman numeral
           should_strip <- (!has_yl || has_exception) && !has_percentage && !has_roman
@@ -407,8 +407,8 @@ strip_terminal_enclosures <- function(df, name_cols) {
         base <- bracket_match[1, 2]
 
         # Skip empty brackets
-        content_trimmed <- stringr::str_trim(content)
-        if (content_trimmed == "") {
+        bracket_content_trimmed <- stringr::str_trim(content)
+        if (bracket_content_trimmed == "") {
           # Remove empty bracket without audit
           stripped_value <- stringr::str_trim(base)
         } else {
@@ -417,7 +417,7 @@ strip_terminal_enclosures <- function(df, name_cols) {
           has_yl <- stringr::str_detect(content, "yl")
           has_exception <- any(sapply(exception_words, function(w) stringr::str_detect(stringr::str_to_lower(content), w)))
           has_percentage <- stringr::str_detect(content, "%")
-          has_roman <- stringr::str_detect(content_trimmed, ROMAN_NUMERAL_PATTERN)
+          has_roman <- stringr::str_detect(bracket_content_trimmed, ROMAN_NUMERAL_PATTERN)
 
           # Strip if: (no yl OR has exception) AND no percentage AND no roman numeral
           should_strip <- (!has_yl || has_exception) && !has_percentage && !has_roman
@@ -735,7 +735,7 @@ strip_reference_terms <- function(df, name_cols, strip_terms_tbl) {
   }
 
   # Regex metacharacters that indicate a term is already a regex pattern
-  regex_meta <- c("\\\\w", "\\+", "\\*", "\\^", "\\$")
+  regex_meta <- c("\\\\w", "\\+", "\\*", "\\^", "\\$", "\\?", "\\(", "\\)", "\\[", "\\]", "\\{", "\\}", "\\|")
 
   # Apply each term to each name column
   df_after <- df
@@ -752,8 +752,9 @@ strip_reference_terms <- function(df, name_cols, strip_terms_tbl) {
           stringr::str_remove_all(stringr::regex(term, ignore_case = TRUE)) %>%
           stringr::str_squish()
       } else {
-        # Wrap in word boundaries for clean removal
-        pattern <- paste0("\\b", stringr::str_replace_all(term, "([/.])", "\\\\\\1"), "\\b")
+        # Escape all regex metacharacters, then wrap in word boundaries
+        escaped_term <- stringr::str_replace_all(term, "([\\\\/.\\[\\](){}|?+*^$])", "\\\\\\1")
+        pattern <- paste0("\\b", escaped_term, "\\b")
         df_after[[col_name]] <- df_after[[col_name]] %>%
           stringr::str_remove_all(stringr::regex(pattern, ignore_case = TRUE)) %>%
           stringr::str_squish()
