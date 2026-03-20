@@ -19,9 +19,9 @@ Requirements for cleaning ruleset fixes. Each maps to roadmap phases.
 
 ### Unicode Cleaning
 
-- [ ] **UNIC-01**: Greek alpha (U+03B1, α) is cleaned by the pipeline before QC runs
-- [ ] **UNIC-02**: Prime symbol (U+2032, ′) is cleaned by the pipeline before QC runs
-- [ ] **UNIC-03**: Unicode cleaning tests align with current ComptoxR mapping format (no dot notation)
+- [x] **UNIC-01**: Greek alpha (U+03B1, α) is cleaned by the pipeline before QC runs
+- [x] **UNIC-02**: Prime symbol (U+2032, ′) is cleaned by the pipeline before QC runs
+- [x] **UNIC-03**: Unicode cleaning tests align with current ComptoxR mapping format (no dot notation)
 
 ## Future Requirements
 
@@ -45,9 +45,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SPLIT-02 | Phase 19 | Complete |
 | ROMAN-01 | Phase 20 | Complete |
 | ROMAN-02 | Phase 20 | Complete |
-| UNIC-01 | Phase 21 | Pending |
-| UNIC-02 | Phase 21 | Pending |
-| UNIC-03 | Phase 21 | Pending |
+| UNIC-01 | Phase 21 | Complete |
+| UNIC-02 | Phase 21 | Complete |
+| UNIC-03 | Phase 21 | Complete |
 
 **Coverage:**
 - v1.6 requirements: 7 total
