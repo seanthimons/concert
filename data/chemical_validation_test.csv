@@ -178,3 +178,6 @@ Iron(III) chloride,7705-08-0,valid,roman_numeral_oxidation
 Copper(II) sulfate,7758-98-7,valid,roman_numeral_oxidation
 Antimony(III) ethoxide,10433-06-0,valid,roman_numeral_oxidation
 Manganese(VII) oxide,12057-92-0,valid,roman_numeral_oxidation
+α-tocopherol,10191-41-0,valid,unicode_cleaning
+β-carotene,7235-40-7,valid,unicode_cleaning
+2′-deoxyadenosine,958-09-8,valid,unicode_cleaning
