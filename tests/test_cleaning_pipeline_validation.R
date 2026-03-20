@@ -245,3 +245,40 @@ test_that("Validation: butane, 2,2-dimethyl stays intact (existing IUPAC protect
   expect_equal(final_data$name, "butane, 2,2-dimethyl")
   expect_equal(final_data$synonym_count, 1L)
 })
+
+# Test Group 6: Unicode cleaning coverage (Phase 21)
+test_that("Validation: Unicode characters cleaned before QC runs", {
+  # Create test dataset with unicode characters that must be cleaned
+  test_df <- tibble::tibble(
+    casrn = c("10191-41-0", "7235-40-7", "958-09-8"),
+    name = c(
+      "\u03B1-tocopherol",        # Greek alpha (U+03B1)
+      "\u03B2-carotene",           # Greek beta (U+03B2)
+      "2\u2032-deoxyadenosine"     # Prime symbol (U+2032)
+    )
+  )
+
+  tag_map <- list(casrn = "CASRN", name = "Name")
+
+  # Run pipeline — unicode cleaning is Step 1
+  result <- run_cleaning_pipeline(test_df, tag_map = tag_map, reference_lists = NULL)
+  cleaned <- result$cleaned_data
+
+  # UNIC-01: Greek alpha converted to plain text "alpha"
+  alpha_row <- cleaned %>% dplyr::filter(stringr::str_detect(name, "tocopherol"))
+  expect_equal(nrow(alpha_row), 1)
+  expect_equal(alpha_row$name, "alpha-tocopherol")
+  expect_false(stringr::str_detect(alpha_row$name, "\u03B1"))
+
+  # UNIC-02: Prime symbol converted to apostrophe
+  prime_row <- cleaned %>% dplyr::filter(stringr::str_detect(name, "deoxyadenosine"))
+  expect_equal(nrow(prime_row), 1)
+  expect_equal(prime_row$name, "2'-deoxyadenosine")
+  expect_false(stringr::str_detect(prime_row$name, "\u2032"))
+
+  # Greek beta also converted
+  beta_row <- cleaned %>% dplyr::filter(stringr::str_detect(name, "carotene"))
+  expect_equal(nrow(beta_row), 1)
+  expect_equal(beta_row$name, "beta-carotene")
+  expect_false(stringr::str_detect(beta_row$name, "\u03B2"))
+})
