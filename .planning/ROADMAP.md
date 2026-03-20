@@ -71,4 +71,4 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 19. Synonym Splitter Comma Protection | 1/1 | Complete    | 2026-03-19 | - |
 | 20. Roman Numeral Handling | 1/1 | Complete    | 2026-03-19 | - |
-| 21. Unicode Cleaning Coverage | v1.6 | 0/1 | Not started | - |
+| 21. Unicode Cleaning Coverage | 1/1 | Complete   | 2026-03-20 | - |

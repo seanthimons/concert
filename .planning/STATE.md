@@ -2,21 +2,21 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Cleaning Ruleset Fixes
-status: planning
-stopped_at: Phase 21 context gathered
-last_updated: "2026-03-19T20:18:52.734Z"
+status: executing
+stopped_at: Completed 21-01-PLAN.md
+last_updated: "2026-03-20T13:38:48.757Z"
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 2
-  completed_plans: 2
+  completed_phases: 3
+  total_plans: 3
+  completed_plans: 3
 ---
 
 # Project State: ChemReg
 
-**Last Updated:** 2026-03-18
+**Last Updated:** 2026-03-20
 **Milestone:** v1.6 Cleaning Ruleset Fixes
-**Status:** Ready to plan
+**Status:** Phase 21 Complete — Milestone v1.6 Complete
 
 ---
 
@@ -25,14 +25,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
-**Current focus:** Phase 20 — roman-numeral-handling
+**Current focus:** Milestone v1.6 complete
 
 ---
 
 ## Current Position
 
-Phase: 20 (roman-numeral-handling) — EXECUTING
-Plan: 1 of 1
+Phase: 21 (unicode-cleaning-coverage) — COMPLETE
+Plan: 1 of 1 — COMPLETE
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Recent decisions affecting current work:
 - [v1.3]: ComptoxR direct usage — clean_unicode called directly; Phase 21 must verify mapping table entries, not assume gaps
 - [Phase 19-synonym-splitter-comma-protection]: Repeat-until-stable loop (for, 10 iterations) wraps digit-comma-digit and letter-comma-letter protection in split_synonyms()
 - [Phase 20-roman-numeral-handling]: ROMAN_NUMERAL_PATTERN module-level constant in cleaning_pipeline.R: anchored regex (I-XII, case-insensitive) used by both paren and bracket paths in strip_terminal_enclosures
+- [Phase 21-unicode-cleaning-coverage]: No pipeline code changes needed: ComptoxR::clean_unicode already returns plain text (alpha not .alpha.), tests were wrong
 
 ### Pending Todos
 
@@ -63,16 +64,15 @@ None.
 
 ### Known Issues / Blockers
 
-- ROMAN-01/ROMAN-02: Root cause of roman numeral misrouting not yet diagnosed — Phase 20 plan must trace execution path before fixing
-- UNIC-01/UNIC-02: Need to verify ComptoxR mapping table includes α (U+03B1) and ′ (U+2032) before assuming pipeline gap
+None — all v1.6 requirements resolved (ROMAN-01/02 fixed in Phase 20, UNIC-01/02/03 fixed in Phase 21).
 
 ---
 
 ## Session Continuity
 
-Last session: 2026-03-19T20:18:52.730Z
-Stopped at: Phase 21 context gathered
-Resume file: .planning/phases/21-unicode-cleaning-coverage/21-CONTEXT.md
+Last session: 2026-03-20T13:38:48.753Z
+Stopped at: Completed 21-01-PLAN.md
+Resume file: None
 
 ---
 
