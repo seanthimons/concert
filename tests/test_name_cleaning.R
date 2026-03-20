@@ -702,3 +702,104 @@ test_that("strip_terminal_enclosures still strips non-roman parentheticals (regr
   expect_equal(cleaned$chemical_name[2], "Sodium chloride")
   expect_equal(cleaned$chemical_name[3], "Benzene")
 })
+
+# ==============================================================================
+# STRIP-REF: strip_reference_terms
+# ==============================================================================
+
+test_that("strip_reference_terms removes plain terms with word boundaries", {
+  df <- tibble::tibble(
+    chemical_name = c("pure acetone", "technical ethanol", "reagent grade benzene")
+  )
+  terms <- tibble::tibble(
+    term = c("pure", "technical", "reagent grade"),
+    source = "user",
+    active = TRUE
+  )
+
+  result <- strip_reference_terms(df, "chemical_name", terms)
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$chemical_name[1], "acetone")
+  expect_equal(cleaned$chemical_name[2], "ethanol")
+  expect_equal(cleaned$chemical_name[3], "benzene")
+})
+
+test_that("strip_reference_terms applies regex terms as-is", {
+  df <- tibble::tibble(
+    chemical_name = c("acetone 99%", "ethanol ACS+", "benzene extra")
+  )
+  terms <- tibble::tibble(
+    term = c("\\d+%", "ACS\\+"),
+    source = "user",
+    active = TRUE
+  )
+
+  result <- strip_reference_terms(df, "chemical_name", terms)
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$chemical_name[1], "acetone")
+  expect_equal(cleaned$chemical_name[2], "ethanol")
+  expect_equal(cleaned$chemical_name[3], "benzene extra")
+})
+
+test_that("strip_reference_terms skips inactive terms", {
+  df <- tibble::tibble(
+    chemical_name = c("pure acetone", "technical ethanol")
+  )
+  terms <- tibble::tibble(
+    term = c("pure", "technical"),
+    source = "user",
+    active = c(TRUE, FALSE)
+  )
+
+  result <- strip_reference_terms(df, "chemical_name", terms)
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$chemical_name[1], "acetone")
+  expect_equal(cleaned$chemical_name[2], "technical ethanol")
+})
+
+test_that("strip_reference_terms returns empty audit trail when no active terms", {
+  df <- tibble::tibble(chemical_name = c("acetone"))
+  terms <- tibble::tibble(term = "pure", source = "user", active = FALSE)
+
+  result <- strip_reference_terms(df, "chemical_name", terms)
+
+  expect_equal(result$cleaned_data$chemical_name[1], "acetone")
+  expect_equal(nrow(result$audit_trail), 0)
+  expect_true(all(c("row_id", "field", "step", "original_value", "new_value", "reason") %in% names(result$audit_trail)))
+})
+
+test_that("strip_reference_terms generates correct audit trail", {
+  df <- tibble::tibble(
+    chemical_name = c("pure acetone", "ethanol")
+  )
+  terms <- tibble::tibble(term = "pure", source = "user", active = TRUE)
+
+  result <- strip_reference_terms(df, "chemical_name", terms)
+  audit <- result$audit_trail
+
+  # Only row 1 changed
+  expect_equal(nrow(audit), 1)
+  expect_equal(audit$row_id[1], 1L)
+  expect_equal(audit$field[1], "chemical_name")
+  expect_equal(audit$step[1], "strip_reference_terms")
+  expect_equal(audit$original_value[1], "pure acetone")
+  expect_equal(audit$new_value[1], "acetone")
+})
+
+test_that("strip_reference_terms word boundaries prevent partial matches", {
+  df <- tibble::tibble(
+    chemical_name = c("pureness test", "impure acetone", "pure acetone")
+  )
+  terms <- tibble::tibble(term = "pure", source = "user", active = TRUE)
+
+  result <- strip_reference_terms(df, "chemical_name", terms)
+  cleaned <- result$cleaned_data
+
+  # "pure" inside "pureness" and "impure" should NOT be removed
+  expect_equal(cleaned$chemical_name[1], "pureness test")
+  expect_equal(cleaned$chemical_name[2], "impure acetone")
+  expect_equal(cleaned$chemical_name[3], "acetone")
+})
