@@ -322,6 +322,50 @@ test_that("split_synonyms still splits normal comma-separated names after IUPAC 
   expect_equal(cleaned$chemical_name[2], "dimethylbenzene")
 })
 
+test_that("split_synonyms protects multi-locant IUPAC patterns (3+ locants)", {
+  df <- tibble::tibble(
+    original_row_id = c(1L, 2L, 3L, 4L, 5L),
+    chemical_name = c(
+      "2,4,6-trichlorophenol",
+      "1,2,3,4,5,6-hexachlorocyclohexane",
+      "butane, 2,4,6-trimethyl",
+      "acetone, 2,4-dinitrophenylhydrazone",
+      "xylene, toluene"
+    )
+  )
+  tag_map <- list(chemical_name = "Name")
+
+  result <- split_synonyms(df, names(tag_map)[tag_map == "Name"], tag_map)
+  cleaned <- result$cleaned_data
+
+  # Row 1: multi-locant — must NOT split
+  row1 <- cleaned[cleaned$original_row_id == 1L, ]
+  expect_equal(nrow(row1), 1)
+  expect_equal(row1$chemical_name, "2,4,6-trichlorophenol")
+
+  # Row 2: 6-locant chain — must NOT split
+  row2 <- cleaned[cleaned$original_row_id == 2L, ]
+  expect_equal(nrow(row2), 1)
+  expect_equal(row2$chemical_name, "1,2,3,4,5,6-hexachlorocyclohexane")
+
+  # Row 3: inverted name + multi-locant — must NOT split
+  row3 <- cleaned[cleaned$original_row_id == 3L, ]
+  expect_equal(nrow(row3), 1)
+  expect_equal(row3$chemical_name, "butane, 2,4,6-trimethyl")
+
+  # Row 4: inverted name + locant — Step 2 inverted-name protection prevents split
+  # "acetone, 2,4-dinitrophenylhydrazone" has ", digit" pattern — treated as inverted name
+  row4 <- cleaned[cleaned$original_row_id == 4L, ]
+  expect_equal(nrow(row4), 1)
+  expect_equal(row4$chemical_name, "acetone, 2,4-dinitrophenylhydrazone")
+
+  # Row 5: plain synonyms — SHOULD split into 2
+  row5 <- cleaned[cleaned$original_row_id == 5L, ]
+  expect_equal(nrow(row5), 2)
+  expect_equal(row5$chemical_name[1], "xylene")
+  expect_equal(row5$chemical_name[2], "toluene")
+})
+
 # ==============================================================================
 # NAME-04: strip_quality_adjectives
 # ==============================================================================
@@ -588,4 +632,174 @@ test_that("run_cleaning_pipeline includes all name cleaning steps in audit trail
   expect_true("strip_terminal_enclosures" %in% steps)
   expect_true("strip_quality_adjectives" %in% steps)
   expect_true("strip_terminal_unspecified" %in% steps)
+})
+
+# ==============================================================================
+# ROMAN-01/ROMAN-02: Roman numeral oxidation state protection
+# ==============================================================================
+
+test_that("strip_terminal_enclosures preserves terminal roman numeral oxidation states", {
+  df <- tibble::tibble(
+    chemical_name = c(
+      "chromium (III)",
+      "chromium (iii)",
+      "Copper (II)",
+      "Iron (IV)",
+      "Manganese (VII)"
+    )
+  )
+  result <- strip_terminal_enclosures(df, "chemical_name")
+  cleaned <- result$cleaned_data
+
+  # All should be unchanged — roman numerals are chemical identity
+  expect_equal(cleaned$chemical_name[1], "chromium (III)")
+  expect_equal(cleaned$chemical_name[2], "chromium (iii)")
+  expect_equal(cleaned$chemical_name[3], "Copper (II)")
+  expect_equal(cleaned$chemical_name[4], "Iron (IV)")
+  expect_equal(cleaned$chemical_name[5], "Manganese (VII)")
+
+  # formula_extract should be NA for all (nothing extracted)
+  expect_true(all(is.na(cleaned$formula_extract_chemical_name)))
+})
+
+test_that("strip_terminal_enclosures preserves element+numeral roman forms", {
+  df <- tibble::tibble(
+    chemical_name = c(
+      "Chromium (Cr III) complex", # non-terminal, won't match terminal regex anyway
+      "Some compound (Fe II)"      # terminal element+numeral
+    )
+  )
+  result <- strip_terminal_enclosures(df, "chemical_name")
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$chemical_name[1], "Chromium (Cr III) complex")
+  expect_equal(cleaned$chemical_name[2], "Some compound (Fe II)")
+})
+
+test_that("strip_terminal_enclosures preserves roman numerals in brackets", {
+  df <- tibble::tibble(
+    chemical_name = c("chromium [III]", "Iron [VI]")
+  )
+  result <- strip_terminal_enclosures(df, "chemical_name")
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$chemical_name[1], "chromium [III]")
+  expect_equal(cleaned$chemical_name[2], "Iron [VI]")
+})
+
+test_that("strip_terminal_enclosures still strips non-roman parentheticals (regression)", {
+  df <- tibble::tibble(
+    chemical_name = c(
+      "Acetone (ACS reagent)",
+      "Sodium chloride (NaCl)",
+      "Benzene (analytical grade)"
+    )
+  )
+  result <- strip_terminal_enclosures(df, "chemical_name")
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$chemical_name[1], "Acetone")
+  expect_equal(cleaned$chemical_name[2], "Sodium chloride")
+  expect_equal(cleaned$chemical_name[3], "Benzene")
+})
+
+# ==============================================================================
+# STRIP-REF: strip_reference_terms
+# ==============================================================================
+
+test_that("strip_reference_terms removes plain terms with word boundaries", {
+  df <- tibble::tibble(
+    chemical_name = c("pure acetone", "technical ethanol", "reagent grade benzene")
+  )
+  terms <- tibble::tibble(
+    term = c("pure", "technical", "reagent grade"),
+    source = "user",
+    active = TRUE
+  )
+
+  result <- strip_reference_terms(df, "chemical_name", terms)
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$chemical_name[1], "acetone")
+  expect_equal(cleaned$chemical_name[2], "ethanol")
+  expect_equal(cleaned$chemical_name[3], "benzene")
+})
+
+test_that("strip_reference_terms applies regex terms as-is", {
+  df <- tibble::tibble(
+    chemical_name = c("acetone 99%", "ethanol ACS+", "benzene extra")
+  )
+  terms <- tibble::tibble(
+    term = c("\\d+%", "ACS\\+"),
+    source = "user",
+    active = TRUE
+  )
+
+  result <- strip_reference_terms(df, "chemical_name", terms)
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$chemical_name[1], "acetone")
+  expect_equal(cleaned$chemical_name[2], "ethanol")
+  expect_equal(cleaned$chemical_name[3], "benzene extra")
+})
+
+test_that("strip_reference_terms skips inactive terms", {
+  df <- tibble::tibble(
+    chemical_name = c("pure acetone", "technical ethanol")
+  )
+  terms <- tibble::tibble(
+    term = c("pure", "technical"),
+    source = "user",
+    active = c(TRUE, FALSE)
+  )
+
+  result <- strip_reference_terms(df, "chemical_name", terms)
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$chemical_name[1], "acetone")
+  expect_equal(cleaned$chemical_name[2], "technical ethanol")
+})
+
+test_that("strip_reference_terms returns empty audit trail when no active terms", {
+  df <- tibble::tibble(chemical_name = c("acetone"))
+  terms <- tibble::tibble(term = "pure", source = "user", active = FALSE)
+
+  result <- strip_reference_terms(df, "chemical_name", terms)
+
+  expect_equal(result$cleaned_data$chemical_name[1], "acetone")
+  expect_equal(nrow(result$audit_trail), 0)
+  expect_true(all(c("row_id", "field", "step", "original_value", "new_value", "reason") %in% names(result$audit_trail)))
+})
+
+test_that("strip_reference_terms generates correct audit trail", {
+  df <- tibble::tibble(
+    chemical_name = c("pure acetone", "ethanol")
+  )
+  terms <- tibble::tibble(term = "pure", source = "user", active = TRUE)
+
+  result <- strip_reference_terms(df, "chemical_name", terms)
+  audit <- result$audit_trail
+
+  # Only row 1 changed
+  expect_equal(nrow(audit), 1)
+  expect_equal(audit$row_id[1], 1L)
+  expect_equal(audit$field[1], "chemical_name")
+  expect_equal(audit$step[1], "strip_reference_terms")
+  expect_equal(audit$original_value[1], "pure acetone")
+  expect_equal(audit$new_value[1], "acetone")
+})
+
+test_that("strip_reference_terms word boundaries prevent partial matches", {
+  df <- tibble::tibble(
+    chemical_name = c("pureness test", "impure acetone", "pure acetone")
+  )
+  terms <- tibble::tibble(term = "pure", source = "user", active = TRUE)
+
+  result <- strip_reference_terms(df, "chemical_name", terms)
+  cleaned <- result$cleaned_data
+
+  # "pure" inside "pureness" and "impure" should NOT be removed
+  expect_equal(cleaned$chemical_name[1], "pureness test")
+  expect_equal(cleaned$chemical_name[2], "impure acetone")
+  expect_equal(cleaned$chemical_name[3], "acetone")
 })

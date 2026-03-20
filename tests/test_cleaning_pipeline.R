@@ -8,15 +8,21 @@ library(here)
 source(here::here("R", "cleaning_pipeline.R"))
 
 test_that("ComptoxR::clean_unicode handles chemistry-specific unicode", {
-  # Test: Greek alpha becomes '.alpha.' (chemistry dot-notation)
-  expect_equal(ComptoxR::clean_unicode("\u03B1-tocopherol"), ".alpha.-tocopherol")
+  # Test: Greek alpha becomes 'alpha' (plain text, current ComptoxR format)
+  expect_equal(ComptoxR::clean_unicode("\u03B1-tocopherol"), "alpha-tocopherol")
 
-  # Test: Greek beta becomes '.beta.'
-  expect_equal(ComptoxR::clean_unicode("\u03B2-carotene"), ".beta.-carotene")
+  # Test: Greek beta becomes 'beta' (plain text, current ComptoxR format)
+  expect_equal(ComptoxR::clean_unicode("\u03B2-carotene"), "beta-carotene")
 
   # Test: NA passthrough
   expect_equal(ComptoxR::clean_unicode(NA_character_), NA_character_)
   expect_true(is.na(ComptoxR::clean_unicode(NA)))
+
+  # Test: Prime symbol (U+2032) becomes apostrophe
+  expect_equal(ComptoxR::clean_unicode("\u2032"), "'")
+
+  # Test: Prime in chemical context
+  expect_equal(ComptoxR::clean_unicode("2\u2032-deoxyadenosine"), "2'-deoxyadenosine")
 })
 
 test_that("clean_text_field strips whitespace and punctuation artifacts", {
@@ -59,7 +65,7 @@ test_that("run_cleaning_pipeline returns cleaned data and audit trail", {
   expect_true("original_row_id" %in% names(cleaned))  # Now injected by default
   expect_equal(cleaned$original_row_id, 1:3)
   expect_equal(cleaned$chemical_name[1], "acetone")
-  expect_equal(cleaned$chemical_name[2], ".alpha.-tocopherol")  # Greek alpha -> chemistry dot-notation
+  expect_equal(cleaned$chemical_name[2], "alpha-tocopherol")  # Greek alpha -> plain text (current ComptoxR format)
   expect_equal(cleaned$chemical_name[3], "ethanol")
   expect_equal(cleaned$cas_number[1], "67-64-1")
   expect_equal(cleaned$cas_number[2], "58-08-2")
