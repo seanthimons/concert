@@ -4,7 +4,7 @@ milestone: v1.6
 milestone_name: Cleaning Ruleset Fixes
 status: completed
 stopped_at: Completed 21-01-PLAN.md
-last_updated: "2026-03-20T13:57:51.233Z"
+last_updated: "2026-03-20T16:06:43.076Z"
 progress:
   total_phases: 5
   completed_phases: 3
@@ -16,16 +16,16 @@ progress:
 
 **Last Updated:** 2026-03-20
 **Milestone:** v1.6 Cleaning Ruleset Fixes
-**Status:** Milestone complete
+**Status:** v1.6 milestone complete
 
 ---
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-18)
+See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
-**Current focus:** Milestone v1.6 complete
+**Current focus:** Planning next milestone
 
 ---
 

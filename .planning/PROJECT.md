@@ -70,15 +70,7 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ### Active
 
-## Current Milestone: v1.6 Cleaning Ruleset Fixes
-
-**Goal:** Fix cleaning pipeline bugs and unicode coverage gaps discovered during live dataset roadtesting.
-
-**Target features:**
-- ~~Fix multi-locant comma protection in synonym splitter (2,4,6- patterns)~~ — Done (Phase 19)
-- ~~Investigate and fix roman numeral → formula column misrouting (chromium iii/vi)~~ — Done (Phase 20)
-- ~~Fix unicode cleaning coverage (ensure α and ′ are caught, align tests with current ComptoxR mappings)~~ — Done (Phase 21)
-- Extensible — add phases as roadtesting surfaces more issues
+(No active milestone — v1.6 complete, next milestone TBD)
 
 ### Out of Scope
 
@@ -96,7 +88,7 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ## Context
 
-Shipped v1.5 Disagreement Enrichment with ~15,750 LOC R across 18 files.
+Shipped v1.6 Cleaning Ruleset Fixes with ~15,750 LOC R across 18 files.
 Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, openxlsx2, rhandsontable.
 
 The app has 8 top-level tabs: Data Preview, Detection Info, Raw Data, Clean Data, Tag Columns, Run Curation, Review Results, plus sidebar upload and config import. On startup only Upload is visible; tabs appear progressively as the user advances.
@@ -111,7 +103,7 @@ Key files:
 - `R/file_handlers.R` — file reading/validation (218 lines)
 - `R/data_detection.R` — frontmatter detection algorithms (405 lines)
 
-Known tech debt: None actively tracked — v1.5 resolved prior dropdown/visibility concerns with the comparison modal.
+Known tech debt: `test_cleaning_reference.R` has 1 pre-existing failure (expects 3 keys from `load_all_reference_lists` but now returns 4 including `strip_terms`).
 
 ## Constraints
 
@@ -152,6 +144,9 @@ Known tech debt: None actively tracked — v1.5 resolved prior dropdown/visibili
 | Enrich all DTXSIDs not just disagree | Comprehensive export coverage; agree/single rows get enrichment too | ✓ Good — v1.5 |
 | Compare button + modal over richer dropdown | Modal gives space for tabular metadata; dropdowns get too wide | ✓ Good — v1.5 |
 | Two-step Select + Confirm resolution | Prevents accidental resolution; progressive disclosure pattern | ✓ Good — v1.5 |
+| Repeat-until-stable loop for locant comma protection | Single-pass regex can't protect all commas in 3+ locant chains; loop converges in 1 pass for simple cases | ✓ Good — v1.6 |
+| Module-level ROMAN_NUMERAL_PATTERN constant | Anchored regex (I-XII) shared by both paren and bracket paths; avoids duplication | ✓ Good — v1.6 |
+| Test alignment over pipeline changes for unicode | ComptoxR already handles α and ′ correctly; only tests needed updating | ✓ Good — v1.6 |
 
 ---
-*Last updated: 2026-03-20 after Phase 21 (Unicode Cleaning Coverage) complete — v1.6 milestone finished*
+*Last updated: 2026-03-20 after v1.6 milestone complete*
