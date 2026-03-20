@@ -55,7 +55,7 @@ B3nz3n3,71-43-2,invalid,typo_in_name
 Meth@nol,67-56-1,invalid,special_char_in_name
 #Toluene#,108-88-3,invalid,special_char_in_name
 Sodium  chloride,7647-14-5,invalid,extra_whitespace
-	Caffeine	,58-08-2,invalid,leading_trailing_whitespace
+"	Caffeine	",58-08-2,invalid,leading_trailing_whitespace
 "Aspirin with ""quotes""",50-78-2,invalid,problematic_quotes
 Sodium; chloride,7647-14-5,invalid,semicolon_in_name
 Acetic|acid,64-19-7,invalid,pipe_in_name
@@ -101,4 +101,83 @@ Sodium carbonate,497-19-8,valid,NA
 Potassium carbonate,584-08-7,valid,NA
 xzqwv_not_a_chemical,99-99-0,invalid,guaranteed_error
 zzz_fake_compound_42,00-00-0,invalid,guaranteed_error
-qqqnoexist_reagent,11-11-1,invalid,guaranteed_error
+qqqnoexist_reagent,11/11/2001,invalid,guaranteed_error
+"xylene, dimethylbenzene, xylol",1330-20-7,valid,comma_separated_synonyms
+acetone; dimethyl ketone,67-64-1,valid,semicolon_separated_synonyms
+"sodium hydroxide, caustic soda, lye",1310-73-2,valid,comma_separated_synonyms
+"butane, 2,2-dimethyl",75-83-2,valid,iupac_inverted_name
+"butane, n-butane",106-97-8,valid,comma_separated_synonyms
+"2-butoxyethanol (ethyleneglycol monobutyl ether), butyl cellosolve, butyl glycol, glycol ether eb",111-76-2,valid,synonyms_with_parenthetical
+"d-Allethrin;(Pynamin forte); (RS)-3-allyl-2-methyl-4-oxocyclopent-2-enyl (1R,3R;1R,3S)-2,2-dimethyl-3-(2-methylprop-1-enyl)cyclopropanecarboxylate",231937-89-6,valid,semicolon_synonyms_with_stereo
+"carbon black, lampblack (suspected human carcinogen by ACGIH), black pearls",1333-86-4,valid,hazard_warning_in_name
+ethylene oxide (suspected 2a human carcinogen by iarc; confirmed animal carinogen by iarc & ntp),75-21-8,valid,hazard_warning_in_name
+"dichloromethane (methylene chloride) (suspected human carcinogen by ACGIH, NTP)",75-09-2,valid,hazard_warning_in_name
+"silica dioxide, crystalline quartz, sand (suspected humancarcinogen by iarc, ntp)",14808-60-7,valid,hazard_warning_in_name
+Fragrance (Irritating to eyes),,invalid,functional_use_as_name
+PARFUM/FRAGRANCE,,invalid,functional_use_as_name
+Flavor,,invalid,functional_use_as_name
+fragrance,trade secret,invalid,functional_use_with_trade_secret
+Surfactant,Proprietary,invalid,functional_use_as_name
+Non-Hazardous Ingredient,,invalid,functional_use_as_name
+non ionic surfactant,blend,invalid,functional_use_as_name
+(dl)-amphetamine,300-62-9,valid,stereochemistry_prefix
+(d)-amphetamine,51-64-9,valid,stereochemistry_prefix
+(+/-)-mdma,42542-10-9,valid,stereochemistry_prefix
+"1r,2s (-)-norephedrine",492-41-1,valid,stereochemistry_prefix
+d-Limonene,5989-27-5,valid,stereochemistry_prefix
+"Hydrocarbons, C12-C16, isoalkanes,cyclic <2% aromatics",,valid,carbon_chain_range
+"Hydrocarbons, C11-C13, isoalkanes, <2% aromatics",,valid,carbon_chain_range
+"naphtha petroleum, heavy alkylate c9-c12 boiling pt",64741-65-7,valid,carbon_chain_range
+C11-15 Alkane/Cycloalkane,64742-47-8,valid,carbon_chain_range
+"alcohols, c12-18, ethoxylated",68213-23-0,valid,carbon_chain_range
+C9H20,111-84-2,valid,formula_as_name
+C10H22,124-18-5,valid,formula_as_name
+NaCl,7647-14-5,valid,formula_as_name
+CaCl2,10043-52-3,valid,formula_as_name
+DEHP,117-81-7,valid,abbreviation_as_name
+PFOA,,valid,abbreviation_as_name
+C37H76,-,valid,formula_with_dash_cas
+Acetone,no cas,invalid,cas_placeholder
+Sodium chloride,none,invalid,cas_placeholder
+Ethanol,n/a,invalid,cas_placeholder
+Benzene,-,invalid,cas_placeholder
+"trade secret, non-hazardous",proprietary,invalid,cas_placeholder_proprietary
+Palygorskite fibers (> 5µm in length),12174-11-7,valid,unicode_in_name
+TRIM® VX,,valid,unicode_in_name
+Vertasil®  Trisiloxanyl-cannabidiol,2414491-99-7,valid,unicode_in_name
+octinoxate 7500%,,invalid,trailing_percentage
+oxybenzone 4000%,,invalid,trailing_percentage
+"potassium hydroxide, 45%<=conc<50%, aqueous solutions",1310-58-3,valid,inline_percentage
+"alkyl (68% c12, 32% c14) dimethyl ethylbenzyl ammonium chloride",85409-23-0,valid,inline_percentage
+"Ethanol, water (1:1)",,valid,mixture_ratio
+aluminum silicate (2:1),1302-76-7,valid,stoichiometric_ratio
+"chromium (iii) oxide (2:3), cr2-o3, chromium oxide",1308-38-9,valid,stoichiometric_ratio
+"methyl chloroform (1,1,1-trichloroethane) (chlorothene nu), aerothane tt_, chlorothene",71-55-6,valid,extraction_artifact_underscore
+"2-butoxyethanol (ethylene glycol monobutyl ether)_ butyl cellosolve, butyl glycol eb *97-3*",111-76-2,valid,extraction_artifact_mixed
+corn starch modified,194810-88-3,valid,modified_name
+Natural Fruit Extracts (Vapour's proprietary natural perfume blend),,invalid,ambiguous_proprietary
+alcohol,64-17-5,invalid,ambiguous_block_list
+Organic Solvent,,invalid,ambiguous_generic
+Lithium Salt,,invalid,ambiguous_generic
+lead compounds,,invalid,ambiguous_generic
+rust inhibitor,mixture,invalid,ambiguous_with_mixture_cas
+long oil alkyd resin,Proprietary,invalid,cas_placeholder_proprietary
+Benzidine [and its salts],92-87-5,valid,salt_reference
+Perfluorooctane sulfonic acid (PFOS) and its salts and transformation and degradation precursors,,valid,salt_reference
+o-Phenylenediamine and its salts,95-54-5,valid,salt_reference
+"Herbal blend [(Olea Europaea), (Ginkgo Biloba)]",,invalid,ambiguous_herbal_blend
+100% pure certified natural herbal fragrance from essential oils,,invalid,ambiguous_herbal_blend
+"Trans+cis,decahydronaphthalene",,valid,unusual_notation
+1.3 dimethoxy-2-propanol,,valid,unusual_notation
+"Perfluorodecalin, Polyperfluoromethylisopropyl ether",Blanding,invalid,cas_placeholder_text
+Withheld,Withheld,invalid,cas_placeholder_withheld
+silica substrate,50-28-2,invalid,mismatched_name_cas
+chromium (III),16065-83-1,valid,roman_numeral_oxidation
+chromium (iii),16065-83-1,valid,roman_numeral_oxidation
+Iron(III) chloride,7705-08-0,valid,roman_numeral_oxidation
+Copper(II) sulfate,7758-98-7,valid,roman_numeral_oxidation
+Antimony(III) ethoxide,10433-06-0,valid,roman_numeral_oxidation
+Manganese(VII) oxide,12057-92-0,valid,roman_numeral_oxidation
+α-tocopherol,10191-41-0,valid,unicode_cleaning
+β-carotene,7235-40-7,valid,unicode_cleaning
+2′-deoxyadenosine,958-09-8,valid,unicode_cleaning

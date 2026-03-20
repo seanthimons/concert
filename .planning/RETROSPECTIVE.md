@@ -2,6 +2,43 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
+## Milestone: v1.6 — Cleaning Ruleset Fixes
+
+**Shipped:** 2026-03-20
+**Phases:** 3 | **Plans:** 3 | **Sessions:** 1
+
+### What Was Built
+- Multi-locant IUPAC comma protection via repeat-until-stable loop in `split_synonyms()` — fixes 2,4,6-trichlorophenol and longer chains
+- Roman numeral oxidation state protection (`ROMAN_NUMERAL_PATTERN` constant + `has_roman` gating) in both paren and bracket enclosure stripping paths
+- Unicode cleaning test alignment — all dot-notation assertions corrected to plain text format matching current ComptoxR output, prime symbol test coverage added
+
+### What Worked
+- Auto-advance chain (discuss → plan → execute) completed all 3 phases in a single session with zero user intervention
+- CONTEXT.md from discuss-phase provided precise line numbers and code references — executor agents had zero ambiguity
+- Verifier caught a missed file (`test_unicode_comptoxr.R`) that the executor overlooked — the verification gate saved a gap
+- All phases were small, focused fixes (1-2 tasks each) — tight scope eliminated coordination overhead
+
+### What Was Inefficient
+- Phase 21 executor missed `tests/test_unicode_comptoxr.R` (a second file with the same stale assertions) — required an inline fix after verification flagged it
+- Multiple background test-run tasks accumulated and had to be killed — executor spawned too many parallel test processes
+
+### Patterns Established
+- Repeat-until-stable loop for regex protection: iterate until no more replacements, cap at 10 iterations
+- Module-level regex constants (e.g., `ROMAN_NUMERAL_PATTERN`) for patterns used across multiple code paths
+- Content-based gating in `should_strip` expressions: extensible pattern — add new checks like `has_roman` alongside existing `has_yl`, `has_percentage`
+
+### Key Lessons
+1. **Verify ALL test files, not just the obvious ones** — Phase 21 executor fixed `test_cleaning_pipeline.R` but missed `test_unicode_comptoxr.R` which had identical stale assertions. Grep for the pattern across the entire test directory.
+2. **Auto-advance works well for small, well-scoped milestones** — 3 phases, 3 plans, zero user intervention. The pipeline (discuss → plan → execute → verify) ran cleanly end-to-end.
+3. **Live R session verification in CONTEXT.md is high-value** — Running `ComptoxR::clean_unicode("α")` during discuss-phase and recording the actual output eliminated guesswork for downstream agents.
+
+### Cost Observations
+- Model mix: opus for orchestration/planning, sonnet for execution/verification
+- Sessions: 1 (all 3 phases auto-advanced in a single chain)
+- Notable: Entire milestone completed in ~2 hours wall time including discuss, plan, execute, and verify for all 3 phases
+
+---
+
 ## Milestone: v1.5 — Disagreement Enrichment
 
 **Shipped:** 2026-03-13
@@ -270,6 +307,7 @@
 | v1.3 | ~8 | 7 | 15 | Modularization, smoke tests, 12-step pipeline, milestone auditing |
 | v1.4 | 1 | 1 | 2 | Focused bug fix milestone, heuristic pre-checks, fastest completion |
 | v1.5 | 1 | 2 | 2 | Enrichment + modal UI, tech debt resolved organically, clean data contracts |
+| v1.6 | 1 | 3 | 3 | Full auto-advance chain, verifier catching missed files, repeat-until-stable pattern |
 
 ### Top Lessons (Verified Across Milestones)
 
@@ -278,4 +316,5 @@
 3. **UAT and smoke tests reveal what unit tests miss** — All milestones found issues during testing that specs didn't anticipate. v1.3 added mandatory smoke tests.
 4. **Check for shadowing before debugging logic** — v1.2 auto-sourcing order, v1.3 icon library confusion. The problem is often environmental, not logical.
 5. **Run verification for every phase** — v1.3 Phase 12 skipped verification; caught only by milestone audit. No exceptions.
-6. **Small milestones execute fastest** — v1.4 completed in a single session with zero rework. Tight scope eliminates coordination overhead.
+6. **Small milestones execute fastest** — v1.4 and v1.6 both completed in single sessions with zero rework. Tight scope eliminates coordination overhead.
+7. **Grep the full test directory for patterns being fixed** — v1.6 Phase 21 missed a second test file with identical stale assertions. Always search broadly.

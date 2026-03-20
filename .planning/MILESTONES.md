@@ -1,5 +1,20 @@
 # Milestones
 
+## v1.6 Cleaning Ruleset Fixes (Shipped: 2026-03-20)
+
+**Phases completed:** 3 phases, 3 plans, 6 tasks
+**Lines changed:** +1,691 / -73 across 19 files
+**Requirements:** 7/7 satisfied (SPLIT-01/02, ROMAN-01/02, UNIC-01/02/03)
+**Timeline:** 2 days (2026-03-19 → 2026-03-20)
+
+**Key accomplishments:**
+
+- Multi-locant IUPAC comma protection via repeat-until-stable loop in `split_synonyms()` — fixes 2,4,6-trichlorophenol and longer chains
+- Roman numeral oxidation state protection (`ROMAN_NUMERAL_PATTERN` + `has_roman` gating) in both paren and bracket enclosure stripping paths
+- Unicode cleaning test alignment with current ComptoxR format — all dot-notation assertions corrected to plain text, prime symbol coverage added
+
+---
+
 ## v1.5 Disagreement Enrichment (Shipped: 2026-03-13)
 
 **Phases completed:** 2 phases, 2 plans, 5 tasks
@@ -8,6 +23,7 @@
 **Timeline:** 2 days (2026-03-10 → 2026-03-12)
 
 **Key accomplishments:**
+
 - CompTox enrichment pipeline with CASRN, molecular formula, and molecular weight via `ct_chemical_detail` with incremental caching
 - Source column attribution and search tier labels per candidate (Exact/CAS/Starts-with/No match)
 - Rich comparison modal replacing dropdown for disagree row resolution — card layout with enriched metadata
@@ -21,6 +37,7 @@
 **Phases completed:** 1 phases, 2 plans, 4 tasks
 
 **Key accomplishments:**
+
 - (none recorded)
 
 ---
@@ -33,6 +50,7 @@
 **Timeline:** 7 days (2026-03-04 → 2026-03-10)
 
 **Key accomplishments:**
+
 - Extracted 7 Shiny modules from monolithic app.R (2,276 → 203 lines) with full backward compatibility
 - Built 12-step cleaning pipeline: unicode normalization, CAS rescue/validation/multi-CAS split, IUPAC-aware name cleaning with synonym splitting, reference-based flagging
 - Provenance-tracked reference lists (ComptoxR-seeded + user-editable) with blocking/warning flag system and re-run cascade
@@ -49,6 +67,7 @@
 **Phases completed:** 2 phases, 2 plans, 0 tasks
 
 **Key accomplishments:**
+
 - Split single Curation tab into 3 top-level tabs: Tag Columns, Run Curation, Review Results
 - Full-width layouts replacing nested card containers (navset_underline)
 - Gated tab visibility — tabs appear only when workflow prerequisites are met
@@ -58,7 +77,6 @@
 
 ---
 
-
 ## v1.1 Curation Process Update (Shipped: 2026-03-01)
 
 **Phases completed:** 3 phases, 6 plans, 10 tasks
@@ -66,6 +84,7 @@
 **Requirements:** 15/15 satisfied (PROTO, DEDUP, CURE, CONS, INTG)
 
 **Key accomplishments:**
+
 - TDD-built pipeline with 6 modular functions: dedup tagged columns, tiered CompTox search (exact/starts-with/CAS), and result mapping
 - Pipeline validated against sample_messy.csv (4 rows) and uncurated_chemicals (100 rows, 75 unique names, 49 unique CAS)
 - Consensus classification with 5 status labels (agree/agree_caveat/disagree/single/error) and QC tier scoring
@@ -77,7 +96,6 @@
 
 ---
 
-
 ## v1.2 Curation Refinement (Shipped: 2026-03-03)
 
 **Phases completed:** 3 phases, 6 plans, 7 tasks
@@ -85,6 +103,7 @@
 **Requirements:** 12/12 satisfied (SRCH, RECV, UIPX)
 
 **Key accomplishments:**
+
 - Reordered search tiers (exact → CAS → starts-with) with 3-char minimum filter for improved precision
 - "Other" tagged columns participate in full curation chain and consensus voting
 - Column visibility tiers, color-coded badges, and enhanced resolution dropdowns with preferredName context
@@ -95,4 +114,3 @@
 **UAT:** 10/10 tests passed
 
 ---
-

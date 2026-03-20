@@ -1,27 +1,28 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Disagreement Enrichment
-status: archived
-last_updated: "2026-03-13"
+milestone: v1.6
+milestone_name: Cleaning Ruleset Fixes
+status: completed
+stopped_at: Completed 21-01-PLAN.md
+last_updated: "2026-03-20T16:06:43.076Z"
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 2
-  completed_plans: 2
+  total_phases: 5
+  completed_phases: 3
+  total_plans: 3
+  completed_plans: 3
 ---
 
 # Project State: ChemReg
 
-**Last Updated:** 2026-03-13
-**Milestone:** v1.5 Disagreement Enrichment — ARCHIVED
-**Status:** Planning next milestone
+**Last Updated:** 2026-03-20
+**Milestone:** v1.6 Cleaning Ruleset Fixes
+**Status:** v1.6 milestone complete
 
 ---
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-13)
+See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
 **Current focus:** Planning next milestone
@@ -30,41 +31,48 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 
 ## Current Position
 
-Milestone v1.5 archived. 6 milestones shipped (v1.0–v1.5), 18 phases, 34 plans total.
-
----
+Phase: 21 (unicode-cleaning-coverage) — COMPLETE
+Plan: 1 of 1 — COMPLETE
 
 ## Performance Metrics
 
 **Cumulative (all milestones):**
+
 - Total milestones shipped: 6 (v1.0, v1.1, v1.2, v1.3, v1.4, v1.5)
-- Total phases: 18 (Phases 1-18)
-- Total plans: 34
+- Total phases: 18 complete + 3 planned (v1.6)
+- Total plans: 34 complete + 3 planned (v1.6)
 - LOC: ~15,750 R
 
 ---
 
 ## Accumulated Context
 
-### Pending Todos (Carried Forward)
+### Decisions
 
-None — all prior tech debt resolved in v1.5.
+Decisions are logged in PROJECT.md Key Decisions table.
+Recent decisions affecting current work:
+
+- [v1.4]: Reuse @@@ placeholder for letter-comma-letter protection — extend same strategy to multi-locant patterns in Phase 19
+- [v1.3]: ComptoxR direct usage — clean_unicode called directly; Phase 21 must verify mapping table entries, not assume gaps
+- [Phase 19-synonym-splitter-comma-protection]: Repeat-until-stable loop (for, 10 iterations) wraps digit-comma-digit and letter-comma-letter protection in split_synonyms()
+- [Phase 20-roman-numeral-handling]: ROMAN_NUMERAL_PATTERN module-level constant in cleaning_pipeline.R: anchored regex (I-XII, case-insensitive) used by both paren and bracket paths in strip_terminal_enclosures
+- [Phase 21-unicode-cleaning-coverage]: No pipeline code changes needed: ComptoxR::clean_unicode already returns plain text (alpha not .alpha.), tests were wrong
+
+### Pending Todos
+
+None.
 
 ### Known Issues / Blockers
 
-None active.
+None — all v1.6 requirements resolved (ROMAN-01/02 fixed in Phase 20, UNIC-01/02/03 fixed in Phase 21).
 
 ---
 
 ## Session Continuity
 
-### What Just Happened
-
-Archived milestone v1.5 (Disagreement Enrichment). All requirements satisfied (11/11). Archives at `.planning/milestones/v1.5-ROADMAP.md` and `.planning/milestones/v1.5-REQUIREMENTS.md`.
-
-### Next Action
-
-Run `/gsd:new-milestone` to start the next milestone cycle.
+Last session: 2026-03-20T13:38:48.753Z
+Stopped at: Completed 21-01-PLAN.md
+Resume file: None
 
 ---
 
