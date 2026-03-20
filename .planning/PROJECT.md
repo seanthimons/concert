@@ -62,6 +62,7 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - ✓ End-to-end validation test suite for cleaning pipeline fixes (42 assertions) — v1.4
 - ✓ Multi-locant IUPAC comma protection in synonym splitter (3+ locants via repeat-until-stable loop) — v1.6 Phase 19
 - ✓ Roman numeral oxidation state protection in enclosure stripping (I-XII, case-insensitive, paren+bracket paths) — v1.6 Phase 20
+- ✓ Unicode cleaning test alignment with current ComptoxR format (α→alpha, ′→apostrophe, no dot-notation) — v1.6 Phase 21
 - ✓ Enrichment of disagreement candidates with CASRN, molecular formula, molecular weight via CompTox API — v1.5
 - ✓ Side-by-side comparison modal for disagreement resolution — v1.5
 - ✓ Source column and search tier attribution per candidate — v1.5
@@ -76,7 +77,7 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 **Target features:**
 - ~~Fix multi-locant comma protection in synonym splitter (2,4,6- patterns)~~ — Done (Phase 19)
 - ~~Investigate and fix roman numeral → formula column misrouting (chromium iii/vi)~~ — Done (Phase 20)
-- Fix unicode cleaning coverage (ensure α and ′ are caught, align tests with current ComptoxR mappings)
+- ~~Fix unicode cleaning coverage (ensure α and ′ are caught, align tests with current ComptoxR mappings)~~ — Done (Phase 21)
 - Extensible — add phases as roadtesting surfaces more issues
 
 ### Out of Scope
@@ -153,4 +154,4 @@ Known tech debt: None actively tracked — v1.5 resolved prior dropdown/visibili
 | Two-step Select + Confirm resolution | Prevents accidental resolution; progressive disclosure pattern | ✓ Good — v1.5 |
 
 ---
-*Last updated: 2026-03-19 after Phase 20 (Roman Numeral Handling) complete*
+*Last updated: 2026-03-20 after Phase 21 (Unicode Cleaning Coverage) complete — v1.6 milestone finished*
