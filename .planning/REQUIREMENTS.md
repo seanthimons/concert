@@ -36,18 +36,18 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UIPOL-01 | — | Pending |
-| UIPOL-02 | — | Pending |
-| UIPOL-03 | — | Pending |
-| ISOT-01 | — | Pending |
-| ISOT-02 | — | Pending |
-| ISOT-03 | — | Pending |
+| UIPOL-01 | Phase 22 | Pending |
+| UIPOL-02 | Phase 22 | Pending |
+| UIPOL-03 | Phase 22 | Pending |
+| ISOT-01 | Phase 23 | Pending |
+| ISOT-02 | Phase 23 | Pending |
+| ISOT-03 | Phase 23 | Pending |
 
 **Coverage:**
 - v1.7 requirements: 6 total
-- Mapped to phases: 0
-- Unmapped: 6 ⚠️
+- Mapped to phases: 6
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-31*
-*Last updated: 2026-03-31 after initial definition*
+*Last updated: 2026-03-31 after roadmap creation*

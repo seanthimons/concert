@@ -6,9 +6,9 @@ status: active
 stopped_at: null
 last_updated: "2026-03-31T00:00:00.000Z"
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
-  total_plans: 0
+  total_plans: 2
   completed_plans: 0
 ---
 
@@ -16,7 +16,7 @@ progress:
 
 **Last Updated:** 2026-03-31
 **Milestone:** v1.7 UI Polish & Isotope Cleaning
-**Status:** Defining requirements
+**Status:** Ready to plan Phase 22
 
 ---
 
@@ -25,22 +25,26 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-31)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
-**Current focus:** Defining requirements for v1.7
+**Current focus:** Phase 22 — UI Polish
 
 ---
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-31 — Milestone v1.7 started
+Phase: 22 of 23 (UI Polish)
+Plan: 0 of TBD in current phase
+Status: Ready to plan
+Last activity: 2026-03-31 — Roadmap created for v1.7
+
+Progress: [░░░░░░░░░░] 0%
+
+---
 
 ## Performance Metrics
 
 **Cumulative (all milestones):**
 
-- Total milestones shipped: 7 (v1.0, v1.1, v1.2, v1.3, v1.4, v1.5, v1.6)
+- Total milestones shipped: 7 (v1.0–v1.6)
 - Total phases: 21 complete
 - Total plans: 37 complete
 - LOC: ~15,750 R
@@ -54,8 +58,8 @@ Last activity: 2026-03-31 — Milestone v1.7 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [v1.3]: ComptoxR direct usage — clean_unicode called directly; isotope expansion should follow same pattern
-- [v1.5]: Compare button + modal over richer dropdown — modal gives space for tabular metadata
+- [v1.3]: ComptoxR direct usage — isotope expansion should call ComptoxR list directly, no custom implementations
+- [v1.4]: Consecutive-lowercase heuristic for formula detection — isotope step must run before this step in the pipeline
 
 ### Pending Todos
 
@@ -63,15 +67,15 @@ None.
 
 ### Known Issues / Blockers
 
-- renderWidget explicit widget ID warning in Review Results table (new)
-- jsonlite named vector deprecation warning drowning console output
+- renderWidget explicit widget ID warning in Review Results table (Phase 22 target)
+- jsonlite named vector deprecation warning drowning console output (Phase 22 target)
 
 ---
 
 ## Session Continuity
 
 Last session: 2026-03-31
-Stopped at: Defining requirements
+Stopped at: Roadmap created — ready to run /gsd:plan-phase 22
 Resume file: None
 
 ---
