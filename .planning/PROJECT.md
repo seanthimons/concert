@@ -70,7 +70,15 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ### Active
 
-(No active milestone — v1.6 complete, next milestone TBD)
+## Current Milestone: v1.7 UI Polish & Isotope Cleaning
+
+**Goal:** Fix truncated column headers in Review Results, add isotope shortcode-to-proper-name expansion in the cleaning pipeline, and silence spurious console warnings.
+
+**Target features:**
+- Column title wrapping in Review Results DT table
+- Isotope shortcode expansion in pre-curation cleaning pipeline
+- Fix renderWidget explicit widget ID warning
+- Fix jsonlite named vector deprecation warning
 
 ### Out of Scope
 
@@ -149,4 +157,4 @@ Known tech debt: `test_cleaning_reference.R` has 1 pre-existing failure (expects
 | Test alignment over pipeline changes for unicode | ComptoxR already handles α and ′ correctly; only tests needed updating | ✓ Good — v1.6 |
 
 ---
-*Last updated: 2026-03-20 after v1.6 milestone complete*
+*Last updated: 2026-03-31 after v1.7 milestone started*
