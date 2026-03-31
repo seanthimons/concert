@@ -1,39 +1,34 @@
 # Requirements: ChemReg
 
-**Defined:** 2026-03-18
+**Defined:** 2026-03-31
 **Core Value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
 
-## v1.6 Requirements
+## v1.7 Requirements
 
-Requirements for cleaning ruleset fixes. Each maps to roadmap phases.
+Requirements for v1.7 UI Polish & Isotope Cleaning. Each maps to roadmap phases.
 
-### Synonym Splitting
+### UI Polish
 
-- [x] **SPLIT-01**: Multi-locant IUPAC names (e.g., 2,4,6-trichlorophenol) are not split by the synonym splitter
-- [x] **SPLIT-02**: Existing single-locant protection (2,4-D) continues to work correctly
+- [ ] **UIPOL-01**: Review Results DT table column headers wrap to show full text instead of truncating
+- [ ] **UIPOL-02**: Remove explicit widget ID from results table to silence `renderWidget` warning
+- [ ] **UIPOL-03**: Convert named vectors to named lists to fix `jsonlite` deprecation warning
 
-### Roman Numerals
+### Isotope Cleaning
 
-- [x] **ROMAN-01**: Chemical names with roman numeral oxidation states (e.g., chromium III, chromium VI) retain the numeral as part of the name
-- [x] **ROMAN-02**: Roman numerals in parenthetical form (e.g., chromium (III)) are not misrouted to formula column
-
-### Unicode Cleaning
-
-- [x] **UNIC-01**: Greek alpha (U+03B1, α) is cleaned by the pipeline before QC runs
-- [x] **UNIC-02**: Prime symbol (U+2032, ′) is cleaned by the pipeline before QC runs
-- [x] **UNIC-03**: Unicode cleaning tests align with current ComptoxR mapping format (no dot notation)
+- [ ] **ISOT-01**: Isotope shortcode expansion step added to pre-curation cleaning pipeline, ordered before bare formula detection
+- [ ] **ISOT-02**: Known isotope list (from ComptoxR) used for greedy matching — short element codes (<5 chars) expanded to full element names (e.g., `14C-glucose` → `Carbon-14-glucose`)
+- [ ] **ISOT-03**: Carbon backbone patterns and deuterium d-prefix patterns excluded from expansion
 
 ## Future Requirements
 
-None — milestone is extensible via `/gsd:add-phase` as roadtesting surfaces more issues.
+(None deferred from this milestone)
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| ct_details API fix | User fixing in ComptoxR separately |
-| jsonlite named vector warning | Cosmetic, no functional impact |
-| Widget ID warning | Shiny internals, no functional impact |
+| Comparison modal data updates | Deferred — user needs more time to decide what to show |
+| Isotope expansion for long/ambiguous codes | Only short (<5 char) element codes; longer codes too risky for false positives |
 
 ## Traceability
 
@@ -41,19 +36,18 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SPLIT-01 | Phase 19 | Complete |
-| SPLIT-02 | Phase 19 | Complete |
-| ROMAN-01 | Phase 20 | Complete |
-| ROMAN-02 | Phase 20 | Complete |
-| UNIC-01 | Phase 21 | Complete |
-| UNIC-02 | Phase 21 | Complete |
-| UNIC-03 | Phase 21 | Complete |
+| UIPOL-01 | — | Pending |
+| UIPOL-02 | — | Pending |
+| UIPOL-03 | — | Pending |
+| ISOT-01 | — | Pending |
+| ISOT-02 | — | Pending |
+| ISOT-03 | — | Pending |
 
 **Coverage:**
-- v1.6 requirements: 7 total
-- Mapped to phases: 7
-- Unmapped: 0 ✓
+- v1.7 requirements: 6 total
+- Mapped to phases: 0
+- Unmapped: 6 ⚠️
 
 ---
-*Requirements defined: 2026-03-18*
-*Last updated: 2026-03-18 after roadmap creation*
+*Requirements defined: 2026-03-31*
+*Last updated: 2026-03-31 after initial definition*
