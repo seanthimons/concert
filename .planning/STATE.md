@@ -1,46 +1,48 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.6
-milestone_name: Cleaning Ruleset Fixes
-status: completed
-stopped_at: Completed 21-01-PLAN.md
-last_updated: "2026-03-20T16:06:43.076Z"
+milestone: v1.7
+milestone_name: UI Polish & Isotope Cleaning
+status: active
+stopped_at: null
+last_updated: "2026-03-31T00:00:00.000Z"
 progress:
-  total_phases: 5
-  completed_phases: 3
-  total_plans: 3
-  completed_plans: 3
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State: ChemReg
 
-**Last Updated:** 2026-03-20
-**Milestone:** v1.6 Cleaning Ruleset Fixes
-**Status:** v1.6 milestone complete
+**Last Updated:** 2026-03-31
+**Milestone:** v1.7 UI Polish & Isotope Cleaning
+**Status:** Defining requirements
 
 ---
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-20)
+See: .planning/PROJECT.md (updated 2026-03-31)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
-**Current focus:** Planning next milestone
+**Current focus:** Defining requirements for v1.7
 
 ---
 
 ## Current Position
 
-Phase: 21 (unicode-cleaning-coverage) — COMPLETE
-Plan: 1 of 1 — COMPLETE
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-31 — Milestone v1.7 started
 
 ## Performance Metrics
 
 **Cumulative (all milestones):**
 
-- Total milestones shipped: 6 (v1.0, v1.1, v1.2, v1.3, v1.4, v1.5)
-- Total phases: 18 complete + 3 planned (v1.6)
-- Total plans: 34 complete + 3 planned (v1.6)
+- Total milestones shipped: 7 (v1.0, v1.1, v1.2, v1.3, v1.4, v1.5, v1.6)
+- Total phases: 21 complete
+- Total plans: 37 complete
 - LOC: ~15,750 R
 
 ---
@@ -52,11 +54,8 @@ Plan: 1 of 1 — COMPLETE
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [v1.4]: Reuse @@@ placeholder for letter-comma-letter protection — extend same strategy to multi-locant patterns in Phase 19
-- [v1.3]: ComptoxR direct usage — clean_unicode called directly; Phase 21 must verify mapping table entries, not assume gaps
-- [Phase 19-synonym-splitter-comma-protection]: Repeat-until-stable loop (for, 10 iterations) wraps digit-comma-digit and letter-comma-letter protection in split_synonyms()
-- [Phase 20-roman-numeral-handling]: ROMAN_NUMERAL_PATTERN module-level constant in cleaning_pipeline.R: anchored regex (I-XII, case-insensitive) used by both paren and bracket paths in strip_terminal_enclosures
-- [Phase 21-unicode-cleaning-coverage]: No pipeline code changes needed: ComptoxR::clean_unicode already returns plain text (alpha not .alpha.), tests were wrong
+- [v1.3]: ComptoxR direct usage — clean_unicode called directly; isotope expansion should follow same pattern
+- [v1.5]: Compare button + modal over richer dropdown — modal gives space for tabular metadata
 
 ### Pending Todos
 
@@ -64,14 +63,15 @@ None.
 
 ### Known Issues / Blockers
 
-None — all v1.6 requirements resolved (ROMAN-01/02 fixed in Phase 20, UNIC-01/02/03 fixed in Phase 21).
+- renderWidget explicit widget ID warning in Review Results table (new)
+- jsonlite named vector deprecation warning drowning console output
 
 ---
 
 ## Session Continuity
 
-Last session: 2026-03-20T13:38:48.753Z
-Stopped at: Completed 21-01-PLAN.md
+Last session: 2026-03-31
+Stopped at: Defining requirements
 Resume file: None
 
 ---
