@@ -751,11 +751,10 @@ mod_review_results_server <- function(id, data_store) {
         rowStyle = row_style_fn,
         defaultPageSize = 25,
         resizable = TRUE,
-        wrap = FALSE,
+        wrap = TRUE,
         compact = TRUE,
         bordered = TRUE,
-        highlight = TRUE,
-        elementId = table_id
+        highlight = TRUE
       )
     })
 
@@ -1126,7 +1125,7 @@ mod_review_results_server <- function(id, data_store) {
       }
 
       row_indices <- as.integer(names(queue))
-      all_dtxsids <- unlist(queue)
+      all_dtxsids <- unname(unlist(queue))
       unique_dtxsids <- unique(all_dtxsids)
 
       # Disable button during validation
