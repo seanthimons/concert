@@ -49,7 +49,11 @@
   1. Review Results DT column headers wrap to multiple lines rather than truncating with ellipsis
   2. No `renderWidget` warning appears in the R console when the results table renders
   3. No `jsonlite` named vector deprecation warning appears in the R console during curation
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 22-01-PLAN.md — Apply wrap=TRUE, remove elementId, fix named vector warnings
+
 **UI hint**: yes
 
 ### Phase 23: Isotope Cleaning
