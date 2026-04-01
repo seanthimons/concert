@@ -73,5 +73,5 @@ Plans:
 | 19. Synonym Splitter Comma Protection | v1.6 | 1/1 | Complete | 2026-03-19 |
 | 20. Roman Numeral Handling | v1.6 | 1/1 | Complete | 2026-03-19 |
 | 21. Unicode Cleaning Coverage | v1.6 | 1/1 | Complete | 2026-03-20 |
-| 22. UI Polish | v1.7 | 1/1 | Complete   | 2026-04-01 |
+| 22. UI Polish | v1.7 | 1/1 | Complete    | 2026-04-01 |
 | 23. Isotope Cleaning | v1.7 | 0/1 | Not started | - |
