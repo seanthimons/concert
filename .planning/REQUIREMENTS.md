@@ -9,9 +9,9 @@ Requirements for v1.7 UI Polish & Isotope Cleaning. Each maps to roadmap phases.
 
 ### UI Polish
 
-- [ ] **UIPOL-01**: Review Results DT table column headers wrap to show full text instead of truncating
-- [ ] **UIPOL-02**: Remove explicit widget ID from results table to silence `renderWidget` warning
-- [ ] **UIPOL-03**: Convert named vectors to named lists to fix `jsonlite` deprecation warning
+- [x] **UIPOL-01**: Review Results DT table column headers wrap to show full text instead of truncating
+- [x] **UIPOL-02**: Remove explicit widget ID from results table to silence `renderWidget` warning
+- [x] **UIPOL-03**: Convert named vectors to named lists to fix `jsonlite` deprecation warning
 
 ### Isotope Cleaning
 
@@ -36,9 +36,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UIPOL-01 | Phase 22 | Pending |
-| UIPOL-02 | Phase 22 | Pending |
-| UIPOL-03 | Phase 22 | Pending |
+| UIPOL-01 | Phase 22 | Complete |
+| UIPOL-02 | Phase 22 | Complete |
+| UIPOL-03 | Phase 22 | Complete |
 | ISOT-01 | Phase 23 | Pending |
 | ISOT-02 | Phase 23 | Pending |
 | ISOT-03 | Phase 23 | Pending |

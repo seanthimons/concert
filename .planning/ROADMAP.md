@@ -36,7 +36,7 @@
 
 ## Phases
 
-- [ ] **Phase 22: UI Polish** - Fix column header truncation in Review Results and silence two console warnings
+- [x] **Phase 22: UI Polish** - Fix column header truncation in Review Results and silence two console warnings (completed 2026-04-01)
 - [ ] **Phase 23: Isotope Cleaning** - Add isotope shortcode expansion step to pre-curation pipeline, ordered before bare formula detection
 
 ## Phase Details
@@ -52,7 +52,7 @@
 **Plans**: 1 plan
 
 Plans:
-- [ ] 22-01-PLAN.md — Apply wrap=TRUE, remove elementId, fix named vector warnings
+- [x] 22-01-PLAN.md — Apply wrap=TRUE, remove elementId, fix named vector warnings
 
 **UI hint**: yes
 
@@ -73,5 +73,5 @@ Plans:
 | 19. Synonym Splitter Comma Protection | v1.6 | 1/1 | Complete | 2026-03-19 |
 | 20. Roman Numeral Handling | v1.6 | 1/1 | Complete | 2026-03-19 |
 | 21. Unicode Cleaning Coverage | v1.6 | 1/1 | Complete | 2026-03-20 |
-| 22. UI Polish | v1.7 | 0/1 | Not started | - |
+| 22. UI Polish | v1.7 | 1/1 | Complete   | 2026-04-01 |
 | 23. Isotope Cleaning | v1.7 | 0/1 | Not started | - |
