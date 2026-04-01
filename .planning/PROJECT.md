@@ -68,6 +68,10 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - ✓ Source column and search tier attribution per candidate — v1.5
 - ✓ Export enrichment metadata (consensus_casrn, consensus_formula, consensus_mw) — v1.5
 
+- ✓ Column title wrapping in Review Results DT table — v1.7 Phase 22
+- ✓ Fix renderWidget explicit widget ID warning — v1.7 Phase 22
+- ✓ Fix jsonlite named vector deprecation warning — v1.7 Phase 22
+
 ### Active
 
 ## Current Milestone: v1.7 UI Polish & Isotope Cleaning
@@ -157,4 +161,4 @@ Known tech debt: `test_cleaning_reference.R` has 1 pre-existing failure (expects
 | Test alignment over pipeline changes for unicode | ComptoxR already handles α and ′ correctly; only tests needed updating | ✓ Good — v1.6 |
 
 ---
-*Last updated: 2026-03-31 after v1.7 milestone started*
+*Last updated: 2026-04-01 after Phase 22 (UI Polish) complete*
