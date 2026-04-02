@@ -172,7 +172,12 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
               name_cols <- names(tag_map)[tag_map == "Name"]
 
               if (length(name_cols) > 0) {
-                incProgress(0.08, detail = "Stripping parentheticals...")
+                incProgress(0.04, detail = "Protecting chiral designations...")
+                chiral_result <- protect_chiral_designations(df, name_cols)
+                df <- chiral_result$cleaned_data
+                all_audits[[length(all_audits) + 1]] <- chiral_result$audit_trail
+
+                incProgress(0.06, detail = "Stripping parentheticals...")
                 enclosure_result <- strip_terminal_enclosures(df, name_cols)
                 df <- enclosure_result$cleaned_data
                 all_audits[[length(all_audits) + 1]] <- enclosure_result$audit_trail
@@ -219,7 +224,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
                 df <- enclosure_result2$cleaned_data
                 all_audits[[length(all_audits) + 1]] <- enclosure_result2$audit_trail
 
-                incProgress(0.08, detail = "Splitting synonyms...")
+                incProgress(0.06, detail = "Splitting synonyms...")
                 synonym_result <- split_synonyms(df, name_cols, updated_tag_map)
                 df <- synonym_result$cleaned_data
                 all_audits[[length(all_audits) + 1]] <- synonym_result$audit_trail
@@ -239,6 +244,16 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
                   all(is.na(row) | row == "")
                 })
                 df <- df[!all_empty, ]
+
+                incProgress(0.04, detail = "Expanding isotope shortcodes...")
+                isotope_result <- expand_isotope_shortcodes(df, name_cols)
+                df <- isotope_result$cleaned_data
+                all_audits[[length(all_audits) + 1]] <- isotope_result$audit_trail
+
+                incProgress(0.04, detail = "Flagging multi-analyte expressions...")
+                multi_result <- flag_multi_analyte(df, name_cols)
+                df <- multi_result$cleaned_data
+                all_audits[[length(all_audits) + 1]] <- multi_result$audit_trail
 
                 # Phase 13: Bare formula detection (after all name cleaning)
                 incProgress(0.05, detail = "Detecting bare formulas...")
