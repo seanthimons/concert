@@ -36,8 +36,8 @@
 
 ## Phases
 
-- [x] **Phase 22: UI Polish** - Fix column header truncation in Review Results and silence two console warnings (completed 2026-04-01)
-- [ ] **Phase 23: Isotope Cleaning** - Add isotope shortcode expansion step to pre-curation pipeline, ordered before bare formula detection
+- [x] **Phase 22: UI Polish** - Fix column header truncation in Review Results and silence two console warnings (completed 2026-04-01)
+- [ ] **Phase 23: Isotope Cleaning** - Add isotope shortcode expansion, chiral designation protection, and multi-analyte flagging to pre-curation pipeline
 
 ## Phase Details
 
@@ -57,14 +57,21 @@ Plans:
 **UI hint**: yes
 
 ### Phase 23: Isotope Cleaning
-**Goal**: Users' chemical name columns are cleaned of isotope shortcodes before the bare formula detection step runs, with safe exclusions preventing false expansions
+**Goal**: Users' chemical name columns are cleaned of isotope shortcodes before the bare formula detection step runs, with chiral designation protection and multi-analyte flagging also added to the pipeline
 **Depends on**: Phase 22
-**Requirements**: ISOT-01, ISOT-02, ISOT-03
+**Requirements**: ISOT-01, ISOT-02, ISOT-03, CHIR-01, MANA-01
 **Success Criteria** (what must be TRUE):
   1. The cleaning pipeline audit trail shows an isotope expansion step that runs before bare formula detection
-  2. Isotope shortcodes (e.g., `14C`, `3H`) are expanded to full element names (e.g., `Carbon-14`, `Tritium`) when they appear in chemical name strings
-  3. Carbon backbone patterns (e.g., `C12`, plain `C` prefixes) and deuterium d-prefix patterns are not incorrectly expanded
+  2. Isotope shortcodes (e.g., `u234`, `pb210`) are expanded to full element names (e.g., `Uranium-234`, `Lead-210`) when they appear in chemical name strings
+  3. Carbon backbone patterns (e.g., `C12H22O11`) and deuterium d-prefix patterns (e.g., `d-glucose`) are not incorrectly expanded
   4. Only shortcodes under 5 characters from the ComptoxR known isotope list are matched — longer or ambiguous codes are left unchanged
+  5. Chiral designations are protected from enclosure stripping and flagged as WARNING
+  6. Multi-analyte expressions (naked `+` or `and`) are flagged as WARNING without auto-splitting
+**Plans**: 2 plans
+
+Plans:
+- [ ] 23-01-PLAN.md — Implement three new cleaning functions (chiral protection, isotope expansion, multi-analyte flagging) with unit tests
+- [ ] 23-02-PLAN.md — Wire functions into pipeline orchestrators, add integration tests, run smoke test
 
 ## Progress
 
@@ -74,4 +81,4 @@ Plans:
 | 20. Roman Numeral Handling | v1.6 | 1/1 | Complete | 2026-03-19 |
 | 21. Unicode Cleaning Coverage | v1.6 | 1/1 | Complete | 2026-03-20 |
 | 22. UI Polish | v1.7 | 1/1 | Complete    | 2026-04-01 |
-| 23. Isotope Cleaning | v1.7 | 0/1 | Not started | - |
+| 23. Isotope Cleaning | v1.7 | 0/2 | Not started | - |
