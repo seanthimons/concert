@@ -81,4 +81,4 @@ Plans:
 | 20. Roman Numeral Handling | v1.6 | 1/1 | Complete | 2026-03-19 |
 | 21. Unicode Cleaning Coverage | v1.6 | 1/1 | Complete | 2026-03-20 |
 | 22. UI Polish | v1.7 | 1/1 | Complete    | 2026-04-01 |
-| 23. Isotope Cleaning | v1.7 | 2/2 | Complete   | 2026-04-02 |
+| 23. Isotope Cleaning | v1.7 | 2/2 | Complete    | 2026-04-02 |
