@@ -37,7 +37,7 @@
 ## Phases
 
 - [x] **Phase 22: UI Polish** - Fix column header truncation in Review Results and silence two console warnings (completed 2026-04-01)
-- [ ] **Phase 23: Isotope Cleaning** - Add isotope shortcode expansion, chiral designation protection, and multi-analyte flagging to pre-curation pipeline
+- [x] **Phase 23: Isotope Cleaning** - Add isotope shortcode expansion, chiral designation protection, and multi-analyte flagging to pre-curation pipeline (completed 2026-04-02)
 
 ## Phase Details
 
@@ -71,7 +71,7 @@ Plans:
 
 Plans:
 - [x] 23-01-PLAN.md — Implement three new cleaning functions (chiral protection, isotope expansion, multi-analyte flagging) with unit tests
-- [ ] 23-02-PLAN.md — Wire functions into pipeline orchestrators, add integration tests, run smoke test
+- [x] 23-02-PLAN.md — Wire functions into pipeline orchestrators, add integration tests, run smoke test
 
 ## Progress
 
@@ -81,4 +81,4 @@ Plans:
 | 20. Roman Numeral Handling | v1.6 | 1/1 | Complete | 2026-03-19 |
 | 21. Unicode Cleaning Coverage | v1.6 | 1/1 | Complete | 2026-03-20 |
 | 22. UI Polish | v1.7 | 1/1 | Complete    | 2026-04-01 |
-| 23. Isotope Cleaning | v1.7 | 1/2 | In Progress|  |
+| 23. Isotope Cleaning | v1.7 | 2/2 | Complete   | 2026-04-02 |
