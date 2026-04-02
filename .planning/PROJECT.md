@@ -71,6 +71,9 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - ✓ Column title wrapping in Review Results DT table — v1.7 Phase 22
 - ✓ Fix renderWidget explicit widget ID warning — v1.7 Phase 22
 - ✓ Fix jsonlite named vector deprecation warning — v1.7 Phase 22
+- ✓ Isotope shortcode expansion (u234→Uranium-234) using ComptoxR isotope list with greedy matching — v1.7 Phase 23
+- ✓ Chiral designation protection via placeholder pattern, WARNING flagging — v1.7 Phase 23
+- ✓ Multi-analyte expression flagging (naked +/and) without auto-splitting — v1.7 Phase 23
 
 ### Active
 
@@ -100,7 +103,7 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ## Context
 
-Shipped v1.6 Cleaning Ruleset Fixes with ~15,750 LOC R across 18 files.
+Shipped v1.7 UI Polish & Isotope Cleaning with ~16,200 LOC R across 18 files.
 Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, openxlsx2, rhandsontable.
 
 The app has 8 top-level tabs: Data Preview, Detection Info, Raw Data, Clean Data, Tag Columns, Run Curation, Review Results, plus sidebar upload and config import. On startup only Upload is visible; tabs appear progressively as the user advances.
@@ -110,7 +113,7 @@ Key files:
 - `R/modules/` — 8 Shiny modules (mod_upload, mod_data_preview, mod_detection_info, mod_raw_data, mod_clean_data, mod_tag_columns, mod_run_curation, mod_review_results)
 - `R/curation.R` — curation pipeline orchestrator with enrichment (~1,020 lines)
 - `R/consensus.R` — consensus classification, resolution, and enrichment (320+ lines)
-- `R/cleaning_pipeline.R` — 12-step pre-curation cleaning pipeline
+- `R/cleaning_pipeline.R` — 15-step pre-curation cleaning pipeline (chiral protection, isotope expansion, multi-analyte flagging added in v1.7)
 - `R/cleaning_reference.R` — reference list loaders with provenance tracking
 - `R/file_handlers.R` — file reading/validation (218 lines)
 - `R/data_detection.R` — frontmatter detection algorithms (405 lines)
@@ -161,4 +164,4 @@ Known tech debt: `test_cleaning_reference.R` has 1 pre-existing failure (expects
 | Test alignment over pipeline changes for unicode | ComptoxR already handles α and ′ correctly; only tests needed updating | ✓ Good — v1.6 |
 
 ---
-*Last updated: 2026-04-01 after Phase 22 (UI Polish) complete*
+*Last updated: 2026-04-02 after Phase 23 (Isotope Cleaning) complete — v1.7 milestone complete*
