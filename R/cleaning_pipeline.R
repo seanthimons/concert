@@ -1450,8 +1450,13 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
     name_cols <- names(tag_map)[tag_map == "Name"]
 
     if (length(name_cols) > 0) {
+      # Step 6-pre: Protect chiral designations (before enclosure stripping)
+      chiral_result <- protect_chiral_designations(df_after_multi_cas, name_cols)
+      df_after_chiral <- chiral_result$cleaned_data
+      audit_combined <- dplyr::bind_rows(audit_combined, chiral_result$audit_trail)
+
       # Step 6a: Strip terminal enclosures
-      enclosure_result <- strip_terminal_enclosures(df_after_multi_cas, name_cols)
+      enclosure_result <- strip_terminal_enclosures(df_after_chiral, name_cols)
       df_after_enclosures <- enclosure_result$cleaned_data
       audit_combined <- dplyr::bind_rows(audit_combined, enclosure_result$audit_trail)
       # Merge new_tags from formula_extract columns (though currently empty)
@@ -1518,6 +1523,16 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
         all(is.na(row) | row == "")
       })
       df_final <- df_after_synonyms[!all_empty, ]
+
+      # Step 7: Expand isotope shortcodes (before bare formula detection)
+      isotope_result <- expand_isotope_shortcodes(df_final, name_cols)
+      df_final <- isotope_result$cleaned_data
+      audit_combined <- dplyr::bind_rows(audit_combined, isotope_result$audit_trail)
+
+      # Step 8: Flag multi-analyte expressions
+      multi_result <- flag_multi_analyte(df_final, name_cols)
+      df_final <- multi_result$cleaned_data
+      audit_combined <- dplyr::bind_rows(audit_combined, multi_result$audit_trail)
     } else {
       # No name columns - skip name cleaning
       df_final <- df_after_multi_cas
