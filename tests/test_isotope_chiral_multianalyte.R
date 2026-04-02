@@ -163,11 +163,12 @@ test_that("expand_isotope_shortcodes normalizes 'strontium 90' to Strontium-90",
   expect_equal(result$cleaned_data$chemical_name[1], "Strontium-90")
 })
 
-test_that("expand_isotope_shortcodes normalizes 'cesium-137' to Cesium-137 (capitalize)", {
+test_that("expand_isotope_shortcodes normalizes 'cesium-137' to Caesium-137 (capitalize, ComptoxR IUPAC name)", {
+  # Note: ComptoxR uses IUPAC name "Caesium" not American "Cesium"
   df <- tibble::tibble(chemical_name = c("cesium-137"))
   result <- expand_isotope_shortcodes(df, c("chemical_name"))
 
-  expect_equal(result$cleaned_data$chemical_name[1], "Cesium-137")
+  expect_equal(result$cleaned_data$chemical_name[1], "Caesium-137")
 })
 
 test_that("expand_isotope_shortcodes normalizes 'iodine 131' to Iodine-131", {
