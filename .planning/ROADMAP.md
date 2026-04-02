@@ -70,7 +70,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 23-01-PLAN.md — Implement three new cleaning functions (chiral protection, isotope expansion, multi-analyte flagging) with unit tests
+- [x] 23-01-PLAN.md — Implement three new cleaning functions (chiral protection, isotope expansion, multi-analyte flagging) with unit tests
 - [ ] 23-02-PLAN.md — Wire functions into pipeline orchestrators, add integration tests, run smoke test
 
 ## Progress
@@ -81,4 +81,4 @@ Plans:
 | 20. Roman Numeral Handling | v1.6 | 1/1 | Complete | 2026-03-19 |
 | 21. Unicode Cleaning Coverage | v1.6 | 1/1 | Complete | 2026-03-20 |
 | 22. UI Polish | v1.7 | 1/1 | Complete    | 2026-04-01 |
-| 23. Isotope Cleaning | v1.7 | 0/2 | Not started | - |
+| 23. Isotope Cleaning | v1.7 | 1/2 | In Progress|  |

@@ -15,9 +15,11 @@ Requirements for v1.7 UI Polish & Isotope Cleaning. Each maps to roadmap phases.
 
 ### Isotope Cleaning
 
-- [ ] **ISOT-01**: Isotope shortcode expansion step added to pre-curation cleaning pipeline, ordered before bare formula detection
-- [ ] **ISOT-02**: Known isotope list (from ComptoxR) used for greedy matching — short element codes (<5 chars) expanded to full element names (e.g., `14C-glucose` → `Carbon-14-glucose`)
-- [ ] **ISOT-03**: Carbon backbone patterns and deuterium d-prefix patterns excluded from expansion
+- [x] **ISOT-01**: Isotope shortcode expansion step added to pre-curation cleaning pipeline, ordered before bare formula detection
+- [x] **ISOT-02**: Known isotope list (from ComptoxR) used for greedy matching — short element codes (<5 chars) expanded to full element names (e.g., `u234` → `Uranium-234`). Naked shortcodes AND spelled-out/hyphenated forms normalized to `Name-Mass` format.
+- [x] **ISOT-03**: Carbon backbone patterns and deuterium d-prefix patterns excluded from expansion
+- [x] **CHIR-01**: Chiral designation protection — `(+)`, `(-)`, `(±)`, `(R)`, `(S)` etc. protected from enclosure stripping via placeholder pattern and flagged with WARNING
+- [x] **MANA-01**: Multi-analyte flagging — rows with naked ` + ` or ` and ` between analyte tokens flagged as WARNING (no auto-split)
 
 ## Future Requirements
 
@@ -39,13 +41,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UIPOL-01 | Phase 22 | Complete |
 | UIPOL-02 | Phase 22 | Complete |
 | UIPOL-03 | Phase 22 | Complete |
-| ISOT-01 | Phase 23 | Pending |
-| ISOT-02 | Phase 23 | Pending |
-| ISOT-03 | Phase 23 | Pending |
+| ISOT-01 | Phase 23 | Complete |
+| ISOT-02 | Phase 23 | Complete |
+| ISOT-03 | Phase 23 | Complete |
+| CHIR-01 | Phase 23 | Complete |
+| MANA-01 | Phase 23 | Complete |
 
 **Coverage:**
-- v1.7 requirements: 6 total
-- Mapped to phases: 6
+- v1.7 requirements: 8 total
+- Mapped to phases: 8
 - Unmapped: 0
 
 ---
