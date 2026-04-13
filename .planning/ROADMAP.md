@@ -49,6 +49,8 @@
   Plans:
   - [x] 25-01-PLAN.md — Remove library() calls, add @importFrom magrittr pipe, run devtools::check()
 - [ ] **Phase 26: App Relocation** — inst/app/, run_app(), system.file() paths
+  Plans:
+  - [ ] 26-01-PLAN.md — Relocate app to inst/app/, create run_app() launcher, update reference cache paths
 - [ ] **Phase 27: Headless Pipeline** — curate_headless() wired end-to-end
 - [ ] **Phase 28: Test Migration** — tests/testthat/ structure, fix pre-existing failure
 
@@ -88,7 +90,9 @@
   2. `chemreg::run_app()` launches the Shiny app without errors after `devtools::install()`
   3. Reference cache paths use `system.file("extdata", "reference_cache", package = "chemreg")` — no `here::here()` calls remain in package source files
   4. `inst/app/app.R` contains no `source()` loop (all functions resolve from the package namespace in installed mode)
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 26-01-PLAN.md — Relocate app to inst/app/, create run_app() launcher, update reference cache paths
 **UI hint**: yes
 
 ### Phase 27: Headless Pipeline
@@ -125,6 +129,6 @@
 | 23. Isotope Cleaning | v1.7 | 2/2 | Complete | 2026-04-02 |
 | 24. Package Scaffolding | v1.8 | 1/1 | Complete    | 2026-04-13 |
 | 25. Source File Cleanup | v1.8 | 1/1 | Complete    | 2026-04-13 |
-| 26. App Relocation | v1.8 | 0/1 | Not started | - |
+| 26. App Relocation | v1.8 | 0/1 | Planned | - |
 | 27. Headless Pipeline | v1.8 | 0/1 | Not started | - |
 | 28. Test Migration | v1.8 | 0/1 | Not started | - |
