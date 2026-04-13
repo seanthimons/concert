@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: R Package Migration
-status: planning
-stopped_at: Milestone started 2026-04-13
+status: active
+stopped_at: Phase 24 — Package Scaffolding (not started)
 last_updated: "2026-04-13T00:00:00.000Z"
 last_activity: 2026-04-13
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -18,7 +18,7 @@ progress:
 
 **Last Updated:** 2026-04-13
 **Milestone:** v1.8 R Package Migration
-**Status:** 🔵 Planning
+**Status:** 🔵 Active
 
 ---
 
@@ -33,10 +33,12 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 24 — Package Scaffolding
 Plan: —
-Status: Defining requirements
-Last activity: 2026-04-13 — Milestone v1.8 started
+Status: Not started
+Last activity: 2026-04-13 — Roadmap created, ready to begin Phase 24
+
+Progress: ░░░░░░░░░░ 0% (0/5 phases complete)
 
 ---
 
@@ -48,6 +50,11 @@ Last activity: 2026-04-13 — Milestone v1.8 started
 - Total phases: 23 complete
 - Total plans: 40 complete
 - LOC: ~17,900 R
+
+**v1.8 so far:**
+
+- Phases complete: 0/5
+- Plans complete: 0 (TBD after plan-phase runs)
 
 ---
 
@@ -67,14 +74,14 @@ None.
 
 ### Known Issues / Blockers
 
-- `test_cleaning_reference.R` has 1 pre-existing failure (expects 3 keys from `load_all_reference_lists`, gets 4 including `strip_terms`) — low priority, pre-existing; will be addressed when migrating tests to testthat/ structure in v1.8
+- `test_cleaning_reference.R` has 1 pre-existing failure (expects 3 keys from `load_all_reference_lists`, gets 4 including `strip_terms`) — will be fixed in Phase 28 (TST-03)
 
 ---
 
 ## Session Continuity
 
 Last session: 2026-04-13
-Stopped at: Milestone v1.8 planning started
+Stopped at: Roadmap created — Phase 24 is next
 Resume file: None
 
 ---
