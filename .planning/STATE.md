@@ -1,24 +1,24 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.7
-milestone_name: UI Polish & Isotope Cleaning
-status: archived
-stopped_at: Milestone archived 2026-04-13
-last_updated: "2026-04-13T18:30:00.000Z"
+milestone: v1.8
+milestone_name: R Package Migration
+status: planning
+stopped_at: Milestone started 2026-04-13
+last_updated: "2026-04-13T00:00:00.000Z"
 last_activity: 2026-04-13
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: ChemReg
 
 **Last Updated:** 2026-04-13
-**Milestone:** v1.7 UI Polish & Isotope Cleaning
-**Status:** ✅ Archived
+**Milestone:** v1.8 R Package Migration
+**Status:** 🔵 Planning
 
 ---
 
@@ -27,16 +27,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-13)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
-**Current focus:** Planning next milestone — run `/gsd:new-milestone` to start v1.8
+**Current focus:** v1.8 — Convert ChemReg into a proper R package with headless pipeline access
 
 ---
 
 ## Current Position
 
-Phase: —
+Phase: Not started (defining requirements)
 Plan: —
-Status: Milestone archived — ready for next milestone
-Last activity: 2026-04-13
+Status: Defining requirements
+Last activity: 2026-04-13 — Milestone v1.8 started
 
 ---
 
@@ -67,14 +67,14 @@ None.
 
 ### Known Issues / Blockers
 
-- `test_cleaning_reference.R` has 1 pre-existing failure (expects 3 keys from `load_all_reference_lists`, gets 4 including `strip_terms`) — low priority, pre-existing
+- `test_cleaning_reference.R` has 1 pre-existing failure (expects 3 keys from `load_all_reference_lists`, gets 4 including `strip_terms`) — low priority, pre-existing; will be addressed when migrating tests to testthat/ structure in v1.8
 
 ---
 
 ## Session Continuity
 
 Last session: 2026-04-13
-Stopped at: Milestone archived
+Stopped at: Milestone v1.8 planning started
 Resume file: None
 
 ---
