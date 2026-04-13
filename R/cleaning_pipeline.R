@@ -32,6 +32,7 @@ ROMAN_NUMERAL_PATTERN <- "(?i)^\\s*([A-Z][a-z]?\\s+)?(I{1,3}|IV|V|VI{0,3}|IX|X|X
 #' clean_text_field("*starred*")  # => "starred"
 #' clean_text_field("67-64-1")  # => "67-64-1" (preserved)
 #' clean_text_field("2,4-dichlorophenol")  # => "2,4-dichlorophenol" (preserved)
+#' @export
 clean_text_field <- function(x) {
   x %>%
     stringr::str_trim() %>%
@@ -49,6 +50,7 @@ clean_text_field <- function(x) {
 #' @param step_name Name of the cleaning step (e.g., "unicode_to_ascii")
 #' @param reason_fn Function that takes (field_name) and returns reason string
 #' @return Tibble with columns: row_id, field, step, original_value, new_value, reason
+#' @export
 build_audit_trail <- function(df_original, df_cleaned, step_name, reason_fn) {
   # Initialize empty audit trail
   audit_rows <- list()
@@ -103,6 +105,7 @@ build_audit_trail <- function(df_original, df_cleaned, step_name, reason_fn) {
 #' @examples
 #' df <- tibble::tibble(a = 1:3, b = c("x", "y", "z"))
 #' inject_row_lineage(df)  # => tibble with original_row_id = 1:3 as first column
+#' @export
 inject_row_lineage <- function(df) {
   df %>%
     dplyr::mutate(original_row_id = 1:nrow(df), .before = 1)
@@ -123,6 +126,7 @@ inject_row_lineage <- function(df) {
 #' df <- tibble::tibble(cas = c("67641", "no cas", "67-64-2"))
 #' tag_map <- list(cas = "CASRN")
 #' normalize_cas_fields(df, tag_map)
+#' @export
 normalize_cas_fields <- function(df, tag_map) {
   # Get CASRN columns
   cas_cols <- names(tag_map)[tag_map == "CASRN"]
@@ -209,6 +213,7 @@ normalize_cas_fields <- function(df, tag_map) {
 #' df <- tibble::tibble(name = c("acetone (67-64-1)", "water"))
 #' tag_map <- list(name = "Name")
 #' rescue_cas_from_text(df, tag_map)
+#' @export
 rescue_cas_from_text <- function(df, tag_map) {
   # Get non-CASRN columns
   non_cas_cols <- names(tag_map)[tag_map != "CASRN"]
@@ -317,6 +322,7 @@ rescue_cas_from_text <- function(df, tag_map) {
 #' df <- tibble::tibble(cas1 = c("67-64-1", NA), cas2 = c("108-88-3", NA))
 #' tag_map <- list(cas1 = "CASRN", cas2 = "CASRN")
 #' detect_multi_cas(df, tag_map)
+#' @export
 detect_multi_cas <- function(df, tag_map) {
   # Get all CASRN columns (including any cas_extract_* columns)
   cas_cols <- names(tag_map)[tag_map == "CASRN"]
@@ -345,6 +351,7 @@ detect_multi_cas <- function(df, tag_map) {
 #' @examples
 #' df <- tibble::tibble(chemical_name = c("Acetone (ACS reagent)", "ethanol (ethyl alcohol)"))
 #' strip_terminal_enclosures(df, "chemical_name")
+#' @export
 strip_terminal_enclosures <- function(df, name_cols) {
   # Initialize result
   df_result <- df
@@ -494,6 +501,7 @@ strip_terminal_enclosures <- function(df, name_cols) {
 #' @examples
 #' df <- tibble::tibble(chemical_name = c("technical grade ethanol", "purified water"))
 #' strip_quality_adjectives(df, "chemical_name")
+#' @export
 strip_quality_adjectives <- function(df, name_cols) {
   # Save before state
   df_before <- df
@@ -565,6 +573,7 @@ strip_quality_adjectives <- function(df, name_cols) {
 #' @examples
 #' df <- tibble::tibble(chemical_name = c("lead and its salts", "mercury and its inorganic salts"))
 #' strip_salt_references(df, "chemical_name")
+#' @export
 strip_salt_references <- function(df, name_cols) {
   # Save before state
   df_before <- df
@@ -636,6 +645,7 @@ strip_salt_references <- function(df, name_cols) {
 #' @examples
 #' df <- tibble::tibble(chemical_name = c("compound, unspecified", "chemical - unspecified"))
 #' strip_terminal_unspecified(df, "chemical_name")
+#' @export
 strip_terminal_unspecified <- function(df, name_cols) {
   # Save before state
   df_before <- df
@@ -711,6 +721,7 @@ strip_terminal_unspecified <- function(df, name_cols) {
 #' df <- tibble::tibble(chemical_name = c("pure acetone", "technical ethanol"))
 #' terms <- tibble::tibble(term = c("pure", "technical"), source = "user", active = TRUE)
 #' strip_reference_terms(df, "chemical_name", terms)
+#' @export
 strip_reference_terms <- function(df, name_cols, strip_terms_tbl) {
   # Save before state
   df_before <- df
@@ -825,6 +836,7 @@ strip_reference_terms <- function(df, name_cols, strip_terms_tbl) {
 #' )
 #' tag_map <- list(cas_number = "CASRN", chemical_name = "Name")
 #' split_synonyms(df, "chemical_name", tag_map)
+#' @export
 split_synonyms <- function(df, name_cols, tag_map) {
   # Get CASRN columns
   cas_cols <- names(tag_map)[tag_map == "CASRN"]
@@ -975,6 +987,7 @@ split_synonyms <- function(df, name_cols, tag_map) {
 #' @examples
 #' df <- tibble::tibble(chemical_name = c("H2O", "acetone", "NaCl"))
 #' detect_bare_formulas(df, c("chemical_name"))
+#' @export
 detect_bare_formulas <- function(df, name_cols) {
   # Check if ComptoxR is available
   if (!requireNamespace("ComptoxR", quietly = TRUE)) {
@@ -1105,6 +1118,7 @@ detect_bare_formulas <- function(df, name_cols) {
 #' df <- tibble::tibble(chemical_name = c("plasticizer", "dibutyl phthalate plasticizer"))
 #' ref <- tibble::tibble(term = "plasticizer", source = "app_default", active = TRUE)
 #' flag_reference_matches(df, c("chemical_name"), ref, "warning", "functional category")
+#' @export
 flag_reference_matches <- function(df, name_cols, reference_list, flag_type, flag_label) {
   # Initialize result
   df_result <- df
@@ -1238,6 +1252,7 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
 #'
 #' @param x Character vector to scan
 #' @return Named list keyed by "U+XXXX" with elements: char, codepoint, count
+#' @export
 detect_non_ascii_chars <- function(x) {
   # Handle NA and empty vectors
   if (length(x) == 0 || all(is.na(x))) {
@@ -1302,6 +1317,7 @@ detect_non_ascii_chars <- function(x) {
 #' result$rows_with_non_ascii  # => 1
 #' result$row_indices  # => c(2)
 #' result$unhandled_chars[["U+03B1"]]$count  # => 1
+#' @export
 perform_unicode_qc <- function(df) {
   # Handle empty dataframe
   if (nrow(df) == 0 || ncol(df) == 0) {
@@ -1399,6 +1415,7 @@ perform_unicode_qc <- function(df) {
 #' tag_map <- list(cas = "CASRN", name = "Name")
 #' result <- run_cleaning_pipeline(df, tag_map)
 #' result$new_tags  # => list(cas_extract_name = "CASRN")
+#' @export
 run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
   # Step 0: Inject row lineage
   df_after_lineage <- inject_row_lineage(df)
@@ -1582,6 +1599,7 @@ CHIRAL_PLACEHOLDER_PREFIX <- "###CHIRAL_"
 #' @examples
 #' df <- tibble::tibble(chemical_name = c("(+)-catechin", "acetone"))
 #' protect_chiral_designations(df, c("chemical_name"))
+#' @export
 protect_chiral_designations <- function(df, name_cols) {
   # Regex pattern for chiral markers in parentheses (per D-09)
   # Matches: (+), (-), (+-), (+/-), (R), (S), (R,S), (S,R), (d), (l), (dl), (D), (L), (DL)
@@ -1676,6 +1694,7 @@ protect_chiral_designations <- function(df, name_cols) {
 #' @param df Dataframe with name columns that may contain chiral placeholders
 #' @param name_cols Character vector of Name-tagged column names
 #' @return List with cleaned_data (tibble) and audit_trail (tibble)
+#' @export
 restore_chiral_designations <- function(df, name_cols) {
   CHIRAL_RESTORE_REGEX <- "###CHIRAL_([A-Za-z_]+)###"
 
@@ -1760,6 +1779,7 @@ restore_chiral_designations <- function(df, name_cols) {
 #' @examples
 #' df <- tibble::tibble(chemical_name = c("u234", "radium 226", "C12H22O11"))
 #' expand_isotope_shortcodes(df, c("chemical_name"))
+#' @export
 expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
   empty_audit <- tibble::tibble(
     row_id = integer(), field = character(), step = character(),
@@ -1954,6 +1974,7 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
 #' @examples
 #' df <- tibble::tibble(chemical_name = c("nitrate + nitrite", "(+)-catechin", "acetone"))
 #' flag_multi_analyte(df, c("chemical_name"))
+#' @export
 flag_multi_analyte <- function(df, name_cols) {
   df_result <- df
   audit_rows <- list()

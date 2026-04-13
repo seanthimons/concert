@@ -21,6 +21,7 @@ library(dplyr)
 #'
 #' @examples
 #' load_or_fetch_reference("cache/data.rds", function() c("a", "b"), "test_data")
+#' @export
 load_or_fetch_reference <- function(cache_path, fetch_fn, name) {
   if (file.exists(cache_path)) {
     message(sprintf("Loading %s from cache: %s", name, cache_path))
@@ -54,6 +55,7 @@ load_or_fetch_reference <- function(cache_path, fetch_fn, name) {
 #'
 #' @param cache_dir Directory for cache files (e.g., "data/reference_cache")
 #' @return Tibble with columns: term, source, active
+#' @export
 load_stop_words <- function(cache_dir) {
   cache_path <- file.path(cache_dir, "stop_words.rds")
 
@@ -87,6 +89,7 @@ load_stop_words <- function(cache_dir) {
 #'
 #' @param cache_dir Directory for cache files (e.g., "data/reference_cache")
 #' @return Tibble with columns: term, source, active
+#' @export
 load_block_patterns <- function(cache_dir) {
   cache_path <- file.path(cache_dir, "block_patterns.rds")
 
@@ -118,6 +121,7 @@ load_block_patterns <- function(cache_dir) {
 #'
 #' @param cache_dir Directory for cache files (e.g., "data/reference_cache")
 #' @return Tibble with columns: term, source, active
+#' @export
 load_functional_categories <- function(cache_dir) {
   cache_path <- file.path(cache_dir, "functional_categories.rds")
 
@@ -182,6 +186,7 @@ load_functional_categories <- function(cache_dir) {
 #'
 #' @param cache_dir Directory for cache files (e.g., "data/reference_cache")
 #' @return Tibble with columns: term, source, active
+#' @export
 load_strip_terms <- function(cache_dir) {
   cache_path <- file.path(cache_dir, "strip_terms.rds")
 
@@ -211,6 +216,7 @@ load_strip_terms <- function(cache_dir) {
 #'
 #' @param cache_dir Directory for cache files (e.g., "data/reference_cache")
 #' @return List with components: lookup (tibble), elem_alt_names (named character vector)
+#' @export
 load_isotope_lookup <- function(cache_dir) {
   cache_path <- file.path(cache_dir, "isotope_lookup.rds")
 
@@ -271,6 +277,7 @@ load_isotope_lookup <- function(cache_dir) {
 #' refs$functional_categories
 #' refs$strip_terms
 #' refs$isotope_lookup
+#' @export
 load_all_reference_lists <- function(cache_dir) {
   list(
     stop_words = load_stop_words(cache_dir),

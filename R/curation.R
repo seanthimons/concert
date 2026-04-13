@@ -536,6 +536,7 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
 #' @param progress_callback Optional function(stage, message) for reporting progress to Shiny
 #' @param dedup_only If TRUE, return after dedup stage with just counts (for preview)
 #' @return List with results, dedup_summary, search_summary, consensus_summary
+#' @export
 run_curation_pipeline <- function(clean_data, column_tags, progress_callback = NULL, dedup_only = FALSE) {
   # Build pre-resolved tibble for isotope-matched rows (skip API search)
   pre_resolved <- NULL
@@ -803,6 +804,7 @@ run_curation_pipeline <- function(clean_data, column_tags, progress_callback = N
 #' @return Named list with:
 #'   - cache: tibble(dtxsid, casrn, molecular_formula, molecular_weight)
 #'   - failed_dtxsids: character vector of DTXSIDs that could not be fetched
+#' @export
 enrich_candidates <- function(dtxsids, existing_cache = NULL) {
   empty_cache <- tibble::tibble(
     dtxsid = character(0),
@@ -904,6 +906,7 @@ enrich_candidates <- function(dtxsids, existing_cache = NULL) {
 #' @param clean_data The cleaned data frame
 #' @param column_tags Named list (col_name -> "Name"|"CASRN"|"Other")
 #' @return List with n_names and n_cas
+#' @export
 get_dedup_preview <- function(clean_data, column_tags) {
   dedup_result <- deduplicate_tagged_columns(clean_data, column_tags, skip_flags = "isotope_match")
 
@@ -923,6 +926,7 @@ get_dedup_preview <- function(clean_data, column_tags) {
 #' @param batch_size Integer batch size for API calls (default 20)
 #' @param delay_sec Numeric delay in seconds between batches (default 1)
 #' @return Tibble with columns: searchValue, dtxsid, preferredName, rank, is_valid
+#' @export
 validate_manual_dtxsids <- function(dtxsids, batch_size = 20, delay_sec = 1) {
   empty_result <- tibble::tibble(
     searchValue = character(0),
@@ -1052,6 +1056,7 @@ validate_manual_dtxsids <- function(dtxsids, batch_size = 20, delay_sec = 1) {
 #' @param selected_row_indices Integer vector of original row indices that were re-curated
 #' @param tags_changed Logical indicating if column tags were changed (default FALSE)
 #' @return Updated original_state data frame with retry results merged
+#' @export
 merge_retry_results <- function(original_state, retry_results, selected_row_indices, tags_changed = FALSE) {
   # Validate input
   if (nrow(retry_results) != length(selected_row_indices)) {
