@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
-status: planning
-stopped_at: Completed 25-01-PLAN.md
-last_updated: "2026-04-13T20:02:10.761Z"
+status: verifying
+stopped_at: Completed 26-01-PLAN.md
+last_updated: "2026-04-13T20:50:24.732Z"
 last_activity: 2026-04-13
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 2
-  completed_plans: 2
+  completed_phases: 3
+  total_plans: 3
+  completed_plans: 3
   percent: 0
 ---
 
@@ -18,7 +18,7 @@ progress:
 
 **Last Updated:** 2026-04-13
 **Milestone:** v1.8 R Package Migration
-**Status:** Ready to plan
+**Status:** Phase complete — ready for verification
 
 ---
 
@@ -27,14 +27,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-13)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
-**Current focus:** Phase 25 — source-file-cleanup
+**Current focus:** Phase 26 — app-relocation
 
 ---
 
 ## Current Position
 
-Phase: 26
-Plan: Not started
+Phase: 26 (app-relocation) — EXECUTING
+Plan: 1 of 1
 Status: Phase complete — ready for verification
 Last activity: 2026-04-13
 
@@ -72,6 +72,8 @@ Notable additions in v1.7:
 - [Phase 24-package-scaffolding]: Remotes: seanthimons/ComptoxR required because ComptoxR not on CRAN
 - [Phase 24-package-scaffolding]: Imports/Suggests split: Shiny stack in Suggests so headless users don't need it
 - [Phase 25]: Add ^tests$ to .Rbuildignore: legacy test files incompatible with R CMD check; migration to tests/testthat/ is Phase 28 scope
+- [Phase 26]: Moved Shiny packages to Imports (required for roxygen2 module processing)
+- [Phase 26]: Moved module files from R/modules/ to R/ (roxygen2 subdirectory limitation)
 
 ### Pending Todos
 
@@ -85,8 +87,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-13T19:54:27.981Z
-Stopped at: Completed 25-01-PLAN.md
+Last session: 2026-04-13T20:50:24.729Z
+Stopped at: Completed 26-01-PLAN.md
 Resume file: None
 
 ---
