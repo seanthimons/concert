@@ -1,5 +1,23 @@
 # Milestones
 
+## v1.7 UI Polish & Isotope Cleaning (Shipped: 2026-04-13)
+
+**Phases completed:** 2 phases, 3 plans
+**Lines changed:** +1,081 / -21 across 7 R files (code); +3,612 / -231 across 25 files total (including docs/tests)
+**Requirements:** 8/8 satisfied (UIPOL-01/02/03, ISOT-01/02/03, CHIR-01, MANA-01)
+**Timeline:** 13 days (2026-03-31 → 2026-04-13)
+
+**Key accomplishments:**
+
+- Column headers in Review Results now wrap to full text instead of truncating with ellipsis (`wrap=TRUE` in reactable)
+- `renderWidget` console warning eliminated by removing redundant `elementId` from reactable call
+- `jsonlite` 2.0.0 named vector deprecation warning fixed with `unname(unlist())` pattern at DTXSID validation path
+- Isotope shortcode expansion added to cleaning pipeline — `u234` → `Uranium-234` using ComptoxR isotope list with greedy element matching
+- Chiral designation protection (`(+)`, `(-)`, `(R)`, `(S)`, `(dl)` etc.) prevents enclosure stripping from destroying chiral markers; content-encoded placeholder scheme enables stateless restore before curation
+- Multi-analyte expression flagging (naked `+`/`and` between analytes) added as WARNING without auto-splitting
+
+---
+
 ## v1.6 Cleaning Ruleset Fixes (Shipped: 2026-03-20)
 
 **Phases completed:** 3 phases, 3 plans, 6 tasks
