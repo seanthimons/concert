@@ -74,6 +74,9 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - ✓ Isotope shortcode expansion (u234→Uranium-234) using ComptoxR isotope list with greedy matching — v1.7 Phase 23
 - ✓ Chiral designation protection via placeholder pattern, WARNING flagging — v1.7 Phase 23
 - ✓ Multi-analyte expression flagging (naked +/and) without auto-splitting — v1.7 Phase 23
+- ✓ Shiny app relocated to inst/app/app.R with run_app() launcher — v1.8 Phase 26
+- ✓ Reference cache relocated to inst/extdata/reference_cache/ with system.file() access — v1.8 Phase 26
+- ✓ 16 module functions exported to NAMESPACE — v1.8 Phase 26
 
 ## Current Milestone: v1.8 R Package Migration
 
@@ -111,14 +114,16 @@ Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, openxlsx2, rhands
 The app has 8 top-level tabs: Data Preview, Detection Info, Raw Data, Clean Data, Tag Columns, Run Curation, Review Results, plus sidebar upload and config import. On startup only Upload is visible; tabs appear progressively as the user advances.
 
 Key files:
-- `app.R` — orchestration-only UI/server (207 lines)
-- `R/modules/` — 8 Shiny modules (mod_upload, mod_data_preview, mod_detection_info, mod_raw_data, mod_clean_data, mod_tag_columns, mod_run_curation, mod_review_results)
+- `inst/app/app.R` — orchestration-only UI/server (337 lines, relocated Phase 26)
+- `R/run_app.R` — exported launcher function `chemreg::run_app()` (Phase 26)
+- `R/mod_*.R` — 8 Shiny modules with @export tags (relocated from R/modules/ in Phase 26)
 - `R/curation.R` — curation pipeline orchestrator with enrichment (~1,020 lines)
 - `R/consensus.R` — consensus classification, resolution, and enrichment (320+ lines)
 - `R/cleaning_pipeline.R` — 15-step pre-curation cleaning pipeline (chiral protection, isotope expansion, multi-analyte flagging added in v1.7)
 - `R/cleaning_reference.R` — reference list loaders with provenance tracking
 - `R/file_handlers.R` — file reading/validation (218 lines)
 - `R/data_detection.R` — frontmatter detection algorithms (405 lines)
+- `inst/extdata/reference_cache/` — 5 RDS files for reference lists (relocated Phase 26)
 
 Known tech debt: `test_cleaning_reference.R` has 1 pre-existing failure (expects 3 keys from `load_all_reference_lists` but now returns 4 including `strip_terms`).
 
@@ -170,4 +175,4 @@ Known tech debt: `test_cleaning_reference.R` has 1 pre-existing failure (expects
 | Greedy isotope matching (sort by symbol length desc) | Ensures Pb matched before P when element symbols share prefix | ✓ Good — v1.7 |
 
 ---
-*Last updated: 2026-04-13 — v1.8 R Package Migration milestone started*
+*Last updated: 2026-04-13 — Phase 26 App Relocation complete, run_app() launcher available*
