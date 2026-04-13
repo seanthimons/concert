@@ -23,11 +23,11 @@
 
 ### App Relocation
 
-- [ ] **APP-01**: Shiny app lives at `inst/app/app.R` (moved from project root)
-- [ ] **APP-02**: `R/run_app.R` exports `run_app()` that launches the app via `system.file("app", package = "chemreg")`
-- [ ] **APP-03**: Reference cache loaded via `system.file("extdata", "reference_cache", package = "chemreg")` — no `here::here()` calls remain in package source files
-- [ ] **APP-04**: `inst/app/app.R` has no `source()` loop (functions come from package namespace in installed mode; source loop only needed in dev mode)
-- [ ] **APP-05**: User can launch the app via `chemreg::run_app()` after package install
+- [x] **APP-01**: Shiny app lives at `inst/app/app.R` (moved from project root)
+- [x] **APP-02**: `R/run_app.R` exports `run_app()` that launches the app via `system.file("app", package = "chemreg")`
+- [x] **APP-03**: Reference cache loaded via `system.file("extdata", "reference_cache", package = "chemreg")` — no `here::here()` calls remain in package source files
+- [x] **APP-04**: `inst/app/app.R` has no `source()` loop (functions come from package namespace in installed mode; source loop only needed in dev mode)
+- [x] **APP-05**: User can launch the app via `chemreg::run_app()` after package install
 
 ### Headless Pipeline
 
@@ -77,11 +77,11 @@
 | SRC-02 | Phase 25 | Complete |
 | SRC-03 | Phase 25 | Complete |
 | SRC-04 | Phase 25 | Complete |
-| APP-01 | Phase 26 | Pending |
-| APP-02 | Phase 26 | Pending |
-| APP-03 | Phase 26 | Pending |
-| APP-04 | Phase 26 | Pending |
-| APP-05 | Phase 26 | Pending |
+| APP-01 | Phase 26 | Complete |
+| APP-02 | Phase 26 | Complete |
+| APP-03 | Phase 26 | Complete |
+| APP-04 | Phase 26 | Complete |
+| APP-05 | Phase 26 | Complete |
 | HDL-01 | Phase 27 | Pending |
 | HDL-02 | Phase 27 | Pending |
 | HDL-03 | Phase 27 | Pending |
