@@ -3,9 +3,6 @@
 # Row-level classification and QC tier scoring for chemical inventory data.
 # Consumes output from prototype_pipeline.R (map_results_to_rows).
 
-library(dplyr)
-library(tibble)
-
 # ============================================================================
 # find_dtxsid_cols
 # ============================================================================

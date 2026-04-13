@@ -7,11 +7,6 @@
 # - build_audit_trail: Compare two dataframes and record changes
 # - run_cleaning_pipeline: Orchestrate cleaning steps with audit trail
 
-library(dplyr)
-library(stringr)
-library(stringi)
-library(tibble)
-
 # Roman numeral pattern for oxidation states (I through XII, case-insensitive)
 # Matches: pure roman numeral like "III", or element symbol + roman numeral like "Cr III"
 ROMAN_NUMERAL_PATTERN <- "(?i)^\\s*([A-Z][a-z]?\\s+)?(I{1,3}|IV|V|VI{0,3}|IX|X|XI{0,2})\\s*$"
@@ -32,6 +27,7 @@ ROMAN_NUMERAL_PATTERN <- "(?i)^\\s*([A-Z][a-z]?\\s+)?(I{1,3}|IV|V|VI{0,3}|IX|X|X
 #' clean_text_field("*starred*")  # => "starred"
 #' clean_text_field("67-64-1")  # => "67-64-1" (preserved)
 #' clean_text_field("2,4-dichlorophenol")  # => "2,4-dichlorophenol" (preserved)
+#' @importFrom magrittr %>%
 #' @export
 clean_text_field <- function(x) {
   x %>%
@@ -1422,7 +1418,7 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
 
   # Step 1: Unicode to ASCII (using ComptoxR for chemistry-specific mappings)
   df_after_unicode <- df_after_lineage %>%
-    dplyr::mutate(dplyr::across(where(is.character), ComptoxR::clean_unicode))
+    dplyr::mutate(dplyr::across(tidyselect::where(is.character), ComptoxR::clean_unicode))
 
   audit_unicode <- build_audit_trail(
     df_original = df_after_lineage,
@@ -1433,7 +1429,7 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
 
   # Step 2: Whitespace and punctuation artifact stripping
   df_after_trim <- df_after_unicode %>%
-    dplyr::mutate(dplyr::across(where(is.character), clean_text_field))
+    dplyr::mutate(dplyr::across(tidyselect::where(is.character), clean_text_field))
 
   audit_trim <- build_audit_trail(
     df_original = df_after_unicode,
