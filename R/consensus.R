@@ -14,6 +14,7 @@ library(tibble)
 #'
 #' @param df Data frame with lookup results
 #' @return Character vector of column names matching "dtxsid_*"
+#' @export
 find_dtxsid_cols <- function(df) {
   grep("^dtxsid_", names(df), value = TRUE)
 }
@@ -28,6 +29,7 @@ find_dtxsid_cols <- function(df) {
 #' @param n_matched Integer: number of columns that matched (had same DTXSID)
 #' @param n_total Integer: total number of tagged columns (K)
 #' @return Integer QC tier (1 = best, K+1 = worst)
+#' @export
 compute_qc_tier <- function(status, n_matched, n_total) {
   tier <- switch(status,
     "agree" = 1L,
@@ -55,6 +57,7 @@ compute_qc_tier <- function(status, n_matched, n_total) {
 #' @param dtxsid_cols Character vector of DTXSID column names to compare
 #' @return Original df with added columns: consensus_status, consensus_dtxsid,
 #'         consensus_source, qc_tier
+#' @export
 classify_consensus <- function(df, dtxsid_cols) {
   k <- length(dtxsid_cols)
 
@@ -129,6 +132,7 @@ classify_consensus <- function(df, dtxsid_cols) {
 #'
 #' @param df Data frame (typically output of classify_consensus)
 #' @return df with .pinned and .manual_entry columns
+#' @export
 init_resolution_state <- function(df) {
   if (!".pinned" %in% names(df)) {
     df$.pinned <- FALSE
@@ -153,6 +157,7 @@ init_resolution_state <- function(df) {
 #' @param dtxsid_cols Character vector of DTXSID column names
 #' @return Named list of column_name = list(dtxsid, preferredName, rank) for columns with data.
 #'         Sorted by rank (best first). Empty list if row is not "disagree".
+#' @export
 get_resolution_options <- function(df, row_idx, dtxsid_cols, enrichment_cache = NULL) {
   if (df$consensus_status[row_idx] != "disagree") {
     return(list())
@@ -234,6 +239,7 @@ get_resolution_options <- function(df, row_idx, dtxsid_cols, enrichment_cache = 
 #' @param chosen_column Character: name of the dtxsid column to use
 #' @param dtxsid_cols Character vector of DTXSID column names
 #' @return Modified df with consensus filled and row pinned
+#' @export
 resolve_row <- function(df, row_idx, chosen_column, dtxsid_cols) {
   # Validate row is disagree
 
@@ -272,6 +278,7 @@ resolve_row <- function(df, row_idx, chosen_column, dtxsid_cols) {
 #' @param priority_order Character vector of dtxsid column names ranked by preference
 #' @param dtxsid_cols Character vector of all DTXSID column names
 #' @return Modified df with consensus filled for resolved rows
+#' @export
 apply_priority_chain <- function(df, priority_order, dtxsid_cols) {
   df <- init_resolution_state(df)
 
