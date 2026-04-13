@@ -5,10 +5,6 @@
 # Uses local RDS cache to avoid repeated API calls or slow initialization.
 # ComptoxR is used for functional categories when available.
 
-library(fs)
-library(tibble)
-library(dplyr)
-
 #' Generic cache-or-fetch function
 #'
 #' Checks if cache file exists. If yes, reads from disk. If no, calls fetch_fn,
