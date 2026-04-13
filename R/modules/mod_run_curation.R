@@ -149,8 +149,15 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
             }
 
             # Run the new pipeline
+            # Use cleaned_data if available (after cleaning workflow), fallback to clean (raw data)
+            input_data <- if (!is.null(data_store$cleaned_data)) {
+              data_store$cleaned_data
+            } else {
+              data_store$clean
+            }
+
             pipeline_result <- run_curation_pipeline(
-              clean_data = data_store$clean,
+              clean_data = input_data,
               column_tags = data_store$column_tags,
               progress_callback = progress_callback,
               dedup_only = FALSE
