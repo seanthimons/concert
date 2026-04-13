@@ -6,6 +6,7 @@
 #' @param id Module namespace ID
 #'
 #' @return tagList of sidebar UI elements
+#' @export
 mod_file_upload_ui <- function(id) {
   ns <- NS(id)
 
@@ -110,6 +111,7 @@ mod_file_upload_ui <- function(id) {
 #' @param reset_all_downstream Optional callback function to reset downstream state (app navigation)
 #'
 #' @return Reactive list with file processing outputs
+#' @export
 mod_file_upload_server <- function(id, data_store, reset_all_downstream = NULL) {
   moduleServer(id, function(input, output, session) {
 

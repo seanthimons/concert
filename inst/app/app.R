@@ -1,43 +1,20 @@
-# Chem-Janitor Shiny Data Upload & Preview Application
+# ChemReg Shiny Data Upload & Preview Application
 # Upload CSV/XLSX files with intelligent frontmatter detection
 
-# Load packages
-{
-  library(shiny)
-  library(bslib)
-  library(bsicons)
-  library(reactable)
-  library(reactable.extras)
-  library(shinyjs)
-  library(here)
-  library(janitor)
-  library(rio)
-  library(readxl)
-  library(writexl)
-  library(readr)
-  library(dplyr)
-  library(tidyr)
-  library(tibble)
-  library(purrr)
-  library(stringr)
-  library(tidyselect)
-  library(rlang)
-  library(ComptoxR)
-}
-
-# Custom operators
-`%ni%` <- Negate(`%in%`)
-`%||%` <- function(a, b) {
-  if (!is.null(a)) a else b
-}
-
-# Auto-source all R files recursively
-for (f in list.files("R", recursive = TRUE, pattern = "\\.R$", full.names = TRUE)) {
-  source(f)
-}
+# Load Shiny UI packages (required for DSL-style UI code)
+# Other packages come from chemreg namespace via Imports
+library(shiny)
+library(bslib)
+library(bsicons)
+library(reactable)
+library(reactable.extras)
+library(shinyjs)
 
 # Load reference lists (cached locally for fast startup)
-reference_lists <- load_all_reference_lists(here::here("data", "reference_cache"))
+# Uses system.file() for installed package access
+reference_lists <- chemreg::load_all_reference_lists(
+  system.file("extdata", "reference_cache", package = "chemreg")
+)
 
 # Application configuration
 options(
@@ -70,13 +47,13 @@ ui <- page_sidebar(
   ),
 
   # Title
-  title = "Chem-Janitor Data Upload & Preview",
+  title = "ChemReg Data Upload & Preview",
 
   # Sidebar — delegated to upload module
   sidebar = sidebar(
     id = "main_sidebar",
     width = 300,
-    mod_file_upload_ui("upload"),
+    chemreg::mod_file_upload_ui("upload"),
     hr(),
     h6("Import Configuration", class = "text-muted"),
     fileInput(
@@ -94,31 +71,31 @@ ui <- page_sidebar(
     id = "main_tabs",
     nav_panel("Data Preview", value = "data_preview",
       icon = bsicons::bs_icon("table"),
-      mod_data_preview_ui("preview")
+      chemreg::mod_data_preview_ui("preview")
     ),
     nav_panel("Detection Info", value = "detection_info",
       icon = bsicons::bs_icon("search"),
-      mod_detection_info_ui("detection")
+      chemreg::mod_detection_info_ui("detection")
     ),
     nav_panel("Raw Data", value = "raw_data",
       icon = bsicons::bs_icon("file-text"),
-      mod_raw_data_ui("raw")
+      chemreg::mod_raw_data_ui("raw")
     ),
     nav_panel("Tag Columns", value = "tag_columns",
       icon = bsicons::bs_icon("tags"),
-      mod_tag_columns_ui("tags")
+      chemreg::mod_tag_columns_ui("tags")
     ),
     nav_panel("Clean Data", value = "clean_data",
       icon = bsicons::bs_icon("magic"),
-      mod_clean_data_ui("cleaning")
+      chemreg::mod_clean_data_ui("cleaning")
     ),
     nav_panel("Run Curation", value = "run_curation_tab",
       icon = bsicons::bs_icon("play-circle"),
-      mod_run_curation_ui("curation")
+      chemreg::mod_run_curation_ui("curation")
     ),
     nav_panel("Review Results", value = "review_results",
       icon = bsicons::bs_icon("clipboard-check"),
-      mod_review_results_ui("results")
+      chemreg::mod_review_results_ui("results")
     )
   )
 )
@@ -126,7 +103,7 @@ ui <- page_sidebar(
 # Server Logic
 server <- function(input, output, session) {
   # Create shared data store
-  data_store <- reactiveValues(
+  data_store <- shiny::reactiveValues(
     raw = NULL, clean = NULL, detection = NULL, file_info = NULL,
     selected_columns = NULL, column_tags = NULL,
     cleaning_audit = NULL, cleaned_data = NULL, reference_lists = NULL,
@@ -146,17 +123,17 @@ server <- function(input, output, session) {
   # --- Config Import Handlers ---
 
   # Store parsed config data between modal show and confirm
-  imported_config <- reactiveVal(NULL)
+  imported_config <- shiny::reactiveVal(NULL)
 
   # Handle config file upload
-  observeEvent(input$config_import, {
-    req(input$config_import)
+  shiny::observeEvent(input$config_import, {
+    shiny::req(input$config_import)
 
     # Parse the uploaded file
-    parsed <- parse_chemreg_export(input$config_import$datapath)
+    parsed <- chemreg::parse_chemreg_export(input$config_import$datapath)
 
     if (is.null(parsed)) {
-      showNotification(
+      shiny::showNotification(
         "Not a valid ChemReg export file. Upload a file exported from ChemReg with Pipeline Config sheet.",
         type = "warning",
         duration = 5
@@ -168,16 +145,16 @@ server <- function(input, output, session) {
     imported_config(parsed)
 
     # Show confirmation modal
-    showModal(modalDialog(
+    shiny::showModal(shiny::modalDialog(
       title = "ChemReg Export Detected",
-      p("This file contains configuration data from a previous ChemReg session."),
-      p("Select what you want to import:"),
-      checkboxInput("restore_ref_lists", "Restore reference lists", value = TRUE),
-      checkboxInput("restore_col_tags", "Restore column tags", value = TRUE),
-      p(class = "text-muted small", "Note: Imported reference lists will merge with existing lists."),
-      footer = tagList(
-        modalButton("Cancel"),
-        actionButton("confirm_config_import", "Import", class = "btn-primary")
+      shiny::p("This file contains configuration data from a previous ChemReg session."),
+      shiny::p("Select what you want to import:"),
+      shiny::checkboxInput("restore_ref_lists", "Restore reference lists", value = TRUE),
+      shiny::checkboxInput("restore_col_tags", "Restore column tags", value = TRUE),
+      shiny::p(class = "text-muted small", "Note: Imported reference lists will merge with existing lists."),
+      footer = shiny::tagList(
+        shiny::modalButton("Cancel"),
+        shiny::actionButton("confirm_config_import", "Import", class = "btn-primary")
       ),
       size = "m",
       easyClose = TRUE
@@ -185,32 +162,32 @@ server <- function(input, output, session) {
   })
 
   # Handle import confirmation
-  observeEvent(input$confirm_config_import, {
-    req(imported_config())
+  shiny::observeEvent(input$confirm_config_import, {
+    shiny::req(imported_config())
 
     # Capture checkbox states before modal closes
     restore_refs <- input$restore_ref_lists
     restore_tags <- input$restore_col_tags
 
     # Remove modal
-    removeModal()
+    shiny::removeModal()
 
     # Import reference lists
     if (restore_refs) {
       tryCatch(
         {
-          data_store$reference_lists <- merge_reference_lists(
+          data_store$reference_lists <- chemreg::merge_reference_lists(
             data_store$reference_lists,
             imported_config()$reference_lists
           )
-          showNotification(
+          shiny::showNotification(
             "Reference lists imported and merged successfully",
             type = "message",
             duration = 3
           )
         },
         error = function(e) {
-          showNotification(
+          shiny::showNotification(
             paste("Failed to import reference lists:", conditionMessage(e)),
             type = "error",
             duration = 5
@@ -225,16 +202,16 @@ server <- function(input, output, session) {
         {
           # Convert column_tags tibble (Column, Type) to named list
           tags_df <- imported_config()$column_tags
-          data_store$column_tags <- setNames(tags_df$Type, tags_df$Column)
+          data_store$column_tags <- stats::setNames(tags_df$Type, tags_df$Column)
 
-          showNotification(
+          shiny::showNotification(
             "Column tags imported successfully",
             type = "message",
             duration = 3
           )
         },
         error = function(e) {
-          showNotification(
+          shiny::showNotification(
             paste("Failed to import column tags:", conditionMessage(e)),
             type = "error",
             duration = 5
@@ -249,16 +226,16 @@ server <- function(input, output, session) {
 
   # --- Gated Navigation ---
   session$onFlushed(function() {
-    nav_hide("main_tabs", target = "detection_info", session = session)
-    nav_hide("main_tabs", target = "raw_data", session = session)
-    nav_hide("main_tabs", target = "clean_data", session = session)
-    nav_hide("main_tabs", target = "tag_columns", session = session)
-    nav_hide("main_tabs", target = "run_curation_tab", session = session)
-    nav_hide("main_tabs", target = "review_results", session = session)
+    bslib::nav_hide("main_tabs", target = "detection_info", session = session)
+    bslib::nav_hide("main_tabs", target = "raw_data", session = session)
+    bslib::nav_hide("main_tabs", target = "clean_data", session = session)
+    bslib::nav_hide("main_tabs", target = "tag_columns", session = session)
+    bslib::nav_hide("main_tabs", target = "run_curation_tab", session = session)
+    bslib::nav_hide("main_tabs", target = "review_results", session = session)
   }, once = TRUE)
 
   show_tab_with_pulse <- function(tab_value) {
-    nav_show("main_tabs", target = tab_value, session = session)
+    bslib::nav_show("main_tabs", target = tab_value, session = session)
     shinyjs::runjs(sprintf("
       var tab = document.querySelector('[data-value=\"%s\"]');
       if (tab) {
@@ -285,67 +262,67 @@ server <- function(input, output, session) {
     data_store$qc_results <- NULL
     data_store$dtxsid_cols <- NULL
     data_store$priority_order <- NULL
-    nav_hide("main_tabs", target = "detection_info", session = session)
-    nav_hide("main_tabs", target = "raw_data", session = session)
-    nav_hide("main_tabs", target = "clean_data", session = session)
-    nav_hide("main_tabs", target = "tag_columns", session = session)
-    nav_hide("main_tabs", target = "run_curation_tab", session = session)
-    nav_hide("main_tabs", target = "review_results", session = session)
-    nav_select("main_tabs", "data_preview", session = session)
+    bslib::nav_hide("main_tabs", target = "detection_info", session = session)
+    bslib::nav_hide("main_tabs", target = "raw_data", session = session)
+    bslib::nav_hide("main_tabs", target = "clean_data", session = session)
+    bslib::nav_hide("main_tabs", target = "tag_columns", session = session)
+    bslib::nav_hide("main_tabs", target = "run_curation_tab", session = session)
+    bslib::nav_hide("main_tabs", target = "review_results", session = session)
+    bslib::nav_select("main_tabs", "data_preview", session = session)
   }
 
   # Show tabs when data is available
-  observe({
-    req(data_store$clean)
+  shiny::observe({
+    shiny::req(data_store$clean)
     show_tab_with_pulse("detection_info")
     show_tab_with_pulse("raw_data")
     show_tab_with_pulse("tag_columns")
   })
 
   # Show Clean Data tab after tagging
-  observe({
-    req(data_store$column_tags)
+  shiny::observe({
+    shiny::req(data_store$column_tags)
     show_tab_with_pulse("clean_data")
   })
 
   # Sidebar visibility based on active tab
-  observeEvent(input$main_tabs, {
+  shiny::observeEvent(input$main_tabs, {
     curation_tabs <- c("clean_data", "tag_columns", "run_curation_tab", "review_results")
     is_curation <- input$main_tabs %in% curation_tabs
-    toggle_sidebar("main_sidebar", open = !is_curation, session = session)
+    bslib::toggle_sidebar("main_sidebar", open = !is_curation, session = session)
   })
 
   # --- Initialize Modules ---
-  upload_result <- mod_file_upload_server("upload", data_store, reset_all_downstream)
+  upload_result <- chemreg::mod_file_upload_server("upload", data_store, reset_all_downstream)
 
   preview_rows <- upload_result$preview_rows
-  mod_data_preview_server("preview", data_store, preview_rows)
-  mod_detection_info_server("detection", data_store)
-  mod_raw_data_server("raw", data_store)
+  chemreg::mod_data_preview_server("preview", data_store, preview_rows)
+  chemreg::mod_detection_info_server("detection", data_store)
+  chemreg::mod_raw_data_server("raw", data_store)
 
-  mod_clean_data_server("cleaning", data_store,
+  chemreg::mod_clean_data_server("cleaning", data_store,
     on_cleaning_complete = function() {
       show_tab_with_pulse("run_curation_tab")
     }
   )
 
-  mod_tag_columns_server("tags", data_store,
+  chemreg::mod_tag_columns_server("tags", data_store,
     on_tags_applied = function() {
       show_tab_with_pulse("clean_data")
-      nav_hide("main_tabs", target = "run_curation_tab", session = session)
-      nav_hide("main_tabs", target = "review_results", session = session)
+      bslib::nav_hide("main_tabs", target = "run_curation_tab", session = session)
+      bslib::nav_hide("main_tabs", target = "review_results", session = session)
     }
   )
 
-  mod_run_curation_server("curation", data_store,
+  chemreg::mod_run_curation_server("curation", data_store,
     on_curation_complete = function() {
       show_tab_with_pulse("review_results")
 
       # Auto-run post-curation QC
-      qc_results <- perform_unicode_qc(data_store$resolution_state)
+      qc_results <- chemreg::perform_unicode_qc(data_store$resolution_state)
       data_store$qc_results <- qc_results
       if (qc_results$rows_with_non_ascii > 0) {
-        showNotification(
+        shiny::showNotification(
           sprintf("QC: %d rows contain non-ASCII characters", qc_results$rows_with_non_ascii),
           type = "warning", duration = 5
         )
@@ -353,8 +330,8 @@ server <- function(input, output, session) {
     }
   )
 
-  mod_review_results_server("results", data_store)
+  chemreg::mod_review_results_server("results", data_store)
 }
 
 # Run application
-shinyApp(ui = ui, server = server)
+shiny::shinyApp(ui = ui, server = server)

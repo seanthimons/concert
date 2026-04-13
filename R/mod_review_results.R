@@ -19,6 +19,7 @@ recalc_consensus_summary <- function(df) {
 #' @param id Module namespace ID
 #'
 #' @return UI elements for review results tab
+#' @export
 mod_review_results_ui <- function(id) {
   ns <- NS(id)
 
@@ -273,6 +274,7 @@ mod_review_results_ui <- function(id) {
 #' @param data_store Reactive values store from main app
 #'
 #' @return NULL (module has no return values)
+#' @export
 mod_review_results_server <- function(id, data_store) {
   moduleServer(id, function(input, output, session) {
 
