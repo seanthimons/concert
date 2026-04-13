@@ -52,6 +52,8 @@
   Plans:
   - [x] 26-01-PLAN.md — Relocate app to inst/app/, create run_app() launcher, update reference cache paths
 - [ ] **Phase 27: Headless Pipeline** — curate_headless() wired end-to-end
+  Plans:
+  - [ ] 27-01-PLAN.md — Create curate_headless() function, promote writexl to Imports, smoke test
 - [ ] **Phase 28: Test Migration** — tests/testthat/ structure, fix pre-existing failure
 
 </details>
@@ -103,7 +105,9 @@ Plans:
   1. `curate_headless()` is discoverable via `?curate_headless` after package install (exported with roxygen docs)
   2. Running `curate_headless(input_path = "uncurated_sswqs.csv", output_path = "out.xlsx", tag_map = list(...))` produces a valid XLSX file without errors
   3. The returned list from `curate_headless()` contains `$data` (curated data frame) and `$audit_trail` (audit tibble) accessible after the call
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 27-01-PLAN.md — Create curate_headless() function, promote writexl to Imports, smoke test
 **UI hint**: no
 
 ### Phase 28: Test Migration
