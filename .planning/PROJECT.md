@@ -75,9 +75,19 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - ✓ Chiral designation protection via placeholder pattern, WARNING flagging — v1.7 Phase 23
 - ✓ Multi-analyte expression flagging (naked +/and) without auto-splitting — v1.7 Phase 23
 
-### Active
+## Current Milestone: v1.8 R Package Migration
 
-*(v1.7 complete — requirements for next milestone TBD via `/gsd:new-milestone`)*
+**Goal:** Convert ChemReg into a proper R package so the cleaning and curation pipeline can be used headlessly from scripts without launching the Shiny UI.
+
+**Target features:**
+- DESCRIPTION + NAMESPACE scaffolding (package-valid structure)
+- Remove bare library() calls from R/*.R, verify :: coverage throughout
+- Move Shiny app to inst/app/ with run_app() launcher function
+- Fix here::here() → system.file() for reference_cache paths
+- curate_headless() exported function wired through the full pipeline
+- Migrate tests from tests/test_*.R → tests/testthat/ structure
+
+### Active
 
 ### Out of Scope
 
@@ -160,4 +170,4 @@ Known tech debt: `test_cleaning_reference.R` has 1 pre-existing failure (expects
 | Greedy isotope matching (sort by symbol length desc) | Ensures Pb matched before P when element symbols share prefix | ✓ Good — v1.7 |
 
 ---
-*Last updated: 2026-04-13 after v1.7 milestone archived*
+*Last updated: 2026-04-13 — v1.8 R Package Migration milestone started*
