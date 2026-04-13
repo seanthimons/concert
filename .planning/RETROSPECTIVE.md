@@ -2,6 +2,45 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
+## Milestone: v1.7 — UI Polish & Isotope Cleaning
+
+**Shipped:** 2026-04-13
+**Phases:** 2 | **Plans:** 3 | **Sessions:** 2 (execution + post-audit tech debt fix)
+
+### What Was Built
+- Review Results column headers now wrap to full text (`wrap=TRUE` in reactable call)
+- `renderWidget` console warning eliminated by removing redundant `elementId`; `unname(unlist())` pattern silences jsonlite 2.0.0 named vector deprecation
+- Isotope shortcode expansion in cleaning pipeline — `u234` → `Uranium-234` using ComptoxR isotope list with greedy element matching (Pb before P)
+- Chiral designation protection via content-encoded placeholders (`###CHIRAL_PLUS###`, `###CHIRAL_R###`) that survive synonym splitting and restore cleanly before curation
+- Multi-analyte expression flagging (naked `+`/`and` between analytes) as WARNING without auto-splitting
+
+### What Worked
+- Milestone audit (gsd:audit-milestone) caught the missing chiral restore path before archiving — the fix was applied in the same session, preventing chiral compounds from failing ComptoxR lookup
+- Content-encoded placeholder scheme (`###CHIRAL_PLUS###` vs `###CHIRAL_1###`) was the right design — stateless restore requires no row-index tracking, survives synonym split row reordering
+- Source-code assertion tests (readLines + grep) are valid and sufficient for Shiny parameter choices that require a live session to test at runtime — avoids blocking on integration setup
+- Phase 23 executed cleanly with zero deviations from plan — tight scope and clear implementation spec enabled this
+
+### What Was Inefficient
+- The audit identified a missing restore path that should have been caught during Phase 23 execution — "protect" without "restore" is an incomplete pattern. Checklist during implementation should include "does this placeholder need a restore call downstream?"
+- Nyquist VALIDATION.md files were not created for either phase — missed validation coverage
+
+### Patterns Established
+- **Protect/restore bracket pattern**: Any placeholder substitution (`###X###`) must be paired with a restore call downstream. The protect function should document the expected restore location.
+- **Content-encoded placeholders over sequential numbers**: `###CHIRAL_PLUS###` is self-describing and enables stateless restore; `###CHIRAL_1###` requires external state that gets lost across pipeline steps
+- **Source-code assertion tests**: `readLines() + grep()` valid for testing parameter choices in Shiny modules that can't be tested without full reactive session
+
+### Key Lessons
+1. **Every protect call needs a documented restore** — When writing `protect_X()`, immediately write or stub `restore_X()` and add a comment noting where the restore must be called. The audit catching this is a safety net, not the plan.
+2. **Milestone audit is worth running before archiving** — It caught a real data quality bug (chiral compounds failing curation) that all unit tests missed. Budget time for it.
+3. **Small UI milestones execute fast but accumulate audit findings** — Phase 22 was ~25min to execute but 3 deferred verification items noted. Small scope ≠ no tech debt.
+
+### Cost Observations
+- Model mix: sonnet for execution, opus for orchestration and audit
+- Sessions: 2 (main execution + post-audit tech debt fix)
+- Notable: Core execution fast (Phase 22: 25min, Phase 23: 40min total). Tech debt fix after audit was 15min.
+
+---
+
 ## Milestone: v1.6 — Cleaning Ruleset Fixes
 
 **Shipped:** 2026-03-20

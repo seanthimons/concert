@@ -77,15 +77,7 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ### Active
 
-## Current Milestone: v1.7 UI Polish & Isotope Cleaning
-
-**Goal:** Fix truncated column headers in Review Results, add isotope shortcode-to-proper-name expansion in the cleaning pipeline, and silence spurious console warnings.
-
-**Target features:**
-- Column title wrapping in Review Results DT table
-- Isotope shortcode expansion in pre-curation cleaning pipeline
-- Fix renderWidget explicit widget ID warning
-- Fix jsonlite named vector deprecation warning
+*(v1.7 complete — requirements for next milestone TBD via `/gsd:new-milestone`)*
 
 ### Out of Scope
 
@@ -103,7 +95,7 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ## Context
 
-Shipped v1.7 UI Polish & Isotope Cleaning with ~16,200 LOC R across 18 files.
+Shipped v1.7 UI Polish & Isotope Cleaning. ~17,900 LOC R across 18 files (including tests).
 Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, openxlsx2, rhandsontable.
 
 The app has 8 top-level tabs: Data Preview, Detection Info, Raw Data, Clean Data, Tag Columns, Run Curation, Review Results, plus sidebar upload and config import. On startup only Upload is visible; tabs appear progressively as the user advances.
@@ -162,6 +154,10 @@ Known tech debt: `test_cleaning_reference.R` has 1 pre-existing failure (expects
 | Repeat-until-stable loop for locant comma protection | Single-pass regex can't protect all commas in 3+ locant chains; loop converges in 1 pass for simple cases | ✓ Good — v1.6 |
 | Module-level ROMAN_NUMERAL_PATTERN constant | Anchored regex (I-XII) shared by both paren and bracket paths; avoids duplication | ✓ Good — v1.6 |
 | Test alignment over pipeline changes for unicode | ComptoxR already handles α and ′ correctly; only tests needed updating | ✓ Good — v1.6 |
+| elementId removal from reactable is safe | session$ns("curation_table") produces same string Shiny auto-assigns; Reactable.setFilter calls unaffected | ✓ Good — v1.7 |
+| unname(unlist()) before Shiny output bindings | Prevents jsonlite 2.0.0 named vector deprecation warning from unlist() in reactive context | ✓ Good — v1.7 |
+| Content-encoded chiral placeholders (###CHIRAL_PLUS###) | Enables stateless restore without row-index tracking — survives synonym split row reordering | ✓ Good — v1.7 |
+| Greedy isotope matching (sort by symbol length desc) | Ensures Pb matched before P when element symbols share prefix | ✓ Good — v1.7 |
 
 ---
-*Last updated: 2026-04-02 after Phase 23 (Isotope Cleaning) complete — v1.7 milestone complete*
+*Last updated: 2026-04-13 after v1.7 milestone archived*
