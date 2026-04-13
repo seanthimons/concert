@@ -1,0 +1,39 @@
+Package: chemreg
+Title: Chemical Inventory Upload, Cleaning, and Curation
+Version: 0.1.0
+Authors@R: person("Sean", "Thimons",
+    email = "thimons.sean@gmail.com",
+    role = c("aut", "cre"))
+Description: Upload, clean, and validate chemical inventory data with
+    intelligent frontmatter detection and CompTox API curation.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Imports:
+    ComptoxR,
+    dplyr,
+    fs,
+    here,
+    janitor,
+    purrr,
+    readr,
+    readxl,
+    rio,
+    rlang,
+    stringi,
+    stringr,
+    tibble,
+    tidyr,
+    tidyselect
+Suggests:
+    bsicons,
+    bslib,
+    reactable,
+    reactable.extras,
+    shiny,
+    shinyjs,
+    testthat (>= 3.0.0),
+    writexl
+Remotes:
+    seanthimons/ComptoxR
