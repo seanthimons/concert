@@ -46,6 +46,8 @@
   Plans:
   - [x] 24-01-PLAN.md — Create DESCRIPTION/LICENSE/NAMESPACE, add @export tags, verify install
 - [ ] **Phase 25: Source File Cleanup** — strip library() calls, :: coverage, devtools::check()
+  Plans:
+  - [ ] 25-01-PLAN.md — Remove library() calls, add @importFrom magrittr pipe, run devtools::check()
 - [ ] **Phase 26: App Relocation** — inst/app/, run_app(), system.file() paths
 - [ ] **Phase 27: Headless Pipeline** — curate_headless() wired end-to-end
 - [ ] **Phase 28: Test Migration** — tests/testthat/ structure, fix pre-existing failure
@@ -74,7 +76,7 @@
   2. `R/cleaning_reference.R` contains no `library()` calls and all external functions are called with `pkg::fn()` notation
   3. `R/consensus.R` contains no `library()` calls and all external functions are called with `pkg::fn()` notation
   4. `devtools::check()` completes with zero errors (non-standard file warnings are acceptable)
-**Plans**: TBD
+**Plans:** 1 plan
 **UI hint**: no
 
 ### Phase 26: App Relocation
