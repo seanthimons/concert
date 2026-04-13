@@ -43,6 +43,8 @@
 <summary>🔵 v1.8 R Package Migration (Phases 24-28) — ACTIVE</summary>
 
 - [ ] **Phase 24: Package Scaffolding** — DESCRIPTION, NAMESPACE, devtools::document()
+  Plans:
+  - [ ] 24-01-PLAN.md — Create DESCRIPTION/LICENSE/NAMESPACE, add @export tags, verify install
 - [ ] **Phase 25: Source File Cleanup** — strip library() calls, :: coverage, devtools::check()
 - [ ] **Phase 26: App Relocation** — inst/app/, run_app(), system.file() paths
 - [ ] **Phase 27: Headless Pipeline** — curate_headless() wired end-to-end
@@ -60,7 +62,7 @@
   1. Developer runs `devtools::install()` and then `library(chemreg)` without any errors or warnings about missing fields
   2. `DESCRIPTION` file contains correct Imports and Suggests lists matching the actual package dependencies
   3. `devtools::document()` succeeds and generates a valid `NAMESPACE` file from roxygen2 tags
-**Plans**: TBD
+**Plans:** 1 plan
 **UI hint**: no
 
 ### Phase 25: Source File Cleanup
