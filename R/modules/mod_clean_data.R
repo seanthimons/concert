@@ -246,7 +246,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
                 df <- df[!all_empty, ]
 
                 incProgress(0.04, detail = "Expanding isotope shortcodes...")
-                isotope_result <- expand_isotope_shortcodes(df, name_cols)
+                isotope_result <- expand_isotope_shortcodes(df, name_cols, data_store$reference_lists$isotope_lookup)
                 df <- isotope_result$cleaned_data
                 all_audits[[length(all_audits) + 1]] <- isotope_result$audit_trail
 
@@ -254,6 +254,11 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
                 multi_result <- flag_multi_analyte(df, name_cols)
                 df <- multi_result$cleaned_data
                 all_audits[[length(all_audits) + 1]] <- multi_result$audit_trail
+
+                incProgress(0.02, detail = "Restoring chiral designations...")
+                chiral_restore_result <- restore_chiral_designations(df, name_cols)
+                df <- chiral_restore_result$cleaned_data
+                all_audits[[length(all_audits) + 1]] <- chiral_restore_result$audit_trail
 
                 # Phase 13: Bare formula detection (after all name cleaning)
                 incProgress(0.05, detail = "Detecting bare formulas...")

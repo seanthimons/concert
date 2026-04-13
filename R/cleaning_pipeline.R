@@ -858,8 +858,10 @@ split_synonyms <- function(df, name_cols, tag_map) {
       protected_name <- original_name
       for (iter in seq_len(10)) {
         prev <- protected_name
-        # Protect letter-comma-letter (N,N- O,O- S,S- etc.)
+        # Protect letter-comma-letter (N,N- O,O- S,S- alpha,alpha- etc.)
         protected_name <- stringr::str_replace_all(protected_name, "([A-Za-z]),([A-Za-z])", "\\1@@@\\2")
+        # Protect letter-comma-digit (alpha,2,4- Greek prefix locants)
+        protected_name <- stringr::str_replace_all(protected_name, "([A-Za-z]),(\\d)", "\\1@@@\\2")
         # Protect digit-comma-digit (IUPAC locants like 2,4- or 1,3-)
         protected_name <- stringr::str_replace_all(protected_name, "(\\d+),(\\d+)", "\\1@@@\\2")
         if (identical(prev, protected_name)) break
@@ -1052,9 +1054,10 @@ detect_bare_formulas <- function(df, name_cols) {
         df_result[[blocked_col_name]][idx] <- original_value
         df_result[[col_name]][idx] <- NA_character_
 
-        # Add audit entry
+        # Add audit entry (use original_row_id if available post-synonym-split)
+        rid <- if ("original_row_id" %in% names(df_result)) df_result$original_row_id[idx] else idx
         audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-          row_id = as.integer(idx),
+          row_id = as.integer(rid),
           field = col_name,
           step = "detect_bare_formula",
           original_value = original_value,
@@ -1191,9 +1194,10 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
       if (matched) {
         df_result$cleaning_flag[idx] <- paste0(flag_prefix, ": ", flag_label, " [", match_type, "]")
 
-        # Add audit entry
+        # Add audit entry (use original_row_id if available post-synonym-split)
+        rid <- if ("original_row_id" %in% names(df_result)) df_result$original_row_id[idx] else idx
         audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-          row_id = as.integer(idx),
+          row_id = as.integer(rid),
           field = col_name,
           step = paste0("flag_", flag_type),
           original_value = original_value,
@@ -1525,7 +1529,7 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
       df_final <- df_after_synonyms[!all_empty, ]
 
       # Step 7: Expand isotope shortcodes (before bare formula detection)
-      isotope_result <- expand_isotope_shortcodes(df_final, name_cols)
+      isotope_result <- expand_isotope_shortcodes(df_final, name_cols, reference_lists$isotope_lookup)
       df_final <- isotope_result$cleaned_data
       audit_combined <- dplyr::bind_rows(audit_combined, isotope_result$audit_trail)
 
@@ -1533,6 +1537,11 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
       multi_result <- flag_multi_analyte(df_final, name_cols)
       df_final <- multi_result$cleaned_data
       audit_combined <- dplyr::bind_rows(audit_combined, multi_result$audit_trail)
+
+      # Step 9: Restore chiral designation placeholders (must run before curation/lookup)
+      chiral_restore_result <- restore_chiral_designations(df_final, name_cols)
+      df_final <- chiral_restore_result$cleaned_data
+      audit_combined <- dplyr::bind_rows(audit_combined, chiral_restore_result$audit_trail)
     } else {
       # No name columns - skip name cleaning
       df_final <- df_after_multi_cas
@@ -1602,10 +1611,16 @@ protect_chiral_designations <- function(df, name_cols) {
 
       if (length(match_positions) == 0) next
 
-      # Replace each chiral marker with a numbered placeholder
+      # Replace each chiral marker with a content-encoded placeholder (enables stateless restore)
       protected_value <- original_value
-      for (n in seq_along(match_positions)) {
-        placeholder <- paste0(CHIRAL_PLACEHOLDER_PREFIX, n, "###")
+      for (marker in match_positions) {
+        inner <- sub("^\\((.+)\\)$", "\\1", marker)
+        token <- inner |>
+          stringr::str_replace_all("\\+", "PLUS") |>
+          stringr::str_replace_all("/", "SLASH") |>
+          stringr::str_replace_all("-", "MINUS") |>
+          stringr::str_replace_all(",", "_COMMA_")
+        placeholder <- paste0(CHIRAL_PLACEHOLDER_PREFIX, token, "###")
         protected_value <- sub(CHIRAL_REGEX, placeholder, protected_value, perl = TRUE)
       }
 
@@ -1652,198 +1667,59 @@ protect_chiral_designations <- function(df, name_cols) {
   )
 }
 
-#' Expand isotope shortcodes to canonical Name-Mass format
+#' Restore chiral designation placeholders to original markers
 #'
-#' Three-pass approach per cell value:
-#' 1. Naked shortcode expansion: u234 -> Uranium-234 (using ComptoxR::pt$isotope)
-#' 2. Spelled-out normalization: radium 226 -> Radium-226
-#' 3. Special case: unat -> WARNING flag (unresolvable natural uranium mixture)
+#' Reverses protect_chiral_designations() by replacing ###CHIRAL_{TOKEN}### back
+#' to the original chiral marker (e.g., ###CHIRAL_PLUS### -> (+)).
+#' Must run AFTER all name cleaning steps and BEFORE ComptoxR lookup.
 #'
-#' Exclusions per ISOT-03:
-#' - Carbon backbone patterns (C12H22O11) — NOT expanded
-#' - Deuterium d-prefix patterns (d-glucose) — NOT expanded
-#' - Isotope prefixes in compound names (14C-glucose) — NOT expanded
-#'
-#' @param df Dataframe with name columns
+#' @param df Dataframe with name columns that may contain chiral placeholders
 #' @param name_cols Character vector of Name-tagged column names
 #' @return List with cleaned_data (tibble) and audit_trail (tibble)
-#'
-#' @examples
-#' df <- tibble::tibble(chemical_name = c("u234", "radium 226", "C12H22O11"))
-#' expand_isotope_shortcodes(df, c("chemical_name"))
-expand_isotope_shortcodes <- function(df, name_cols) {
-  # Check if ComptoxR is available
-  if (!requireNamespace("ComptoxR", quietly = TRUE)) {
-    warning("ComptoxR not available - skipping isotope shortcode expansion")
-    return(list(
-      cleaned_data = df,
-      audit_trail = tibble::tibble(
-        row_id = integer(),
-        field = character(),
-        step = character(),
-        original_value = character(),
-        new_value = character(),
-        reason = character()
-      )
-    ))
+restore_chiral_designations <- function(df, name_cols) {
+  CHIRAL_RESTORE_REGEX <- "###CHIRAL_([A-Za-z_]+)###"
+
+  decode_chiral_token <- function(token) {
+    token |>
+      stringr::str_replace_all("PLUS", "+") |>
+      stringr::str_replace_all("SLASH", "/") |>
+      stringr::str_replace_all("MINUS", "-") |>
+      stringr::str_replace_all("_COMMA_", ",")
   }
-
-  # Build lookup table from ComptoxR::pt$isotope
-  # Columns: Z (mass number as char), element (symbol), Name (full element name)
-  isotopes <- ComptoxR::pt$isotope
-
-  # Build lookup: shortcode (e.g. "u234") -> canonical (e.g. "Uranium-234")
-  lookup <- tibble::tibble(
-    symbol = isotopes$element,
-    mass = isotopes$Z,
-    element_name = isotopes$Name,
-    shortcode = tolower(paste0(isotopes$element, isotopes$Z)),
-    canonical = paste0(isotopes$Name, "-", isotopes$Z)
-  )
-
-  # Remove duplicates (keep first occurrence per shortcode)
-  lookup <- lookup[!duplicated(lookup$shortcode), ]
-
-  # Sort by symbol length descending for greedy matching (Pb before P per D-04)
-  lookup <- lookup[order(-nchar(lookup$symbol)), ]
-
-  # Alternate element name spellings (American vs IUPAC)
-  # Key = alternate spelling, value = canonical name in ComptoxR
-  ELEMENT_ALT_NAMES <- c(
-    "cesium" = "Caesium",
-    "aluminum" = "Aluminium",
-    "sulfur" = "Sulphur"
-  )
-
-  # Build unique element name -> symbol mapping for spelled-out normalization
-  # e.g. "Uranium" -> list of (mass, canonical) entries
-  elem_names_lower <- tolower(unique(lookup$element_name))
 
   df_result <- df
   audit_rows <- list()
-
-  # Add cleaning_flag column if missing
-  if (!"cleaning_flag" %in% names(df_result)) {
-    df_result$cleaning_flag <- NA_character_
-  }
 
   for (col_name in name_cols) {
     if (!col_name %in% names(df_result)) next
 
     for (idx in seq_len(nrow(df_result))) {
       original_value <- df_result[[col_name]][idx]
-
-      # Skip NA
       if (is.na(original_value)) next
+      if (!grepl(CHIRAL_RESTORE_REGEX, original_value, perl = TRUE)) next
 
-      current_value <- original_value
-      changed <- FALSE
-      change_reason <- NULL
+      restored_value <- original_value
+      placeholders <- regmatches(restored_value, gregexpr(CHIRAL_RESTORE_REGEX, restored_value, perl = TRUE))[[1]]
 
-      # ---- Special case: unat (D-06) ----
-      if (grepl("^unat$", current_value, ignore.case = TRUE)) {
-        existing_flag <- df_result$cleaning_flag[idx]
-        new_flag <- "WARNING: unresolvable isotope (unat)"
-        if (is.na(existing_flag)) {
-          df_result$cleaning_flag[idx] <- new_flag
-        } else {
-          df_result$cleaning_flag[idx] <- paste0(existing_flag, "; ", new_flag)
-        }
-        next
+      for (ph in placeholders) {
+        token <- sub("^###CHIRAL_(.+)###$", "\\1", ph)
+        original_marker <- paste0("(", decode_chiral_token(token), ")")
+        restored_value <- sub(ph, original_marker, restored_value, fixed = TRUE)
       }
 
-      # ---- Pass 1: Naked shortcode expansion ----
-      # For each element symbol (greedy: longest first), find standalone tokens
-      # Pattern: word boundary + symbol + digits + word boundary
-      # Exclusions:
-      #   - Followed by uppercase (formula context like C12H22O11)
-      #   - d-word patterns (stereochemistry prefix like d-glucose)
-      #   - digit-symbol-dash patterns (14C-glucose)
+      df_result[[col_name]][idx] <- restored_value
 
-      # Check for d-prefix stereochemistry: "d-" followed by a word — skip entire cell
-      if (grepl("^[dD]-[a-z]", current_value)) {
-        # This is a stereochemistry d-prefix pattern — do not expand
-        next
-      }
-
-      # Check for 14C-glucose style compound prefix — skip entire cell if it matches
-      if (grepl("^\\d+[A-Z][a-z]?-", current_value)) {
-        next
-      }
-
-      for (i in seq_len(nrow(lookup))) {
-        sym <- lookup$symbol[i]
-        mass_num <- lookup$mass[i]
-        canonical <- lookup$canonical[i]
-        shortcode <- lookup$shortcode[i]
-
-        # Build pattern: case-insensitive, word boundary, symbol followed by exact mass number
-        # Must NOT be preceded by a digit (to avoid "14C" in "14C-glucose")
-        # Must NOT be followed by uppercase (to avoid formula context like C12H22O11)
-        # For Carbon specifically: skip if followed by uppercase (formula context)
-        pattern <- paste0("(?<![0-9])\\b(?i:", stringr::str_escape(sym), ")(", stringr::str_escape(mass_num), ")\\b(?![A-Z])")
-
-        if (grepl(pattern, current_value, perl = TRUE)) {
-          new_value <- gsub(pattern, canonical, current_value, perl = TRUE)
-          if (!identical(new_value, current_value)) {
-            current_value <- new_value
-            changed <- TRUE
-            change_reason <- paste0("Isotope shortcode expanded in ", col_name)
-          }
-        }
-      }
-
-      # ---- Pass 2: Spelled-out normalization ----
-      # Match: element_name (space or hyphen) mass_number -> Name-Mass
-      # Also handles: element_name mass (space-separated), element_name-mass (hyphen)
-      for (i in seq_len(nrow(lookup))) {
-        elem_name <- lookup$element_name[i]
-        mass_num <- lookup$mass[i]
-        canonical <- lookup$canonical[i]
-
-        # Build list of names to match (canonical + alternates)
-        names_to_match <- elem_name
-        # Add alternate spellings if any map to this canonical name
-        alt_matches <- names(ELEMENT_ALT_NAMES)[ELEMENT_ALT_NAMES == elem_name]
-        if (length(alt_matches) > 0) {
-          names_to_match <- c(names_to_match, alt_matches)
-        }
-
-        for (match_name in names_to_match) {
-          # Pattern: full element name (case-insensitive) followed by space or hyphen + mass number
-          spelled_pattern <- paste0(
-            "(?i)\\b", stringr::str_escape(match_name),
-            "(?:\\s+|-)", stringr::str_escape(mass_num), "\\b"
-          )
-
-          if (grepl(spelled_pattern, current_value, perl = TRUE)) {
-            new_value <- gsub(spelled_pattern, canonical, current_value, perl = TRUE)
-            if (!identical(new_value, current_value)) {
-              current_value <- new_value
-              changed <- TRUE
-              change_reason <- paste0("Isotope form normalized in ", col_name)
-            }
-          }
-        }
-      }
-
-      # ---- Apply changes ----
-      if (changed) {
-        df_result[[col_name]][idx] <- current_value
-
-        audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-          row_id = as.integer(idx),
-          field = col_name,
-          step = "expand_isotope_shortcodes",
-          original_value = original_value,
-          new_value = current_value,
-          reason = change_reason
-        )
-      }
+      audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
+        row_id = as.integer(idx),
+        field = col_name,
+        step = "restore_chiral_designations",
+        original_value = original_value,
+        new_value = restored_value,
+        reason = "Restored chiral designation placeholder(s) after cleaning"
+      )
     }
   }
 
-  # Build audit trail
   audit_trail <- if (length(audit_rows) == 0) {
     tibble::tibble(
       row_id = integer(),
@@ -1861,6 +1737,206 @@ expand_isotope_shortcodes <- function(df, name_cols) {
     cleaned_data = df_result,
     audit_trail = audit_trail
   )
+}
+
+#' Expand isotope shortcodes to canonical Name-Mass format (vectorized)
+#'
+#' Two-pass approach applied column-at-a-time:
+#' 1. Naked shortcode expansion: u234 -> Uranium-234 (using cached isotope lookup)
+#' 2. Spelled-out normalization: radium 226 -> Radium-226
+#' Plus special case: unat -> WARNING flag (unresolvable natural uranium mixture)
+#'
+#' Exclusions per ISOT-03:
+#' - Carbon backbone patterns (C12H22O11) — NOT expanded
+#' - Deuterium d-prefix patterns (d-glucose) — NOT expanded
+#' - Isotope prefixes in compound names (14C-glucose) — NOT expanded
+#'
+#' @param df Dataframe with name columns
+#' @param name_cols Character vector of Name-tagged column names
+#' @param isotope_lookup Optional pre-built lookup from load_isotope_lookup().
+#'   If NULL, falls back to building from ComptoxR::pt$isotope directly.
+#' @return List with cleaned_data (tibble) and audit_trail (tibble)
+#'
+#' @examples
+#' df <- tibble::tibble(chemical_name = c("u234", "radium 226", "C12H22O11"))
+#' expand_isotope_shortcodes(df, c("chemical_name"))
+expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
+  empty_audit <- tibble::tibble(
+    row_id = integer(), field = character(), step = character(),
+    original_value = character(), new_value = character(), reason = character()
+  )
+
+  if (nrow(df) == 0) {
+    return(list(cleaned_data = df, audit_trail = empty_audit))
+  }
+
+  # Resolve lookup: use cached, or build from ComptoxR, or bail
+
+  if (!is.null(isotope_lookup)) {
+    lookup <- isotope_lookup$lookup
+    ELEMENT_ALT_NAMES <- isotope_lookup$elem_alt_names
+  } else if (requireNamespace("ComptoxR", quietly = TRUE)) {
+    isotopes <- ComptoxR::pt$isotope
+    lookup <- tibble::tibble(
+      symbol = isotopes$element, mass = isotopes$Z, element_name = isotopes$Name,
+      shortcode = tolower(paste0(isotopes$element, isotopes$Z)),
+      canonical = paste0(isotopes$Name, "-", isotopes$Z),
+      dtxsid = if ("DTXSID" %in% names(isotopes)) isotopes$DTXSID else NA_character_
+    )
+    lookup <- lookup[!duplicated(lookup$shortcode), ]
+    lookup <- lookup[order(-nchar(lookup$symbol)), ]
+    ELEMENT_ALT_NAMES <- c("cesium" = "Caesium", "aluminum" = "Aluminium", "sulfur" = "Sulphur")
+  } else {
+    warning("ComptoxR not available - skipping isotope shortcode expansion")
+    return(list(cleaned_data = df, audit_trail = empty_audit))
+  }
+
+  df_result <- df
+  audit_rows <- list()
+
+  if (!"cleaning_flag" %in% names(df_result)) {
+    df_result$cleaning_flag <- NA_character_
+  }
+
+  for (col_name in name_cols) {
+    if (!col_name %in% names(df_result)) next
+
+    vals <- df_result[[col_name]]
+    original_vals <- vals
+
+    # ---- Vectorized exclusion masks ----
+    is_na <- is.na(vals)
+    is_unat <- !is_na & grepl("^unat$", vals, ignore.case = TRUE)
+    is_d_prefix <- !is_na & !is_unat & grepl("^[dD]-[a-z]", vals)
+    is_compound_prefix <- !is_na & !is_unat & !is_d_prefix & grepl("^\\d+[A-Z][a-z]?-", vals)
+
+    # Rows eligible for expansion
+    eligible <- !is_na & !is_unat & !is_d_prefix & !is_compound_prefix
+
+    # ---- Special case: unat -> WARNING flag ----
+    if (any(is_unat)) {
+      unat_idx <- which(is_unat)
+      existing <- df_result$cleaning_flag[unat_idx]
+      new_flag <- "WARNING: unresolvable isotope (unat)"
+      df_result$cleaning_flag[unat_idx] <- ifelse(
+        is.na(existing), new_flag, paste0(existing, "; ", new_flag)
+      )
+    }
+
+    if (!any(eligible)) next
+
+    # Work only on eligible values
+    work_vals <- vals[eligible]
+
+    # ---- Pass 1: Naked shortcode expansion (vectorized per isotope) ----
+    for (i in seq_len(nrow(lookup))) {
+      sym <- lookup$symbol[i]
+      mass_num <- lookup$mass[i]
+      canonical <- lookup$canonical[i]
+
+      pattern <- paste0(
+        "(?<![0-9])\\b(?i:", stringr::str_escape(sym), ")(",
+        stringr::str_escape(mass_num), ")\\b(?![A-Z])"
+      )
+      work_vals <- gsub(pattern, canonical, work_vals, perl = TRUE)
+    }
+
+    # ---- Pass 2: Spelled-out normalization (vectorized per element+mass) ----
+    # Deduplicate to unique (element_name, mass, canonical) combos
+    spelled_lookup <- unique(lookup[, c("element_name", "mass", "canonical")])
+
+    for (i in seq_len(nrow(spelled_lookup))) {
+      elem_name <- spelled_lookup$element_name[i]
+      mass_num <- spelled_lookup$mass[i]
+      canonical <- spelled_lookup$canonical[i]
+
+      names_to_match <- elem_name
+      alt_matches <- names(ELEMENT_ALT_NAMES)[ELEMENT_ALT_NAMES == elem_name]
+      if (length(alt_matches) > 0) {
+        names_to_match <- c(names_to_match, alt_matches)
+      }
+
+      for (match_name in names_to_match) {
+        spelled_pattern <- paste0(
+          "(?i)\\b", stringr::str_escape(match_name),
+          "(?:\\s+|-)", stringr::str_escape(mass_num), "\\b"
+        )
+        work_vals <- gsub(spelled_pattern, canonical, work_vals, perl = TRUE)
+      }
+    }
+
+    # ---- Write back and build audit trail ----
+    vals[eligible] <- work_vals
+    df_result[[col_name]] <- vals
+
+    changed_mask <- eligible & (vals != original_vals)
+    if (any(changed_mask)) {
+      changed_idx <- which(changed_mask)
+      # Determine reason per row (shortcode vs normalization)
+      reasons <- ifelse(
+        original_vals[changed_idx] != vals[changed_idx] &
+          grepl("[a-z]\\d", original_vals[changed_idx], ignore.case = TRUE),
+        paste0("Isotope shortcode expanded in ", col_name),
+        paste0("Isotope form normalized in ", col_name)
+      )
+
+      # Use original_row_id if available (post-synonym-split dataframes have expanded rows)
+      rids <- if ("original_row_id" %in% names(df_result)) df_result$original_row_id[changed_idx] else changed_idx
+      audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
+        row_id = as.integer(rids),
+        field = col_name,
+        step = "expand_isotope_shortcodes",
+        original_value = original_vals[changed_idx],
+        new_value = vals[changed_idx],
+        reason = reasons
+      )
+    }
+  }
+
+  audit_trail <- if (length(audit_rows) == 0) empty_audit else dplyr::bind_rows(audit_rows)
+
+  # ---- Flag isotope-matched rows and populate isotope_dtxsid ----
+  if (nrow(audit_trail) > 0) {
+    # Rows that were changed by isotope expansion (any column)
+    changed_rows <- unique(audit_trail$row_id)
+
+    # Build canonical->dtxsid map from the lookup (only entries with non-NA DTXSID)
+    if ("dtxsid" %in% names(lookup)) {
+      dtxsid_map <- stats::setNames(lookup$dtxsid, lookup$canonical)
+      dtxsid_map <- dtxsid_map[!is.na(dtxsid_map)]
+    } else {
+      dtxsid_map <- character(0)
+    }
+
+    # Initialize isotope_dtxsid column if needed
+    if (!"isotope_dtxsid" %in% names(df_result)) {
+      df_result$isotope_dtxsid <- NA_character_
+    }
+
+    for (ridx in changed_rows) {
+      # Set cleaning_flag
+      existing_flag <- df_result$cleaning_flag[ridx]
+      df_result$cleaning_flag[ridx] <- if (is.na(existing_flag)) {
+        "isotope_match"
+      } else {
+        paste0(existing_flag, "; isotope_match")
+      }
+
+      # Try to resolve DTXSID from expanded canonical name
+      if (length(dtxsid_map) > 0) {
+        for (col_name in name_cols) {
+          if (!col_name %in% names(df_result)) next
+          val <- df_result[[col_name]][ridx]
+          if (!is.na(val) && val %in% names(dtxsid_map)) {
+            df_result$isotope_dtxsid[ridx] <- dtxsid_map[[val]]
+            break
+          }
+        }
+      }
+    }
+  }
+
+  list(cleaned_data = df_result, audit_trail = audit_trail)
 }
 
 #' Flag rows containing naked multi-analyte expressions
@@ -1919,8 +1995,10 @@ flag_multi_analyte <- function(df, name_cols) {
       }
 
       # Record audit trail entry — original_value == new_value (no change)
+      # Use original_row_id if available (post-synonym-split dataframes have expanded rows)
+      rid <- if ("original_row_id" %in% names(df_result)) df_result$original_row_id[idx] else idx
       audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-        row_id = as.integer(idx),
+        row_id = as.integer(rid),
         field = col_name,
         step = "flag_multi_analyte",
         original_value = original_value,
