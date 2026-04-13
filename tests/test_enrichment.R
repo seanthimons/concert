@@ -9,7 +9,7 @@ source(file.path(here::here(), "R", "curation.R"))
 # ============================================================================
 
 test_that("enrich_candidates returns structured cache tibble for valid DTXSIDs", {
-  # Mock ComptoxR::ct_details to return synthetic data
+  # Mock ComptoxR::ct_chemical_detail_search() to return synthetic data
   mock_ct_details <- function(dtxsids, projection = "standard") {
     tibble::tibble(
       dtxsid = dtxsids,
@@ -20,7 +20,7 @@ test_that("enrich_candidates returns structured cache tibble for valid DTXSIDs",
   }
 
   # Temporarily replace ct_details
-  original_fn <- ComptoxR::ct_details
+  original_fn <- ComptoxR::ct_chemical_detail_search()
   assignInNamespace("ct_details", mock_ct_details, ns = "ComptoxR")
   on.exit(assignInNamespace("ct_details", original_fn, ns = "ComptoxR"), add = TRUE)
 
@@ -59,7 +59,7 @@ test_that("enrich_candidates skips already-cached DTXSIDs", {
     )
   }
 
-  original_fn <- ComptoxR::ct_details
+  original_fn <- ComptoxR::ct_chemical_detail_search()
   assignInNamespace("ct_details", mock_ct_details, ns = "ComptoxR")
   on.exit(assignInNamespace("ct_details", original_fn, ns = "ComptoxR"), add = TRUE)
 
@@ -92,7 +92,7 @@ test_that("enrich_candidates returns existing_cache when all DTXSIDs already cac
     stop("Should not be called when all DTXSIDs are cached")
   }
 
-  original_fn <- ComptoxR::ct_details
+  original_fn <- ComptoxR::ct_chemical_detail_search()
   assignInNamespace("ct_details", mock_ct_details, ns = "ComptoxR")
   on.exit(assignInNamespace("ct_details", original_fn, ns = "ComptoxR"), add = TRUE)
 
@@ -135,7 +135,7 @@ test_that("enrich_candidates handles total API failure gracefully", {
     stop("API connection refused")
   }
 
-  original_fn <- ComptoxR::ct_details
+  original_fn <- ComptoxR::ct_chemical_detail_search()
   assignInNamespace("ct_details", mock_ct_details, ns = "ComptoxR")
   on.exit(assignInNamespace("ct_details", original_fn, ns = "ComptoxR"), add = TRUE)
 
@@ -156,7 +156,7 @@ test_that("enrich_candidates handles API failure with existing_cache", {
     stop("API timeout")
   }
 
-  original_fn <- ComptoxR::ct_details
+  original_fn <- ComptoxR::ct_chemical_detail_search()
   assignInNamespace("ct_details", mock_ct_details, ns = "ComptoxR")
   on.exit(assignInNamespace("ct_details", original_fn, ns = "ComptoxR"), add = TRUE)
 
@@ -193,7 +193,7 @@ test_that("enrich_candidates handles partial API response (some DTXSIDs missing)
     )
   }
 
-  original_fn <- ComptoxR::ct_details
+  original_fn <- ComptoxR::ct_chemical_detail_search()
   assignInNamespace("ct_details", mock_ct_details, ns = "ComptoxR")
   on.exit(assignInNamespace("ct_details", original_fn, ns = "ComptoxR"), add = TRUE)
 

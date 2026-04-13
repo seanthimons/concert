@@ -22,6 +22,55 @@ recalc_consensus_summary <- function(df) {
 mod_review_results_ui <- function(id) {
   ns <- NS(id)
 
+  # Filter persistence JavaScript — saves/restores reactable filters across re-renders
+  filter_persist_js <- tags$script(HTML(sprintf("
+    (function() {
+      var tableId = '%s';
+      var savedFilters = [];
+
+      // Before Shiny recalculates the output, save current filters
+      $(document).on('shiny:recalculating', function(event) {
+        if (event.target && event.target.id === tableId) {
+          try {
+            var state = Reactable.getState(tableId);
+            if (state && state.sorted) { /* table exists */ }
+            savedFilters = (state && state.filters) ? state.filters.slice() : [];
+          } catch(e) {
+            savedFilters = [];
+          }
+        }
+      });
+
+      // After the output is recalculated, restore filters
+      $(document).on('shiny:value', function(event) {
+        if (event.target && event.target.id === tableId && savedFilters.length > 0) {
+          var filtersToRestore = savedFilters.slice();
+          savedFilters = [];
+          // Small delay to let reactable initialize
+          setTimeout(function() {
+            filtersToRestore.forEach(function(f) {
+              try {
+                Reactable.setFilter(tableId, f.id, f.value);
+              } catch(e) {}
+            });
+            // Also restore the <select> dropdown values to match
+            filtersToRestore.forEach(function(f) {
+              var container = document.getElementById(tableId);
+              if (!container) return;
+              var selects = container.querySelectorAll('select');
+              selects.forEach(function(sel) {
+                var onChange = sel.getAttribute('onchange') || '';
+                if (onChange.indexOf(\"'\" + f.id + \"'\") !== -1) {
+                  sel.value = f.value || '';
+                }
+              });
+            });
+          }, 50);
+        }
+      });
+    })();
+  ", ns("curation_table"))))
+
   # Resolution dropdown JavaScript (namespace-aware)
   resolution_js <- tags$script(HTML(sprintf("
     $(document).on('change', '.resolve-select', function() {
@@ -94,6 +143,7 @@ mod_review_results_ui <- function(id) {
   ", ns("copy_table"), ns("copy_done"))))
 
   tagList(
+    filter_persist_js,
     resolution_js,
     compare_js,
     dtxsid_edit_js,
@@ -177,9 +227,9 @@ mod_review_results_ui <- function(id) {
         )
       ),
 
-      # Column visibility toggle
+      # Table toolbar: column toggle + page size
       div(
-        class = "mb-2",
+        class = "mb-2 d-flex align-items-start gap-3",
         tags$details(
           tags$summary(
             class = "btn btn-sm btn-outline-secondary",
@@ -189,6 +239,14 @@ mod_review_results_ui <- function(id) {
             class = "card card-body mt-1 p-2",
             style = "max-height: 200px; overflow-y: auto;",
             uiOutput(ns("col_visibility_checkboxes"))
+          )
+        ),
+        div(
+          class = "d-flex align-items-center gap-2",
+          tags$label("Rows:", `for` = ns("page_size"), class = "mb-0 small text-muted"),
+          selectInput(
+            ns("page_size"), label = NULL, width = "80px",
+            choices = c(10, 25, 50, 100), selected = 25
           )
         )
       ),
@@ -742,6 +800,8 @@ mod_review_results_server <- function(id, data_store) {
       # Selection mode
       selection_mode <- if (isTRUE(data_store$error_filter_active)) "multiple" else NULL
 
+      page_size <- as.integer(input$page_size %||% 25)
+
       reactable::reactable(
         df_display,
         columns = col_defs,
@@ -749,7 +809,7 @@ mod_review_results_server <- function(id, data_store) {
         selection = selection_mode,
         onClick = if (!is.null(selection_mode)) "select" else NULL,
         rowStyle = row_style_fn,
-        defaultPageSize = 25,
+        defaultPageSize = page_size,
         resizable = TRUE,
         wrap = TRUE,
         compact = TRUE,
