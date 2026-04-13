@@ -16,10 +16,10 @@
 
 ### Source File Cleanup
 
-- [ ] **SRC-01**: `R/cleaning_pipeline.R` has no bare `library()` calls and all function calls use `::` notation or `@importFrom`
-- [ ] **SRC-02**: `R/cleaning_reference.R` has no bare `library()` calls and all function calls use `::` notation or `@importFrom`
-- [ ] **SRC-03**: `R/consensus.R` has no bare `library()` calls and all function calls use `::` notation or `@importFrom`
-- [ ] **SRC-04**: Package passes `devtools::check()` with no errors (warnings about non-standard files are acceptable)
+- [x] **SRC-01**: `R/cleaning_pipeline.R` has no bare `library()` calls and all function calls use `::` notation or `@importFrom`
+- [x] **SRC-02**: `R/cleaning_reference.R` has no bare `library()` calls and all function calls use `::` notation or `@importFrom`
+- [x] **SRC-03**: `R/consensus.R` has no bare `library()` calls and all function calls use `::` notation or `@importFrom`
+- [x] **SRC-04**: Package passes `devtools::check()` with no errors (warnings about non-standard files are acceptable)
 
 ### App Relocation
 
@@ -73,10 +73,10 @@
 | PKG-01 | Phase 24 | Complete |
 | PKG-02 | Phase 24 | Complete |
 | PKG-03 | Phase 24 | Complete |
-| SRC-01 | Phase 25 | Pending |
-| SRC-02 | Phase 25 | Pending |
-| SRC-03 | Phase 25 | Pending |
-| SRC-04 | Phase 25 | Pending |
+| SRC-01 | Phase 25 | Complete |
+| SRC-02 | Phase 25 | Complete |
+| SRC-03 | Phase 25 | Complete |
+| SRC-04 | Phase 25 | Complete |
 | APP-01 | Phase 26 | Pending |
 | APP-02 | Phase 26 | Pending |
 | APP-03 | Phase 26 | Pending |

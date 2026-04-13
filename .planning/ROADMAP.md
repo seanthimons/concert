@@ -47,7 +47,7 @@
   - [x] 24-01-PLAN.md — Create DESCRIPTION/LICENSE/NAMESPACE, add @export tags, verify install
 - [ ] **Phase 25: Source File Cleanup** — strip library() calls, :: coverage, devtools::check()
   Plans:
-  - [ ] 25-01-PLAN.md — Remove library() calls, add @importFrom magrittr pipe, run devtools::check()
+  - [x] 25-01-PLAN.md — Remove library() calls, add @importFrom magrittr pipe, run devtools::check()
 - [ ] **Phase 26: App Relocation** — inst/app/, run_app(), system.file() paths
 - [ ] **Phase 27: Headless Pipeline** — curate_headless() wired end-to-end
 - [ ] **Phase 28: Test Migration** — tests/testthat/ structure, fix pre-existing failure
@@ -76,7 +76,7 @@
   2. `R/cleaning_reference.R` contains no `library()` calls and all external functions are called with `pkg::fn()` notation
   3. `R/consensus.R` contains no `library()` calls and all external functions are called with `pkg::fn()` notation
   4. `devtools::check()` completes with zero errors (non-standard file warnings are acceptable)
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 **UI hint**: no
 
 ### Phase 26: App Relocation
@@ -124,7 +124,7 @@
 | 22. UI Polish | v1.7 | 1/1 | Complete | 2026-04-01 |
 | 23. Isotope Cleaning | v1.7 | 2/2 | Complete | 2026-04-02 |
 | 24. Package Scaffolding | v1.8 | 1/1 | Complete    | 2026-04-13 |
-| 25. Source File Cleanup | v1.8 | 0/1 | Not started | - |
+| 25. Source File Cleanup | v1.8 | 1/1 | Complete   | 2026-04-13 |
 | 26. App Relocation | v1.8 | 0/1 | Not started | - |
 | 27. Headless Pipeline | v1.8 | 0/1 | Not started | - |
 | 28. Test Migration | v1.8 | 0/1 | Not started | - |
