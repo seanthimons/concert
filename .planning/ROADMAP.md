@@ -124,7 +124,7 @@
 | 22. UI Polish | v1.7 | 1/1 | Complete | 2026-04-01 |
 | 23. Isotope Cleaning | v1.7 | 2/2 | Complete | 2026-04-02 |
 | 24. Package Scaffolding | v1.8 | 1/1 | Complete    | 2026-04-13 |
-| 25. Source File Cleanup | v1.8 | 1/1 | Complete   | 2026-04-13 |
+| 25. Source File Cleanup | v1.8 | 1/1 | Complete    | 2026-04-13 |
 | 26. App Relocation | v1.8 | 0/1 | Not started | - |
 | 27. Headless Pipeline | v1.8 | 0/1 | Not started | - |
 | 28. Test Migration | v1.8 | 0/1 | Not started | - |
