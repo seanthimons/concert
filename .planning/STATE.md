@@ -2,43 +2,41 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: UI Polish & Isotope Cleaning
-status: planning
-stopped_at: Phase 22 context gathered
-last_updated: "2026-04-01T14:14:24.223Z"
-last_activity: 2026-03-31 — Roadmap created for v1.7
+status: archived
+stopped_at: Milestone archived 2026-04-13
+last_updated: "2026-04-13T18:30:00.000Z"
+last_activity: 2026-04-13
 progress:
   total_phases: 2
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 2
+  total_plans: 3
+  completed_plans: 3
+  percent: 100
 ---
 
 # Project State: ChemReg
 
-**Last Updated:** 2026-03-31
+**Last Updated:** 2026-04-13
 **Milestone:** v1.7 UI Polish & Isotope Cleaning
-**Status:** Ready to plan Phase 22
+**Status:** ✅ Archived
 
 ---
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-31)
+See: .planning/PROJECT.md (updated 2026-04-13)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
-**Current focus:** Phase 22 — UI Polish
+**Current focus:** Planning next milestone — run `/gsd:new-milestone` to start v1.8
 
 ---
 
 ## Current Position
 
-Phase: 22 of 23 (UI Polish)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-03-31 — Roadmap created for v1.7
-
-Progress: [░░░░░░░░░░] 0%
+Phase: —
+Plan: —
+Status: Milestone archived — ready for next milestone
+Last activity: 2026-04-13
 
 ---
 
@@ -46,10 +44,10 @@ Progress: [░░░░░░░░░░] 0%
 
 **Cumulative (all milestones):**
 
-- Total milestones shipped: 7 (v1.0–v1.6)
-- Total phases: 21 complete
-- Total plans: 37 complete
-- LOC: ~15,750 R
+- Total milestones shipped: 8 (v1.0–v1.7)
+- Total phases: 23 complete
+- Total plans: 40 complete
+- LOC: ~17,900 R
 
 ---
 
@@ -58,10 +56,10 @@ Progress: [░░░░░░░░░░] 0%
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
-
-- [v1.3]: ComptoxR direct usage — isotope expansion should call ComptoxR list directly, no custom implementations
-- [v1.4]: Consecutive-lowercase heuristic for formula detection — isotope step must run before this step in the pipeline
+Notable additions in v1.7:
+- Content-encoded chiral placeholders (`###CHIRAL_PLUS###`) — stateless restore, survives synonym split row reordering
+- elementId removal from reactable safe — Shiny auto-assigns same HTML ID
+- unname(unlist()) before Shiny output bindings — prevents jsonlite 2.0.0 warning
 
 ### Pending Todos
 
@@ -69,16 +67,15 @@ None.
 
 ### Known Issues / Blockers
 
-- renderWidget explicit widget ID warning in Review Results table (Phase 22 target)
-- jsonlite named vector deprecation warning drowning console output (Phase 22 target)
+- `test_cleaning_reference.R` has 1 pre-existing failure (expects 3 keys from `load_all_reference_lists`, gets 4 including `strip_terms`) — low priority, pre-existing
 
 ---
 
 ## Session Continuity
 
-Last session: 2026-04-01T14:14:24.219Z
-Stopped at: Phase 22 context gathered
-Resume file: .planning/phases/22-ui-polish/22-CONTEXT.md
+Last session: 2026-04-13
+Stopped at: Milestone archived
+Resume file: None
 
 ---
 

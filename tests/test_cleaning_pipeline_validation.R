@@ -282,3 +282,55 @@ test_that("Validation: Unicode characters cleaned before QC runs", {
   expect_equal(beta_row$name, "beta-carotene")
   expect_false(stringr::str_detect(beta_row$name, "\u03B2"))
 })
+
+# Test Group 7: Pipeline expands isotope shortcodes (Phase 23)
+test_that("Pipeline expands isotope shortcodes", {
+  df <- tibble::tibble(analyte = c("u234", "radium 226", "cesium-137", "acetone"))
+  tag_map <- list(analyte = "Name")
+  result <- run_cleaning_pipeline(df, tag_map)
+  cleaned <- result$cleaned_data
+  # Check isotope expansion happened
+  expect_true(any(cleaned$analyte == "Uranium-234", na.rm = TRUE))
+  expect_true(any(cleaned$analyte == "Radium-226", na.rm = TRUE))
+  # ComptoxR uses IUPAC name Caesium (not Cesium)
+  expect_true(any(cleaned$analyte == "Caesium-137", na.rm = TRUE))
+  # Check audit trail
+  expect_true("expand_isotope_shortcodes" %in% result$audit_trail$step)
+})
+
+# Test Group 8: Pipeline protects chiral designations (Phase 23)
+test_that("Pipeline protects chiral designations", {
+  df <- tibble::tibble(chemical = c("(+)-catechin", "acetone"))
+  tag_map <- list(chemical = "Name")
+  result <- run_cleaning_pipeline(df, tag_map)
+  cleaned <- result$cleaned_data
+  # (+)-catechin should still have catechin (not stripped by enclosure removal)
+  catechin_row <- cleaned[grepl("catechin", cleaned$chemical, ignore.case = TRUE), ]
+  expect_true(nrow(catechin_row) > 0)
+  # Check audit trail has chiral step
+  expect_true("protect_chiral_designations" %in% result$audit_trail$step)
+})
+
+# Test Group 9: Pipeline flags multi-analyte expressions (Phase 23)
+test_that("Pipeline flags multi-analyte expressions", {
+  df <- tibble::tibble(analyte = c("nitrate + nitrite", "acetone"))
+  tag_map <- list(analyte = "Name")
+  result <- run_cleaning_pipeline(df, tag_map)
+  cleaned <- result$cleaned_data
+  # Value should be unchanged
+  multi_row <- cleaned[grepl("nitrate", cleaned$analyte, ignore.case = TRUE), ]
+  expect_true(nrow(multi_row) > 0)
+  expect_true(grepl("nitrite", multi_row$analyte[1], ignore.case = TRUE))
+  # Check flag
+  expect_true(any(grepl("multi-analyte", cleaned$cleaning_flag, ignore.case = TRUE), na.rm = TRUE))
+})
+
+# Test Group 10: Carbon backbone formulas survive isotope expansion (Phase 23)
+test_that("Carbon backbone formulas not corrupted by isotope expansion", {
+  df <- tibble::tibble(chemical = c("C12H22O11"))
+  tag_map <- list(chemical = "Name")
+  result <- run_cleaning_pipeline(df, tag_map)
+  formula_result <- detect_bare_formulas(result$cleaned_data, "chemical")
+  # C12H22O11 should be blocked as bare formula (not mangled by isotope expansion)
+  expect_true(any(grepl("BLOCK", formula_result$cleaned_data$cleaning_flag, ignore.case = TRUE), na.rm = TRUE))
+})

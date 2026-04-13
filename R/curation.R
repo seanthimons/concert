@@ -12,11 +12,25 @@
 #'
 #' @param df Data frame with chemical data
 #' @param tag_map Named list mapping column names to tag types ("Name", "CASRN", or "Other")
-#' @return List with unique_names, unique_cas, and dedup_key_map
-deduplicate_tagged_columns <- function(df, tag_map) {
+#' @param skip_flags Optional character vector of cleaning_flag values. Rows whose
+#'   cleaning_flag contains any of these values are excluded from the search pool
+#'   (their dedup_key_map entries are kept but marked as skipped).
+#' @return List with unique_names, unique_cas, dedup_key_map, and skipped_rows (integer vector)
+deduplicate_tagged_columns <- function(df, tag_map, skip_flags = NULL) {
   name_cols <- names(tag_map)[tag_map == "Name"]
   cas_cols <- names(tag_map)[tag_map == "CASRN"]
   other_cols <- names(tag_map)[tag_map == "Other"]
+
+  # Identify rows to skip from API search (e.g. isotope_match)
+  skipped_rows <- integer(0)
+  if (!is.null(skip_flags) && "cleaning_flag" %in% names(df)) {
+    skip_pattern <- paste0("\\b(", paste(skip_flags, collapse = "|"), ")\\b")
+    skipped_rows <- which(!is.na(df$cleaning_flag) & grepl(skip_pattern, df$cleaning_flag))
+    if (length(skipped_rows) > 0) {
+      message(sprintf("[dedup] Skipping %d rows from search pool (flags: %s)",
+        length(skipped_rows), paste(skip_flags, collapse = ", ")))
+    }
+  }
 
   # Build dedup key map: one row per original row+column combination
   key_rows <- list()
@@ -37,25 +51,28 @@ deduplicate_tagged_columns <- function(df, tag_map) {
 
   dedup_key_map <- dplyr::bind_rows(key_rows)
 
-  # Extract unique non-NA values by type
+  # Extract unique non-NA values by type, excluding skipped rows
   unique_names <- character(0)
   unique_cas <- character(0)
 
   searchable_cols <- c(name_cols, other_cols)
   if (length(searchable_cols) > 0) {
-    all_names <- unlist(lapply(searchable_cols, function(col) df[[col]]))
+    search_df <- if (length(skipped_rows) > 0) df[-skipped_rows, , drop = FALSE] else df
+    all_names <- unlist(lapply(searchable_cols, function(col) search_df[[col]]))
     unique_names <- unique(all_names[!is.na(all_names) & all_names != ""])
   }
 
   if (length(cas_cols) > 0) {
-    all_cas <- unlist(lapply(cas_cols, function(col) df[[col]]))
+    search_df <- if (length(skipped_rows) > 0) df[-skipped_rows, , drop = FALSE] else df
+    all_cas <- unlist(lapply(cas_cols, function(col) search_df[[col]]))
     unique_cas <- unique(all_cas[!is.na(all_cas) & all_cas != ""])
   }
 
   list(
     unique_names = unique_names,
     unique_cas = unique_cas,
-    dedup_key_map = dedup_key_map
+    dedup_key_map = dedup_key_map,
+    skipped_rows = skipped_rows
   )
 }
 
@@ -141,7 +158,7 @@ search_starts_with <- function(missed_names) {
   for (name in missed_names) {
     tryCatch(
       {
-        raw <- ComptoxR::ct_chemical_start_with(name)
+        raw <- ComptoxR::ct_chemical_search_start_with(name)
         if (!is.null(raw) && nrow(raw) > 0) {
           # Standardize columns
           col_map <- list(
@@ -403,8 +420,11 @@ run_tiered_search <- function(dedup_result) {
 #' @param df Original data frame
 #' @param dedup_key_map Dedup key map from deduplicate_tagged_columns
 #' @param lookup_results Lookup results from run_tiered_search
+#' @param pre_resolved Optional tibble with columns (row_idx, dtxsid, preferredName, source_tier)
+#'   for rows that were resolved without API search (e.g. isotope_match). These are injected
+#'   directly into the result vectors, overriding any API results for those row indices.
 #' @return Original df with lookup columns joined back
-map_results_to_rows <- function(df, dedup_key_map, lookup_results) {
+map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved = NULL) {
   input_rows <- nrow(df)
 
   # Build a fast lookup table: searchValue -> best result (lowest rank)
@@ -470,6 +490,37 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results) {
     }
   }
 
+  # Inject pre-resolved rows (e.g. isotope_match) — override any API results
+
+  if (!is.null(pre_resolved) && nrow(pre_resolved) > 0) {
+    message(sprintf("[map_results_to_rows] Injecting %d pre-resolved rows (isotope_match)", nrow(pre_resolved)))
+
+    for (i in seq_len(nrow(pre_resolved))) {
+      ridx <- pre_resolved$row_idx[i]
+      pr_dtxsid <- pre_resolved$dtxsid[i]
+      pr_pref <- pre_resolved$preferredName[i]
+      pr_tier <- pre_resolved$source_tier[i]
+
+      if (length(tag_cols) == 1) {
+        df$dtxsid[ridx] <- pr_dtxsid
+        df$preferredName[ridx] <- pr_pref
+        df$searchName[ridx] <- NA_character_
+        df$rank[ridx] <- 0L
+        df$source_tier[ridx] <- pr_tier
+      } else {
+        # Apply to all tagged columns for this row
+        for (col in tag_cols) {
+          suffix <- paste0("_", col)
+          df[[paste0("dtxsid", suffix)]][ridx] <- pr_dtxsid
+          df[[paste0("preferredName", suffix)]][ridx] <- pr_pref
+          df[[paste0("searchName", suffix)]][ridx] <- NA_character_
+          df[[paste0("rank", suffix)]][ridx] <- 0L
+          df[[paste0("source_tier", suffix)]][ridx] <- pr_tier
+        }
+      }
+    }
+  }
+
   message(sprintf("[map_results_to_rows] Output: %d rows (no joins used)", nrow(df)))
   df
 }
@@ -486,8 +537,27 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results) {
 #' @param dedup_only If TRUE, return after dedup stage with just counts (for preview)
 #' @return List with results, dedup_summary, search_summary, consensus_summary
 run_curation_pipeline <- function(clean_data, column_tags, progress_callback = NULL, dedup_only = FALSE) {
-  # Stage 1: Deduplication
-  dedup_result <- deduplicate_tagged_columns(clean_data, column_tags)
+  # Build pre-resolved tibble for isotope-matched rows (skip API search)
+  pre_resolved <- NULL
+  if ("cleaning_flag" %in% names(clean_data) && "isotope_dtxsid" %in% names(clean_data)) {
+    iso_rows <- which(
+      !is.na(clean_data$cleaning_flag) &
+        grepl("\\bisotope_match\\b", clean_data$cleaning_flag) &
+        !is.na(clean_data$isotope_dtxsid)
+    )
+    if (length(iso_rows) > 0) {
+      pre_resolved <- tibble::tibble(
+        row_idx = iso_rows,
+        dtxsid = clean_data$isotope_dtxsid[iso_rows],
+        preferredName = NA_character_,
+        source_tier = "isotope_match"
+      )
+      message(sprintf("[pipeline] %d isotope-matched rows with DTXSID will skip API search", length(iso_rows)))
+    }
+  }
+
+  # Stage 1: Deduplication (skip isotope_match rows from search pool)
+  dedup_result <- deduplicate_tagged_columns(clean_data, column_tags, skip_flags = "isotope_match")
 
   n_other <- sum(column_tags == "Other")
   dedup_msg <- sprintf(
@@ -654,7 +724,7 @@ run_curation_pipeline <- function(clean_data, column_tags, progress_callback = N
 
   # Stage 3: Map results to rows
   message(sprintf("[pipeline] clean_data: %d rows, combined_results: %d rows", nrow(clean_data), nrow(combined_results)))
-  mapped_df <- map_results_to_rows(clean_data, dedup_result$dedup_key_map, combined_results)
+  mapped_df <- map_results_to_rows(clean_data, dedup_result$dedup_key_map, combined_results, pre_resolved = pre_resolved)
 
   # Assert row count preserved
   if (nrow(mapped_df) != nrow(clean_data)) {
@@ -733,7 +803,7 @@ run_curation_pipeline <- function(clean_data, column_tags, progress_callback = N
 #' @return Named list with:
 #'   - cache: tibble(dtxsid, casrn, molecular_formula, molecular_weight)
 #'   - failed_dtxsids: character vector of DTXSIDs that could not be fetched
-enrich_candidates <- function(dtxsids, existing_cache = NULL, projection = "standard") {
+enrich_candidates <- function(dtxsids, existing_cache = NULL) {
   empty_cache <- tibble::tibble(
     dtxsid = character(0),
     casrn = character(0),
@@ -766,21 +836,9 @@ enrich_candidates <- function(dtxsids, existing_cache = NULL, projection = "stan
     return(list(cache = existing_cache, failed_dtxsids = character(0)))
   }
 
-  message(sprintf("[enrich] Fetching details for %d unique DTXSIDs (projection: %s)...", length(dtxsids_to_fetch), projection))
+  message(sprintf("[enrich] Fetching details for %d unique DTXSIDs...", length(dtxsids_to_fetch)))
 
-  safe_detail <- purrr::safely(ComptoxR::ct_details)
-  api_result <- safe_detail(dtxsids_to_fetch, projection = projection)
-
-  if (!is.null(api_result$error)) {
-    warning(sprintf("[enrich] API call failed: %s", api_result$error$message))
-    # On total failure: return existing cache + all to-fetch as failed
-    return(list(
-      cache = existing_cache %||% empty_cache,
-      failed_dtxsids = dtxsids_to_fetch
-    ))
-  }
-
-  raw <- api_result$result
+  raw <- suppressMessages(ComptoxR::ct_chemical_detail_search_bulk(dtxsids_to_fetch))
 
   if (is.null(raw) || (is.data.frame(raw) && nrow(raw) == 0)) {
     message("[enrich] API returned no results")
@@ -847,7 +905,7 @@ enrich_candidates <- function(dtxsids, existing_cache = NULL, projection = "stan
 #' @param column_tags Named list (col_name -> "Name"|"CASRN"|"Other")
 #' @return List with n_names and n_cas
 get_dedup_preview <- function(clean_data, column_tags) {
-  dedup_result <- deduplicate_tagged_columns(clean_data, column_tags)
+  dedup_result <- deduplicate_tagged_columns(clean_data, column_tags, skip_flags = "isotope_match")
 
   list(
     n_names = length(dedup_result$unique_names),

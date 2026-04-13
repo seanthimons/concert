@@ -68,17 +68,16 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - ✓ Source column and search tier attribution per candidate — v1.5
 - ✓ Export enrichment metadata (consensus_casrn, consensus_formula, consensus_mw) — v1.5
 
+- ✓ Column title wrapping in Review Results DT table — v1.7 Phase 22
+- ✓ Fix renderWidget explicit widget ID warning — v1.7 Phase 22
+- ✓ Fix jsonlite named vector deprecation warning — v1.7 Phase 22
+- ✓ Isotope shortcode expansion (u234→Uranium-234) using ComptoxR isotope list with greedy matching — v1.7 Phase 23
+- ✓ Chiral designation protection via placeholder pattern, WARNING flagging — v1.7 Phase 23
+- ✓ Multi-analyte expression flagging (naked +/and) without auto-splitting — v1.7 Phase 23
+
 ### Active
 
-## Current Milestone: v1.7 UI Polish & Isotope Cleaning
-
-**Goal:** Fix truncated column headers in Review Results, add isotope shortcode-to-proper-name expansion in the cleaning pipeline, and silence spurious console warnings.
-
-**Target features:**
-- Column title wrapping in Review Results DT table
-- Isotope shortcode expansion in pre-curation cleaning pipeline
-- Fix renderWidget explicit widget ID warning
-- Fix jsonlite named vector deprecation warning
+*(v1.7 complete — requirements for next milestone TBD via `/gsd:new-milestone`)*
 
 ### Out of Scope
 
@@ -96,7 +95,7 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ## Context
 
-Shipped v1.6 Cleaning Ruleset Fixes with ~15,750 LOC R across 18 files.
+Shipped v1.7 UI Polish & Isotope Cleaning. ~17,900 LOC R across 18 files (including tests).
 Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, openxlsx2, rhandsontable.
 
 The app has 8 top-level tabs: Data Preview, Detection Info, Raw Data, Clean Data, Tag Columns, Run Curation, Review Results, plus sidebar upload and config import. On startup only Upload is visible; tabs appear progressively as the user advances.
@@ -106,7 +105,7 @@ Key files:
 - `R/modules/` — 8 Shiny modules (mod_upload, mod_data_preview, mod_detection_info, mod_raw_data, mod_clean_data, mod_tag_columns, mod_run_curation, mod_review_results)
 - `R/curation.R` — curation pipeline orchestrator with enrichment (~1,020 lines)
 - `R/consensus.R` — consensus classification, resolution, and enrichment (320+ lines)
-- `R/cleaning_pipeline.R` — 12-step pre-curation cleaning pipeline
+- `R/cleaning_pipeline.R` — 15-step pre-curation cleaning pipeline (chiral protection, isotope expansion, multi-analyte flagging added in v1.7)
 - `R/cleaning_reference.R` — reference list loaders with provenance tracking
 - `R/file_handlers.R` — file reading/validation (218 lines)
 - `R/data_detection.R` — frontmatter detection algorithms (405 lines)
@@ -155,6 +154,10 @@ Known tech debt: `test_cleaning_reference.R` has 1 pre-existing failure (expects
 | Repeat-until-stable loop for locant comma protection | Single-pass regex can't protect all commas in 3+ locant chains; loop converges in 1 pass for simple cases | ✓ Good — v1.6 |
 | Module-level ROMAN_NUMERAL_PATTERN constant | Anchored regex (I-XII) shared by both paren and bracket paths; avoids duplication | ✓ Good — v1.6 |
 | Test alignment over pipeline changes for unicode | ComptoxR already handles α and ′ correctly; only tests needed updating | ✓ Good — v1.6 |
+| elementId removal from reactable is safe | session$ns("curation_table") produces same string Shiny auto-assigns; Reactable.setFilter calls unaffected | ✓ Good — v1.7 |
+| unname(unlist()) before Shiny output bindings | Prevents jsonlite 2.0.0 named vector deprecation warning from unlist() in reactive context | ✓ Good — v1.7 |
+| Content-encoded chiral placeholders (###CHIRAL_PLUS###) | Enables stateless restore without row-index tracking — survives synonym split row reordering | ✓ Good — v1.7 |
+| Greedy isotope matching (sort by symbol length desc) | Ensures Pb matched before P when element symbols share prefix | ✓ Good — v1.7 |
 
 ---
-*Last updated: 2026-03-31 after v1.7 milestone started*
+*Last updated: 2026-04-13 after v1.7 milestone archived*

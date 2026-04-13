@@ -1,160 +1,114 @@
 # ChemReg TODO
 
-**Generated:** 2026-02-03
-**Source:** `.planning/codebase/CONCERNS.md`
+**Last synced:** 2026-03-20
 
 ---
 
-## Priority Legend
+## Pending PRs (Resolve Immediately)
+- [ ] PR #21: v1.6: Cleaning Ruleset Fixes [open] — feature/multi-locant-protection
 
-| Priority | Impact | Effort | Action |
-|----------|--------|--------|--------|
-| P0 - Critical | High | Any | Fix immediately |
-| P1 - High | High | Low-Med | Fix soon |
-| P2 - Medium | Medium | Medium | Plan for next cycle |
-| P3 - Low | Low | Any | Backlog |
+## High Priority (No Milestone)
 
----
-
-## P0 - Critical
-
-### [ ] Curation functions have zero test coverage
+### [ ] Curation functions have zero test coverage (#3)
 - **Impact:** Core feature completely untested - ComptoxR integration changes could break silently
 - **Files:** `R/curation.R`, `tests/test_data_detection.R`
-- **Tests needed:**
-  - CAS validation with valid/invalid/empty inputs
-  - Chemical name lookup with exact/fuzzy/no-match scenarios
-  - Mixed CAS + Name column curation
-  - Error handling when ComptoxR API unavailable
-- **Issue:** [#3](https://github.com/seanthimons/chem_janitor/issues/3)
+- high impact, high complexity (45d)
 
-### [ ] CAS validation fails silently on API errors
+### [ ] CAS validation fails silently on API errors (#4)
 - **Impact:** Users think curation succeeded when all validations actually failed
 - **Files:** `R/curation.R` (lines 13-14)
-- **Fix:** Wrap ComptoxR calls in tryCatch, check for NA results, warn if validation rate < threshold
-- **Issue:** [#4](https://github.com/seanthimons/chem_janitor/issues/4)
+- high impact, medium complexity (45d)
 
----
-
-## P1 - High
-
-### [ ] ComptoxR package not version-pinned
-- **Impact:** HIGH - Breaking API changes could silently break entire curation workflow
-- **Effort:** LOW - Single line change + documentation
+### [ ] ComptoxR package not version-pinned (#5)
+- **Impact:** Breaking API changes could silently break entire curation workflow
 - **Files:** `load_packages.R` (line 180)
-- **Fix:** Pin to specific release, add version compatibility check
 - **Note:** Dedicated solution planned - do not fix ad-hoc
-- **Issue:** [#5](https://github.com/seanthimons/chem_janitor/issues/5)
+- high impact, low complexity (45d)
 
-### [ ] API key setup not documented
+### [ ] API key setup not documented (#6)
 - **Impact:** Users can't use curation without knowing to set `ctx_api_key`
 - **Files:** `app.R` (line 927), README.md
-- **Fix:**
-  - Add `.env.example` template
-  - Document in README
-  - Validate key exists at startup (not just when curation runs)
-- **Issue:** [#6](https://github.com/seanthimons/chem_janitor/issues/6)
+- high impact, low complexity (45d)
 
-### [ ] File upload edge cases not tested
+### [ ] File upload edge cases not tested (#7)
 - **Impact:** App crashes on real-world messy data
 - **Files:** `R/file_handlers.R`, `app.R`
-- **Tests needed:**
-  - Very large files (near 50MB limit)
-  - Single column files
-  - 1000+ column files
-  - Corrupted/truncated files
-  - Non-Latin encodings (Big5, Shift-JIS)
-- **Issue:** [#7](https://github.com/seanthimons/chem_janitor/issues/7)
+- high impact, medium complexity (45d)
 
 ---
 
-## P2 - Medium
+## Medium Priority (No Milestone)
 
-### [ ] Column names with special characters break tagging UI
-- **Impact:** Columns like "Conc (µg/L)" produce invalid Shiny input IDs
+### [ ] Column names with special characters break tagging UI (#8)
 - **Files:** `app.R` (lines 849, 869)
-- **Fix:** Sanitize column names before creating input IDs, or use index-based IDs
-- **Issue:** [#8](https://github.com/seanthimons/chem_janitor/issues/8)
+- medium impact, medium complexity (45d)
 
-### [ ] Detection mode switch fails silently with no data
-- **Impact:** Confusing UX - user changes mode but nothing happens
+### [ ] Detection mode switch fails silently with no data (#9)
 - **Files:** `app.R` (lines 447-499)
-- **Fix:** Show notification if preconditions not met
-- **Issue:** [#9](https://github.com/seanthimons/chem_janitor/issues/9)
+- medium impact, low complexity (45d)
 
-### [ ] Manual header row validation missing
-- **Impact:** User can enter row > file length, causing silent failures
+### [ ] Manual header row validation missing (#10)
 - **Files:** `app.R` (lines 109-116, 447)
-- **Fix:** Set max dynamically based on file size, validate before applying
-- **Issue:** [#10](https://github.com/seanthimons/chem_janitor/issues/10)
+- medium impact, low complexity (45d)
 
-### [ ] Reactive values lack type safety
-- **Impact:** Unexpected data types cause downstream crashes
+### [ ] Reactive values lack type safety (#11)
 - **Files:** `app.R` (lines 281-293)
-- **Fix:** Add validation function for data_store structure
-- **Issue:** [#11](https://github.com/seanthimons/chem_janitor/issues/11)
+- medium impact, medium complexity (45d)
 
-### [ ] Hardcoded detection thresholds
-- **Impact:** Can't tune sensitivity for different data sources
+### [ ] Hardcoded detection thresholds (#12)
 - **Files:** `R/data_detection.R` (lines 11, 185)
-- **Fix:** Move to config or expose in UI
-- **Issue:** [#12](https://github.com/seanthimons/chem_janitor/issues/12)
+- medium impact, medium complexity (45d)
 
----
+### [ ] UI verification (#19)
+- medium impact, medium complexity (17d)
 
-## P2.5 - UAT Findings (Phase 14)
+### [ ] Add string hashing workflow (#20)
+- medium impact, medium complexity (11d)
 
-### [ ] Reference list editors (rhandsontable) are crushed and hard to interact with
-- **Impact:** Stop Words and Block Patterns tables have truncated columns — text like "app_de..." is unreadable, checkboxes are cramped
-- **Source:** Phase 13 editors, discovered during Phase 14 UAT
-- **Files:** `R/modules/mod_clean_data.R` (lines 488-526)
-- **Fix:** Set explicit column widths via `rhandsontable::hot_col()` width parameter, or increase table height/use `stretchH = "all"`
-
-### [ ] ComptoxR functional use API has drifted — ct_functional_use() broken
-- **Impact:** Functional categories list is always empty; no categories available for reference matching
-- **Source:** ComptoxR package API changed — `ct_functional_use("", domain = "func_use")` no longer works
-- **Files:** `R/cleaning_reference.R` (lines 124-151) — marked with `#TODO` block
-- **Fix:** Identify correct ComptoxR function/endpoint for fetching functional use category lists, update the call
-
----
-
-## P3 - Low
-
-### [ ] Dead code: checkpoint.R never used
-- **Impact:** Maintenance burden, confusion
-- **Files:** `checkpoint.R`
-- **Fix:** Integrate or remove with documentation
-- **Issue:** [#13](https://github.com/seanthimons/chem_janitor/issues/13)
-
-### [ ] Performance: Detection scans row-by-row
-- **Impact:** Slower than necessary for large files
-- **Files:** `R/data_detection.R` (lines 23-42)
-- **Fix:** Vectorize with dplyr::across()
-- **Issue:** [#14](https://github.com/seanthimons/chem_janitor/issues/14)
-
-### [ ] Performance: No progress indicator for curation
-- **Impact:** Users don't know if app is working on large files
-- **Files:** `R/curation.R`, `app.R`
-- **Fix:** Add shiny progress bar
-- **Issue:** [#15](https://github.com/seanthimons/chem_janitor/issues/15)
-
-### [ ] No authentication for deployed app
-- **Impact:** Security risk if deployed publicly (currently local-only)
+### [ ] Revisit Review Results table column visibility (#24) [gsd]
+- **Impact:** Condensed table view may hide too much info for real-world data
 - **Files:** `app.R`
-- **Fix:** Add shinymanager if public deployment needed
-- **Issue:** [#16](https://github.com/seanthimons/chem_janitor/issues/16)
+- medium impact, medium complexity (19d)
 
-### [ ] Reactive UI logic not tested
-- **Impact:** Refactoring could break UI without detection
-- **Files:** `app.R` (lines 783-824, 863-900)
-- **Fix:** Add shinytest2 tests
-- **Issue:** [#17](https://github.com/seanthimons/chem_janitor/issues/17)
+### [ ] Reference list editors (rhandsontable) are crushed (#25)
+- **Impact:** Stop Words and Block Patterns tables have truncated columns
+- **Files:** `R/modules/mod_clean_data.R` (lines 488-526)
+- medium impact, low complexity (19d)
 
-### [ ] Detection ensemble doesn't handle confidence ties
-- **Impact:** Arbitrary method selection when methods tie
-- **Files:** `R/data_detection.R` (lines 313-330)
-- **Fix:** Add tiebreaker logic or document behavior
-- **Issue:** [#18](https://github.com/seanthimons/chem_janitor/issues/18)
+### [x] ComptoxR functional use API drifted — ct_functional_use() broken (#26)
+- **Resolution:** Replaced with `ct_exposure_functional_use_category()` — returns 131 categories, cache populated with 140 terms after alias expansion
+- **Files:** `R/cleaning_reference.R` (lines 124-151)
+- Resolved 2026-04-13
+
+---
+
+## Low Priority (No Milestone)
+
+### [ ] Dead code: checkpoint.R never used (#13)
+- low impact, low complexity (45d)
+
+### [ ] Performance: Detection scans row-by-row (#14)
+- low impact, medium complexity (45d)
+
+### [ ] Performance: No progress indicator for curation (#15)
+- low impact, low complexity (45d)
+
+### [ ] No authentication for deployed app (#16)
+- low impact, low complexity (45d)
+
+### [ ] Reactive UI logic not tested (#17)
+- low impact, high complexity (45d)
+
+### [ ] Detection ensemble doesn't handle confidence ties (#18)
+- low impact, low complexity (45d)
+
+### [ ] Name constant for split_synonyms max protection iterations (#22)
+- Cosmetic: replace magic number 10 with named constant
+- low impact, low complexity (0d)
+
+### [ ] Remove redundant V alternative in ROMAN_NUMERAL_PATTERN (#23)
+- Cosmetic: simplify regex alternation
+- low impact, low complexity (0d)
 
 ---
 
@@ -172,6 +126,8 @@
 - Checkpoint every N rows
 - Resume from failure point
 
+### [ ] Feature: Add tie-breaking for CASRN vs Name (#2)
+
 ---
 
-*Last updated: 2026-03-09*
+*Last updated: 2026-03-20*

@@ -858,8 +858,10 @@ split_synonyms <- function(df, name_cols, tag_map) {
       protected_name <- original_name
       for (iter in seq_len(10)) {
         prev <- protected_name
-        # Protect letter-comma-letter (N,N- O,O- S,S- etc.)
+        # Protect letter-comma-letter (N,N- O,O- S,S- alpha,alpha- etc.)
         protected_name <- stringr::str_replace_all(protected_name, "([A-Za-z]),([A-Za-z])", "\\1@@@\\2")
+        # Protect letter-comma-digit (alpha,2,4- Greek prefix locants)
+        protected_name <- stringr::str_replace_all(protected_name, "([A-Za-z]),(\\d)", "\\1@@@\\2")
         # Protect digit-comma-digit (IUPAC locants like 2,4- or 1,3-)
         protected_name <- stringr::str_replace_all(protected_name, "(\\d+),(\\d+)", "\\1@@@\\2")
         if (identical(prev, protected_name)) break
@@ -1052,9 +1054,10 @@ detect_bare_formulas <- function(df, name_cols) {
         df_result[[blocked_col_name]][idx] <- original_value
         df_result[[col_name]][idx] <- NA_character_
 
-        # Add audit entry
+        # Add audit entry (use original_row_id if available post-synonym-split)
+        rid <- if ("original_row_id" %in% names(df_result)) df_result$original_row_id[idx] else idx
         audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-          row_id = as.integer(idx),
+          row_id = as.integer(rid),
           field = col_name,
           step = "detect_bare_formula",
           original_value = original_value,
@@ -1191,9 +1194,10 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
       if (matched) {
         df_result$cleaning_flag[idx] <- paste0(flag_prefix, ": ", flag_label, " [", match_type, "]")
 
-        # Add audit entry
+        # Add audit entry (use original_row_id if available post-synonym-split)
+        rid <- if ("original_row_id" %in% names(df_result)) df_result$original_row_id[idx] else idx
         audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-          row_id = as.integer(idx),
+          row_id = as.integer(rid),
           field = col_name,
           step = paste0("flag_", flag_type),
           original_value = original_value,
@@ -1450,8 +1454,13 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
     name_cols <- names(tag_map)[tag_map == "Name"]
 
     if (length(name_cols) > 0) {
+      # Step 6-pre: Protect chiral designations (before enclosure stripping)
+      chiral_result <- protect_chiral_designations(df_after_multi_cas, name_cols)
+      df_after_chiral <- chiral_result$cleaned_data
+      audit_combined <- dplyr::bind_rows(audit_combined, chiral_result$audit_trail)
+
       # Step 6a: Strip terminal enclosures
-      enclosure_result <- strip_terminal_enclosures(df_after_multi_cas, name_cols)
+      enclosure_result <- strip_terminal_enclosures(df_after_chiral, name_cols)
       df_after_enclosures <- enclosure_result$cleaned_data
       audit_combined <- dplyr::bind_rows(audit_combined, enclosure_result$audit_trail)
       # Merge new_tags from formula_extract columns (though currently empty)
@@ -1518,6 +1527,21 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
         all(is.na(row) | row == "")
       })
       df_final <- df_after_synonyms[!all_empty, ]
+
+      # Step 7: Expand isotope shortcodes (before bare formula detection)
+      isotope_result <- expand_isotope_shortcodes(df_final, name_cols, reference_lists$isotope_lookup)
+      df_final <- isotope_result$cleaned_data
+      audit_combined <- dplyr::bind_rows(audit_combined, isotope_result$audit_trail)
+
+      # Step 8: Flag multi-analyte expressions
+      multi_result <- flag_multi_analyte(df_final, name_cols)
+      df_final <- multi_result$cleaned_data
+      audit_combined <- dplyr::bind_rows(audit_combined, multi_result$audit_trail)
+
+      # Step 9: Restore chiral designation placeholders (must run before curation/lookup)
+      chiral_restore_result <- restore_chiral_designations(df_final, name_cols)
+      df_final <- chiral_restore_result$cleaned_data
+      audit_combined <- dplyr::bind_rows(audit_combined, chiral_restore_result$audit_trail)
     } else {
       # No name columns - skip name cleaning
       df_final <- df_after_multi_cas
@@ -1532,5 +1556,474 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
     cleaned_data = df_final,
     audit_trail = audit_combined,
     new_tags = new_tags
+  )
+}
+
+# ==============================================================================
+# Phase 23: Isotope Cleaning — Three New Cleaning Functions
+# ==============================================================================
+
+#' Prefix for chiral designation placeholders
+#'
+#' Used by protect_chiral_designations() to replace chiral markers before
+#' downstream enclosure stripping (Step 6a) removes them.
+CHIRAL_PLACEHOLDER_PREFIX <- "###CHIRAL_"
+
+#' Protect chiral designations from downstream stripping
+#'
+#' Replaces chiral markers — (+), (-), (R), (S), (R,S), (dl), etc. — with
+#' numbered placeholders (###CHIRAL_n###) and sets a WARNING flag.
+#' Must run BEFORE strip_terminal_enclosures() (Step 6a).
+#'
+#' @param df Dataframe with name columns
+#' @param name_cols Character vector of Name-tagged column names
+#' @return List with cleaned_data (tibble) and audit_trail (tibble)
+#'
+#' @examples
+#' df <- tibble::tibble(chemical_name = c("(+)-catechin", "acetone"))
+#' protect_chiral_designations(df, c("chemical_name"))
+protect_chiral_designations <- function(df, name_cols) {
+  # Regex pattern for chiral markers in parentheses (per D-09)
+  # Matches: (+), (-), (+-), (+/-), (R), (S), (R,S), (S,R), (d), (l), (dl), (D), (L), (DL)
+  CHIRAL_REGEX <- "\\((\\+|-|\\+-|\\+/-|R,S|S,R|R|S|[dD][lL]|[dD]|[lL])\\)"
+
+  df_result <- df
+  audit_rows <- list()
+
+  # Add cleaning_flag column if missing
+  if (!"cleaning_flag" %in% names(df_result)) {
+    df_result$cleaning_flag <- NA_character_
+  }
+
+  # Process each name column
+  for (col_name in name_cols) {
+    if (!col_name %in% names(df_result)) next
+
+    for (idx in seq_len(nrow(df_result))) {
+      original_value <- df_result[[col_name]][idx]
+
+      # Skip NA
+      if (is.na(original_value)) next
+
+      # Find chiral markers
+      matches <- gregexpr(CHIRAL_REGEX, original_value, perl = TRUE)
+      match_positions <- regmatches(original_value, matches)[[1]]
+
+      if (length(match_positions) == 0) next
+
+      # Replace each chiral marker with a content-encoded placeholder (enables stateless restore)
+      protected_value <- original_value
+      for (marker in match_positions) {
+        inner <- sub("^\\((.+)\\)$", "\\1", marker)
+        token <- inner |>
+          stringr::str_replace_all("\\+", "PLUS") |>
+          stringr::str_replace_all("/", "SLASH") |>
+          stringr::str_replace_all("-", "MINUS") |>
+          stringr::str_replace_all(",", "_COMMA_")
+        placeholder <- paste0(CHIRAL_PLACEHOLDER_PREFIX, token, "###")
+        protected_value <- sub(CHIRAL_REGEX, placeholder, protected_value, perl = TRUE)
+      }
+
+      df_result[[col_name]][idx] <- protected_value
+
+      # Set WARNING flag (append if existing flag present)
+      existing_flag <- df_result$cleaning_flag[idx]
+      new_flag <- "WARNING: chiral designation"
+      if (is.na(existing_flag)) {
+        df_result$cleaning_flag[idx] <- new_flag
+      } else {
+        df_result$cleaning_flag[idx] <- paste0(existing_flag, "; ", new_flag)
+      }
+
+      # Record audit trail entry
+      audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
+        row_id = as.integer(idx),
+        field = col_name,
+        step = "protect_chiral_designations",
+        original_value = original_value,
+        new_value = protected_value,
+        reason = paste0("Chiral designation detected in ", col_name, "; protected with placeholder")
+      )
+    }
+  }
+
+  # Build audit trail
+  audit_trail <- if (length(audit_rows) == 0) {
+    tibble::tibble(
+      row_id = integer(),
+      field = character(),
+      step = character(),
+      original_value = character(),
+      new_value = character(),
+      reason = character()
+    )
+  } else {
+    dplyr::bind_rows(audit_rows)
+  }
+
+  list(
+    cleaned_data = df_result,
+    audit_trail = audit_trail
+  )
+}
+
+#' Restore chiral designation placeholders to original markers
+#'
+#' Reverses protect_chiral_designations() by replacing ###CHIRAL_{TOKEN}### back
+#' to the original chiral marker (e.g., ###CHIRAL_PLUS### -> (+)).
+#' Must run AFTER all name cleaning steps and BEFORE ComptoxR lookup.
+#'
+#' @param df Dataframe with name columns that may contain chiral placeholders
+#' @param name_cols Character vector of Name-tagged column names
+#' @return List with cleaned_data (tibble) and audit_trail (tibble)
+restore_chiral_designations <- function(df, name_cols) {
+  CHIRAL_RESTORE_REGEX <- "###CHIRAL_([A-Za-z_]+)###"
+
+  decode_chiral_token <- function(token) {
+    token |>
+      stringr::str_replace_all("PLUS", "+") |>
+      stringr::str_replace_all("SLASH", "/") |>
+      stringr::str_replace_all("MINUS", "-") |>
+      stringr::str_replace_all("_COMMA_", ",")
+  }
+
+  df_result <- df
+  audit_rows <- list()
+
+  for (col_name in name_cols) {
+    if (!col_name %in% names(df_result)) next
+
+    for (idx in seq_len(nrow(df_result))) {
+      original_value <- df_result[[col_name]][idx]
+      if (is.na(original_value)) next
+      if (!grepl(CHIRAL_RESTORE_REGEX, original_value, perl = TRUE)) next
+
+      restored_value <- original_value
+      placeholders <- regmatches(restored_value, gregexpr(CHIRAL_RESTORE_REGEX, restored_value, perl = TRUE))[[1]]
+
+      for (ph in placeholders) {
+        token <- sub("^###CHIRAL_(.+)###$", "\\1", ph)
+        original_marker <- paste0("(", decode_chiral_token(token), ")")
+        restored_value <- sub(ph, original_marker, restored_value, fixed = TRUE)
+      }
+
+      df_result[[col_name]][idx] <- restored_value
+
+      audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
+        row_id = as.integer(idx),
+        field = col_name,
+        step = "restore_chiral_designations",
+        original_value = original_value,
+        new_value = restored_value,
+        reason = "Restored chiral designation placeholder(s) after cleaning"
+      )
+    }
+  }
+
+  audit_trail <- if (length(audit_rows) == 0) {
+    tibble::tibble(
+      row_id = integer(),
+      field = character(),
+      step = character(),
+      original_value = character(),
+      new_value = character(),
+      reason = character()
+    )
+  } else {
+    dplyr::bind_rows(audit_rows)
+  }
+
+  list(
+    cleaned_data = df_result,
+    audit_trail = audit_trail
+  )
+}
+
+#' Expand isotope shortcodes to canonical Name-Mass format (vectorized)
+#'
+#' Two-pass approach applied column-at-a-time:
+#' 1. Naked shortcode expansion: u234 -> Uranium-234 (using cached isotope lookup)
+#' 2. Spelled-out normalization: radium 226 -> Radium-226
+#' Plus special case: unat -> WARNING flag (unresolvable natural uranium mixture)
+#'
+#' Exclusions per ISOT-03:
+#' - Carbon backbone patterns (C12H22O11) — NOT expanded
+#' - Deuterium d-prefix patterns (d-glucose) — NOT expanded
+#' - Isotope prefixes in compound names (14C-glucose) — NOT expanded
+#'
+#' @param df Dataframe with name columns
+#' @param name_cols Character vector of Name-tagged column names
+#' @param isotope_lookup Optional pre-built lookup from load_isotope_lookup().
+#'   If NULL, falls back to building from ComptoxR::pt$isotope directly.
+#' @return List with cleaned_data (tibble) and audit_trail (tibble)
+#'
+#' @examples
+#' df <- tibble::tibble(chemical_name = c("u234", "radium 226", "C12H22O11"))
+#' expand_isotope_shortcodes(df, c("chemical_name"))
+expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
+  empty_audit <- tibble::tibble(
+    row_id = integer(), field = character(), step = character(),
+    original_value = character(), new_value = character(), reason = character()
+  )
+
+  if (nrow(df) == 0) {
+    return(list(cleaned_data = df, audit_trail = empty_audit))
+  }
+
+  # Resolve lookup: use cached, or build from ComptoxR, or bail
+
+  if (!is.null(isotope_lookup)) {
+    lookup <- isotope_lookup$lookup
+    ELEMENT_ALT_NAMES <- isotope_lookup$elem_alt_names
+  } else if (requireNamespace("ComptoxR", quietly = TRUE)) {
+    isotopes <- ComptoxR::pt$isotope
+    lookup <- tibble::tibble(
+      symbol = isotopes$element, mass = isotopes$Z, element_name = isotopes$Name,
+      shortcode = tolower(paste0(isotopes$element, isotopes$Z)),
+      canonical = paste0(isotopes$Name, "-", isotopes$Z),
+      dtxsid = if ("DTXSID" %in% names(isotopes)) isotopes$DTXSID else NA_character_
+    )
+    lookup <- lookup[!duplicated(lookup$shortcode), ]
+    lookup <- lookup[order(-nchar(lookup$symbol)), ]
+    ELEMENT_ALT_NAMES <- c("cesium" = "Caesium", "aluminum" = "Aluminium", "sulfur" = "Sulphur")
+  } else {
+    warning("ComptoxR not available - skipping isotope shortcode expansion")
+    return(list(cleaned_data = df, audit_trail = empty_audit))
+  }
+
+  df_result <- df
+  audit_rows <- list()
+
+  if (!"cleaning_flag" %in% names(df_result)) {
+    df_result$cleaning_flag <- NA_character_
+  }
+
+  for (col_name in name_cols) {
+    if (!col_name %in% names(df_result)) next
+
+    vals <- df_result[[col_name]]
+    original_vals <- vals
+
+    # ---- Vectorized exclusion masks ----
+    is_na <- is.na(vals)
+    is_unat <- !is_na & grepl("^unat$", vals, ignore.case = TRUE)
+    is_d_prefix <- !is_na & !is_unat & grepl("^[dD]-[a-z]", vals)
+    is_compound_prefix <- !is_na & !is_unat & !is_d_prefix & grepl("^\\d+[A-Z][a-z]?-", vals)
+
+    # Rows eligible for expansion
+    eligible <- !is_na & !is_unat & !is_d_prefix & !is_compound_prefix
+
+    # ---- Special case: unat -> WARNING flag ----
+    if (any(is_unat)) {
+      unat_idx <- which(is_unat)
+      existing <- df_result$cleaning_flag[unat_idx]
+      new_flag <- "WARNING: unresolvable isotope (unat)"
+      df_result$cleaning_flag[unat_idx] <- ifelse(
+        is.na(existing), new_flag, paste0(existing, "; ", new_flag)
+      )
+    }
+
+    if (!any(eligible)) next
+
+    # Work only on eligible values
+    work_vals <- vals[eligible]
+
+    # ---- Pass 1: Naked shortcode expansion (vectorized per isotope) ----
+    for (i in seq_len(nrow(lookup))) {
+      sym <- lookup$symbol[i]
+      mass_num <- lookup$mass[i]
+      canonical <- lookup$canonical[i]
+
+      pattern <- paste0(
+        "(?<![0-9])\\b(?i:", stringr::str_escape(sym), ")(",
+        stringr::str_escape(mass_num), ")\\b(?![A-Z])"
+      )
+      work_vals <- gsub(pattern, canonical, work_vals, perl = TRUE)
+    }
+
+    # ---- Pass 2: Spelled-out normalization (vectorized per element+mass) ----
+    # Deduplicate to unique (element_name, mass, canonical) combos
+    spelled_lookup <- unique(lookup[, c("element_name", "mass", "canonical")])
+
+    for (i in seq_len(nrow(spelled_lookup))) {
+      elem_name <- spelled_lookup$element_name[i]
+      mass_num <- spelled_lookup$mass[i]
+      canonical <- spelled_lookup$canonical[i]
+
+      names_to_match <- elem_name
+      alt_matches <- names(ELEMENT_ALT_NAMES)[ELEMENT_ALT_NAMES == elem_name]
+      if (length(alt_matches) > 0) {
+        names_to_match <- c(names_to_match, alt_matches)
+      }
+
+      for (match_name in names_to_match) {
+        spelled_pattern <- paste0(
+          "(?i)\\b", stringr::str_escape(match_name),
+          "(?:\\s+|-)", stringr::str_escape(mass_num), "\\b"
+        )
+        work_vals <- gsub(spelled_pattern, canonical, work_vals, perl = TRUE)
+      }
+    }
+
+    # ---- Write back and build audit trail ----
+    vals[eligible] <- work_vals
+    df_result[[col_name]] <- vals
+
+    changed_mask <- eligible & (vals != original_vals)
+    if (any(changed_mask)) {
+      changed_idx <- which(changed_mask)
+      # Determine reason per row (shortcode vs normalization)
+      reasons <- ifelse(
+        original_vals[changed_idx] != vals[changed_idx] &
+          grepl("[a-z]\\d", original_vals[changed_idx], ignore.case = TRUE),
+        paste0("Isotope shortcode expanded in ", col_name),
+        paste0("Isotope form normalized in ", col_name)
+      )
+
+      # Use original_row_id if available (post-synonym-split dataframes have expanded rows)
+      rids <- if ("original_row_id" %in% names(df_result)) df_result$original_row_id[changed_idx] else changed_idx
+      audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
+        row_id = as.integer(rids),
+        field = col_name,
+        step = "expand_isotope_shortcodes",
+        original_value = original_vals[changed_idx],
+        new_value = vals[changed_idx],
+        reason = reasons
+      )
+    }
+  }
+
+  audit_trail <- if (length(audit_rows) == 0) empty_audit else dplyr::bind_rows(audit_rows)
+
+  # ---- Flag isotope-matched rows and populate isotope_dtxsid ----
+  if (nrow(audit_trail) > 0) {
+    # Rows that were changed by isotope expansion (any column)
+    changed_rows <- unique(audit_trail$row_id)
+
+    # Build canonical->dtxsid map from the lookup (only entries with non-NA DTXSID)
+    if ("dtxsid" %in% names(lookup)) {
+      dtxsid_map <- stats::setNames(lookup$dtxsid, lookup$canonical)
+      dtxsid_map <- dtxsid_map[!is.na(dtxsid_map)]
+    } else {
+      dtxsid_map <- character(0)
+    }
+
+    # Initialize isotope_dtxsid column if needed
+    if (!"isotope_dtxsid" %in% names(df_result)) {
+      df_result$isotope_dtxsid <- NA_character_
+    }
+
+    for (ridx in changed_rows) {
+      # Set cleaning_flag
+      existing_flag <- df_result$cleaning_flag[ridx]
+      df_result$cleaning_flag[ridx] <- if (is.na(existing_flag)) {
+        "isotope_match"
+      } else {
+        paste0(existing_flag, "; isotope_match")
+      }
+
+      # Try to resolve DTXSID from expanded canonical name
+      if (length(dtxsid_map) > 0) {
+        for (col_name in name_cols) {
+          if (!col_name %in% names(df_result)) next
+          val <- df_result[[col_name]][ridx]
+          if (!is.na(val) && val %in% names(dtxsid_map)) {
+            df_result$isotope_dtxsid[ridx] <- dtxsid_map[[val]]
+            break
+          }
+        }
+      }
+    }
+  }
+
+  list(cleaned_data = df_result, audit_trail = audit_trail)
+}
+
+#' Flag rows containing naked multi-analyte expressions
+#'
+#' Flags rows where name columns contain naked " + " or " and " between tokens
+#' as "WARNING: potential multi-analyte". Does NOT modify cell values (flag only per D-11).
+#'
+#' A naked " + " means a plus sign surrounded by whitespace and NOT inside parentheses.
+#' "(+)-catechin" is NOT flagged — the + is inside parentheses.
+#'
+#' @param df Dataframe with name columns
+#' @param name_cols Character vector of Name-tagged column names
+#' @return List with cleaned_data (tibble) and audit_trail (tibble)
+#'
+#' @examples
+#' df <- tibble::tibble(chemical_name = c("nitrate + nitrite", "(+)-catechin", "acetone"))
+#' flag_multi_analyte(df, c("chemical_name"))
+flag_multi_analyte <- function(df, name_cols) {
+  df_result <- df
+  audit_rows <- list()
+
+  # Add cleaning_flag column if missing
+  if (!"cleaning_flag" %in% names(df_result)) {
+    df_result$cleaning_flag <- NA_character_
+  }
+
+  # Pattern for naked " + ": whitespace + plus + whitespace
+  # NOT inside parentheses — we check this by requiring the + is not immediately
+  # preceded by "(" or followed by ")"
+  NAKED_PLUS_PATTERN <- "(?<!\\()\\s\\+\\s(?!\\))"
+
+  # Pattern for naked " and ": word boundary " and " word boundary (case-insensitive)
+  NAKED_AND_PATTERN <- "(?i)\\s+and\\s+"
+
+  for (col_name in name_cols) {
+    if (!col_name %in% names(df_result)) next
+
+    for (idx in seq_len(nrow(df_result))) {
+      original_value <- df_result[[col_name]][idx]
+
+      # Skip NA
+      if (is.na(original_value)) next
+
+      has_naked_plus <- grepl(NAKED_PLUS_PATTERN, original_value, perl = TRUE)
+      has_naked_and <- grepl(NAKED_AND_PATTERN, original_value, perl = TRUE)
+
+      if (!has_naked_plus && !has_naked_and) next
+
+      # Flag the row — value is UNCHANGED
+      existing_flag <- df_result$cleaning_flag[idx]
+      new_flag <- "WARNING: potential multi-analyte"
+      if (is.na(existing_flag)) {
+        df_result$cleaning_flag[idx] <- new_flag
+      } else {
+        df_result$cleaning_flag[idx] <- paste0(existing_flag, "; ", new_flag)
+      }
+
+      # Record audit trail entry — original_value == new_value (no change)
+      # Use original_row_id if available (post-synonym-split dataframes have expanded rows)
+      rid <- if ("original_row_id" %in% names(df_result)) df_result$original_row_id[idx] else idx
+      audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
+        row_id = as.integer(rid),
+        field = col_name,
+        step = "flag_multi_analyte",
+        original_value = original_value,
+        new_value = original_value,
+        reason = paste0("Potential multi-analyte expression detected in ", col_name)
+      )
+    }
+  }
+
+  # Build audit trail
+  audit_trail <- if (length(audit_rows) == 0) {
+    tibble::tibble(
+      row_id = integer(),
+      field = character(),
+      step = character(),
+      original_value = character(),
+      new_value = character(),
+      reason = character()
+    )
+  } else {
+    dplyr::bind_rows(audit_rows)
+  }
+
+  list(
+    cleaned_data = df_result,
+    audit_trail = audit_trail
   )
 }

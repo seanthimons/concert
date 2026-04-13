@@ -105,3 +105,30 @@ test_that("mod_review_results_server initializes without error", {
 # Note: Return value tests skipped due to testServer() limitations
 # Return values (preview_rows, tags_applied, curation_completed) are tested
 # implicitly via integration testing and manual smoke tests
+
+# UIPOL-01: Verify reactable call uses wrap = TRUE (not wrap = FALSE)
+test_that("UIPOL-01: review results reactable uses wrap=TRUE", {
+  src <- readLines(here::here("R/modules/mod_review_results.R"))
+  wrap_true_lines <- grep("wrap\\s*=\\s*TRUE", src)
+  expect_true(length(wrap_true_lines) > 0, info = "wrap = TRUE must be present in mod_review_results.R")
+  wrap_false_lines <- grep("wrap\\s*=\\s*FALSE", src)
+  expect_equal(length(wrap_false_lines), 0, info = "wrap = FALSE must not appear in mod_review_results.R")
+})
+
+# UIPOL-02: Verify elementId is not present in the reactable call
+test_that("UIPOL-02: review results reactable does not use elementId", {
+  src <- readLines(here::here("R/modules/mod_review_results.R"))
+  element_id_lines <- grep("elementId", src)
+  expect_equal(length(element_id_lines), 0, info = "elementId must not appear in mod_review_results.R")
+})
+
+# UIPOL-03: Verify unname() wraps unlist(queue) to prevent jsonlite named vector warning
+test_that("UIPOL-03: unlist(queue) is wrapped with unname() to prevent jsonlite warning", {
+  src <- readLines(here::here("R/modules/mod_review_results.R"))
+  # The fix must be present
+  unname_unlist_lines <- grep("unname\\(unlist\\(", src)
+  expect_true(length(unname_unlist_lines) > 0, info = "unname(unlist(...)) must be present in mod_review_results.R")
+  # The unfixed pattern must NOT be present (bare unlist(queue) without unname)
+  bare_unlist_lines <- grep("^\\s*all_dtxsids\\s*<-\\s*unlist\\(queue\\)", src)
+  expect_equal(length(bare_unlist_lines), 0, info = "bare unlist(queue) without unname() must not be present at the all_dtxsids assignment")
+})
