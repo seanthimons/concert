@@ -6,6 +6,7 @@
 #' @param id Module namespace ID
 #'
 #' @return UI elements for tag columns tab
+#' @export
 mod_tag_columns_ui <- function(id) {
   ns <- NS(id)
 
@@ -49,6 +50,7 @@ mod_tag_columns_ui <- function(id) {
 #' @param on_tags_applied Callback function to execute after tags applied (for navigation)
 #'
 #' @return Reactive list with tags_applied indicator
+#' @export
 mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
   moduleServer(id, function(input, output, session) {
 

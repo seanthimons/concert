@@ -6,6 +6,7 @@
 #' @param id Module namespace ID
 #'
 #' @return UI elements for clean data tab
+#' @export
 mod_clean_data_ui <- function(id) {
   ns <- NS(id)
 
@@ -104,6 +105,7 @@ mod_clean_data_ui <- function(id) {
 #' @param on_cleaning_complete Callback function to execute after cleaning completes (for navigation)
 #'
 #' @return Reactive list with cleaning indicators
+#' @export
 mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
   moduleServer(id, function(input, output, session) {
 

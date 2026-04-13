@@ -6,6 +6,7 @@
 #' @param id Module namespace ID
 #'
 #' @return UI elements for run curation tab
+#' @export
 mod_run_curation_ui <- function(id) {
   ns <- NS(id)
 
@@ -51,6 +52,7 @@ mod_run_curation_ui <- function(id) {
 #' @param on_curation_complete Callback function to execute after curation completes (for navigation)
 #'
 #' @return Reactive list with curation_completed indicator
+#' @export
 mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL) {
   moduleServer(id, function(input, output, session) {
 

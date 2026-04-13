@@ -6,6 +6,7 @@
 #' @param id Module namespace ID
 #'
 #' @return UI elements for raw data tab
+#' @export
 mod_raw_data_ui <- function(id) {
   ns <- NS(id)
 
@@ -24,6 +25,7 @@ mod_raw_data_ui <- function(id) {
 #' @param data_store Reactive values store from main app
 #'
 #' @return NULL (module has no return values)
+#' @export
 mod_raw_data_server <- function(id, data_store) {
   moduleServer(id, function(input, output, session) {
 

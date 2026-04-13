@@ -6,6 +6,7 @@
 #' @param id Module namespace ID
 #'
 #' @return UI elements for data preview tab
+#' @export
 mod_data_preview_ui <- function(id) {
   ns <- NS(id)
 
@@ -33,6 +34,7 @@ mod_data_preview_ui <- function(id) {
 #' @param preview_rows Reactive integer for number of rows to preview
 #'
 #' @return NULL (module has no return values)
+#' @export
 mod_data_preview_server <- function(id, data_store, preview_rows) {
   moduleServer(id, function(input, output, session) {
 

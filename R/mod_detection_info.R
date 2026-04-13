@@ -6,6 +6,7 @@
 #' @param id Module namespace ID
 #'
 #' @return UI elements for detection info tab
+#' @export
 mod_detection_info_ui <- function(id) {
   ns <- NS(id)
 
@@ -18,6 +19,7 @@ mod_detection_info_ui <- function(id) {
 #' @param data_store Reactive values store from main app
 #'
 #' @return NULL (module has no return values)
+#' @export
 mod_detection_info_server <- function(id, data_store) {
   moduleServer(id, function(input, output, session) {
 
