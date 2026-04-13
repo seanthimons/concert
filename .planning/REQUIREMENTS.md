@@ -68,27 +68,25 @@
 
 ## Traceability
 
-*(Filled by roadmapper)*
-
-| REQ-ID | Phase |
-|--------|-------|
-| PKG-01 | TBD |
-| PKG-02 | TBD |
-| PKG-03 | TBD |
-| SRC-01 | TBD |
-| SRC-02 | TBD |
-| SRC-03 | TBD |
-| SRC-04 | TBD |
-| APP-01 | TBD |
-| APP-02 | TBD |
-| APP-03 | TBD |
-| APP-04 | TBD |
-| APP-05 | TBD |
-| HDL-01 | TBD |
-| HDL-02 | TBD |
-| HDL-03 | TBD |
-| HDL-04 | TBD |
-| TST-01 | TBD |
-| TST-02 | TBD |
-| TST-03 | TBD |
-| TST-04 | TBD |
+| REQ-ID | Phase | Status |
+|--------|-------|--------|
+| PKG-01 | Phase 24 | Pending |
+| PKG-02 | Phase 24 | Pending |
+| PKG-03 | Phase 24 | Pending |
+| SRC-01 | Phase 25 | Pending |
+| SRC-02 | Phase 25 | Pending |
+| SRC-03 | Phase 25 | Pending |
+| SRC-04 | Phase 25 | Pending |
+| APP-01 | Phase 26 | Pending |
+| APP-02 | Phase 26 | Pending |
+| APP-03 | Phase 26 | Pending |
+| APP-04 | Phase 26 | Pending |
+| APP-05 | Phase 26 | Pending |
+| HDL-01 | Phase 27 | Pending |
+| HDL-02 | Phase 27 | Pending |
+| HDL-03 | Phase 27 | Pending |
+| HDL-04 | Phase 27 | Pending |
+| TST-01 | Phase 28 | Pending |
+| TST-02 | Phase 28 | Pending |
+| TST-03 | Phase 28 | Pending |
+| TST-04 | Phase 28 | Pending |
