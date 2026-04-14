@@ -217,3 +217,135 @@ test_that("orig_row_id: assigned as sequential integers from 1 to length", {
   result <- parse_numeric_results(c("1", "2", "3"))
   expect_equal(result$orig_row_id, 1:3)
 })
+
+# ---- Range splitting (PARS-03) ----
+
+test_that("range: '5-10' produces 3 rows all with orig_row_id = 1", {
+  result <- parse_numeric_results(c("5-10"))
+  expect_equal(nrow(result), 3)
+  expect_equal(result$orig_row_id, c(1L, 1L, 1L))
+})
+
+test_that("range: '5-10' low row has numeric_value=5, qualifier='>=', range_bin='low'", {
+  result <- parse_numeric_results(c("5-10"))
+  low <- result[result$range_bin == "low", ]
+  expect_equal(low$numeric_value, 5)
+  expect_equal(low$qualifier, ">=")
+  expect_equal(low$range_bin, "low")
+})
+
+test_that("range: '5-10' mid row has numeric_value=7.5, qualifier='~', range_bin='mid'", {
+  result <- parse_numeric_results(c("5-10"))
+  mid <- result[result$range_bin == "mid", ]
+  expect_equal(mid$numeric_value, 7.5)
+  expect_equal(mid$qualifier, "~")
+  expect_equal(mid$range_bin, "mid")
+})
+
+test_that("range: '5-10' high row has numeric_value=10, qualifier='<=', range_bin='high'", {
+  result <- parse_numeric_results(c("5-10"))
+  high <- result[result$range_bin == "high", ]
+  expect_equal(high$numeric_value, 10)
+  expect_equal(high$qualifier, "<=")
+  expect_equal(high$range_bin, "high")
+})
+
+test_that("range: '0.5-1.0' decimal range splits correctly (low=0.5, mid=0.75, high=1.0)", {
+  result <- parse_numeric_results(c("0.5-1.0"))
+  expect_equal(nrow(result), 3)
+  expect_equal(result$numeric_value[result$range_bin == "low"], 0.5)
+  expect_equal(result$numeric_value[result$range_bin == "mid"], 0.75)
+  expect_equal(result$numeric_value[result$range_bin == "high"], 1.0)
+})
+
+test_that("range: '100-200' mid = 150", {
+  result <- parse_numeric_results(c("100-200"))
+  expect_equal(result$numeric_value[result$range_bin == "mid"], 150)
+})
+
+test_that("range: parse_flag is '' (empty string) for all range rows", {
+  result <- parse_numeric_results(c("5-10"))
+  expect_true(all(result$parse_flag == ""))
+})
+
+test_that("range: orig_result preserved as '5-10' for all 3 range rows (not split)", {
+  result <- parse_numeric_results(c("5-10"))
+  expect_true(all(result$orig_result == "5-10"))
+})
+
+# ---- Numeric pre-guard: NOT ranges ----
+
+test_that("not a range: '-5' is a negative number, returns 1 row with numeric_value=-5", {
+  result <- parse_numeric_results(c("-5"))
+  expect_equal(nrow(result), 1)
+  expect_equal(result$numeric_value, -5)
+  expect_equal(result$range_bin, "as_is")
+})
+
+test_that("not a range: negative decimal '-0.5' returns 1 row with numeric_value=-0.5", {
+  result <- parse_numeric_results(c("-0.5"))
+  expect_equal(nrow(result), 1)
+  expect_equal(result$numeric_value, -0.5)
+})
+
+test_that("not a range: '1e-3' scientific notation returns 1 row with numeric_value=0.001", {
+  result <- parse_numeric_results(c("1e-3"))
+  expect_equal(nrow(result), 1)
+  expect_equal(result$numeric_value, 0.001)
+})
+
+test_that("not a range: '1.5E-4' scientific notation returns 1 row with numeric_value=0.00015", {
+  result <- parse_numeric_results(c("1.5E-4"))
+  expect_equal(nrow(result), 1)
+  expect_equal(result$numeric_value, 0.00015)
+})
+
+test_that("not a range: Fortran exponent '4.56+02' returns 1 row with numeric_value=456", {
+  result <- parse_numeric_results(c("4.56+02"))
+  expect_equal(nrow(result), 1)
+  expect_equal(result$numeric_value, 456)
+})
+
+test_that("not a range: '<5' qualified value returns 1 row with range_bin='as_is' (D-04)", {
+  result <- parse_numeric_results(c("<5"))
+  expect_equal(nrow(result), 1)
+  expect_equal(result$range_bin, "as_is")
+})
+
+test_that("not a range: '>100' qualified value returns 1 row with range_bin='as_is' (D-04)", {
+  result <- parse_numeric_results(c(">100"))
+  expect_equal(nrow(result), 1)
+  expect_equal(result$range_bin, "as_is")
+})
+
+# ---- Range edge cases: negative bounds ----
+
+test_that("range: '-10--5' negative range produces 3 rows, low=-10, mid=-7.5, high=-5", {
+  result <- parse_numeric_results(c("-10--5"))
+  expect_equal(nrow(result), 3)
+  expect_equal(result$numeric_value[result$range_bin == "low"], -10)
+  expect_equal(result$numeric_value[result$range_bin == "mid"], -7.5)
+  expect_equal(result$numeric_value[result$range_bin == "high"], -5)
+})
+
+test_that("range: '-10-5' negative to positive range produces 3 rows, low=-10, mid=-2.5, high=5", {
+  result <- parse_numeric_results(c("-10-5"))
+  expect_equal(nrow(result), 3)
+  expect_equal(result$numeric_value[result$range_bin == "low"], -10)
+  expect_equal(result$numeric_value[result$range_bin == "mid"], -2.5)
+  expect_equal(result$numeric_value[result$range_bin == "high"], 5)
+})
+
+# ---- Range integration: mixed vectors ----
+
+test_that("range integration: c('5-10', '20', '<3') produces 5 rows total", {
+  result <- suppressWarnings(parse_numeric_results(c("5-10", "20", "<3")))
+  expect_equal(nrow(result), 5)
+})
+
+test_that("range integration: orig_row_id linkage — first range gets id=1, second value gets id=2", {
+  result <- parse_numeric_results(c("5-10", "20"))
+  # 3 rows with id=1 (range), 1 row with id=2 (single)
+  expect_equal(sum(result$orig_row_id == 1), 3)
+  expect_equal(sum(result$orig_row_id == 2), 1)
+})
