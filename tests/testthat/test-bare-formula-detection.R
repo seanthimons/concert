@@ -1,14 +1,6 @@
 # Test file for bare molecular formula detection
 # Tests detect_bare_formulas function using ComptoxR validator regex
 
-library(testthat)
-library(here)
-library(tibble)
-library(dplyr)
-
-# Source the pipeline module
-source(here::here("R", "cleaning_pipeline.R"))
-
 test_that("detect_bare_formulas identifies H2O as bare formula", {
   df <- tibble::tibble(
     chemical_name = c("H2O", "acetone", "ethanol")

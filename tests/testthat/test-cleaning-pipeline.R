@@ -1,12 +1,6 @@
 # Test file for cleaning_pipeline.R
 # Tests unicode-to-ASCII conversion, text trimming, and audit trail construction
 
-library(testthat)
-library(here)
-
-# Source the cleaning pipeline module
-source(here::here("R", "cleaning_pipeline.R"))
-
 test_that("ComptoxR::clean_unicode handles chemistry-specific unicode", {
   # Test: Greek alpha becomes 'alpha' (plain text, current ComptoxR format)
   expect_equal(ComptoxR::clean_unicode("\u03B1-tocopherol"), "alpha-tocopherol")

@@ -1,17 +1,6 @@
 # test_export_import.R
 # Unit tests for multi-sheet export builder, config import, and Excel validation
 
-library(testthat)
-library(dplyr)
-library(tibble)
-library(readxl)
-library(writexl)
-library(here)
-
-# Source the functions under test
-source(here::here("R", "export_helpers.R"))
-source(here::here("R", "config_import.R"))
-
 # ===== Test Data Setup =====
 
 # Create synthetic test data matching data_store structure

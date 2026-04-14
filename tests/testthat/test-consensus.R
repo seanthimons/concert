@@ -1,8 +1,3 @@
-library(testthat)
-
-# Source the consensus functions
-source(file.path(here::here(), "R", "consensus.R"))
-
 # ============================================================================
 # Test Group 1: find_dtxsid_cols
 # ============================================================================
@@ -523,9 +518,6 @@ test_that("init_resolution_state preserves existing .manual_entry", {
 # ============================================================================
 # Test Group 12: merge_retry_results
 # ============================================================================
-
-# Source the curation module (needed for merge_retry_results)
-source(file.path(here::here(), "R", "curation.R"))
 
 test_that("merge_retry_results: basic merge updates selected rows only", {
   # Original state: 5 rows, rows 2 and 4 have error status

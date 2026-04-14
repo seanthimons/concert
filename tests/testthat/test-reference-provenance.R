@@ -1,13 +1,7 @@
 # Test file for reference list provenance tracking
 # Tests that reference lists return tibbles with (term, source, active) columns
 
-library(testthat)
-library(here)
 library(withr)
-library(tibble)
-
-# Source the reference module
-source(here::here("R", "cleaning_reference.R"))
 
 test_that("load_stop_words returns tibble with provenance columns", {
   withr::with_tempdir({
@@ -118,12 +112,15 @@ test_that("load_all_reference_lists returns named list with all three tibbles", 
 
     # Check structure
     expect_type(result, "list")
-    expect_named(result, c("stop_words", "block_patterns", "functional_categories"))
+    expect_named(result, c("stop_words", "block_patterns", "functional_categories", "strip_terms", "isotope_lookup"))
 
-    # Check all three are tibbles
+    # Check all are tibbles (isotope_lookup is a list with $lookup tibble)
     expect_true(tibble::is_tibble(result$stop_words))
     expect_true(tibble::is_tibble(result$block_patterns))
     expect_true(tibble::is_tibble(result$functional_categories))
+    expect_true(tibble::is_tibble(result$strip_terms))
+    expect_type(result$isotope_lookup, "list")
+    expect_true(tibble::is_tibble(result$isotope_lookup$lookup))
 
     # Check all have correct columns
     expect_named(result$stop_words, c("term", "source", "active"))

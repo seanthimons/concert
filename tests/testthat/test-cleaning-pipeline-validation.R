@@ -7,15 +7,6 @@
 # 2. Stop word matching uses whole-word boundaries (na doesn't flag Naphthalene)
 # 3. IUPAC letter-comma-letter patterns aren't split (N,N-Dimethylformamide)
 
-library(testthat)
-library(here)
-library(tibble)
-library(dplyr)
-library(stringr)
-
-# Source the pipeline
-source(here::here("R", "cleaning_pipeline.R"))
-
 # Test Group 1: Formula detection false positives fixed
 test_that("Validation: Formula detection false positives fixed", {
   # Create test dataset

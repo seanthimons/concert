@@ -1,14 +1,6 @@
 # Test file for reference list flag matching
 # Tests flag_reference_matches function with exact-then-substring matching
 
-library(testthat)
-library(here)
-library(tibble)
-library(dplyr)
-
-# Source the pipeline module
-source(here::here("R", "cleaning_pipeline.R"))
-
 test_that("flag_reference_matches performs exact matching", {
   df <- tibble::tibble(
     chemical_name = c("plasticizer", "acetone", "solvent")
