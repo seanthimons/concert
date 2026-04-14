@@ -119,7 +119,7 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. `tests/testthat.R` runner file exists and `devtools::test()` discovers and executes all tests
   2. All test files follow `tests/testthat/test-*.R` naming convention (dash, not underscore)
-  3. The pre-existing `load_all_reference_lists` key-count failure is fixed — test now expects 4 keys including `strip_terms`
+  3. The pre-existing `load_all_reference_lists` key-count failure is fixed — test now expects 5 keys (stop_words, block_patterns, functional_categories, strip_terms, isotope_lookup)
   4. `devtools::test()` completes with zero failures and zero errors across all test files
 **Plans:** 1 plan
 Plans:
