@@ -112,7 +112,7 @@ curate_headless <- function(input_path,
     # ------------------------------------------------------------------
     # Step 6: Validate tag_map against cleaned column names
     # ------------------------------------------------------------------
-    missing_cols <- setdiff(unlist(tag_map), names(clean_data))
+    missing_cols <- setdiff(names(tag_map), names(clean_data))
     if (length(missing_cols) > 0) {
       stop(sprintf(
         "curate_headless: tag_map column names not found after normalization: %s\nActual columns: %s",
