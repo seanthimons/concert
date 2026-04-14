@@ -89,11 +89,12 @@ test_that("load_all_reference_lists returns expected structure", {
 
     result <- load_all_reference_lists(cache_dir)
 
-    # Check structure - function now returns 5 keys:
+    # Check structure - function now returns 6 keys:
     # stop_words, block_patterns, functional_categories added Phase 13;
-    # strip_terms added Phase 21; isotope_lookup added Phase 23
+    # strip_terms added Phase 21; isotope_lookup added Phase 23;
+    # unit_map added Phase 29
     expect_type(result, "list")
-    expect_named(result, c("stop_words", "block_patterns", "functional_categories", "strip_terms", "isotope_lookup"))
+    expect_named(result, c("stop_words", "block_patterns", "functional_categories", "strip_terms", "isotope_lookup", "unit_map"))
 
     # Check types - all should be tibbles
     expect_true(tibble::is_tibble(result$stop_words))
@@ -103,6 +104,8 @@ test_that("load_all_reference_lists returns expected structure", {
     # isotope_lookup is a list with $lookup (tibble) and $elem_alt_names (character vector)
     expect_type(result$isotope_lookup, "list")
     expect_true(tibble::is_tibble(result$isotope_lookup$lookup))
+    # unit_map is a tibble
+    expect_true(tibble::is_tibble(result$unit_map))
   })
 })
 
@@ -141,5 +144,68 @@ test_that("load_block_patterns returns expected default block patterns", {
 
     # Should be regex patterns (not empty strings)
     expect_true(all(nchar(result$term) > 0))
+  })
+})
+
+test_that("load_unit_map returns correct structure", {
+  # Locate inst/extdata: when devtools::test() runs, wd is package root;
+  # when test_file() runs directly, wd is tests/testthat/. Probe both.
+  candidates <- c(
+    file.path(getwd(), "inst", "extdata"),
+    file.path(getwd(), "..", "..", "inst", "extdata")
+  )
+  cache_dir <- candidates[sapply(candidates, function(d) file.exists(file.path(d, "unit_conversion.rds")))][1]
+  if (is.na(cache_dir)) skip("unit_conversion.rds not found")
+
+  result <- load_unit_map(cache_dir)
+
+  # Check type
+  expect_s3_class(result, "tbl_df")
+
+  # Check required columns
+  expected_cols <- c("from_unit", "to_unit", "multiplier", "category", "confidence", "source")
+  expect_true(all(expected_cols %in% names(result)))
+
+  # Check column types
+  expect_type(result$from_unit, "character")
+  expect_type(result$to_unit, "character")
+  expect_type(result$multiplier, "double")
+  expect_type(result$category, "character")
+  expect_type(result$confidence, "character")
+  expect_type(result$source, "character")
+
+  # Check minimum row count
+  expect_gte(nrow(result), 100)
+})
+
+test_that("load_unit_map contains expected conversions", {
+  # Locate inst/extdata: when devtools::test() runs, wd is package root;
+  # when test_file() runs directly, wd is tests/testthat/. Probe both.
+  candidates <- c(
+    file.path(getwd(), "inst", "extdata"),
+    file.path(getwd(), "..", "..", "inst", "extdata")
+  )
+  cache_dir <- candidates[sapply(candidates, function(d) file.exists(file.path(d, "unit_conversion.rds")))][1]
+  if (is.na(cache_dir)) skip("unit_conversion.rds not found")
+
+  result <- load_unit_map(cache_dir)
+
+  # Check for ppb -> mg/L conversion
+  ppb_row <- result[result$from_unit == "ppb" & result$to_unit == "mg/L", ]
+  expect_equal(nrow(ppb_row), 1)
+  expect_equal(ppb_row$multiplier, 0.001)
+
+  # Check for ug/L -> mg/L conversion
+  ugl_row <- result[result$from_unit == "ug/L" & result$to_unit == "mg/L", ]
+  expect_equal(nrow(ugl_row), 1)
+  expect_equal(ugl_row$multiplier, 0.001)
+})
+
+test_that("load_all_reference_lists includes unit_map", {
+  withr::with_tempdir({
+    cache_dir <- "test_cache"
+    result <- load_all_reference_lists(cache_dir)
+
+    expect_true("unit_map" %in% names(result))
   })
 })
