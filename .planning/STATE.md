@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Number and Unit Coercion Harmonization
-status: executing
-stopped_at: Completed 30-01-PLAN.md
-last_updated: "2026-04-14T22:08:13.656Z"
+status: verifying
+stopped_at: Completed 30-02-PLAN.md
+last_updated: "2026-04-14T22:17:23.792Z"
 last_activity: 2026-04-14
 progress:
   total_phases: 15
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 12
-  completed_plans: 11
+  completed_plans: 12
   percent: 0
 ---
 
@@ -18,7 +18,7 @@ progress:
 
 **Last Updated:** 2026-04-14
 **Milestone:** v1.9 Number and Unit Coercion Harmonization
-**Status:** Ready to execute
+**Status:** Phase complete — ready for verification
 
 ---
 
@@ -35,7 +35,7 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 
 Phase: 30 (numeric-result-parser) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-14
 
 Progress: ░░░░░░░░░░ 0% (0/7 phases)
@@ -83,6 +83,8 @@ Notable additions in v1.7:
 - [Phase 29-static-data-foundations]: Zero-row tibble via tibble()[0,] slice — tibble() with scalar NAs creates 1-row, must slice
 - [Phase 30]: Fortran exponent detection uses ifelse()+grepl() guard to avoid false matches on standard sci notation
 - [Phase 30]: Multi-pass comma stripping via 3-iteration for loop (vectorized, avoids while-grepl on vectors)
+- [Phase 30]: Range detection before Fortran normalization: normalize_numeric_string Fortran step converts '5-10' to '5e-10', so split_ranges must operate on pre-Fortran form
+- [Phase 30]: Tighter Fortran guard in split_ranges: decimal-mantissa-required regex distinguishes '4.56-02' (Fortran) from '5-10' (range) at pre-norm stage
 
 ### Pending Todos
 
@@ -96,8 +98,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-14T22:08:13.651Z
-Stopped at: Completed 30-01-PLAN.md
+Last session: 2026-04-14T22:17:23.787Z
+Stopped at: Completed 30-02-PLAN.md
 Resume file: None
 
 ---

@@ -18,7 +18,7 @@ Requirements for Number and Unit Coercion Harmonization milestone. Each maps to 
 
 - [x] **PARS-01**: Normalization chain — whitespace removal, `x10^` → `e`, Fortran exponents (`4.56+02`), comma stripping
 - [x] **PARS-02**: Qualifier extraction (`<`, `>`, `<=`, `>=`, `~`) before any range splitting
-- [ ] **PARS-03**: Range splitting with stable `.id` column — `"5-10"` → low/mid/high rows, numeric pre-guard to protect negatives and exponents
+- [x] **PARS-03**: Range splitting with stable `.id` column — `"5-10"` → low/mid/high rows, numeric pre-guard to protect negatives and exponents
 - [x] **PARS-04**: Parse result tibble structure: `numeric_value`, `qualifier`, `range_bin` (as_is/low/mid/high), `parse_flag`
 - [x] **PARS-05**: `orig_result` capture as absolute first step before any transformation for audit trail
 - [ ] **PARS-06**: One-off corrections table — user-editable `(pattern, replacement)` for source-specific malformed values
@@ -89,7 +89,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DATA-04 | Phase 34 | Pending |
 | PARS-01 | Phase 30 | Complete |
 | PARS-02 | Phase 30 | Complete |
-| PARS-03 | Phase 30 | Pending |
+| PARS-03 | Phase 30 | Complete |
 | PARS-04 | Phase 30 | Complete |
 | PARS-05 | Phase 30 | Complete |
 | PARS-06 | Phase 34 | Pending |
