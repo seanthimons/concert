@@ -31,10 +31,10 @@
 
 ### Headless Pipeline
 
-- [ ] **HDL-01**: `curate_headless(input_path, output_path, tag_map, skip_flags)` is an exported function in the package
-- [ ] **HDL-02**: `curate_headless()` runs the full pipeline: file read → frontmatter detect → clean data → cleaning pipeline → dedup → CompTox search → consensus → XLSX export
-- [ ] **HDL-03**: `curate_headless()` produces a valid XLSX output when run against `uncurated_sswqs.csv`
-- [ ] **HDL-04**: `curate_headless()` returns a list with `data` and `audit_trail` invisibly
+- [x] **HDL-01**: `curate_headless(input_path, output_path, tag_map, skip_flags)` is an exported function in the package
+- [x] **HDL-02**: `curate_headless()` runs the full pipeline: file read → frontmatter detect → clean data → cleaning pipeline → dedup → CompTox search → consensus → XLSX export
+- [x] **HDL-03**: `curate_headless()` produces a valid XLSX output when run against `uncurated_sswqs.csv`
+- [x] **HDL-04**: `curate_headless()` returns a list with `data` and `audit_trail` invisibly
 
 ### Test Migration
 
@@ -82,10 +82,10 @@
 | APP-03 | Phase 26 | Complete |
 | APP-04 | Phase 26 | Complete |
 | APP-05 | Phase 26 | Complete |
-| HDL-01 | Phase 27 | Pending |
-| HDL-02 | Phase 27 | Pending |
-| HDL-03 | Phase 27 | Pending |
-| HDL-04 | Phase 27 | Pending |
+| HDL-01 | Phase 27 | Complete |
+| HDL-02 | Phase 27 | Complete |
+| HDL-03 | Phase 27 | Complete |
+| HDL-04 | Phase 27 | Complete |
 | TST-01 | Phase 28 | Pending |
 | TST-02 | Phase 28 | Pending |
 | TST-03 | Phase 28 | Pending |
