@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Number and Unit Coercion Harmonization
-status: verifying
+status: planning
 stopped_at: Completed 29-02-PLAN.md (ToxVal schema manifest and loader)
-last_updated: "2026-04-14T20:05:50.993Z"
+last_updated: "2026-04-14T20:09:16.998Z"
 last_activity: 2026-04-14
 progress:
   total_phases: 15
@@ -18,7 +18,7 @@ progress:
 
 **Last Updated:** 2026-04-14
 **Milestone:** v1.9 Number and Unit Coercion Harmonization
-**Status:** Phase complete — ready for verification
+**Status:** Ready to plan
 
 ---
 
@@ -33,8 +33,8 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 
 ## Current Position
 
-Phase: 29 (static-data-foundations) — EXECUTING
-Plan: 2 of 2
+Phase: 30
+Plan: Not started
 Status: Phase complete — ready for verification
 Last activity: 2026-04-14
 
