@@ -1,28 +1,20 @@
-library(testthat)
-
-# Source required modules
-source(file.path(here::here(), "R", "consensus.R"))
-source(file.path(here::here(), "R", "curation.R"))
-
 # ============================================================================
 # Test Group 1: enrich_candidates - basic functionality
 # ============================================================================
 
 test_that("enrich_candidates returns structured cache tibble for valid DTXSIDs", {
-  # Mock ComptoxR::ct_chemical_detail_search() to return synthetic data
-  mock_ct_details <- function(dtxsids, projection = "standard") {
-    tibble::tibble(
-      dtxsid = dtxsids,
-      casrn = c("108-88-3", "64-17-5"),
-      molFormula = c("C7H8", "C2H6O"),
-      molecularWeight = c(92.14, 46.07)
-    )
-  }
+  # Mock ComptoxR::ct_chemical_detail_search_bulk() to return synthetic data
+  mock_response <- tibble::tibble(
+    dtxsid = c("DTXSID7021360", "DTXSID9020584"),
+    casrn = c("108-88-3", "64-17-5"),
+    molFormula = c("C7H8", "C2H6O"),
+    molecularWeight = c(92.14, 46.07)
+  )
 
-  # Temporarily replace ct_details
-  original_fn <- ComptoxR::ct_chemical_detail_search()
-  assignInNamespace("ct_details", mock_ct_details, ns = "ComptoxR")
-  on.exit(assignInNamespace("ct_details", original_fn, ns = "ComptoxR"), add = TRUE)
+  testthat::local_mocked_bindings(
+    ct_chemical_detail_search_bulk = function(...) mock_response,
+    .package = "ComptoxR"
+  )
 
   result <- enrich_candidates(
     dtxsids = c("DTXSID7021360", "DTXSID9020584")
@@ -49,19 +41,18 @@ test_that("enrich_candidates returns structured cache tibble for valid DTXSIDs",
 
 test_that("enrich_candidates skips already-cached DTXSIDs", {
   call_count <- 0
-  mock_ct_details <- function(dtxsids, projection = "standard") {
-    call_count <<- call_count + 1
-    tibble::tibble(
-      dtxsid = dtxsids,
-      casrn = rep("999-99-9", length(dtxsids)),
-      molFormula = rep("H2O", length(dtxsids)),
-      molecularWeight = rep(18.02, length(dtxsids))
-    )
-  }
-
-  original_fn <- ComptoxR::ct_chemical_detail_search()
-  assignInNamespace("ct_details", mock_ct_details, ns = "ComptoxR")
-  on.exit(assignInNamespace("ct_details", original_fn, ns = "ComptoxR"), add = TRUE)
+  testthat::local_mocked_bindings(
+    ct_chemical_detail_search_bulk = function(dtxsids, ...) {
+      call_count <<- call_count + 1
+      tibble::tibble(
+        dtxsid = dtxsids,
+        casrn = rep("999-99-9", length(dtxsids)),
+        molFormula = rep("H2O", length(dtxsids)),
+        molecularWeight = rep(18.02, length(dtxsids))
+      )
+    },
+    .package = "ComptoxR"
+  )
 
   existing_cache <- tibble::tibble(
     dtxsid = "DTXSID7021360",
@@ -88,13 +79,12 @@ test_that("enrich_candidates skips already-cached DTXSIDs", {
 
 test_that("enrich_candidates returns existing_cache when all DTXSIDs already cached", {
   # Mock should NOT be called
-  mock_ct_details <- function(dtxsids, projection = "standard") {
-    stop("Should not be called when all DTXSIDs are cached")
-  }
-
-  original_fn <- ComptoxR::ct_chemical_detail_search()
-  assignInNamespace("ct_details", mock_ct_details, ns = "ComptoxR")
-  on.exit(assignInNamespace("ct_details", original_fn, ns = "ComptoxR"), add = TRUE)
+  testthat::local_mocked_bindings(
+    ct_chemical_detail_search_bulk = function(...) {
+      stop("Should not be called when all DTXSIDs are cached")
+    },
+    .package = "ComptoxR"
+  )
 
   existing_cache <- tibble::tibble(
     dtxsid = c("DTXSID7021360", "DTXSID9020584"),
@@ -131,13 +121,10 @@ test_that("enrich_candidates with empty DTXSIDs returns empty cache", {
 # ============================================================================
 
 test_that("enrich_candidates handles total API failure gracefully", {
-  mock_ct_details <- function(dtxsids, projection = "standard") {
-    stop("API connection refused")
-  }
-
-  original_fn <- ComptoxR::ct_chemical_detail_search()
-  assignInNamespace("ct_details", mock_ct_details, ns = "ComptoxR")
-  on.exit(assignInNamespace("ct_details", original_fn, ns = "ComptoxR"), add = TRUE)
+  testthat::local_mocked_bindings(
+    ct_chemical_detail_search_bulk = function(...) stop("API connection refused"),
+    .package = "ComptoxR"
+  )
 
   result <- enrich_candidates(
     dtxsids = c("DTXSID7021360", "DTXSID9020584")
@@ -152,13 +139,10 @@ test_that("enrich_candidates handles total API failure gracefully", {
 })
 
 test_that("enrich_candidates handles API failure with existing_cache", {
-  mock_ct_details <- function(dtxsids, projection = "standard") {
-    stop("API timeout")
-  }
-
-  original_fn <- ComptoxR::ct_chemical_detail_search()
-  assignInNamespace("ct_details", mock_ct_details, ns = "ComptoxR")
-  on.exit(assignInNamespace("ct_details", original_fn, ns = "ComptoxR"), add = TRUE)
+  testthat::local_mocked_bindings(
+    ct_chemical_detail_search_bulk = function(...) stop("API timeout"),
+    .package = "ComptoxR"
+  )
 
   existing_cache <- tibble::tibble(
     dtxsid = "DTXSID7021360",
@@ -183,19 +167,18 @@ test_that("enrich_candidates handles API failure with existing_cache", {
 # ============================================================================
 
 test_that("enrich_candidates handles partial API response (some DTXSIDs missing)", {
-  mock_ct_details <- function(dtxsids, projection = "standard") {
-    # Only return data for first DTXSID
-    tibble::tibble(
-      dtxsid = dtxsids[1],
-      casrn = "108-88-3",
-      molFormula = "C7H8",
-      molecularWeight = 92.14
-    )
-  }
-
-  original_fn <- ComptoxR::ct_chemical_detail_search()
-  assignInNamespace("ct_details", mock_ct_details, ns = "ComptoxR")
-  on.exit(assignInNamespace("ct_details", original_fn, ns = "ComptoxR"), add = TRUE)
+  testthat::local_mocked_bindings(
+    ct_chemical_detail_search_bulk = function(dtxsids, ...) {
+      # Only return data for first DTXSID
+      tibble::tibble(
+        dtxsid = dtxsids[1],
+        casrn = "108-88-3",
+        molFormula = "C7H8",
+        molecularWeight = 92.14
+      )
+    },
+    .package = "ComptoxR"
+  )
 
   result <- enrich_candidates(
     dtxsids = c("DTXSID7021360", "DTXSID9020584")

@@ -840,7 +840,21 @@ enrich_candidates <- function(dtxsids, existing_cache = NULL) {
 
   message(sprintf("[enrich] Fetching details for %d unique DTXSIDs...", length(dtxsids_to_fetch)))
 
-  raw <- suppressMessages(ComptoxR::ct_chemical_detail_search_bulk(dtxsids_to_fetch))
+  api_error <- NULL
+  raw <- tryCatch(
+    suppressMessages(ComptoxR::ct_chemical_detail_search_bulk(dtxsids_to_fetch)),
+    error = function(e) {
+      message(sprintf("[enrich] API call failed: %s", conditionMessage(e)))
+      api_error <<- conditionMessage(e)
+      NULL
+    }
+  )
+
+  # Handle API call failure (error thrown, not just empty result)
+  if (!is.null(api_error)) {
+    combined <- existing_cache %||% empty_cache
+    return(list(cache = combined, failed_dtxsids = dtxsids_to_fetch))
+  }
 
   if (is.null(raw) || (is.data.frame(raw) && nrow(raw) == 0)) {
     message("[enrich] API returned no results")

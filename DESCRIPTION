@@ -37,6 +37,7 @@ Imports:
     tools,
     writexl
 Suggests:
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    withr
 Remotes:
     seanthimons/ComptoxR

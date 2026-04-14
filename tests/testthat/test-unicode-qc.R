@@ -1,13 +1,6 @@
 # Test file for perform_unicode_qc function
 # Tests post-curation QC detection (read-only, no modification)
 
-library(testthat)
-library(here)
-
-# Source dependencies
-source(here::here("load_packages.R"))
-source(here::here("R", "cleaning_pipeline.R"))
-
 test_that("perform_unicode_qc on clean data returns zero issues", {
   # All ASCII data
   clean_df <- tibble::tibble(

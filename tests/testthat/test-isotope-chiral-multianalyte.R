@@ -1,14 +1,6 @@
 # Test file for isotope shortcode expansion, chiral designation protection, and multi-analyte flagging
 # Tests for: protect_chiral_designations, expand_isotope_shortcodes, flag_multi_analyte
 
-library(testthat)
-library(here)
-library(tibble)
-library(dplyr)
-
-# Source the pipeline module
-source(here::here("R", "cleaning_pipeline.R"))
-
 # ==============================================================================
 # Tests for protect_chiral_designations()
 # ==============================================================================

@@ -1,13 +1,6 @@
 # Test file for CAS pipeline functions
 # Tests for CAS-RN normalization, validation, rescue from text, and multi-CAS detection
 
-library(testthat)
-library(here)
-library(tibble)
-
-# Source the cleaning pipeline module
-source(here::here("R", "cleaning_pipeline.R"))
-
 # Test data setup
 test_df <- tibble::tibble(
   cas_number = c("67-64-1", "67641", "no cas", "n/a", "proprietary", "-", "67-64-2", "108-88-3"),

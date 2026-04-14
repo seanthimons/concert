@@ -2,14 +2,6 @@
 # Tests for NAME-01 through NAME-04: parenthetical stripping, formula extraction,
 # synonym splitting, quality adjective removal, salt references, and unspecified suffixes
 
-library(testthat)
-library(here)
-library(tibble)
-library(dplyr)
-
-# Source the cleaning pipeline module
-source(here::here("R", "cleaning_pipeline.R"))
-
 # ==============================================================================
 # NAME-01: strip_terminal_enclosures - parenthetical and bracket stripping
 # ==============================================================================

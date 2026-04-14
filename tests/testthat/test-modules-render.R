@@ -1,18 +1,8 @@
-library(testthat)
-library(shiny)
-library(reactable)
-library(reactable.extras)
-library(bslib)
-library(htmltools)
-
-# Source all R files (modules + utilities)
-for (f in list.files(here::here("R"), recursive = TRUE, pattern = "\\.R$", full.names = TRUE)) {
-  source(f)
-}
+# Test each module server initializes without error
 
 # Create mock data_store matching app.R's reactiveValues structure
 create_test_store <- function() {
-  reactiveValues(
+  shiny::reactiveValues(
     raw = NULL, clean = NULL, detection = NULL, file_info = NULL,
     selected_columns = NULL, column_tags = NULL,
     cleaning_audit = NULL, cleaned_data = NULL, reference_lists = NULL,
@@ -24,9 +14,8 @@ create_test_store <- function() {
   )
 }
 
-# Test each module server initializes without error
 test_that("mod_file_upload_server initializes without error", {
-  testServer(mod_file_upload_server, args = list(
+  shiny::testServer(mod_file_upload_server, args = list(
     data_store = create_test_store(),
     reset_all_downstream = function() {}
   ), {
@@ -36,9 +25,9 @@ test_that("mod_file_upload_server initializes without error", {
 })
 
 test_that("mod_data_preview_server initializes without error", {
-  testServer(mod_data_preview_server, args = list(
+  shiny::testServer(mod_data_preview_server, args = list(
     data_store = create_test_store(),
-    preview_rows = reactive(10)
+    preview_rows = shiny::reactive(10)
   ), {
     session$flushReact()
     expect_true(TRUE)
@@ -46,7 +35,7 @@ test_that("mod_data_preview_server initializes without error", {
 })
 
 test_that("mod_detection_info_server initializes without error", {
-  testServer(mod_detection_info_server, args = list(
+  shiny::testServer(mod_detection_info_server, args = list(
     data_store = create_test_store()
   ), {
     session$flushReact()
@@ -55,7 +44,7 @@ test_that("mod_detection_info_server initializes without error", {
 })
 
 test_that("mod_raw_data_server initializes without error", {
-  testServer(mod_raw_data_server, args = list(
+  shiny::testServer(mod_raw_data_server, args = list(
     data_store = create_test_store()
   ), {
     session$flushReact()
@@ -64,7 +53,7 @@ test_that("mod_raw_data_server initializes without error", {
 })
 
 test_that("mod_clean_data_server initializes without error", {
-  testServer(mod_clean_data_server, args = list(
+  shiny::testServer(mod_clean_data_server, args = list(
     data_store = create_test_store(),
     on_cleaning_complete = NULL
   ), {
@@ -74,7 +63,7 @@ test_that("mod_clean_data_server initializes without error", {
 })
 
 test_that("mod_tag_columns_server initializes without error", {
-  testServer(mod_tag_columns_server, args = list(
+  shiny::testServer(mod_tag_columns_server, args = list(
     data_store = create_test_store(),
     on_tags_applied = NULL
   ), {
@@ -84,7 +73,7 @@ test_that("mod_tag_columns_server initializes without error", {
 })
 
 test_that("mod_run_curation_server initializes without error", {
-  testServer(mod_run_curation_server, args = list(
+  shiny::testServer(mod_run_curation_server, args = list(
     data_store = create_test_store(),
     on_curation_complete = NULL
   ), {
@@ -94,7 +83,7 @@ test_that("mod_run_curation_server initializes without error", {
 })
 
 test_that("mod_review_results_server initializes without error", {
-  testServer(mod_review_results_server, args = list(
+  shiny::testServer(mod_review_results_server, args = list(
     data_store = create_test_store()
   ), {
     session$flushReact()
@@ -106,9 +95,24 @@ test_that("mod_review_results_server initializes without error", {
 # Return values (preview_rows, tags_applied, curation_completed) are tested
 # implicitly via integration testing and manual smoke tests
 
+# Helper: find mod_review_results.R source from various test contexts
+find_mod_review_results <- function() {
+  candidates <- c(
+    file.path(here::here(), "R", "mod_review_results.R"),
+    file.path(getwd(), "R", "mod_review_results.R"),
+    file.path(dirname(dirname(testthat::test_path())), "R", "mod_review_results.R")
+  )
+  for (p in candidates) {
+    if (file.exists(p)) return(p)
+  }
+  NULL
+}
+
 # UIPOL-01: Verify reactable call uses wrap = TRUE (not wrap = FALSE)
 test_that("UIPOL-01: review results reactable uses wrap=TRUE", {
-  src <- readLines(here::here("R/modules/mod_review_results.R"))
+  src_path <- find_mod_review_results()
+  skip_if(is.null(src_path), "R/mod_review_results.R not found from test context")
+  src <- readLines(src_path)
   wrap_true_lines <- grep("wrap\\s*=\\s*TRUE", src)
   expect_true(length(wrap_true_lines) > 0, info = "wrap = TRUE must be present in mod_review_results.R")
   wrap_false_lines <- grep("wrap\\s*=\\s*FALSE", src)
@@ -117,14 +121,18 @@ test_that("UIPOL-01: review results reactable uses wrap=TRUE", {
 
 # UIPOL-02: Verify elementId is not present in the reactable call
 test_that("UIPOL-02: review results reactable does not use elementId", {
-  src <- readLines(here::here("R/modules/mod_review_results.R"))
+  src_path <- find_mod_review_results()
+  skip_if(is.null(src_path), "R/mod_review_results.R not found from test context")
+  src <- readLines(src_path)
   element_id_lines <- grep("elementId", src)
   expect_equal(length(element_id_lines), 0, info = "elementId must not appear in mod_review_results.R")
 })
 
 # UIPOL-03: Verify unname() wraps unlist(queue) to prevent jsonlite named vector warning
 test_that("UIPOL-03: unlist(queue) is wrapped with unname() to prevent jsonlite warning", {
-  src <- readLines(here::here("R/modules/mod_review_results.R"))
+  src_path <- find_mod_review_results()
+  skip_if(is.null(src_path), "R/mod_review_results.R not found from test context")
+  src <- readLines(src_path)
   # The fix must be present
   unname_unlist_lines <- grep("unname\\(unlist\\(", src)
   expect_true(length(unname_unlist_lines) > 0, info = "unname(unlist(...)) must be present in mod_review_results.R")

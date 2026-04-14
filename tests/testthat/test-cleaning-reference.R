@@ -1,12 +1,7 @@
 # Test file for cleaning_reference.R
 # Tests reference list loading with caching
 
-library(testthat)
-library(here)
 library(withr)
-
-# Source the reference module
-source(here::here("R", "cleaning_reference.R"))
 
 test_that("load_or_fetch_reference reads from existing cache", {
   withr::with_tempdir({
@@ -94,14 +89,20 @@ test_that("load_all_reference_lists returns expected structure", {
 
     result <- load_all_reference_lists(cache_dir)
 
-    # Check structure
+    # Check structure - function now returns 5 keys:
+    # stop_words, block_patterns, functional_categories added Phase 13;
+    # strip_terms added Phase 21; isotope_lookup added Phase 23
     expect_type(result, "list")
-    expect_named(result, c("stop_words", "block_patterns", "functional_categories"))
+    expect_named(result, c("stop_words", "block_patterns", "functional_categories", "strip_terms", "isotope_lookup"))
 
-    # Check types - all should be tibbles now (Phase 13 change)
+    # Check types - all should be tibbles
     expect_true(tibble::is_tibble(result$stop_words))
     expect_true(tibble::is_tibble(result$block_patterns))
     expect_true(tibble::is_tibble(result$functional_categories))
+    expect_true(tibble::is_tibble(result$strip_terms))
+    # isotope_lookup is a list with $lookup (tibble) and $elem_alt_names (character vector)
+    expect_type(result$isotope_lookup, "list")
+    expect_true(tibble::is_tibble(result$isotope_lookup$lookup))
   })
 })
 
