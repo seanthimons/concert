@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Number and Unit Coercion Harmonization
-status: planning
-stopped_at: Phase 30 context gathered
-last_updated: "2026-04-14T21:05:42.632Z"
+status: executing
+stopped_at: Completed 30-01-PLAN.md
+last_updated: "2026-04-14T22:08:13.656Z"
 last_activity: 2026-04-14
 progress:
   total_phases: 15
   completed_phases: 9
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 12
+  completed_plans: 11
   percent: 0
 ---
 
@@ -18,7 +18,7 @@ progress:
 
 **Last Updated:** 2026-04-14
 **Milestone:** v1.9 Number and Unit Coercion Harmonization
-**Status:** Ready to plan
+**Status:** Ready to execute
 
 ---
 
@@ -27,15 +27,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Users can go from messy regulatory/benchmark data files to validated, harmonized, toxval-compatible datasets in one workflow.
-**Current focus:** Phase 29 — static-data-foundations
+**Current focus:** Phase 30 — numeric-result-parser
 
 ---
 
 ## Current Position
 
-Phase: 30
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 30 (numeric-result-parser) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-04-14
 
 Progress: ░░░░░░░░░░ 0% (0/7 phases)
@@ -81,6 +81,8 @@ Notable additions in v1.7:
 - [Phase 28-test-migration]: enrich_candidates tryCatch added around ct_chemical_detail_search_bulk for graceful API failure
 - [Phase 29-static-data-foundations]: 6-column unit table schema (from_unit, to_unit, multiplier, category, confidence, source) with 151 rows from ECOTOX and SSWQS; molar/temperature units stored with LOW confidence for downstream special handling
 - [Phase 29-static-data-foundations]: Zero-row tibble via tibble()[0,] slice — tibble() with scalar NAs creates 1-row, must slice
+- [Phase 30]: Fortran exponent detection uses ifelse()+grepl() guard to avoid false matches on standard sci notation
+- [Phase 30]: Multi-pass comma stripping via 3-iteration for loop (vectorized, avoids while-grepl on vectors)
 
 ### Pending Todos
 
@@ -94,9 +96,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-14T21:05:42.627Z
-Stopped at: Phase 30 context gathered
-Resume file: .planning/phases/30-numeric-result-parser/30-CONTEXT.md
+Last session: 2026-04-14T22:08:13.651Z
+Stopped at: Completed 30-01-PLAN.md
+Resume file: None
 
 ---
 
