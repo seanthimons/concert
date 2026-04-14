@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Number and Unit Coercion Harmonization
-status: executing
-stopped_at: Completed 29-01-PLAN.md (unit conversion table and loader)
-last_updated: "2026-04-14T19:59:44.053Z"
+status: verifying
+stopped_at: Completed 29-02-PLAN.md (ToxVal schema manifest and loader)
+last_updated: "2026-04-14T20:05:50.993Z"
 last_activity: 2026-04-14
 progress:
   total_phases: 15
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 10
-  completed_plans: 9
+  completed_plans: 10
   percent: 0
 ---
 
@@ -18,7 +18,7 @@ progress:
 
 **Last Updated:** 2026-04-14
 **Milestone:** v1.9 Number and Unit Coercion Harmonization
-**Status:** Ready to execute
+**Status:** Phase complete — ready for verification
 
 ---
 
@@ -35,7 +35,7 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 
 Phase: 29 (static-data-foundations) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-14
 
 Progress: ░░░░░░░░░░ 0% (0/7 phases)
@@ -80,6 +80,7 @@ Notable additions in v1.7:
 - [Phase 28-test-migration]: local_mocked_bindings(.package='ComptoxR') for API mocking in testthat — replaces broken assignInNamespace pattern
 - [Phase 28-test-migration]: enrich_candidates tryCatch added around ct_chemical_detail_search_bulk for graceful API failure
 - [Phase 29-static-data-foundations]: 6-column unit table schema (from_unit, to_unit, multiplier, category, confidence, source) with 151 rows from ECOTOX and SSWQS; molar/temperature units stored with LOW confidence for downstream special handling
+- [Phase 29-static-data-foundations]: Zero-row tibble via tibble()[0,] slice — tibble() with scalar NAs creates 1-row, must slice
 
 ### Pending Todos
 
@@ -93,8 +94,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-14T19:59:44.048Z
-Stopped at: Completed 29-01-PLAN.md (unit conversion table and loader)
+Last session: 2026-04-14T20:05:50.988Z
+Stopped at: Completed 29-02-PLAN.md (ToxVal schema manifest and loader)
 Resume file: None
 
 ---

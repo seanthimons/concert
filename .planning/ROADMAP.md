@@ -57,11 +57,11 @@
 
 **Build order rationale:** Pure-R functions first (Phases 29-32), UI integration second (Phases 33-35). This enables full TDD before any Shiny code and keeps the 953-test regression surface untouched during development.
 
-- [ ] Phase 29: Static Data Foundations — DATA-01, DATA-02, DATA-03
+- [x] Phase 29: Static Data Foundations — DATA-01, DATA-02, DATA-03 (completed 2026-04-14)
   - **Goal:** Create static data infrastructure for numeric/unit harmonization
   - **Plans:** 2 plans
     - [x] 29-01-PLAN.md — Unit conversion table and loader function
-    - [ ] 29-02-PLAN.md — ToxVal schema manifest
+    - [x] 29-02-PLAN.md — ToxVal schema manifest
 - [ ] Phase 30: Numeric Result Parser — PARS-01 through PARS-05
 - [ ] Phase 31: Unit Harmonization Engine — UNIT-01 through UNIT-05
 - [ ] Phase 32: ToxVal Schema Mapper — SCHM-01, SCHM-02
@@ -83,7 +83,7 @@
 | 26. App Relocation | v1.8 | 1/1 | Complete   | 2026-04-14 |
 | 27. Headless Pipeline | v1.8 | 1/1 | Complete    | 2026-04-14 |
 | 28. Test Migration | v1.8 | 1/1 | Complete    | 2026-04-14 |
-| 29. Static Data Foundations | v1.9 | 1/2 | In Progress|  |
+| 29. Static Data Foundations | v1.9 | 2/2 | Complete   | 2026-04-14 |
 | 30. Numeric Result Parser | v1.9 | 0/? | Not Started | — |
 | 31. Unit Harmonization Engine | v1.9 | 0/? | Not Started | — |
 | 32. ToxVal Schema Mapper | v1.9 | 0/? | Not Started | — |
