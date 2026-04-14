@@ -38,10 +38,10 @@
 
 ### Test Migration
 
-- [ ] **TST-01**: `tests/testthat/` directory structure exists with `tests/testthat.R` runner (`library(testthat); library(chemreg); test_check("chemreg")`)
-- [ ] **TST-02**: All existing test files renamed from `tests/test_*.R` → `tests/testthat/test-*.R` (dash convention)
-- [ ] **TST-03**: Pre-existing failure in `test_cleaning_reference.R` (expects 3 keys from `load_all_reference_lists`, gets 5: stop_words, block_patterns, functional_categories, strip_terms, isotope_lookup) is fixed
-- [ ] **TST-04**: `devtools::test()` passes with all tests green
+- [x] **TST-01**: `tests/testthat/` directory structure exists with `tests/testthat.R` runner (`library(testthat); library(chemreg); test_check("chemreg")`)
+- [x] **TST-02**: All existing test files renamed from `tests/test_*.R` → `tests/testthat/test-*.R` (dash convention)
+- [x] **TST-03**: Pre-existing failure in `test_cleaning_reference.R` (expects 3 keys from `load_all_reference_lists`, gets 5: stop_words, block_patterns, functional_categories, strip_terms, isotope_lookup) is fixed
+- [x] **TST-04**: `devtools::test()` passes with all tests green
 
 ---
 
@@ -86,7 +86,7 @@
 | HDL-02 | Phase 27 | Complete |
 | HDL-03 | Phase 27 | Complete |
 | HDL-04 | Phase 27 | Complete |
-| TST-01 | Phase 28 | Pending |
-| TST-02 | Phase 28 | Pending |
-| TST-03 | Phase 28 | Pending |
-| TST-04 | Phase 28 | Pending |
+| TST-01 | Phase 28 | Complete |
+| TST-02 | Phase 28 | Complete |
+| TST-03 | Phase 28 | Complete |
+| TST-04 | Phase 28 | Complete |
