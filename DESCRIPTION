@@ -33,9 +33,10 @@ Imports:
     stringr,
     tibble,
     tidyr,
-    tidyselect
-Suggests:
-    testthat (>= 3.0.0),
+    tidyselect,
+    tools,
     writexl
+Suggests:
+    testthat (>= 3.0.0)
 Remotes:
     seanthimons/ComptoxR
