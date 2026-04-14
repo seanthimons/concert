@@ -294,13 +294,55 @@ load_unit_map <- function(cache_dir) {
   load_or_fetch_reference(cache_path, fetch_fn, "unit conversion map")
 }
 
+#' Load ToxVal schema manifest
+#'
+#' Returns a zero-row tibble defining the 56-column ToxVal schema with proper
+#' column types. Use this as a template for creating ToxVal-compatible output.
+#'
+#' All columns use typed NA values (NA_character_, NA_real_, NA_integer_) to
+#' ensure parquet compatibility and proper column type inference.
+#'
+#' Schema includes:
+#' - Identifiers: source_hash, dtxsid, casrn, name, source_name
+#' - Toxicity values: toxval_type, toxval_numeric, toxval_units, etc.
+#' - Study design: study_type, study_duration_*, generation, lifestage
+#' - Species: species_common, species_scientific, strain, sex
+#' - Exposure: exposure_route, exposure_method, critical_effect
+#' - Source/provenance: source, subsource, year, title, author
+#' - Quality: quality, qc_status, priority_id
+#' - Audit columns: *_original fields for harmonization tracking
+#'
+#' @param cache_dir Directory for cache files (e.g., "inst/extdata")
+#' @return Zero-row tibble with 56 typed columns
+#' @export
+load_toxval_schema <- function(cache_dir) {
+  cache_path <- file.path(cache_dir, "toxval_schema.rds")
+
+  fetch_fn <- function() {
+    # Static data - should already exist in inst/extdata/
+    # If missing, return minimal schema with warning
+    warning("toxval_schema.rds not found - returning minimal schema")
+    tibble::tibble(
+      source_hash = NA_character_,
+      dtxsid = NA_character_,
+      casrn = NA_character_,
+      name = NA_character_,
+      toxval_type = NA_character_,
+      toxval_numeric = NA_real_,
+      toxval_units = NA_character_
+    )[0, ]
+  }
+
+  load_or_fetch_reference(cache_path, fetch_fn, "ToxVal schema")
+}
+
 #' Load all reference lists
 #'
 #' Convenience wrapper that loads stop words, block patterns, and functional
 #' categories in one call. Returns a named list.
 #'
 #' @param cache_dir Directory for cache files (e.g., "data/reference_cache")
-#' @return List with keys: stop_words, block_patterns, functional_categories, strip_terms, isotope_lookup, unit_map
+#' @return List with keys: stop_words, block_patterns, functional_categories, strip_terms, isotope_lookup, unit_map, toxval_schema
 #'
 #' @examples
 #' refs <- load_all_reference_lists("data/reference_cache")
@@ -310,6 +352,7 @@ load_unit_map <- function(cache_dir) {
 #' refs$strip_terms
 #' refs$isotope_lookup
 #' refs$unit_map
+#' refs$toxval_schema
 #' @export
 load_all_reference_lists <- function(cache_dir) {
   list(
@@ -318,6 +361,7 @@ load_all_reference_lists <- function(cache_dir) {
     functional_categories = load_functional_categories(cache_dir),
     strip_terms = load_strip_terms(cache_dir),
     isotope_lookup = load_isotope_lookup(cache_dir),
-    unit_map = load_unit_map(cache_dir)
+    unit_map = load_unit_map(cache_dir),
+    toxval_schema = load_toxval_schema(cache_dir)
   )
 }
