@@ -56,7 +56,7 @@
   - [x] 27-01-PLAN.md — Create curate_headless() function, promote writexl to Imports, smoke test
 - [ ] **Phase 28: Test Migration** — tests/testthat/ structure, fix pre-existing failure
   Plans:
-  - [ ] 28-01-PLAN.md — Migrate tests to testthat structure, clean headers, fix key-count failure
+  - [x] 28-01-PLAN.md — Migrate tests to testthat structure, clean headers, fix key-count failure
 
 </details>
 
@@ -121,7 +121,7 @@ Plans:
   2. All test files follow `tests/testthat/test-*.R` naming convention (dash, not underscore)
   3. The pre-existing `load_all_reference_lists` key-count failure is fixed — test now expects 5 keys (stop_words, block_patterns, functional_categories, strip_terms, isotope_lookup)
   4. `devtools::test()` completes with zero failures and zero errors across all test files
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
 - [ ] 28-01-PLAN.md — Migrate tests to testthat structure, clean headers, fix key-count failure
 **UI hint**: no
@@ -139,4 +139,4 @@ Plans:
 | 25. Source File Cleanup | v1.8 | 1/1 | Complete    | 2026-04-13 |
 | 26. App Relocation | v1.8 | 1/1 | Complete    | 2026-04-13 |
 | 27. Headless Pipeline | v1.8 | 1/1 | Complete    | 2026-04-14 |
-| 28. Test Migration | v1.8 | 0/1 | Not started | - |
+| 28. Test Migration | v1.8 | 1/1 | Complete   | 2026-04-14 |

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
-status: planning
-stopped_at: Completed 27-01-PLAN.md
-last_updated: "2026-04-14T01:09:36.450Z"
+status: verifying
+stopped_at: Completed 28-01-PLAN.md
+last_updated: "2026-04-14T03:05:04.675Z"
 last_activity: 2026-04-14
 progress:
   total_phases: 5
-  completed_phases: 4
-  total_plans: 4
-  completed_plans: 4
+  completed_phases: 5
+  total_plans: 5
+  completed_plans: 5
   percent: 0
 ---
 
@@ -18,7 +18,7 @@ progress:
 
 **Last Updated:** 2026-04-13
 **Milestone:** v1.8 R Package Migration
-**Status:** Ready to plan
+**Status:** Phase complete — ready for verification
 
 ---
 
@@ -27,14 +27,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-13)
 
 **Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
-**Current focus:** Phase 27 — headless-pipeline
+**Current focus:** Phase 28 — test-migration
 
 ---
 
 ## Current Position
 
-Phase: 28
-Plan: Not started
+Phase: 28 (test-migration) — EXECUTING
+Plan: 1 of 1
 Status: Phase complete — ready for verification
 Last activity: 2026-04-14
 
@@ -76,6 +76,9 @@ Notable additions in v1.7:
 - [Phase 26]: Moved module files from R/modules/ to R/ (roxygen2 subdirectory limitation)
 - [Phase 27-headless-pipeline]: writexl promoted to Imports — headless XLSX export is unconditional
 - [Phase 27-headless-pipeline]: skip_flags reserved for future use — isotope_match handled internally by run_curation_pipeline()
+- [Phase 28-test-migration]: isotope_lookup is list(lookup,elem_alt_names) not bare tibble — tests updated to match actual return type
+- [Phase 28-test-migration]: local_mocked_bindings(.package='ComptoxR') for API mocking in testthat — replaces broken assignInNamespace pattern
+- [Phase 28-test-migration]: enrich_candidates tryCatch added around ct_chemical_detail_search_bulk for graceful API failure
 
 ### Pending Todos
 
@@ -89,8 +92,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-14T00:02:15.485Z
-Stopped at: Completed 27-01-PLAN.md
+Last session: 2026-04-14T03:05:04.670Z
+Stopped at: Completed 28-01-PLAN.md
 Resume file: None
 
 ---
