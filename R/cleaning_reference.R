@@ -258,13 +258,49 @@ load_isotope_lookup <- function(cache_dir) {
   load_or_fetch_reference(cache_path, fetch_fn, "isotope lookup")
 }
 
+#' Load unit conversion map
+#'
+#' Returns a tibble of unit conversion factors for harmonizing measurement units.
+#' Contains conversions from various units to canonical forms (e.g., ug/L -> mg/L).
+#'
+#' Structure:
+#' - from_unit: Source unit string (case-sensitive)
+#' - to_unit: Target canonical unit
+#' - multiplier: Conversion factor (from_unit * multiplier = to_unit)
+#' - category: Unit category (concentration, mass, dose, etc.)
+#' - confidence: Match quality ("HIGH" for exact case, "LOW" for case-insensitive or approximate)
+#' - source: Provenance (ECOTOX, SSWQS, user_added)
+#'
+#' @param cache_dir Directory for cache files (e.g., "inst/extdata")
+#' @return Tibble with columns: from_unit, to_unit, multiplier, category, confidence, source
+#' @export
+load_unit_map <- function(cache_dir) {
+  cache_path <- file.path(cache_dir, "unit_conversion.rds")
+
+  fetch_fn <- function() {
+    # Static data - should already exist in inst/extdata/
+    # If missing, return minimal fallback
+    warning("unit_conversion.rds not found - returning minimal default")
+    tibble::tibble(
+      from_unit = c("mg/L", "ug/L", "ppb", "ppm"),
+      to_unit = c("mg/L", "mg/L", "mg/L", "mg/L"),
+      multiplier = c(1, 0.001, 0.001, 1),
+      category = rep("concentration", 4),
+      confidence = rep("HIGH", 4),
+      source = rep("fallback", 4)
+    )
+  }
+
+  load_or_fetch_reference(cache_path, fetch_fn, "unit conversion map")
+}
+
 #' Load all reference lists
 #'
 #' Convenience wrapper that loads stop words, block patterns, and functional
 #' categories in one call. Returns a named list.
 #'
 #' @param cache_dir Directory for cache files (e.g., "data/reference_cache")
-#' @return List with keys: stop_words, block_patterns, functional_categories, strip_terms, isotope_lookup
+#' @return List with keys: stop_words, block_patterns, functional_categories, strip_terms, isotope_lookup, unit_map
 #'
 #' @examples
 #' refs <- load_all_reference_lists("data/reference_cache")
@@ -273,6 +309,7 @@ load_isotope_lookup <- function(cache_dir) {
 #' refs$functional_categories
 #' refs$strip_terms
 #' refs$isotope_lookup
+#' refs$unit_map
 #' @export
 load_all_reference_lists <- function(cache_dir) {
   list(
@@ -280,6 +317,7 @@ load_all_reference_lists <- function(cache_dir) {
     block_patterns = load_block_patterns(cache_dir),
     functional_categories = load_functional_categories(cache_dir),
     strip_terms = load_strip_terms(cache_dir),
-    isotope_lookup = load_isotope_lookup(cache_dir)
+    isotope_lookup = load_isotope_lookup(cache_dir),
+    unit_map = load_unit_map(cache_dir)
   )
 }
