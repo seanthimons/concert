@@ -1,44 +1,44 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: milestone
-status: completed
-stopped_at: Completed 26-01-PLAN.md
-last_updated: "2026-04-14T15:10:17.274Z"
+milestone: v1.9
+milestone_name: Number and Unit Coercion Harmonization
+status: defining_requirements
+stopped_at: null
+last_updated: "2026-04-14"
 last_activity: 2026-04-14
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 8
-  completed_plans: 8
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
   percent: 0
 ---
 
 # Project State: ChemReg
 
-**Last Updated:** 2026-04-13
-**Milestone:** v1.8 R Package Migration
-**Status:** v1.8 milestone complete
+**Last Updated:** 2026-04-14
+**Milestone:** v1.9 Number and Unit Coercion Harmonization
+**Status:** Defining requirements
 
 ---
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-13)
+See: .planning/PROJECT.md (updated 2026-04-14)
 
-**Core value:** Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
-**Current focus:** Phase 28 — test-migration
+**Core value:** Users can go from messy regulatory/benchmark data files to validated, harmonized, toxval-compatible datasets in one workflow.
+**Current focus:** Defining requirements for v1.9
 
 ---
 
 ## Current Position
 
-Phase: 28
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-04-14
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-14 — Milestone v1.9 started
 
-Progress: ░░░░░░░░░░ 0% (0/5 phases complete)
+Progress: ░░░░░░░░░░ 0% (0/? phases)
 
 ---
 
