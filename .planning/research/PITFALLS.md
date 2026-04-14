@@ -325,3 +325,319 @@ v1.3 Design Phase — before Phase 1 implementation. Define flag taxonomy docume
 ---
 *Pitfalls research for: R/Shiny chemical inventory data cleaning pipeline*
 *Researched: 2026-03-04*
+
+---
+
+# v1.9 Pitfalls: Numeric Parsing, Unit Harmonization, Schema Mapping
+
+**Domain:** Adding numeric result parsing, unit harmonization, and ToxVal schema output to existing ChemReg R package
+**Milestone:** v1.9 Number and Unit Coercion Harmonization
+**Researched:** 2026-04-14
+**Sources:** sswqs_curation.R (EPA production script, HIGH confidence), ecotox_build.R (ComptoxR unit tables, HIGH confidence), PROJECT.md (ChemReg architecture, HIGH confidence)
+
+---
+
+## Critical Pitfalls (v1.9)
+
+### v1.9 Pitfall 1: Fortran-Style Exponent Injection Before as.numeric()
+
+**What goes wrong:** Source data from EPA bulk spreadsheets and regulatory databases contains values in malformed exponent formats: `4.56+02`, `6.90E+0.1`, `5.0 e-9`, `5x10^-9`. Calling `as.numeric()` on any of these returns `NA` silently — no warning, no error, the row disappears.
+
+**Why it happens:** Fortran scientific notation is valid output from legacy EPA data systems. R's `as.numeric()` parses only standard `e`-notation. The failure is invisible when wrapped in `purrr::safely()` or when a downstream `filter(!is.na(parsed_value))` silently drops failed rows.
+
+**Evidence from sswqs_curation.R (lines 769–782):**
+```r
+result = case_when(
+  result == '6.90E+0.1' ~ '6.90E+01',           # one-off fix for malformed exponent
+  .default = result
+),
+result = str_replace_all(result, "x10\\^?", "e"),       # "5x10^-9" -> "5e-9"
+result = str_replace(result, "(?<=[0-9])(?<!e)([+-])(?=0\\d(?!\\d))", "e\\1"),  # "4.56+02" -> "4.56e+02"
+result = str_remove_all(result, "[[:space:]]"),           # "5.0 e-9" -> "5.0e-9"
+```
+
+**Consequences:** Benchmark values silently become NA. `filter(!is.na(parsed_value))` drops legitimate data rows. Export row count is lower than source with no audit trail entry explaining the loss.
+
+**Prevention:**
+- Apply the full normalization chain (whitespace removal, `x10^` replacement, Fortran-exponent regex) BEFORE `as.numeric()`, not after.
+- Track `num_bool = !is.na(parsed_value)` as a diagnostic flag and surface parse-failure counts in the UI before the user advances past the parsing step.
+- Regression test vector: `"4.56+02"`, `"6.90E+0.1"`, `"5.0 e-9"`, `"5x10^-9"`, `"1.2E+003"`.
+
+**Detection:** Log `sum(is.na(parsed_value))` before and after each normalization step. If count does not approach zero on known-good test data, a normalization step is missing or misordered.
+
+**Phase address:** Numeric result parser phase (first numeric feature phase).
+
+---
+
+### v1.9 Pitfall 2: Range Splitting That Destroys Negative Values and Exponents
+
+**What goes wrong:** Ranges like `5.6-7.8` are split on `-`. But negative values (`-0.5`), pH ranges (`6.5-8.5`), and already-normalized exponents (`4.56e-02`) also contain hyphens. A naive `str_split(result, "-")` silently destroys these.
+
+**Evidence from sswqs_curation.R (lines 788–801):** The sswqs pipeline guards against this with `if_else(num_bool, as.list(result), str_split(...))` — splitting only strings that already failed `as.numeric()`. This guard is only safe after Pitfall 1 normalization has been applied. If normalization is skipped, `4.56e-02` is still a string here and gets split incorrectly.
+
+**Consequences:** Negative benchmark values become two rows (sign fragment dropped; magnitude retained as wrong value). pH range boundaries are miscategorized. Incorrectly split rows inflate row counts with no audit entry.
+
+**Prevention:**
+- Numeric normalization (Pitfall 1) must precede range splitting. `num_bool` guard is only safe post-normalization.
+- After splitting, re-run `as.numeric()` on each fragment and immediately filter `!is.na(parsed_value)` — fragments failing this are invalid splits.
+- Dedicated test cases: `"-0.5"`, `"6.5-8.5"`, `"4.56e-02"`, `"1e-6"`, `"5.6-7.8"`, `"<0.001"`.
+
+**Phase address:** Numeric result parser phase.
+
+---
+
+### v1.9 Pitfall 3: Unit Table Case-Sensitivity Collisions
+
+**What goes wrong:** The ComptoxR ECOTOX unit table distinguishes case for scientifically meaningful symbols: `"mL"` (milliliter) vs `"ML"` (male organism), `"m"` (meter) vs `"M"` (molar), `"d"` (day) vs `"D"` (not in table). Global `tolower()` before lookup collapses these distinctions, producing wrong conversion factors — sometimes off by orders of magnitude.
+
+**Evidence from ecotox_build.R:**
+```r
+"ML"   ,       1           , "male"              , "noscience"     ,  # line 458
+"mL"   ,       0.001       , "l"                 , "volume"        ,  # line 297
+"M"    ,       1           , "mol/l"             , "mol/volume"    ,  # line 330
+"m"    ,       1           , "m"                 , "length"        ,  # line 343
+```
+
+**Consequences:** `"M"` (molar, 1 mol/L) becomes `"m"` (meter) after `tolower()`. The join finds the meter entry, not the molar entry. The conversion factor is wrong by approximately 6 orders of magnitude with no error raised.
+
+**Prevention:**
+- Do NOT globally lowercase units before table lookup.
+- Apply micro-symbol normalization (`µ` → `u`, Unicode variants → ASCII) and nothing else before lookup.
+- Perform case-sensitive lookup first; fall back to case-insensitive only for unmatched entries; flag those as LOW confidence.
+- Store the original unit string in `unit_original` before any transformation.
+- Test with: `"M"`, `"mL"`, `"ML"`, `"m"`, `"mg"`, `"MBq"`.
+
+**Phase address:** Unit harmonization engine phase.
+
+---
+
+### v1.9 Pitfall 4: Compound Units Not Covered by Simple Lookup
+
+**What goes wrong:** Regulatory benchmark data contains compound units: `"mg/kg bw/day"`, `"ug/L/h"`, `"mg/kg wet weight"`, `"nmol/mg protein"`, `"ppm-hour"`. These do not appear as single entries in the base ComptoxR unit table. A lookup miss produces `NA` for the conversion factor, which either silently propagates or triggers a `TRUE ~ cleaned_unit` fallback that exports the value unchanged with a wrong unit label.
+
+**Evidence from ecotox_build.R (lines 785–797):** The build pipeline applies one-off string normalization for compound forms before table lookup (e.g., `"mgdrydiet"` → `"mg dry_diet"`, `"gwetbdwt"` → `"g wet_bdwt"`). This is evidence the real unit space exceeds the table by a significant margin.
+
+**Evidence from sswqs_curation.R (line 836):**
+```r
+cleaned_unit %in% c("mg/kg fish tissue", "mg/kg wet weight") ~ "mg/kg (wet weight)",
+```
+These require explicit enumeration — they cannot be derived algorithmically from the base table.
+
+**Consequences:** Benchmark values in compound units export with wrong or mismatched unit labels. The unit-value mismatch is invisible in ChemReg but causes schema validation failures at database load time.
+
+**Prevention:**
+- Implement two-tier lookup: (1) exact match on full string; (2) decompose `numerator/denominator` and look up components separately.
+- Maintain an explicit extension table for compound units present in target regulatory datasets. Seed it from the `harmonized_unit` case_when in sswqs_curation.R.
+- Log all lookup misses per run as an audit artifact. Surface a blocking warning if >5% of rows have unmatched units.
+
+**Phase address:** Unit harmonization engine phase.
+
+---
+
+### v1.9 Pitfall 5: ToxVal Schema Column Type and Order Mismatch
+
+**What goes wrong:** ToxVal schema requires 56 columns in a specific order with specific types. Using bare `NA` instead of `NA_character_` or `NA_real_` for placeholder columns, or using `select()` instead of `transmute()` (which can silently drop or reorder columns), produces type mismatches that DuckDB rejects at load time with opaque errors.
+
+**Evidence from sswqs_curation.R (lines 1057–1139):** The script uses `transmute()` throughout with typed NA for all placeholders:
+```r
+toxval_id     = NA_character_,
+chemical_id   = NA_character_,
+toxval_numeric          = case_when(...),   # double
+toxval_numeric_original = orig_result,      # character (raw string)
+```
+The schema contains both a double (`toxval_numeric`) and a character (`toxval_numeric_original`) in adjacent columns. Arrow's parquet writer will infer `NA` as logical type, which DuckDB will reject for a character column.
+
+**Consequences:** Parquet files with bare `NA` carry logical type. DuckDB `COPY ... FROM PARQUET` fails or silently upcasts, producing wrong types in the database with no error at export time.
+
+**Prevention:**
+- Build the schema mapper against a canonical 56-column type manifest derived from the live toxval.duckdb schema.
+- Use typed NA throughout: `NA_character_`, `NA_real_`, `NA_integer_` — never bare `NA`.
+- Add a schema validation assertion before export: `stopifnot(all(names(result) == TOXVAL_SCHEMA_COLS))`.
+- Write a test that reads the exported parquet back with `arrow::read_parquet()` and verifies each column's R type.
+
+**Phase address:** ToxVal schema mapper phase.
+
+---
+
+### v1.9 Pitfall 6: `_original` Audit Columns Contaminated by Pre-Capture Cleaning
+
+**What goes wrong:** If pipeline cleaning steps (comma removal, whitespace trimming) run BEFORE the `result_original` capture, the `_original` column contains a partially-cleaned value rather than the source cell value. QC review against the uploaded spreadsheet then fails because the "original" in ChemReg does not match what the user sees in their file.
+
+**Evidence from sswqs_curation.R (lines 764–773):** The sswqs script deliberately cleans commas and whitespace BEFORE `rename(orig_result = result)`. This was intentional for SSWQS — commas in numbers are formatting artifacts. However, for ChemReg's user-uploaded files, qualifier symbols (`<`, `>`, `~`), chiral designations, and range hyphens must NOT be stripped before capture.
+
+**Consequences:** `_original` audit column does not reflect the uploaded spreadsheet. Post-curation QC comparison against source data fails.
+
+**Prevention:**
+- Capture `result_original = result` as the absolute first mutation step, before any transformation.
+- Apply only BOM stripping and invisible-whitespace normalization before capture; these are encoding artifacts, not content.
+- All substantive transformations (qualifier extraction, comma removal, range splitting) operate on a working-copy column, never modifying `result_original`.
+
+**Phase address:** Numeric result parser phase.
+
+---
+
+## Moderate Pitfalls (v1.9)
+
+### v1.9 Pitfall 7: Qualifier Stripping That Loses Toxicological Meaning
+
+**What goes wrong:** Values like `<0.001`, `>10`, `~5.6`, `ca. 3.2` contain qualifiers that carry meaning (detection limit, threshold, approximation). Stripping the qualifier to get a number without recording it separately produces an unqualified value that looks like an exact measurement.
+
+**Prevention:**
+- Extract the qualifier symbol (`<`, `>`, `<=`, `>=`, `~`, `ca.`, `approx`) into a separate `toxval_numeric_qualifier` column BEFORE numeric parsing.
+- Map to ToxVal vocabulary: `<` → `"<"`, `>` → `">"`, no qualifier → `"="`, range midpoint → `"~"`.
+- Never silently drop an unrecognized qualifier — flag the row.
+
+**Phase address:** Numeric result parser phase.
+
+---
+
+### v1.9 Pitfall 8: Row Explosion from Range Handling Without Stable Row ID
+
+**What goes wrong:** The pipeline splits range values (`"5.6-7.8"`) into two rows (low, high) and adds a synthetic midpoint row. Without a stable `.id` column assigned BEFORE any row-count-changing operation, joins to chemical identity, source metadata, and unit columns produce Cartesian products or lost associations.
+
+**Evidence from sswqs_curation.R (line 781):**
+```r
+.id = 1:n()   # assigned before unnest — every exploded row carries source row identity
+```
+
+**Prevention:**
+- Assign stable source row ID before any operation that changes row count.
+- Document that output row count will be 1x (point), 2x (range endpoints), or 3x (range + midpoint) the source row count. Surface this count change in the UI.
+- Joins to all non-numeric columns must happen before range expansion.
+
+**Phase address:** Numeric result parser phase.
+
+---
+
+### v1.9 Pitfall 9: Cascade Reset Not Extended for New Column Tag Types
+
+**What goes wrong:** ChemReg's existing cascade reset invalidates curation when column tags change. Adding new tag types (Result, Unit, Duration, Qualifier) without wiring them into the same `observeEvent` chain means a user can re-tag a unit column after running harmonization without the harmonized output being cleared.
+
+**Evidence from PROJECT.md (line 171):** "Cascade reset on tag changes: Strict invalidation prevents stale curation results."
+
+**Prevention:**
+- New tag types must be added to the same cascade reset observer chain as the existing `"Name"`, `"CASRN"`, `"Other"` tags.
+- The harmonization step must be gated: it cannot run if unit or result tags have changed since the last confirmed run.
+- Test: change a unit tag after running harmonization, verify the harmonized output is cleared and the user must re-run.
+
+**Phase address:** Extended column tagging UI phase.
+
+---
+
+### v1.9 Pitfall 10: Unit Harmonization Double-Conversion When Pipeline Steps Are Reordered
+
+**What goes wrong:** The sswqs pipeline harmonizes raw units to an intermediate unit (ug/L) in one step, then the ToxVal mapper converts that intermediate to the final schema unit (mg/L). If these steps are reordered or the mapper consumes the raw `parsed_value` instead of the post-harmonization value, a 1000x double-conversion occurs silently.
+
+**Evidence from sswqs_curation.R (lines 955–966):**
+```r
+toxval_numeric = case_when(
+  harmonized_unit == "ug/l" ~ parsed_value / 1000,  # intermediate -> final
+  harmonized_unit == "mg/l" ~ parsed_value,
+  TRUE ~ parsed_value
+),
+```
+The schema mapper assumes `parsed_value` is already in the intermediate harmonized unit, not the original source unit.
+
+**Prevention:**
+- Document the three-stage unit pipeline explicitly: raw source unit → intermediate harmonized unit → final ToxVal schema unit.
+- The schema mapper must consume a named column that has passed through harmonization, not the original parsed value.
+- Unit test the full chain: `1 mg/L input → 1000 ug/L intermediate → 1 mg/L final`.
+
+**Phase address:** Unit harmonization and ToxVal schema mapper phases.
+
+---
+
+## Minor Pitfalls (v1.9)
+
+### v1.9 Pitfall 11: Narrative Criteria Partially Parsing as Numeric
+
+**What goes wrong:** Regulatory files contain narrative rows ("See regulation 4.2", "Not to exceed background"). These fail `as.numeric()` and should be dropped. But narratives beginning with numbers ("3-5 times background", "10 or less colonies") partially parse, producing wrong numeric values.
+
+**Prevention:**
+- Apply a narrative pre-filter before numeric parsing using regex on known signal phrases (`"\\bsee\\b|\\bwithin\\b|\\busing\\b|\\bmore\\b|\\bnot\\b"`).
+- Surface filtered rows in the UI as "non-parsable" rather than silently dropping them.
+- Allow the narrative filter pattern list to be user-configurable as a reference list (consistent with ChemReg's existing reference list pattern).
+
+**Phase address:** Numeric result parser phase.
+
+---
+
+### v1.9 Pitfall 12: Duration Column Format Ambiguity
+
+**What goes wrong:** Exposure duration appears in three forms across regulatory datasets: numeric with unit (`"96 h"`), code (`"A"` for acute, `"C"` for chronic), and free text description. A single regex applied to a mixed column silently fails the forms it was not designed for.
+
+**Evidence:** The sswqs pipeline decodes duration from a code column (line 136–143). The ECOTOX pipeline (ecotox_build.R lines 545–571) converts numeric duration+unit to hours using a separate conversion table. These are fundamentally different parsers.
+
+**Prevention:**
+- Tag the duration column type explicitly in the column tagging step (Code / Free Text / Numeric+Unit).
+- Implement a dedicated parser per form; do not attempt a unified regex.
+- Map codes to canonical values using an explicit lookup (`"A"` → `"acute"`, `"C"` → `"chronic"`), not pattern inference.
+
+**Phase address:** Duration/exposure classification phase.
+
+---
+
+### v1.9 Pitfall 13: Arrow/Parquet Type Drift Across Package Versions
+
+**What goes wrong:** `arrow::write_parquet()` behavior for logical NA columns changed between Arrow 12 and Arrow 14. Parquet written with Arrow 12 loads correctly; the same code with Arrow 14 writes non-nullable logical columns, causing DuckDB `COPY` to fail with a type error.
+
+**Prevention:**
+- Specify Arrow version in DESCRIPTION `Imports` or `Suggests`.
+- Write a schema-type assertion test: after export, read back with `arrow::read_parquet()` and run `vapply(df, class, character(1))` to verify all 56 column types match the manifest.
+
+**Phase address:** ToxVal schema mapper / export phase.
+
+---
+
+## Integration Pitfalls (Adding v1.9 to Existing v1.8 ChemReg)
+
+These pitfalls are specific to adding numeric/unit/schema features to a v1.8 codebase with 953 passing tests, 8 active Shiny modules, and a `curate_headless()` public API.
+
+### INT-1: Chemical Name Cleaning Pipeline Must Not Touch Numeric Columns
+
+The existing `cleaning_pipeline.R` runs 15 steps on chemical name columns. Numeric result columns must never pass through these steps. Specifically, the parenthetical stripping step would destroy `"(95% CI: 1.2-3.4)"` style values. The unicode cleaning step would corrupt subscript digits in chemical formulas used as result values. The two pipelines must be completely separate code paths, dispatched by column tag type — never by position or "all columns".
+
+### INT-2: `curate_headless()` tag_map Must Extend Additively, Not Break
+
+`curate_headless()` currently accepts `tag_map` values of `"Name"`, `"CASRN"`, or `"Other"`. Adding `"Result"`, `"Unit"`, `"Duration"`, `"Qualifier"` must be an additive extension. Any validation logic inside `curate_headless()` that rejects unknown tag values must be updated before new tag types are used. The existing three tag types and their downstream behavior must remain unchanged — regression tests must confirm this.
+
+### INT-3: 7-Sheet Excel Export Must Accommodate New Column Set
+
+The existing `export_helpers.R` writes a fixed 7-sheet structure. ToxVal schema output (56 columns) replaces the current ~15-column data sheet. The config sheet, which `config_import.R` reads by column name, must remain structurally unchanged. Adding 56 columns to Sheet 1 risks hitting the 16,384-column Excel limit if combined with audit trail columns. The data sheet and ToxVal export should be separate sheets.
+
+### INT-4: New Code Belongs in New Files to Protect the 953-Test Regression Surface
+
+The numeric parsing and unit harmonization features touch none of the existing `R/cleaning_pipeline.R`, `R/consensus.R`, or `R/curation.R` logic. New code belongs in dedicated new files (`R/numeric_parser.R`, `R/unit_harmonizer.R`, `R/toxval_mapper.R`) with their own test files. If any existing file must be modified, treat all 953 existing tests as regression candidates and run the full test suite before merging.
+
+---
+
+## Phase-Specific Warnings (v1.9)
+
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| Numeric result parser | Fortran exponents silently NA (P1) | Full normalization chain before as.numeric(); diagnostic parse-failure count in UI |
+| Numeric result parser | Range split destroys negatives (P2) | num_bool guard; test vector with negatives, pH ranges, exponents |
+| Numeric result parser | _original captured after cleaning (P6) | Capture result_original as very first pipeline step |
+| Numeric result parser | Qualifier stripping loses meaning (P7) | Extract qualifier before numeric parse; map to ToxVal vocabulary |
+| Numeric result parser | Row explosion without stable ID (P8) | Assign .id before any row-count-changing operation; joins before expansion |
+| Unit harmonization engine | Case-sensitive symbol collision (P3) | Case-sensitive lookup first; no global tolower(); test M vs m vs mL vs ML |
+| Unit harmonization engine | Compound units not in table (P4) | Two-tier lookup; explicit extension table; block export if >5% miss rate |
+| Unit harmonization engine | Double-conversion if steps reordered (P10) | Three-stage pipeline documented; schema mapper consumes harmonized column only |
+| Extended column tagging | Cascade reset not extended (P9) | Wire new tag types into existing observeEvent chain; gate harmonization on confirmed tags |
+| ToxVal schema mapper | NA type mismatch (P5) | Typed NA throughout; schema-type assertion test post-export |
+| ToxVal schema mapper | Column order drift (P5) | transmute() not select(); 56-column canonical manifest as constant |
+| Narrative rows | Text starting with digits partially parses (P11) | Pre-filter narratives before numeric pipeline; surface as "non-parsable" in UI |
+| Duration classification | Mixed format in single column (P12) | Tag form type in column tagging; separate parsers per form; explicit code lookup |
+| Export parquet | Type drift across Arrow versions (P13) | Pin Arrow version; read-back type assertion test |
+| Integration | Chemical cleaning runs on numeric columns (INT-1) | Dispatch by tag type only; never "all columns" |
+| Integration | curate_headless() rejects new tag types (INT-2) | Update validation before adding new tags; regression-test existing three tag values |
+| Integration | Export column explosion (INT-3) | ToxVal output on separate sheet from existing data sheet |
+| Integration | Existing tests become regression candidates (INT-4) | New features in new files; full test suite run before merge |
+
+---
+
+## Sources (v1.9)
+
+- `C:/Users/sxthi/Documents/curation/epa/sswqs/sswqs_curation.R` — EPA production benchmark curation script; direct evidence for P1, P2, P4, P6, P7, P8, P10 (HIGH confidence — production code)
+- `C:/Users/sxthi/Documents/ComptoxR/inst/ecotox/ecotox_build.R` — Unit conversion table and duration dictionary; direct evidence for P3, P4, P12 (HIGH confidence — production code)
+- `C:/Users/sxthi/Documents/chemreg/.planning/PROJECT.md` — Architecture constraints and key decisions log; evidence for INT-1 through INT-4 and P9 (HIGH confidence — authoritative project document)

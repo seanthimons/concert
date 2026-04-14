@@ -1,335 +1,213 @@
 # Project Research Summary
 
-**Project:** ChemReg v1.3 Data Cleaning Pipeline
-**Domain:** R/Shiny chemical inventory data cleaning and curation
-**Researched:** 2026-03-04
+**Project:** ChemReg v1.9 — Number and Unit Coercion Harmonization
+**Domain:** R/Shiny regulatory/benchmark data curation — numeric parsing, unit harmonization, ToxVal schema output
+**Researched:** 2026-04-14
 **Confidence:** HIGH
 
 ## Executive Summary
 
-ChemReg v1.3 adds pre/post-curation data cleaning to the existing upload → detect → tag → curate workflow. Research confirms this is **low-risk, high-value enhancement** requiring only 2 new dependencies (openxlsx2 for multi-sheet Excel export, rhandsontable for editable reference lists). The 21-step cleaning pipeline follows established data transformation patterns (OpenRefine, Trifacta) with transparent audit trails and before/after comparison. Chemical-specific cleaning (CAS rescue, functional use flagging, IUPAC name handling) has no commercial analogs — this is greenfield opportunity built on the solid ComptoxR foundation already in use.
+ChemReg v1.9 extends a mature, well-modularized R package (8 Shiny modules, 953 passing tests, `curate_headless()` scripting API) from compound-identity curation to full regulatory/benchmark data curation. The new capability is a post-curation pipeline: parse messy numeric result strings, harmonize source units to a controlled vocabulary, map the cleaned data to ToxValDB's 56-column schema, and export as parquet/CSV for database integration. A complete, production-tested reference implementation already exists in `curation/epa/sswqs/sswqs_curation.R` — ChemReg v1.9 is the Shiny-wrapped, generalized, audit-trailed version of that script.
 
-The recommended approach is **inline implementation first, modularize later**. The current app.R is 2,275 lines with a working reactiveValues() state pattern. Adding the "Clean Data" tab inline (Phase 1-4) is faster and lower-risk than refactoring to modules upfront. Extract modules in v1.4+ once the pipeline is proven stable. Critical architectural decision: cleaning must precede tagging in the workflow cascade, requiring explicit reset logic when reference lists change or files are re-uploaded.
+The recommended approach is pure-R-first, UI-second: build and test all four pipeline functions (`numeric_parser`, `unit_harmonizer`, `harmonize_pipeline`, `toxval_mapper`) with no Shiny dependencies before adding any UI. The existing pipeline is strictly read-only from v1.9's perspective — harmonization writes to a new `data_store$harmonize_results` store and never mutates existing data_store fields. This separation means the 953-test regression surface is untouched during development and the new code can be tested end-to-end in headless scripts before the Shiny module exists.
 
-Key risks center on **synonym splitting breaking IUPAC names** (commas in inverted forms like "butane, 2,2-dimethyl" vs. synonym separators), **reactive cascade explosion** from editable reference lists (UI freezing on every edit), and **Excel export failures** from audit trail columns exceeding cell/column limits. All three are mitigated with explicit protection rules (Phase 3), debounced edits with "Apply Changes" buttons (Phase 4), and separate audit trail sheets (Phase 1). The pitfalls research provides detailed detection and recovery strategies for each risk.
+The key risks are invisible data loss and silent type corruption: Fortran-style exponent failures, range-splitting that destroys negative values, unit case-sensitivity collisions (M vs m vs mL vs ML), and bare `NA` producing logical-typed parquet columns that DuckDB rejects at load time. All six critical pitfalls have prevention patterns confirmed in production code from sswqs_curation.R and ecotox_build.R. The build plan accounts for each: full normalization before parsing, case-sensitive unit lookup with case-insensitive fallback, typed `NA_character_`/`NA_real_` throughout, and a round-trip schema-assertion test before any parquet export is considered complete.
+
+---
 
 ## Key Findings
 
 ### Recommended Stack
 
-ChemReg's existing stack already provides 90% of needed capabilities. Only 2 packages need to be added:
+No framework changes are required. Two packages need to be added to `DESCRIPTION`: `arrow` (parquet export with explicit schema control — DuckDB requires exact type matching that rio's arrow delegation cannot guarantee) and `lubridate` (date parsing for `effective_date` → `year` ToxVal columns). Both are already installed on this machine (arrow 21.0.0.1, lubridate 1.9.4). The `units` CRAN package was explicitly evaluated and rejected — it does not know regulatory units (`pCi/L`, `NTU`, `count/100mL`, `standard units` for pH). The ComptoxR ECOTOX tribble (~200-row unit lookup table, `ecotox_build.R` lines 271-467) is the correct seed, extended with regulatory-specific rows from sswqs_curation.R.
+
+Two static data files must be created: `inst/extdata/unit_conversion.rds` (the ECOTOX unit tribble plus regulatory extensions) and `inst/extdata/toxval_schema.rds` (a zero-row typed tibble encoding the 56-column ToxVal schema for validation). Four new R source files are needed: `R/numeric_parser.R`, `R/unit_harmonizer.R`, `R/harmonize_pipeline.R`, `R/toxval_mapper.R`.
 
 **Core technologies:**
-- **openxlsx2** (NEW): Multi-sheet Excel export with metadata — only package supporting arbitrary metadata sheets (audit trails, reference lists, manifest) and workbook properties for re-import detection. Replaces writexl for export only.
-- **rhandsontable** (NEW): Editable reference lists with Excel-like UX — supports add/remove rows, dropdown validation, inline editing. DT with editable=TRUE only supports cell replacement, not row operations.
-- **stringi** (existing via tidyverse): Unicode detection with `stri_enc_isascii()` — already available through stringr dependency.
-- **withProgress()** (existing Shiny built-in): Pipeline progress tracking — already used in tiered curation, same pattern works for 21-step cleaning.
-- **readxl** (existing): Multi-sheet Excel import and re-import detection via `excel_sheets()` — keep for all import needs.
-
-**Architecture notes:** Use openxlsx2 for export, readxl for import. They complement each other. Use DT for display tables (fast, 10x faster than rhandsontable on large data), rhandsontable for editing small reference lists (10-50 rows). ComptoxR remains the core dependency for chemical cleaning (CAS validation, Unicode cleaning, formula extraction).
-
-**Package to remove:** writexl (replaced by openxlsx2 for export)
+- `arrow` 21.0.0.1: `write_parquet()` with explicit schema — required for DuckDB COPY INTO compatibility; move to `Suggests` with `requireNamespace()` fallback to CSV (50MB package with system library dep)
+- `lubridate` 1.9.4: date parsing for effective_date / year fields in ToxVal schema
+- `stringr` + `stringi` (existing): full normalization chain — unicode micro-symbol, Fortran exponents, space removal, x10^ notation; patterns confirmed in sswqs_curation.R lines 777-801
+- `dplyr` (existing): `case_when()` dispatch, `left_join()` against unit lookup table
+- `purrr::safely()` (existing): error isolation per-row in parser functions
 
 ### Expected Features
 
-**Must have (table stakes):**
-- Tabular data preview (before/after comparison) — users validate by seeing transformation impact
-- Undo/redo or re-run capability — OpenRefine standard, users expect reversibility
-- Visual flag distinction — red/blocking vs. yellow/warning vs. blue/info (universal UX pattern)
-- Summary statistics cards — "X CAS rescued", "Y formulas detected", "Z flagged for review"
-- Exportable results with audit trail — transparency and reproducibility baseline
+**Must have (table stakes) — pipeline cannot produce valid ToxVal output without these:**
+- Narrative result filter — exclude non-parsable text before numeric pipeline; preserve `removed_reason` audit column, never silently drop rows
+- Result string normalization — commas in numbers, Fortran exponents (`4.56+02`), x10^ notation, space-before-exponent (full sswqs_curation.R pattern at lines 779-784)
+- Qualifier extraction (`<`, `>`, `<=`, `>=`, `~`) — must happen BEFORE range splitting; qualifier ambiguity over range endpoints is unresolvable if order is reversed
+- Range splitting — `"5.6-7.8"` → two rows; requires stable `.id` column assigned before row expansion and a numeric pre-guard (`num_bool`) to protect negative values and exponents
+- Unit string normalization — micro-symbol variants (`µ`, `u`), latin-ascii via `stri_trans_general`, case-sensitive-only where scientifically meaningful, spacing around "per" → "/"
+- Unit harmonization lookup — case-sensitive match first, ComptoxR ECOTOX table extended with regulatory units from sswqs_curation.R; compound unit two-tier decomposition
+- Unit conversion arithmetic — `parsed_value * multiplier`; store `conversion_factor` in audit trail
+- Extended column tagging — add Result, Unit, Qualifier, Duration, DurationUnit, Species, ExposureRoute to selectInput; backward-compatible with existing Name/CASRN/Other tags
+- ToxVal schema transmutation — 56-column output with `*_original` audit columns for all harmonized fields; typed NA for all unmappable columns
+- Export to parquet/CSV — arrow with explicit schema assertion before write, CSV fallback when arrow unavailable
 
-**Should have (differentiators):**
-- **Per-row audit trail** — "What changed and why?" for every transformation, displayed via DT child rows
-- **Editable reference lists** — curators tune stop words/block lists without developer intervention
-- **Blocking vs annotating flags** — blocking flags (formulas, empty names) stop curation; annotating flags (mixtures, functional categories) warn but proceed
-- **Multi-sheet Excel export** — data + audit trail + reference lists + config + data dictionary in one file
-- **Re-import detection** — recognize ChemReg exports, hot-load embedded reference lists and pipeline config
-- **CAS-RN rescue pipeline** — extract CAS from name columns, validate checksums, split multi-CAS cells (no generic tool does this)
-- **Functional use flagging** — detect "Fragrance", "Flavor", "Surfactant" as non-chemical categories
-- **Post-curation QC** — re-validate CAS after API resolution, enrich with functional use + safety flags
+**Should have (differentiators for real curation workflow):**
+- User-editable unit harmonization table — reference list pattern matching v1.3 stop word editors; re-run harmonization on save
+- Narrative filter review UI — show excluded rows with reason, allow curator confirmation before advancing
+- One-off corrections table — user-editable `(pattern, replacement)` tibble for source-specific malformed values like `6.90E+0.1 → 6.90E+01`
+- Harmonization audit trail — `orig_result`, `cleaned_unit`, `harmonized_unit`, `conversion_factor` per row
+- Pre-export QC dashboard — value boxes: rows with parsed numeric, rows with harmonized unit, rows with dtxsid, rows with NA toxval_numeric
+- `curate_headless()` extension — `harmonize=TRUE` param (default FALSE for backward compat) for scripted batch processing
+- Range midpoint toggle — user choice: low/high/mid vs low/high only vs midpoint only
 
-**Defer (anti-features):**
-- Fully manual cell-by-cell editing — doesn't scale; use batch operations + flag exceptions
-- Drag-and-drop pipeline builder — high complexity, low ROI; fixed pipeline with enable/disable toggles is sufficient
-- Real-time cleaning as-you-type — confusing; preview cleaned data, apply on button click
-- AI/ML-powered "smart" cleaning — opaque audit trail, chemical names too domain-specific
+**Defer to v2+:**
+- Protection code / exposure classification decoder (generalizing sswqs 55-row code lookup to user-uploadable table) — high complexity, not blocking for initial ToxVal output
+- Automatic unit inference from column names — anti-feature per research; produces untracked wrong conversions
+- Bidirectional unit conversion — no downstream use case; introduces floating-point drift
 
 ### Architecture Approach
 
-ChemReg follows the **reactive state management pattern** with explicit cascade resets. Current flow: Upload → detect → preview → tag → curate → review. New flow inserts cleaning between preview and tag: Upload → detect → preview → **clean** → tag → curate → **post-curation QC** → review. Critical change: curation now operates on `cleaned_data` not `clean`, requiring explicit wiring in the "Run Curation" observer.
+v1.9 is a clean post-curation extension. The new pipeline activates after `run_curation_pipeline()` completes and `resolution_state` is populated. `resolution_state` is read-only from v1.9's perspective — harmonization produces a separate `data_store$harmonize_results` tibble and never mutates existing fields. Three new `data_store` fields are added (`harmonize_results`, `harmonize_audit`, `toxval_output`) and the existing `reset_all_downstream()` function is extended to null them on re-upload, tag change, or re-run curation. No existing observers, modules, or pipeline functions are structurally modified.
 
 **Major components:**
-1. **R/pre_curation.R** — 21 cleaning functions + pipeline orchestrator with `withProgress()` tracking
-2. **R/post_curation.R** — QC functions (CAS re-validation, Unicode check, functional use enrichment)
-3. **R/cleaning_reference.R** — 4 functions returning character vectors (stop words, block list, functional categories, food names)
-4. **Clean Data tab (inline in app.R)** — summary cards, reference list editors (rhandsontable), before/after preview (DT), re-run cleaning button
-5. **Extended data_store reactiveValues** — add cleaned_data, cleaning_audit, cleaning_stats, reference_lists
+1. `R/numeric_parser.R` — normalization chain → qualifier extraction → `as.numeric()`; returns structured list with numeric_value, qualifier, range bounds, parse_flag
+2. `R/unit_harmonizer.R` — case-sensitive lookup first, case-insensitive fallback, compound unit decomposition; returns canonical_unit, unit_class, unit_flag
+3. `R/harmonize_pipeline.R` — dispatches parsers by column tag type; assembles harmonized_data + audit_trail + summary; never receives Name/CASRN/Other columns
+4. `R/toxval_mapper.R` — `map_to_toxval_schema()` transmutes to 56-column schema with typed NA; `export_toxval()` writes parquet via arrow with schema assertion
+5. `R/mod_harmonize.R` — new Shiny module; value boxes, Run Harmonization button, unmatched-units review; follows mod_run_curation.R pattern exactly
+6. `R/mod_tag_columns.R` (modified) — adds 7 new tag choices to selectInput only; tag storage format unchanged
+7. `inst/app/app.R` (modified) — 4 new data_store fields, cascade reset extension, Harmonize tab nav_panel registration, on_curation_complete callback extension
 
-**State management pattern:** Explicit `data_store$field <- NULL` assignments on state changes, not reactive dependency chains. This prevents partial state inconsistencies. New cascade rule: editing reference lists + re-running cleaning invalidates tags, curation, consensus, and resolution (all downstream state).
-
-**Modularization strategy:** Inline implementation first (Phase 1-4), extract to modules later (v1.4+). Building inline is lower risk, faster to ship, and easier to debug during initial development. Once stable, extract using the "stratégie du petit r" pattern (incremental refactoring with tests).
+**Data flow (v1.9 extension only):**
+```
+resolution_state (read-only after curation)
+  → run_harmonize_pipeline(df, column_tags, unit_map)
+  → data_store$harmonize_results + data_store$harmonize_audit
+  → map_to_toxval_schema(harmonize_results, column_tags, source_metadata)
+  → data_store$toxval_output
+  → export_toxval(toxval_output, path, format) → parquet or CSV
+  → build_export_sheets() adds Sheet 8 (ToxVal Output) to existing Excel
+```
 
 ### Critical Pitfalls
 
-1. **Synonym splitting breaking IUPAC names** — Comma-based splitting (`"xylene, dimethylbenzene"`) falsely splits inverted IUPAC names (`"butane, 2,2-dimethyl"`) where commas are syntactically significant. **Mitigation:** Protect digit-comma-digit patterns, parenthetical content, detect inverted form via `^[A-Z][a-z]+,\s+\d` regex. Log all splits. Write 20+ test cases covering edge cases before deployment (Phase 3).
+1. **Fortran exponents silently produce NA** — Apply the full normalization chain (whitespace removal, `x10^` → `e`, Fortran-exponent regex `(?<=[0-9])(?<!e)([+-])(?=0\d(?!\d))`) BEFORE `as.numeric()`. Surface parse-failure count in the UI before user can advance past parsing. Regression test vector: `"4.56+02"`, `"6.90E+0.1"`, `"5.0 e-9"`, `"5x10^-9"`.
 
-2. **Reactive cascade explosion from editable reference lists** — Single stop-word edit triggers full 21-step pipeline re-run, tag invalidation, curation invalidation, causing 5-10 seconds of UI freeze. **Mitigation:** Add explicit "Apply Changes" button (don't auto-rerun on keystroke), debounce edits with `debounce(reactiveVal, millis=2000)`, use `isolate()` on display outputs. Show diff preview before re-running (Phase 4).
+2. **Range splitting destroys negative values and exponents** — The `num_bool` guard (split only if `as.numeric()` returned NA) is safe only AFTER Pitfall 1 normalization has run. Order is mandatory: normalize → numeric-guard → range-split. After splitting, re-validate each fragment with `as.numeric()`. Test: `"-0.5"`, `"4.56e-02"`, `"6.5-8.5"`.
 
-3. **App.R crossing 3,000 lines without modularization** — File already at 2,275 lines will grow to 3,000+ with cleaning tab, becoming unmaintainable (10+ minute LLM context load, difficult dependency tracing, high merge conflicts). **Mitigation:** Extract existing 6 tabs into modules BEFORE adding Phase 1 (8-12 hour refactoring). Target app.R <500 lines (orchestration only). Each module gets own state, communicates via return values.
+3. **Unit case-sensitivity collision (M vs m vs mL vs ML)** — Global `tolower()` before unit lookup collapses M (molar, 1 mol/L) into m (meter), a potential 1e6 conversion error. Apply only micro-symbol normalization (`µ`/`\u03BC` → `u`) before lookup. Case-sensitive match first; case-insensitive fallback flagged LOW confidence. Test: `"M"`, `"mL"`, `"ML"`, `"m"`, `"MBq"`.
 
-4. **Progress tracking lies in multi-step pipeline** — 21 steps with equal weight (5% each) but step 17 (`split_multi_cas()`) takes 40% of runtime; progress sits at 80% for 30 seconds. **Mitigation:** Measure empirical step weights via benchmarking 1,000-row test dataset, use weighted `incProgress(amount=step_weight)`. Show absolute time estimates. Separate fast vs. slow steps (Phase 1).
+4. **ToxVal NA type mismatch causes DuckDB parquet load failure** — Arrow infers logical type for all-NA columns. DuckDB rejects logical for character schema columns. Use `NA_character_`, `NA_real_`, `NA_integer_` everywhere — never bare `NA`. After export, read the parquet back with `arrow::read_parquet()` and assert all 56 column types match the schema manifest. This must be a test, not a code-review check.
 
-5. **Audit trail columns causing Excel export failure** — Pipe-separated comment strings grow to 500-1,000+ characters, exceeding Excel's 32,767 character cell limit. Wide dataframes (50+ columns) hit 16,384 column limit. **Mitigation:** Truncate displayed comments to 500 chars, store full trail in separate "Audit_Trail" sheet. Validate limits before export with `validate_excel_limits()` helper. Show warning if dataset too large for Excel format (Phase 1 + Phase 6).
+5. **`_original` audit columns contaminated if cleaning runs before capture** — Capture `result_original = result` as the absolute first mutation step, before any transformation. Only BOM stripping and invisible-whitespace normalization may precede the capture; these are encoding artifacts, not content. All substantive transforms (qualifier extraction, comma removal, range splitting) operate on a working-copy column only.
 
-6. **Re-import detection overwriting user edits** — App detects ChemReg export, auto-restores embedded reference lists and tags, silently overwriting any in-session modifications. **Mitigation:** Detect state divergence, show modal: "Restore embedded settings or keep current settings?" with side-by-side diff. Track modification timestamps. Never auto-restore without confirmation (Phase 1).
+6. **Chemical name cleaning pipeline must not touch numeric columns** — The existing `cleaning_pipeline.R` runs parenthetical stripping and unicode cleaning on Name-tagged columns. These would destroy `"(95% CI: 1.2-3.4)"` and subscript digits in result values. Pipeline dispatch must be by column tag type only — never "all columns". New Result/Unit/Duration tags must be explicitly excluded from the cleaning pipeline dispatch.
 
-7. **Flag behavior confusion (blocking vs. annotating)** — All flags displayed identically despite different behaviors; blocking flags stop curation, annotating flags warn but proceed. Users overwhelmed by 40% of rows flagged with 5+ types. **Mitigation:** Implement 3-tier visual taxonomy (red/blocking, yellow/warning, blue/info). Default view shows only blocking flags, collapsible sections for warnings. Add tooltip explanations and override mechanism (v1.3 Design Phase + Phase 4).
+---
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure:
+The dependency chain in FEATURES.md and the explicit build-order specification in ARCHITECTURE.md (Phases A and B) yield 7 natural phases: 4 pure-R phases followed by 3 UI/integration/export phases.
 
-### Phase 0: Refactor Before Building (CRITICAL)
-**Rationale:** App.R already at 2,275 lines. Adding 800+ lines of cleaning UI without modularization creates technical debt that compounds over time (Pitfall #3). Extract existing tabs into modules now before adding new features.
+### Phase 1: Static Data Foundations
+**Rationale:** All downstream components depend on the unit lookup table and ToxVal schema manifest existing before any code is written. Building these first means every subsequent phase has real, typed data to test against — not a placeholder that changes later.
+**Delivers:** `inst/extdata/unit_conversion.rds` (ECOTOX tribble + regulatory extensions), `inst/extdata/toxval_schema.rds` (56-column typed zero-row manifest), `load_unit_map()` loader in `cleaning_reference.R`
+**Addresses:** Unit harmonization lookup (table stakes prerequisite); ToxVal schema type manifest (prevents Pitfall 4)
+**Avoids:** Building parsers against a placeholder that drifts during development
 
-**Delivers:**
-- 6 modules: `mod_data_preview`, `mod_detection_info`, `mod_raw_data`, `mod_tag_columns`, `mod_run_curation`, `mod_review_results`
-- R/ directory with proper structure (`R/modules/`, existing helpers stay in `R/`)
-- app.R reduced to <500 lines (orchestration only)
-- Tests proving all existing functionality still works
+### Phase 2: Numeric Result Parser
+**Rationale:** The numeric parser is the critical-path dependency — range splitting, qualifier handling, and the full harmonization pipeline all depend on it. Building and testing it as a pure-R function with no Shiny dependency ensures correctness before any UI is added.
+**Delivers:** `R/numeric_parser.R` with `parse_numeric_result()`, `extract_qualifier()`, `normalize_numeric_string()` + full testthat suite
+**Addresses:** Narrative result filter, result string normalization, qualifier extraction, range splitting (all table stakes)
+**Avoids:** Pitfalls 1, 2, 5, 6, 7, 8 — all numeric parsing pitfalls are addressed here or by the order constraint this phase establishes
 
-**Time estimate:** 8-12 hours
-**Risk mitigation:** Prevents "unmaintainable monolith" pattern before adding complexity
+### Phase 3: Unit Harmonization Engine
+**Rationale:** Depends on Phase 1 (unit table). Purely functional, independently testable. Must be correct and case-safe before being composed into the orchestrator.
+**Delivers:** `R/unit_harmonizer.R` with `harmonize_unit()`, `normalize_unit_string()` + testthat suite covering case-sensitive, case-insensitive, and compound unit cases
+**Addresses:** Unit string normalization, unit harmonization lookup, unit conversion arithmetic (all table stakes)
+**Avoids:** Pitfalls 3, 4 — case-sensitivity collision, compound unit lookup miss
 
----
+### Phase 4: Harmonization Pipeline Orchestrator and ToxVal Mapper
+**Rationale:** Composes Phases 2 and 3. The three-stage unit pipeline (raw → intermediate → ToxVal) must be tested end-to-end in a single phase to prevent double-conversion (Pitfall 10). Integration tests using sswqs data as ground truth validate the full chain before UI work begins.
+**Delivers:** `R/harmonize_pipeline.R` (orchestrator), `R/toxval_mapper.R` (schema mapper + parquet export with schema assertion), integration tests
+**Addresses:** ToxVal schema transmutation, export to parquet/CSV (table stakes); harmonization audit trail (differentiator)
+**Avoids:** Pitfalls 4 (schema type mismatch), 10 (double-conversion), 13 (arrow version type drift)
 
-### Phase 1: Foundation (Audit Trail + Reference Data)
-**Rationale:** All cleaning features depend on audit trail infrastructure (`append_comment()`). Reference data (stop words, block lists, functional categories, food names) must be defined before they can be used in filters. Progress tracking infrastructure sets pattern for all later phases.
+### Phase 5: Extended Column Tagging
+**Rationale:** The first UI phase. Column tagging is the prerequisite for all harmonization UI — users must be able to tag Result/Unit/Duration columns before the Harmonize tab can function. The modification to mod_tag_columns.R is minimal (selectInput choices only), but the cascade reset extension must be implemented here so harmonized output is correctly invalidated when tags change.
+**Delivers:** Extended tag type vocabulary in `mod_tag_columns.R`, cascade reset extension in `app.R` (null harmonize_results + harmonize_audit + toxval_output on tag change), smoke test confirming new dropdowns appear
+**Addresses:** Extended column tagging (table stakes)
+**Avoids:** Pitfall 9 (cascade reset not extended for new tag types), INT-2 (`curate_headless()` tag validation must be updated)
 
-**Delivers:**
-- `R/cleaning_reference.R` — 4 functions returning reference character vectors
-- `R/pre_curation.R` foundation — `append_comment()`, `canonicalize_strings()`, progress weight helpers
-- Extended `data_store` with cleaned_data, cleaning_audit, cleaning_stats, reference_lists
-- Separate "Audit_Trail" sheet architecture for export (prevents Excel cell limit issues)
+### Phase 6: Harmonize Tab Module and app.R Wiring
+**Rationale:** With pure-R functions proven (Phases 2-4) and tagging working (Phase 5), the Harmonize tab is straightforward UI wiring. The module follows mod_run_curation.R exactly: button-triggered pipeline, `withProgress()` wrapper, write to data_store, call on_complete callback to reveal next tab.
+**Delivers:** `R/mod_harmonize.R` (UI + server), `app.R` wiring (new data_store fields, tab registration, on_curation_complete extension), working end-to-end Shiny pipeline from upload to harmonized output, narrative filter review UI, pre-export QC dashboard
+**Addresses:** Harmonization audit trail, narrative filter review, pre-export QC (differentiators)
+**Avoids:** Pitfall INT-1 (cleaning pipeline touching numeric columns — enforced at module dispatch boundary)
 
-**Addresses:**
-- Pitfall #5 (audit trail Excel limits) via separate sheet design
-- Pitfall #4 (progress tracking) via benchmarking infrastructure
-- Pitfall #6 (re-import state) via state management design
-
-**Stack:** No new dependencies (foundation only)
-**Time estimate:** 2-3 days
-
----
-
-### Phase 2: CAS-RN Pipeline
-**Rationale:** CAS cleaning is highest-value, lowest-risk starting point. Research shows 14.4% + 2.4% of rows benefit from CAS rescue and normalization. ComptoxR already provides all needed functions. CAS cleaning is independent of name cleaning, can be tested in isolation.
-
-**Delivers:**
-- 4 CAS cleaning functions: normalize, rescue, validate, split multi-CAS
-- Integration with audit trail (comment logging)
-- Summary stats: "X CAS rescued from names", "Y CAS validated", "Z multi-CAS split"
-
-**Addresses:**
-- Features: CAS rescue pipeline (differentiator)
-- Pitfall #1 preparation (synonym splitting protection patterns — tested here with CAS splitting before name synonym splitting)
-
-**Uses:** ComptoxR (existing), stringi for pattern detection
-**Time estimate:** 3-4 days
-
----
-
-### Phase 3: Name Cleaning Core
-**Rationale:** Name cleaning is most complex (8 functions) and highest-risk (Pitfall #1: synonym splitting). Build on audit trail and CAS patterns from Phase 1-2. Must implement IUPAC comma protection before general deployment.
-
-**Delivers:**
-- 8 name cleaning functions: terminal phrases, hazard warnings, quality adjectives, formulas, proprietary indicators, synonym splitting (with IUPAC protection), extraneous parentheses, stop word trimming
-- 20+ test cases for synonym splitting edge cases (inverted IUPAC, digit-comma-digit, parenthetical)
-- Before/after name comparison in UI
-
-**Addresses:**
-- **Pitfall #1 (synonym splitting IUPAC names)** — critical mitigation via protection rules and extensive testing
-- Features: Basic name cleaning (table stakes), formula detection (differentiator)
-
-**Risk:** HIGH — synonym splitting is most error-prone operation
-**Time estimate:** 4-5 days
-
----
-
-### Phase 4: Reference Data Filters + Editable Lists
-**Rationale:** With CAS and name cleaning proven, add reference-based filtering (functional categories, food names, block lists). This phase introduces UI complexity (editable tables, reactive cascade management). Must implement debouncing and "Apply Changes" pattern to avoid Pitfall #2.
-
-**Delivers:**
-- 4 reference filter functions: functional category detection, food name flagging, block list matching, custom stop words
-- rhandsontable editable tables for all 4 reference lists
-- Debounced editing with explicit "Apply Changes" button
-- Flag taxonomy UI: red/blocking, yellow/warning, blue/info badges
-- "Re-run Cleaning" workflow with state invalidation
-
-**Addresses:**
-- **Pitfall #2 (reactive cascade explosion)** — critical mitigation via debouncing and staged editing
-- **Pitfall #7 (flag behavior confusion)** — 3-tier visual taxonomy implementation
-- Features: Editable reference lists (differentiator), blocking vs. annotating flags (differentiator)
-
-**Stack:** **rhandsontable** (NEW) for editable tables
-**Risk:** MEDIUM — reactive cascade management requires careful testing
-**Time estimate:** 5-6 days
-
----
-
-### Phase 5: Multi-Sheet Export + Re-Import Detection
-**Rationale:** With full cleaning pipeline working, add reproducibility features. Multi-sheet export carries complete state (data + audit + reference lists + config). Re-import detection enables session restoration. This phase completes the reproducibility loop.
-
-**Delivers:**
-- 7-sheet Excel export: Data, Audit_Trail, Reference_Lists, Pipeline_Config, Data_Dictionary, Manifest, README
-- Re-import detection via Manifest sheet parsing
-- State restoration with conflict resolution modal (Pitfall #6 mitigation)
-- Excel limit validation before export
-
-**Addresses:**
-- **Pitfall #6 (re-import overwriting edits)** — state divergence detection and confirmation modal
-- **Pitfall #5 (Excel limits)** — final validation in export handler
-- Features: Multi-sheet export (differentiator), re-import detection (differentiator)
-
-**Stack:** **openxlsx2** (NEW) for multi-sheet export with metadata
-**Time estimate:** 3-4 days
-
----
-
-### Phase 6: Post-Curation QC (Optional for v1.3.0)
-**Rationale:** Closes the loop: cleaning → curation → validation. Re-validates CAS after API resolution, enriches with functional use and safety flags from CompTox. Can be deferred to v1.3.1 if timeline is tight.
-
-**Delivers:**
-- `R/post_curation.R` — CAS re-validation, Unicode check, functional use lookup, safety flag enrichment
-- Integration with Review Results tab (new columns)
-- Timeout handling for API calls (Pitfall #4 mitigation for async operations)
-
-**Addresses:**
-- Features: Post-curation QC (differentiator)
-- Pitfall #4 extension (progress tracking for API calls with variable latency)
-
-**Uses:** ComptoxR functional use and safety flag APIs (existing)
-**Risk:** LOW — similar to existing curation pipeline
-**Time estimate:** 2-3 days
-
----
+### Phase 7: Export Extension and headless
+**Rationale:** Terminal step. Implementing export last means it operates on a proven, schema-validated `toxval_output` tibble. The headless extension is additive with `harmonize=FALSE` default preserving the existing contract for all current callers.
+**Delivers:** Sheet 8 "ToxVal Output" in existing Excel export, parquet/CSV download handler in `mod_review_results.R` with format radio buttons, `curate_headless()` extension with `harmonize`/`export_toxval`/`source_metadata` params, `DESCRIPTION` updated with `arrow` (Suggests) and `lubridate` (Imports)
+**Addresses:** Parquet/CSV export (table stakes), headless harmonization support (differentiator)
+**Avoids:** Pitfall INT-3 (ToxVal 56-column output on separate sheet, not merged with existing data sheet), Pitfall 13 (parquet read-back type assertion test)
 
 ### Phase Ordering Rationale
 
-**Dependencies:**
-- Phase 0 must come before all others (creates clean modular structure for new features)
-- Phase 1 is foundation for all cleaning (audit trail, reference data, state management)
-- Phase 2 (CAS) and Phase 3 (names) are independent of each other but both depend on Phase 1
-- Phase 4 (reference filters) depends on Phases 1-3 (uses cleaned CAS/names as input)
-- Phase 5 (export) depends on Phases 1-4 (exports cleaned data + reference state)
-- Phase 6 (post-QC) depends on existing curation pipeline, can run in parallel with Phases 1-5 if needed
-
-**Groupings:**
-- Phases 1-3: Core cleaning pipeline (no UI beyond basic preview)
-- Phase 4: UI complexity (editable tables, reactive management)
-- Phase 5: Reproducibility (export/import)
-- Phase 6: Enrichment (post-curation)
-
-**Risk mitigation:**
-- Start with lowest-risk, highest-value (CAS cleaning)
-- Tackle highest-risk operation (synonym splitting) after patterns established
-- Add UI complexity (editable tables) after core pipeline proven
-- Optional phase (post-QC) can be deferred if needed
+- Phases 1-4 are pure-R with no Shiny dependencies. This enables full TDD before any UI work begins and means the 953-test regression surface cannot be disturbed by v1.9 development (INT-4).
+- Phase 2 must precede Phase 3 because the `num_bool` output of numeric parsing is the guard condition for range splitting, which is also the input column state that unit harmonization receives.
+- Phases 2 and 3 are independent of each other and could run in parallel, but Phase 4 depends on both.
+- Phase 5 before Phase 6 because mod_harmonize reads column_tags to dispatch parsers; tags must carry the new vocabulary before the module can be wired.
+- Phase 7 last because it is the validation gate for the entire pipeline — a broken export is a diagnostic signal, not a blocker for earlier phases.
 
 ### Research Flags
 
-**Phases likely needing deeper research during planning:**
-- **Phase 3 (Name Cleaning Core):** Synonym splitting IUPAC protection — may need consultation with chemist or OPSIN parser testing to validate edge cases
-- **Phase 4 (Reference Filters):** Flag taxonomy UX — should conduct user testing to verify 3-tier system is intuitive (blocking vs. warning vs. info)
+Phases likely needing `/gsd:research-phase` during planning:
+- **Phase 4 (ToxVal Mapper):** The exact 56-column schema order for the live `toxval.duckdb` instance should be verified against the actual database before the schema manifest (`toxval_schema.rds`) is built. The sswqs_curation.R transmute block is HIGH-confidence but was written for that specific dataset.
+- **Phase 6 (Harmonize Tab — unmatched-unit review):** The UI pattern for allowing curators to add unit mappings inline and re-run harmonization is novel in this codebase. A quick research scan of editable DT + reactive rerun patterns may prevent a Pitfall 2-style cascade explosion.
 
-**Phases with standard patterns (skip research-phase):**
-- **Phase 0 (Refactor):** Well-documented Shiny module patterns, no domain-specific complexity
-- **Phase 1 (Foundation):** Straightforward reactive state management, established audit trail patterns
-- **Phase 2 (CAS Pipeline):** ComptoxR functions already exist and are documented, low uncertainty
-- **Phase 5 (Export):** Standard multi-sheet Excel export, openxlsx2 has comprehensive documentation
-- **Phase 6 (Post-QC):** Same pattern as existing curation pipeline, no new concepts
+Phases with standard patterns (skip research-phase):
+- **Phase 1 (Static Data):** Direct file-lift from two sources with exact line numbers. No uncertainty.
+- **Phase 2 (Numeric Parser):** Complete implementation spec in STACK.md; all regex patterns confirmed in sswqs_curation.R. Pure stringr/base R.
+- **Phase 3 (Unit Harmonizer):** ECOTOX tribble is the direct seed; pattern is `left_join()` against static RDS. No uncertainty.
+- **Phase 5 (Extended Tagging):** One `selectInput` choices vector change. Established pattern.
+- **Phase 7 (Export + headless):** `arrow::write_parquet()` is documented; `curate_headless()` extension is additive with defaults preserving backward compat.
+
+---
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | **HIGH** | Only 2 new packages needed (openxlsx2, rhandsontable), both mature CRAN packages with active maintenance. All other needs satisfied by existing dependencies (stringi via tidyverse, withProgress built-in, readxl existing). Source quality: official CRAN docs, package manuals, verified community comparisons. |
-| Features | **HIGH** | UX patterns verified via OpenRefine, DataTables, Shiny ecosystem documentation. Chemical-specific features (CAS rescue, functional use flagging) have no commercial analogs, but this is validated opportunity (live ChemReg data shows 14.4% + 2.4% of rows benefit). Table stakes and differentiators clearly defined. |
-| Architecture | **HIGH** | Current app.R structure documented and understood. Inline-first approach is correct per Shiny best practices and Engineering Production-Grade Shiny Apps guide. State management patterns proven in existing codebase (reactiveValues cascade reset). Module extraction path is clear for v1.4+. |
-| Pitfalls | **MEDIUM** | 7 critical pitfalls identified with detailed mitigation strategies, but severity estimates are based on inference from community reports and best practices, not direct experience with ChemReg scale. Synonym splitting IUPAC protection rules are based on IUPAC spec understanding, need chemist validation. Flag taxonomy UX needs user testing to confirm intuitiveness. |
+| Stack | HIGH | Both new packages confirmed installed and version-checked at runtime. All implementation patterns confirmed at specific line numbers in production code. The `units` package rejection is well-reasoned from domain evidence. |
+| Features | HIGH | Primary reference is a complete, production EPA curation script that implements the full feature set end-to-end. Feature boundaries and anti-features are clearly drawn from a working implementation, not speculation. |
+| Architecture | HIGH | Based on direct inspection of 9,700+ LOC existing codebase. Module boundaries, data_store fields, cascade reset logic, and integration points are fully documented with specific file and line references. |
+| Pitfalls | HIGH (v1.9 section) | All six critical pitfalls have code evidence from production scripts (specific line numbers cited). The v1.9 pitfall section is research-quality; the legacy v1.3 pitfall section is lower confidence but those risks are already mitigated by the existing codebase. |
 
-**Overall confidence:** **HIGH**
+**Overall confidence:** HIGH
 
 ### Gaps to Address
 
-**Synonym splitting IUPAC protection validation:**
-- Research identified protection patterns (digit-comma-digit, inverted form detection, parenthetical), but these are based on IUPAC spec interpretation
-- **Mitigation:** During Phase 3 implementation, test with OPSIN parser or consult with chemist to validate edge cases. Create 20+ test cases from live ChemReg data before deployment. If protection fails on real data, fall back to semicolon-only splitting (safer).
+- **Live toxval.duckdb schema verification:** The 56-column schema manifest should be validated against the actual database before Phase 4 begins. The sswqs_curation.R transmute block (lines 1057-1138) is a strong proxy but was written for that dataset. If the live schema differs in column count, order, or types, `toxval_schema.rds` must be rebuilt from the database.
 
-**Editable reference list UX confirmation:**
-- Research recommends rhandsontable over DT for editing, but user preference for Excel-like UX vs. form-based editing is assumed
-- **Mitigation:** During Phase 4 implementation, build both patterns as prototypes (rhandsontable inline table + modal form for adding items). Quick user testing (5 minutes) to confirm which is more intuitive before committing to full implementation.
+- **Unit table coverage beyond SSWQS:** The ECOTOX tribble covers ecotoxicology units; the sswqs_curation.R extensions cover EPA SSWQS-specific units. Other benchmark datasets (IRIS, PPRTV, OPP, screening levels) likely have additional unit variants. Plan for iterative extension as new datasets are onboarded — the user-editable unit table differentiator exists exactly to handle this.
 
-**Flag taxonomy intuitiveness:**
-- 3-tier system (red/blocking, yellow/warning, blue/info) is based on universal UX patterns, but chemical inventory context may introduce confusion
-- **Mitigation:** During Phase 4 implementation, create 15+ user testing scenarios: "Which flags must you fix before curation?" Verify 80%+ correct answer rate. If confusion persists, add inline tooltips with explicit explanations per flag type.
+- **Duration classification lookup source:** Duration appears in three formats (numeric+unit, code, free text). The code-to-canonical mapping (`"A"` → `"acute"`) needs a source table. It does not exist as a static asset yet and must be seeded from target datasets during Phase 2/3.
 
-**Excel export limits on very large datasets:**
-- Mitigation strategies (separate audit sheet, truncation, limit validation) are based on Excel spec research, but performance on 10,000+ row datasets is unknown
-- **Mitigation:** During Phase 5 implementation, test export with synthetic 10,000-row dataset containing heavy transformations (20+ steps per row). Measure export time, file size, Excel open time. If limits are hit, implement CSV fallback option for datasets exceeding thresholds.
+- **arrow in Suggests vs Imports:** Research recommends `Suggests` with `requireNamespace()` fallback to CSV. If the primary deployment environment always has arrow available, `Imports` is simpler and avoids defensive code. Confirm deployment context before Phase 7.
 
-**Re-import state divergence detection accuracy:**
-- Heuristics (timestamp comparison, state hash) are theoretically sound, but edge cases (user edits Excel data sheet manually, system clock skew) may cause false positives/negatives
-- **Mitigation:** During Phase 5 implementation, create 10+ test scenarios: initial upload, re-upload after in-app edits, re-upload after Excel edits, re-upload after both. Verify modal appears correctly in each case. If heuristics are too noisy, simplify to always-prompt-on-re-import (safer but less seamless).
+---
 
 ## Sources
 
 ### Primary (HIGH confidence)
-
-**Stack Research:**
-- [openxlsx2 Package Manual](https://cran.r-universe.dev/openxlsx2/doc/manual.html) — Multi-sheet export capabilities
-- [openxlsx2 Documentation](https://janmarvin.github.io/openxlsx2/) — Workbook properties API
-- [rhandsontable Documentation](https://jrowen.github.io/rhandsontable/) — Editable table patterns
-- [Shiny withProgress Documentation](https://shiny.posit.co/r/reference/shiny/latest/withprogress.html) — Progress tracking built-in
-- [readxl Documentation](https://readxl.tidyverse.org/) — Multi-sheet import
-- [stringi Documentation](https://stringi.gagolewski.com/) — Unicode detection
-
-**Architecture Research:**
-- [Engineering Production-Grade Shiny Apps - Chapter 3: Structuring Your Project](https://engineering-shiny.org/structuring-project.html) — Modularization strategy
-- [Mastering Shiny - Chapter 19: Shiny modules](https://mastering-shiny.org/scaling-modules.html) — Module patterns
-- [Mastering Shiny - Chapter 15: Reactive building blocks](https://mastering-shiny.org/reactivity-objects.html) — State management
-- [Shiny - Modularizing Shiny app code](https://shiny.posit.co/r/articles/improve/modules/) — Official module guide
-
-**Feature Research:**
-- [OpenRefine Official Site](https://openrefine.org/) — Data cleaning UX patterns
-- [DataTables Child Rows](https://datatables.net/examples/api/row_details.html) — Audit trail display pattern
-- [DT in Shiny](https://rstudio.github.io/DT/shiny.html) — Editable tables
+- `curation/epa/sswqs/sswqs_curation.R` lines 713-1142 — complete production numeric parsing + unit harmonization + ToxVal mapping pipeline (direct code read)
+- `ComptoxR/inst/ecotox/ecotox_build.R` lines 271-467 — unit_result tribble; complete unit lookup table seed (direct code read)
+- `chemreg/DESCRIPTION` — current Imports baseline (direct file read)
+- `chemreg/.planning/PROJECT.md` — architecture constraints and key decisions log (authoritative project document)
+- Runtime package verification: `arrow` 21.0.0.1, `lubridate` 1.9.4, `stringi` 1.8.7 confirmed installed
 
 ### Secondary (MEDIUM confidence)
-
-**Pitfall Research:**
-- [Mastering Shiny - User feedback](https://mastering-shiny.org/action-feedback.html) — Progress tracking pitfalls
-- [Form Validations vs Warnings (Baymard)](https://baymard.com/blog/validations-vs-warnings) — Flag taxonomy UX
-- [NN/g Error Message Guidelines](https://www.nngroup.com/articles/errors-forms-design-guidelines/) — Visual design for errors
-- [writexl CRAN documentation](https://cran.r-project.org/web/packages/writexl/writexl.pdf) — Excel limits
-- [Excel Worksheets - Naming](https://bettersolutions.com/excel/worksheets/naming.htm) — Sheet naming constraints
-
-**UX Pattern Research:**
-- [Trifacta Data Wrangling Overview](https://www.softcrylic.com/blogs/trifacta-a-tool-for-the-modern-day-data-analyst/) — Recipe-based transformation
-- [Data Table Design UX Best Practices](https://www.pencilandpaper.io/articles/ux-pattern-analysis-enterprise-data-tables) — Expandable rows
-- [Reproducible Data Cleaning Guide](https://b-greve.gitbook.io/beginners-guide-to-clean-data/data-modeling/reproducibility) — Audit trail patterns
+- [ToxValDB v9.7.0 schema documentation, EPA FigShare](https://epa.figshare.com/articles/dataset/ToxValDB_v9_1/20394501) — 56-column schema reference
+- [Wall et al. 2025, Computational Toxicology](https://www.sciencedirect.com/science/article/abs/pii/S2468111325000258) — ToxValDB design rationale, two-phase curation + standardization model
+- [USEPA/toxvaldbstage GitHub](https://github.com/USEPA/toxvaldbstage) — Schema transparency reference
+- [baytrends: Processing Censored Water Quality Data (CRAN)](https://cran.r-project.org/web/packages/baytrends/vignettes/Processing_Censored_Data.html) — Censored data conventions for qualifier handling
 
 ### Tertiary (LOW confidence)
-
-**Chemical Domain:**
-- [IUPAC nomenclature of organic chemistry - Wikipedia](https://en.wikipedia.org/wiki/IUPAC_nomenclature_of_organic_chemistry) — Inverted name forms
-- [Chemical Inventory Management Best Practices](https://www.fldata.com/chemical-inventory-management-best-practices) — Domain validation needs
-
-**Community Best Practices:**
-- [R-bloggers: Comparing writexl, openxlsx, and xlsx](https://www.r-bloggers.com/2023/05/comparing-r-packages-for-writing-excel-files-an-analysis-of-writexl-openxlsx-and-xlsx-in-r/) — Package comparison
-- [Appsilon: Better Than Excel - Use R Shiny Packages](https://appsilon.com/forget-about-excel-use-r-shiny-packages-instead/) — rhandsontable vs DT
+- Shiny reactivity / progress bar patterns (Mastering Shiny, Engineering Production-Grade Shiny Apps) — relevant for Phase 6 UI pitfalls; well-established patterns, no validation needed for standard cases
 
 ---
-*Research completed: 2026-03-04*
+*Research completed: 2026-04-14*
 *Ready for roadmap: yes*
