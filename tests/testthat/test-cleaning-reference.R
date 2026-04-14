@@ -89,12 +89,12 @@ test_that("load_all_reference_lists returns expected structure", {
 
     result <- load_all_reference_lists(cache_dir)
 
-    # Check structure - function now returns 6 keys:
+    # Check structure - function now returns 7 keys:
     # stop_words, block_patterns, functional_categories added Phase 13;
     # strip_terms added Phase 21; isotope_lookup added Phase 23;
-    # unit_map added Phase 29
+    # unit_map added Phase 29-01; toxval_schema added Phase 29-02
     expect_type(result, "list")
-    expect_named(result, c("stop_words", "block_patterns", "functional_categories", "strip_terms", "isotope_lookup", "unit_map"))
+    expect_named(result, c("stop_words", "block_patterns", "functional_categories", "strip_terms", "isotope_lookup", "unit_map", "toxval_schema"))
 
     # Check types - all should be tibbles
     expect_true(tibble::is_tibble(result$stop_words))
@@ -207,5 +207,90 @@ test_that("load_all_reference_lists includes unit_map", {
     result <- load_all_reference_lists(cache_dir)
 
     expect_true("unit_map" %in% names(result))
+  })
+})
+
+test_that("load_toxval_schema returns zero-row typed tibble", {
+  # Locate inst/extdata: when devtools::test() runs, wd is package root;
+  # when test_file() runs directly, wd is tests/testthat/. Probe both.
+  candidates <- c(
+    file.path(getwd(), "inst", "extdata"),
+    file.path(getwd(), "..", "..", "inst", "extdata")
+  )
+  cache_dir <- candidates[sapply(candidates, function(d) file.exists(file.path(d, "toxval_schema.rds")))][1]
+  if (is.na(cache_dir)) skip("toxval_schema.rds not found")
+
+  result <- load_toxval_schema(cache_dir)
+
+  # Check type
+  expect_s3_class(result, "tbl_df")
+
+  # Check zero rows
+  expect_equal(nrow(result), 0)
+
+  # Check 56 columns
+  expect_equal(ncol(result), 56)
+})
+
+test_that("load_toxval_schema has required columns", {
+  candidates <- c(
+    file.path(getwd(), "inst", "extdata"),
+    file.path(getwd(), "..", "..", "inst", "extdata")
+  )
+  cache_dir <- candidates[sapply(candidates, function(d) file.exists(file.path(d, "toxval_schema.rds")))][1]
+  if (is.na(cache_dir)) skip("toxval_schema.rds not found")
+
+  result <- load_toxval_schema(cache_dir)
+
+  # Core identifier columns
+  expect_true("dtxsid" %in% names(result))
+  expect_true("casrn" %in% names(result))
+  expect_true("name" %in% names(result))
+
+  # Toxicity value columns
+  expect_true("toxval_type" %in% names(result))
+  expect_true("toxval_numeric" %in% names(result))
+  expect_true("toxval_units" %in% names(result))
+  expect_true("toxval_numeric_qualifier" %in% names(result))
+
+  # Audit columns
+  expect_true("toxval_numeric_original" %in% names(result))
+  expect_true("toxval_units_original" %in% names(result))
+  expect_true("conversion_factor" %in% names(result))
+  expect_true("parse_flag" %in% names(result))
+})
+
+test_that("load_toxval_schema uses typed NA values", {
+  candidates <- c(
+    file.path(getwd(), "inst", "extdata"),
+    file.path(getwd(), "..", "..", "inst", "extdata")
+  )
+  cache_dir <- candidates[sapply(candidates, function(d) file.exists(file.path(d, "toxval_schema.rds")))][1]
+  if (is.na(cache_dir)) skip("toxval_schema.rds not found")
+
+  result <- load_toxval_schema(cache_dir)
+
+  # Check that character columns are character type (not logical from bare NA)
+  col_types <- sapply(result, typeof)
+
+  # No logical types (indicates bare NA)
+  expect_false(any(col_types == "logical"))
+
+  # dtxsid should be character
+  expect_equal(typeof(result$dtxsid), "character")
+
+  # toxval_numeric should be double
+  expect_equal(typeof(result$toxval_numeric), "double")
+
+  # year should be integer
+  expect_equal(typeof(result$year), "integer")
+})
+
+test_that("load_all_reference_lists includes toxval_schema", {
+  withr::with_tempdir({
+    cache_dir <- "test_cache"
+    result <- load_all_reference_lists(cache_dir)
+
+    expect_true("toxval_schema" %in% names(result))
   })
 })
