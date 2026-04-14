@@ -1,160 +1,141 @@
 # Feature Landscape
 
-**Domain:** Chemical inventory data cleaning and curation pipeline
-**Researched:** 2026-03-04
-**Confidence:** HIGH for UX patterns (verified with OpenRefine, DataTables, Shiny ecosystem); MEDIUM for chemical-specific workflows (limited domain-specific tools)
+**Domain:** Numeric result parsing, unit harmonization, and toxval schema output for regulatory/benchmark data curation
+**Milestone:** v1.9 Number and Unit Coercion Harmonization
+**Researched:** 2026-04-14
+**Supersedes:** Previous FEATURES.md (v1.3 chemical inventory cleaning milestone)
 
 ---
 
 ## Executive Summary
 
-Data cleaning tools follow a "preview → transform → review" pattern with transparent audit trails and reproducible configurations. Table stakes include: interactive cleaning with undo/redo, visual distinction between blocking errors and warnings, exportable operation history, and tabular data display. Differentiators for chemical inventory: embedded audit trails per row, editable domain-specific reference lists (stop words, functional categories), smart re-import detection with state restoration, and multi-sheet Excel exports carrying configuration + data dictionary.
+The v1.9 milestone converts ChemReg from a compound-identification tool into a full regulatory/benchmark data curation pipeline. The core loop is: parse messy numeric result strings → harmonize units to a standard target → classify exposure context → map everything to the 56-column ToxVal schema → export to parquet/CSV for database integration.
 
-The R/Shiny ecosystem supports these patterns through: DT for editable tables with child row expansion, bslib tabs for progressive disclosure workflows, and writexl for multi-sheet exports. Chemical-specific features (CAS validation, functional use flagging) have no commercial analogs — this is greenfield opportunity.
+A working reference implementation already exists in `curation/epa/sswqs/sswqs_curation.R`. That script demonstrates the entire feature set end-to-end: narrative filter, result string normalization (Fortran exponents, scientific notation, space removal), range splitting with mid-row generation, unit harmonization via `case_when` lookup table, protection code decoding, and ToxVal schema transmutation. ChemReg v1.9 is the Shiny-wrapped, audit-trailed, user-facing version of this pattern.
+
+The key complexity gap between sswqs_curation.R and ChemReg v1.9 is that sswqs_curation.R is dataset-specific (hardcoded column names, hardcoded unit tables, hardcoded protection code lookup). ChemReg v1.9 must generalize these to work on any regulatory/benchmark file a user uploads.
 
 ---
 
 ## Table Stakes
 
-Features users expect from data cleaning tools. Missing these = product feels incomplete or untrustworthy.
+Features that must exist for v1.9 to function. Missing any of these = the pipeline cannot produce a valid ToxVal output.
 
-| Feature | Why Expected | Complexity | Dependencies | Notes |
-|---------|--------------|------------|--------------|-------|
-| **Tabular data preview** | Standard for all data tools; users need to see raw → clean transformation | Low | DT package (existing) | Already implemented in Data Preview tab |
-| **Undo/redo operation history** | OpenRefine standard; users expect reversibility without data loss | Medium | Reactive values tracking pipeline state | Need stack of pipeline configs + data snapshots |
-| **Visual flag distinction** | Error = red + blocking; Warning = yellow/orange + proceeds; universal UX pattern ([Baymard](https://baymard.com/blog/validations-vs-warnings), [NN/g](https://www.nngroup.com/articles/errors-forms-design-guidelines/)) | Low | Bootstrap color utilities (existing) | Red/exclamation for blocking flags; yellow/warning icon for annotations |
-| **Summary statistics cards** | Users need "what changed?" counts before/after cleaning | Low | Existing summary card pattern from v1.0-1.2 | "X CAS rescued", "Y formulas detected", "Z flagged for review" |
-| **Exportable results** | All tools export cleaned data; baseline expectation | Low | writexl (existing) | Enhanced to multi-sheet in differentiators |
-| **Progressive workflow tabs** | ChemReg pattern (Data Preview → Tag → Curate); users expect linear progression | Low | bslib nav_panel (existing) | Insert "Clean Data" tab between Preview and Tag |
-| **Batch operations** | Clean entire column/dataset at once; manual row-by-row = unacceptable | Medium | Pipeline functions vectorized over df columns | Pre-curation.R functions must be vectorized |
-| **Before/after comparison** | Users validate by comparing distributions ([Juice Analytics](https://www.juiceanalytics.com/writing/guide-to-cleaning-data), [Tableau](https://help.tableau.com/current/prep/en-us/prep_clean.htm)) | Medium | DT with column visibility toggles | Show original + cleaned columns side-by-side or toggle |
+| Feature | Why Required | Complexity | Existing Dependency | Notes |
+|---------|--------------|------------|---------------------|-------|
+| **Narrative result filter** | Non-parsable text values (e.g., "see table", "within X") must be excluded before numeric parsing or `as.numeric()` produces NA silently | Low | stringr (existing) | Filter on regex patterns: `\bsee\b`, `\bwithin\b`, `/`, `\bnot\b`, etc. Must preserve a `removed_reason` audit column — don't silently drop |
+| **Result string normalization** | Messy inputs: commas in numbers ("1,000"), spaces before exponents ("5.0 e-9"), Fortran-style exponents ("4.56+02"), x10^ notation ("5x10^-9"), "million" as text | Low-Medium | stringr (existing) | All patterns demonstrated in sswqs_curation.R lines 779-784. One-off corrections (e.g., `6.90E+0.1 → 6.90E+01`) are real and must be supported via a user-editable one-off corrections table |
+| **Qualifier extraction** | Values like "<0.005", ">10", "~3.2" must split qualifier from numeric value; qualifier stored separately as `=`, `<`, `>`, `~` | Low-Medium | stringr str_match (existing) | Named capture group pattern: `^([<>=~]?)\s*([\d.]+(?:[eE][+-]?\d+)?)$`. sswqs uses `result_bin` (as_is/low/high/mid) for range qualifiers; explicit qualifier symbols need the same treatment |
+| **Range splitting** | Values like "5.6-7.8" must become two rows (low=5.6, high=7.8) plus an optional midpoint row | Medium | tidyr unnest (existing) | sswqs_curation.R lines 787-801 demonstrate the `str_split` + `unnest` pattern. Ambiguity: "-" is both range separator and negative sign — must parse numeric first, then re-attempt range split on non-numeric |
+| **Unit string normalization** | Raw unit strings have micro symbols (µ vs u), mixed case, spaces around "/", latin vs ASCII variants | Low | stringi (existing) | sswqs_curation.R line 813-818: `str_replace_all("[\\u00B5\\u03BC]", "u")`, `stri_trans_general("latin-ascii")`, `str_to_lower()`, normalize " per " → "/" |
+| **Unit harmonization lookup** | Map variant unit spellings to canonical targets (ug/l, mg/l, ppm → ug/l; mpn/100ml → count/100ml, etc.) | Medium | dplyr case_when (existing) | sswqs_curation.R lines 820-858 is the reference lookup table. ChemReg lifts ComptoxR unit tables and extends. Must support user-editable additions via reference list pattern (same as v1.3 stop words) |
+| **Unit conversion arithmetic** | Convert parsed numeric values using factor (mg/L × 1000 → ug/L) or formula (°F = (°F-32)*5/9 → °C) | Low | dplyr mutate (existing) | sswqs_curation.R lines 861-891. Must store `conversion_factor` alongside result for audit trail |
+| **Extended column tagging** | User must be able to tag columns as: Result, Unit, Duration, Qualifier, Application (human health/aquatic life), Location (freshwater/saltwater), Exposure route, Study type | Medium | mod_tag_columns (existing) | Extends existing 3-option dropdown (Chemical Name / CASRN / Other) to ~10 tag types. Same table-per-column UI pattern. Must preserve backward compat with existing curation tag types |
+| **ToxVal schema transmutation** | Output must match the 56-column ToxVal schema exactly: toxval_id, dtxsid, source, toxval_type, toxval_numeric, toxval_units, toxval_numeric_qualifier, study_type, study_duration_class, species, exposure_route, media, etc. | High | dplyr transmute (existing) | sswqs_curation.R lines 925-1139 is the complete reference transmutation. `*_original` audit columns required for every harmonized field. NA_character_ for columns not mappable from source |
+| **Export to parquet/CSV** | toxval.duckdb integration requires parquet or matching CSV schema | Low | rio (existing) | `rio::export(file = "output.parquet")` uses arrow backend. Verify arrow package available in project |
 
 ---
 
 ## Differentiators
 
-Features that set ChemReg apart from generic data cleaning tools. Not expected by all users, but highly valued by chemical inventory managers.
+Features that elevate ChemReg from a script wrapper to a real curation tool for this domain.
 
-| Feature | Value Proposition | Complexity | Dependencies | Notes |
-|---------|-------------------|------------|--------------|-------|
-| **Per-row audit trail** | Transparency: "What changed and why?" for every cell transformation | High | DT child rows + comment columns in df | [DataTables child row API](https://datatables.net/examples/api/row_details.html); pipe-separated audit log per row |
-| **Editable reference lists** | Curators can tune stop words, block lists, functional categories without developer intervention | High | DT editable tables + reactive re-run | [Shiny DT editable](https://rstudio.github.io/DT/shiny.html); save edits to reactiveVal, rerun pipeline on change |
-| **Blocking vs annotating flags** | Blocking flags (formulas, empty names) stop curation; Annotating flags (mixtures, proprietary) warn but proceed | Medium | Flag type metadata + conditional routing in pipeline | No commercial analog; novel for chemical cleaning |
-| **Multi-sheet Excel export** | Data + Audit Trail + Reference Lists + Config + Data Dictionary in one file | Medium | writexl multi-sheet API | Reproducibility: export carries full state for re-import ([data cleaning best practices](https://rebeccabarter.com/blog/2019-03-07_reproducible_pipeline)) |
-| **Re-import detection** | Recognize ChemReg exports, hot-load embedded reference lists + pipeline config, skip redundant cleaning | High | Metadata sheet in Excel + detection logic on upload | Session restoration pattern from [datacleanr](https://github.com/the-Hull/datacleanr) R package |
-| **CAS-RN rescue pipeline** | Extract CAS from name columns, validate checksums, split multi-CAS cells — domain-specific | Medium | ComptoxR (existing) + pipeline orchestration | No generic tool does this; chemical inventory unique need |
-| **Functional use flagging** | Detect "Fragrance", "Flavor", "Surfactant" as non-chemical product categories | Medium | Reference list (EPA ChemExpo or keyword-based) | Chemical domain-specific; OpenRefine has no analog |
-| **Post-curation QC** | Re-validate CAS after API resolution, enrich with functional use + safety flags from CompTox | Medium | ComptoxR functional use + safety flag APIs | Closes loop: cleaning → curation → validation |
+| Feature | Value Proposition | Complexity | Existing Dependency | Notes |
+|---------|-------------------|------------|---------------------|-------|
+| **User-editable unit harmonization table** | Curators encounter new unit variants in each new dataset; static lookup tables become stale. Editable table (same pattern as v1.3 reference list editors) lets users add mappings without touching code | High | mod_clean_data reference list pattern (existing) | Store as RDS in `inst/extdata/reference_cache/` alongside existing reference lists. Re-run harmonization cascade on save, same as v1.3 stop word edits |
+| **Narrative filter review UI** | Rows excluded by narrative filter represent real data (regulatory decisions often expressed in prose). Show curator excluded rows with reason, allow manual override to keep a row and enter manual value | Medium | DT + reactiveValues (existing) | Reduces false exclusions. Pattern: show excluded rows in separate DT tab within harmonization UI; "Keep this row" button with manual value entry |
+| **One-off corrections table** | Edge cases like `6.90E+0.1 → 6.90E+01` are real (seen in sswqs data). Curators need to log and apply source-specific fixes | Low | Reference list pattern (existing) | Store as editable `(pattern, replacement)` tibble. Applied as `str_replace` chain before normalization |
+| **Range midpoint toggle** | sswqs generates low/high/mid rows from ranges. For toxval integration, mid rows are optional (some sources want only bounds). Let user choose: expand ranges to low/high/mid, low/high only, or midpoint only | Low | Reactive config (existing) | Checkbox in harmonization config panel |
+| **Protection code / exposure classification decoder** | Source files encode exposure context as codes (H, Aa, AFc, etc.) that map to application/location/subtype. sswqs has 55+ codes. General solution: user uploads or edits a code→label lookup table | High | Reference list pattern (existing) | This is the general form of the 55-row `protection_lookup` in sswqs_curation.R. High value for regulatory datasets that use similar shorthand |
+| **Harmonization audit trail** | For each row: what was `orig_result`, what normalization steps ran, what `cleaned_unit` was, what `harmonized_unit` it became, what conversion factor was applied | Medium | append_comment() pattern (existing v1.3) | Extends existing audit trail infrastructure. Adds columns: `harmonization_audit`, `unit_audit`, `qualifier_audit` |
+| **Pre-export schema validation** | Before export, verify required ToxVal columns are not all-NA, dtxsid has been populated (via curation), numeric values are in range | Low | dplyr + notifications (existing) | Show a QC dashboard (value boxes) like existing post-curation QC in v1.3 Phase 15. Advisory only — don't gate export |
+| **headless harmonization support** | `curate_headless()` already exists. Extend it to accept unit harmonization config and run the full v1.9 pipeline without UI | Medium | curate_headless.R (existing) | Critical for scripted batch processing of multiple benchmark sources. Preserves existing headless contract |
 
 ---
 
 ## Anti-Features
 
-Features to explicitly NOT build. These either conflict with design principles or introduce unacceptable complexity.
-
 | Anti-Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| **Fully manual cell-by-cell editing** | Doesn't scale; users with 10K+ rows need batch operations | Provide batch cleaning functions + flag exceptions for review |
-| **Drag-and-drop pipeline builder** | High complexity, low ROI for R/Shiny; fixed pipeline is simpler and sufficient | Fixed 21-step pipeline with enable/disable toggles per step |
-| **Real-time cleaning as user types** | Confusing; users can't tell what will change until they commit | Preview cleaned data in side-by-side table, apply on button click |
-| **AI/ML-powered "smart" cleaning** | Opaque ("why did it change this?"); requires training data; chemical names too domain-specific | Explicit rule-based pipeline with transparent audit trail |
-| **Session persistence across browser refresh** | High complexity (requires server-side storage or cookies); defer to future if needed | Export/re-import pattern achieves similar outcome with less complexity |
-| **Inline formula editor for custom cleaning rules** | Requires DSL or R code eval; security + UX nightmare | Provide comprehensive reference list editors instead |
-| **Version control / branching for cleaning recipes** | Over-engineering for single-user workflow; OpenRefine doesn't do this either | Export operation history as JSON; user manages versions externally if needed |
+| **Automatic unit inference from column name** | Column names like "conc_ugl" or "result_ppm" are tempting to parse, but source files are inconsistent — "result" could be ug/L or mg/L. Silent inference produces wrong conversions with no audit trail | Require user to tag a Unit column explicitly, or provide a default unit input if no Unit column exists |
+| **UCUM / `units` package for harmonization** | The `units` package is elegant for SI physics but does not know `count/100ml`, `pcu`, `ntu`, `pci/l` or regulatory-specific units. Using it forces mapping regulatory units to UCUM first, adding an extra translation layer with no benefit | Use the existing `case_when` lookup table pattern (proven in sswqs_curation.R). Extend iteratively with new unit variants as they appear |
+| **Bidirectional unit conversion** | Converting ug/L to mg/L and back introduces floating point drift; some conversions (°F→°C) are not reversible without original value. No downstream use case requires bidirectional conversion | Always convert to canonical target unit once; preserve original in `*_original` column |
+| **Auto-split ranges on any dash** | Dashes appear in: negative numbers (-0.5), date strings, CASRN-like strings, compound names. Auto-splitting on "-" without numeric pre-check produces garbage rows | Parse numeric first; only attempt range split if `as.numeric()` returns NA and the string matches `^\d[\d.]*-\d[\d.]*$` |
+| **Wizard-style value entry for narrative rows** | Giving curators a form to manually enter numeric values for narrative rows (e.g., "see page 42") opens the door to untracked manual data entry. Audit trail becomes unreliable | Mark narrative rows as `excluded_narrative` in audit column; allow curator to note reason but not silently inject numbers |
+| **Full ToxVal schema enforcement at column-tag time** | Requiring all 56 ToxVal columns to be mapped before proceeding creates an impossible gating condition for sparse sources | Map what you can; leave unmappable columns as NA_character_; validate at export time (advisory only) |
 
 ---
 
 ## Feature Dependencies
 
-Visual graph of how features depend on each other:
-
 ```
-File Upload (existing)
+Extended Column Tagging (Result, Unit, Duration, Qualifier, Application, Location)
     ↓
-Unicode Cleaning (ComptoxR::clean_unicode)
+Narrative Result Filter
     ↓
-CAS Pipeline (normalize → rescue → validate → split)
+Result String Normalization (comma removal, space removal, Fortran exponents, x10^ notation)
     ↓
-Name Cleaning (terminal phrases → hazards → quality adjectives → formulas)
+One-off Corrections (user-editable patch table)
     ↓
-Reference Filters (functional categories → stop words → block list → food names)
+Qualifier Extraction (<, >, ~, =)
     ↓
-Audit Trail Export (per-row comment columns)
+Numeric Parsing (as.numeric → parsed_value)
     ↓
-Pre-Curation Summary (counts + flags)
+Range Splitting (str_split on "-" → unnest → low/high/mid rows)
     ↓
-Column Tagging (existing)
+Unit String Normalization (micro symbol, latin-ascii, lowercase, per→/)
     ↓
-Curation (existing)
+Unit Harmonization Lookup (case_when → harmonized_unit + conversion_factor)
     ↓
-Post-Curation QC (CAS re-validation + functional use + safety flags)
+Unit Conversion Arithmetic (parsed_value × factor, or formula for °F)
     ↓
-Multi-Sheet Export (data + audit + reference + config + dictionary)
+Harmonization Audit Trail (orig_result, cleaned_unit, harmonized_unit, conversion_factor)
+    ↓
+ToxVal Schema Transmutation (56-column output with *_original columns)
+    ↓
+Pre-export Schema Validation (QC value boxes)
+    ↓
+Export (parquet / CSV)
 ```
 
-**Critical path:** Unicode → CAS → Names → Audit
-All cleaning steps depend on audit trail infrastructure (`append_comment()`).
+**Critical path:** Qualifier extraction must happen BEFORE range splitting (a qualifier "<5.6-7.8" is ambiguous — decide if the qualifier applies to the whole range or just the lower bound).
 
-**Optional:** Editable reference lists can be deferred (start with static lists in `cleaning_reference.R`).
+**Dependencies on existing features:**
+- Extended column tagging sits inside mod_tag_columns; existing Name/CASRN/Other tags must remain intact and functional alongside new tags
+- Harmonization audit trail extends `append_comment()` from v1.3 cleaning pipeline
+- headless support extends `curate_headless()` from v1.8
+- Reference list editors reuse pattern from v1.3 `cleaning_reference.R` + `mod_clean_data.R`
+- Export extends existing 7-sheet openxlsx2 export; adds ToxVal sheet + harmonization audit sheet
 
 ---
 
 ## MVP Recommendation
 
-Build in 3 increments:
+Build in 3 increments. Each increment ships a usable capability.
 
-### Phase 1: Core Cleaning (MVP for internal testing)
-Prioritize:
-1. ✅ **Audit trail infrastructure** (`append_comment()` — all other features depend on this)
-2. ✅ **Unicode cleaning** (ComptoxR — easiest, highest ROI per real data analysis)
-3. ✅ **CAS pipeline** (normalize → rescue → validate — 14.4% + 2.4% of rows in live data)
-4. ✅ **Basic name cleaning** (terminal phrases, hazard warnings, formulas — high impact)
-5. ✅ **Summary cards** (counts of changes)
-6. ✅ **Before/after preview** (DT with column toggles)
+### Increment 1: Core Numeric Pipeline (headless-first)
+Build and validate as a standalone R function before wiring into Shiny.
 
-**Defer:** Reference filters, editable lists, multi-sheet export, re-import.
+1. `parse_result_string(x)` — normalization + qualifier extraction + numeric parse. Returns `list(qualifier, parsed_value, parse_success, parse_notes)`.
+2. `split_ranges(df, result_col)` — range detection + row expansion (low/high/mid). Returns expanded df.
+3. `normalize_unit_string(x)` — micro symbol + latin-ascii + lowercase + spacing. Returns cleaned string.
+4. `harmonize_units(df, unit_col)` — lookup table → harmonized_unit + conversion_factor + converted_value. Returns df with audit columns.
+5. Test all four functions with sswqs data as ground truth.
 
-**Why:** Validates pipeline architecture + audit trail pattern. Can test cleaning accuracy before building UI polish.
+Defer: UI, ToxVal mapping, export.
 
----
+### Increment 2: Extended Tagging + Harmonization UI
+1. Extend `mod_tag_columns` with new tag types (Result, Unit, Duration, Qualifier, Application, Location, Exposure).
+2. Add "Harmonize" tab (new top-level tab) that shows: narrative filter results, normalization preview, unit harmonization summary, range expansion preview.
+3. Wire Increment 1 functions into reactive pipeline under the new tab.
+4. User-editable unit harmonization table (reference list pattern).
 
-### Phase 2: Reference Filters + Editable Lists (Production-ready cleaning)
-Add:
-1. ✅ **Static reference lists** (`cleaning_reference.R` — functional categories, stop words, block list, food names)
-2. ✅ **Reference filter flagging** (flag, don't remove — 2.5% + 2.2% of rows)
-3. ✅ **Editable reference lists UI** (DT editable tables + reactive re-run)
-4. ✅ **Blocking vs annotating flag distinction** (visual + routing logic)
-
-**Defer:** Multi-sheet export, re-import.
-
-**Why:** Completes cleaning feature set. Users can now tune reference lists without code changes.
-
----
-
-### Phase 3: Reproducibility + QC (Research-grade workflow)
-Add:
-1. ✅ **Multi-sheet Excel export** (data + audit + reference state + config + dictionary)
-2. ✅ **Re-import detection** (detect ChemReg export, restore reference lists + skip cleaning if already done)
-3. ✅ **Post-curation QC** (CAS re-validation + functional use + safety flags)
-
-**Why:** Closes the reproducibility loop. Users can share cleaned + curated data with full provenance.
-
----
-
-## Integration with Existing ChemReg Features
-
-| Existing Feature | How Cleaning Integrates | Impact |
-|------------------|-------------------------|--------|
-| **Data Preview tab** | Unchanged; shows post-detection, pre-cleaning data | None (backward compatible) |
-| **Tag Columns tab** | Now receives cleaned data instead of raw data | Better match rates (fewer API misses due to noise) |
-| **Run Curation tab** | Unchanged; tiered search operates on cleaned names/CAS | Improved consensus accuracy |
-| **Review Results tab** | Gains post-curation QC columns (functional use, safety flags) | Richer metadata for curator decisions |
-| **Excel export** | Enhanced to multi-sheet (data + audit + reference + config) | Replaces single-sheet export |
-
-**Gating logic:**
-- Clean Data tab unlocks after successful data detection (same as current Tag Columns gating).
-- Tag Columns tab unlocks after Clean Data completes (user reviews cleaning results before tagging).
-- No changes to existing curation flow gating.
+### Increment 3: ToxVal Mapping + Export
+1. `map_to_toxval(df, tag_map, source_metadata)` — transmute to 56-column schema. Returns toxval-schema df.
+2. Add ToxVal mapping configuration UI (source name, subsource, toxval_type default, media, exposure_route defaults).
+3. Pre-export QC dashboard (value boxes for: rows with numeric value, rows with harmonized unit, rows with dtxsid, rows with NA toxval_numeric).
+4. Export to parquet/CSV.
+5. Extend `curate_headless()` to accept harmonization config.
 
 ---
 
@@ -162,189 +143,64 @@ Add:
 
 | Feature | LOC Estimate | Risk | Notes |
 |---------|--------------|------|-------|
-| Audit trail (`append_comment()`) | 50 | Low | Pure function, easy to test |
-| Unicode cleaning | 20 | Low | ComptoxR wrapper, already validated |
-| CAS pipeline (4 functions) | 200 | Medium | Rescue logic complex (IUPAC comma handling) |
-| Name cleaning (8 functions) | 400 | Medium | Hazard regex, terminal phrase heuristics |
-| Reference filters (4 functions) | 150 | Low | Keyword matching, straightforward |
-| Summary cards | 100 | Low | Count aggregation + Bootstrap cards |
-| Before/after preview | 150 | Low | DT column visibility API |
-| Editable reference lists | 300 | High | DT editable + reactive re-run + state management |
-| Blocking vs annotating flags | 100 | Low | Conditional routing based on flag_type metadata |
-| Multi-sheet export | 200 | Medium | writexl multi-sheet API, need data dictionary formatting |
-| Re-import detection | 250 | High | Excel metadata sheet parsing + state restoration logic |
-| Post-curation QC | 150 | Low | ComptoxR API calls, similar to existing curation |
+| `parse_result_string()` | 80 | Medium | Fortran exponent regex is tricky; sswqs_curation.R line 782 is the reference |
+| `split_ranges()` | 60 | Medium | Dash ambiguity (negative vs range) is the main edge case |
+| `normalize_unit_string()` | 40 | Low | Mechanical string transforms; well-tested pattern |
+| `harmonize_units()` lookup table | 150 | Low | case_when lookup; ComptoxR tables as starting point |
+| Unit harmonization arithmetic | 60 | Low | Straightforward multiply/formula; °F→°C special-cased |
+| Extended column tagging UI | 100 | Low | Extend existing dropdown list; same table layout |
+| Harmonize tab UI | 250 | Medium | New tab, 4 preview sub-sections, reactive wiring |
+| User-editable unit table | 200 | Medium | Same pattern as v1.3 reference list editors |
+| One-off corrections table | 100 | Low | Simple editable (pattern, replacement) tibble |
+| Protection code decoder | 150 | High | Generalizing sswqs-specific 55-row lookup to user-uploadable table |
+| Harmonization audit trail | 80 | Low | Extends existing append_comment() infrastructure |
+| `map_to_toxval()` | 200 | High | 56-column schema with *_original columns; source-specific logic |
+| ToxVal config UI | 150 | Medium | Source metadata form + defaults |
+| Pre-export QC dashboard | 80 | Low | Value boxes + DT; same pattern as v1.3 post-curation QC |
+| Parquet/CSV export | 40 | Low | `rio::export()` with arrow backend |
+| `curate_headless()` extension | 80 | Low | Additive; existing contract unchanged |
 
-**Total estimate:** ~2,070 LOC for full feature set (MVP Phase 1 ≈ 800 LOC).
-
----
-
-## UX Pattern Details
-
-### Audit Trail Display: Child Rows vs Side Panel vs Tooltip
-
-**Options evaluated:**
-
-| Pattern | Pros | Cons | Best For |
-|---------|------|------|----------|
-| **Expandable child rows** ([DataTables](https://datatables.net/examples/api/row_details.html)) | Keeps context (row visible above details), no lost scroll position, familiar pattern | Increases vertical space when expanded, may push other rows off-screen | Moderate-length audit logs (5-10 transformations per row) |
-| **Side panel drawer** ([HighLevel audit logs](https://help.gohighlevel.com/support/solutions/articles/155000006667-audit-logs-introducing-the-new-design-experience)) | Persistent view (doesn't change table layout), arrow keys navigate between rows, rich formatting possible | Context switch (row → panel), horizontal space constraint on small screens | Deep audit logs with before/after values, timestamps, user info |
-| **Tooltip on hover** | Minimal UI clutter, instant preview | Text-only (no formatting), disappears on mouse-out, limited space | Very short logs (1-2 line summary) |
-
-**Recommendation for ChemReg:** Start with **child rows** (simpler, standard DT pattern). Upgrade to side panel if users request richer formatting (before/after value comparison, color-coded change types).
-
-**Implementation:**
-- DT `row().child()` API creates child row on click
-- Format audit log as HTML list: `<ul><li>Unicode: swapped α with .alpha.</li><li>Extraneous parenthesis: (EPA added)</li></ul>`
-- Click chevron icon to expand/collapse
+**Total estimate:** ~1,820 LOC for full feature set. MVP Increment 1 ≈ 400 LOC (pure functions, no UI).
 
 ---
 
-### Editable Reference Lists: Inline vs Modal vs Separate Page
+## Key Patterns from Reference Implementation
 
-**Options evaluated:**
+The sswqs_curation.R script establishes these patterns that ChemReg v1.9 should follow:
 
-| Pattern | Pros | Cons | Best For |
-|---------|------|------|----------|
-| **Inline editable table** ([DT editable](https://rstudio.github.io/DT/shiny.html)) | Familiar spreadsheet UX, immediate edits, bulk copy-paste | Validation timing (on blur? enter key?), accidental edits, state management | Small lists (< 50 items), single-column data |
-| **Modal dialog with form** | Clear workflow (open → edit → save), easy validation, no accidental edits | Extra clicks, context switch | Adding new items, editing multi-field records |
-| **Separate "Configure" tab** | Dedicated space, persistent (no modal dismiss), can include instructions | Workflow interruption (leave Clean Data tab → edit → return), risk of forgetting to re-run pipeline | Power users, extensive customization |
-
-**Recommendation for ChemReg:** **Inline editable table** for small lists (stop words, food names, block list). **Modal for adding new items** (avoids inline validation complexity). **Separate tab** only if users need extensive help text or configuration beyond simple lists.
-
-**Implementation:**
-- DT editable table via `editable = "cell"` option
-- Listen to `input$tableId_cell_edit` event
-- Update `reactiveVal()` with edited list
-- "Apply Changes" button re-runs pipeline with updated list
-- Warning: "Unsaved changes" if user leaves tab with edits pending
-
----
-
-### Blocking vs Annotating Flags: Visual Design
-
-**Color conventions** ([Baymard](https://baymard.com/blog/validations-vs-warnings), [NN/g](https://www.nngroup.com/articles/errors-forms-design-guidelines/)):
-
-| Flag Type | Color | Icon | Behavior |
-|-----------|-------|------|----------|
-| **Blocking** | Red (`bg-danger`) | `⛔` or `❌` | Row excluded from curation; user must fix or accept data loss |
-| **Annotating** | Yellow/Orange (`bg-warning`) | `⚠️` | Row proceeds to curation; flag stored as metadata for review |
-| **Info** | Blue (`bg-info`) | `ℹ️` | FYI only (e.g., "CAS rescued from name column") |
-
-**ChemReg examples:**
-
-| Flag | Type | Why | Example |
-|------|------|-----|---------|
-| "Name is formula" (H2O, NaCl) | Blocking | Formulas won't match CompTox names; curation will fail | Red row highlight |
-| "Empty name and CAS" | Blocking | Nothing to curate | Red row highlight |
-| "Name is mixture" (60:40 w/w) | Annotating | Mixtures may match single component or fail; let curator decide | Yellow badge in row |
-| "Name is functional use" (Fragrance) | Annotating | May be generic category or actual chemical (e.g., linalool as fragrance) | Yellow badge in row |
-| "Proprietary / trade secret" | Annotating | Likely non-chemical but could be ambiguous naming | Yellow badge in row |
-
-**Implementation:**
-- Flagging functions return `data.frame` with `flag_type` column: `"blocking"`, `"annotating"`, `"info"`
-- UI filters rows: `blocking_rows <- df %>% filter(flag_type == "blocking")`
-- Before curation: show count of blocking flags, require user to acknowledge ("X rows will be excluded")
-- DT row styling via `formatStyle()`: red background for blocking, yellow for annotating
-
----
-
-### Multi-Sheet Excel Export: Best Practices
-
-**Sheet structure** ([data organization guide](https://www.tandfonline.com/doi/full/10.1080/00031305.2017.1375989)):
-
-| Sheet Name | Contents | Purpose |
-|------------|----------|---------|
-| **Data** | Cleaned + curated chemical data | Main output for analysis |
-| **Audit_Trail** | Row-by-row transformation log | Provenance tracking |
-| **Reference_Lists** | Stop words, block list, functional categories (as exported) | Reproducibility: shows which filters were applied |
-| **Pipeline_Config** | Enabled/disabled steps, settings (e.g., CAS checksum strictness) | Reproducibility: full pipeline state |
-| **Data_Dictionary** | Column name, description, data type, example values | Metadata for downstream users |
-| **README** | File creation date, ChemReg version, contact info | Human-readable header |
-
-**Data Dictionary format:**
-
-| Column_Name | Description | Data_Type | Example | Source |
-|-------------|-------------|-----------|---------|--------|
-| `chemical_name_clean` | Chemical name after pre-curation cleaning | Character | "acetone" | Cleaned from raw_chem_name |
-| `casrn_normalized` | CAS-RN after normalization and validation | Character | "67-64-1" | Validated via ComptoxR |
-| `consensus_dtxsid` | Resolved DTXSID from tiered curation | Character | "DTXSID1020001" | CompTox API curation |
-| `consensus_status` | Agreement level across tagged columns | Factor | "agree", "disagree", "error" | Consensus classification |
-| `functional_use` | EPA functional use category (post-curation) | Character | "solvent; cleaning agent" | CompTox functional use API |
-| `audit_trail_name` | All transformations applied to name column | Character | "Unicode: α→.alpha. \| Parens: (ACS)" | Cleaning pipeline |
-
-**writexl implementation:**
+### Pattern 1: Preserve `orig_result` Before Any Mutation
 ```r
-wb_list <- list(
-  Data = cleaned_curated_df,
-  Audit_Trail = audit_df,
-  Reference_Lists = bind_rows(
-    stop_words = tibble(type = "stop_words", value = stop_words_list),
-    block_list = tibble(type = "block_list", value = block_list),
-    ...
-  ),
-  Pipeline_Config = tibble(step = names(pipeline_config), enabled = unlist(pipeline_config)),
-  Data_Dictionary = data_dictionary_df,
-  README = tibble(info = c("File created:", Sys.time(), "ChemReg version:", "1.3.0", ...))
-)
-writexl::write_xlsx(wb_list, path = "ChemReg_export.xlsx")
+rename(orig_result = result) %>%
+mutate(result = str_to_lower(orig_result), ...)
 ```
+Never overwrite the original. Rename first, then work on the renamed copy.
 
----
+### Pattern 2: `.id` Column for Range Group Identity
+```r
+mutate(.id = 1:n()) %>%
+... unnest(result) %>%
+group_by(.id) %>%
+mutate(result_bin = case_when(n() == 1 ~ "as_is", ...))
+```
+Row-level identity survives the unnest explosion. Required for correct range midpoint calculation.
 
-### Re-Import Detection: Heuristics
+### Pattern 3: Two-Step Unit Harmonization
+Step 1: `cleaned_unit` (normalize string). Step 2: `harmonized_unit` + `conversion_factor_str` (lookup + formula). Step 3: apply conversion to produce final `parsed_value`. Never skip the intermediate `cleaned_unit` — it is what the lookup table keys on.
 
-**How to detect ChemReg export vs fresh upload:**
+### Pattern 4: Qualifier from Range Context vs Explicit Symbol
+sswqs derives qualifier from `result_bin` (as_is/low/high/mid). Explicit qualifier symbols (`<`, `>`) require separate extraction before range splitting. Both must map to ToxVal's `toxval_numeric_qualifier` field (`=`, `<`, `>`, `~`).
 
-| Method | Pros | Cons | Reliability |
-|--------|------|------|-------------|
-| **Sheet name pattern** | Fast (check `excel_sheets()`), non-invasive | False positives if user manually creates sheets named "Audit_Trail" | 90% |
-| **Metadata in README sheet** | Explicit (e.g., `ChemReg_version: 1.3.0`), authoritative | Requires parsing README sheet | 99% |
-| **Column name pattern** | Check for `audit_trail_name`, `consensus_dtxsid`, `pipeline_config_*` | Invasive (loads data), slow for large files | 95% |
-| **Custom property in Excel metadata** | Most reliable, no sheet pollution | Requires `openxlsx` (writexl doesn't support custom properties) | 100% (if supported) |
-
-**Recommendation:** Combine **README sheet** + **column name pattern** as fallback.
-
-**Workflow on re-import:**
-1. User uploads file
-2. Check if README sheet exists with `ChemReg_version` key
-3. If yes → extract `Reference_Lists` and `Pipeline_Config` sheets, restore to reactiveVals
-4. Check if `Data` sheet already has cleaned columns (`chemical_name_clean`, `casrn_normalized`)
-5. If yes → skip pre-curation pipeline, jump directly to Tag Columns tab
-6. Show modal: "Re-import detected. Restored reference lists: X stop words, Y block list items. Pipeline skipped."
-
-**Edge case:** User edits exported file, re-imports. Solution: hash `Data` sheet content, store in README. On re-import, compare hash. If mismatch → warn "Data modified since export; re-running pipeline."
+### Pattern 5: NA_character_ for Unmappable ToxVal Fields
+sswqs transmutation sets `toxval_id = NA_character_`, `source_hash = NA_character_`, etc. for fields that require database-side assignment. ChemReg should follow this — never fabricate IDs.
 
 ---
 
 ## Sources
 
-### UX Patterns & Data Cleaning Tools
-- [OpenRefine Official Site](https://openrefine.org/) — Open-source data cleaning with faceting and undo/redo
-- [OpenRefine Undo/Redo Documentation](https://guides.library.unlv.edu/open-refine/undo-redo) — Operation history and JSON export
-- [Trifacta Data Wrangling Overview](https://www.softcrylic.com/blogs/trifacta-a-tool-for-the-modern-day-data-analyst/) — Recipe-based transformation UI
-- [Data Table Design UX Best Practices](https://www.pencilandpaper.io/articles/ux-pattern-analysis-enterprise-data-tables) — Expandable row patterns
-- [Audit Trail UI Pattern (HighLevel)](https://help.gohighlevel.com/support/solutions/articles/155000006667-audit-logs-introducing-the-new-design-experience) — Side drawer with before/after values
-
-### Validation & Error Handling
-- [Form Validations vs Warnings (Baymard)](https://baymard.com/blog/validations-vs-warnings) — Blocking errors vs proceed-with-warning pattern
-- [NN/g Error Message Guidelines](https://www.nngroup.com/articles/errors-forms-design-guidelines/) — Visual design for errors
-- [Building UX for Error Validation](https://medium.com/@olamishina/building-ux-for-error-validation-strategy-36142991017a) — Red/orange/green color conventions
-
-### Reproducibility & Export
-- [Reproducible Data Cleaning Guide](https://b-greve.gitbook.io/beginners-guide-to-clean-data/data-modeling/reproducibility) — Document every transformation
-- [Creating a Data Cleaning Workflow](https://cghlewis.com/blog/data_clean_02/) — Session info and script export
-- [datacleanr R Package](https://github.com/the-Hull/datacleanr) — Interactive + reproducible cleaning with recipe export
-- [Multi-Sheet Excel Best Practices](https://www.tandfonline.com/doi/full/10.1080/00031305.2017.1375989) — Data dictionary structure
-
-### R Shiny Implementation
-- [DT in Shiny](https://rstudio.github.io/DT/shiny.html) — Editable tables and cell edit events
-- [DataTables Child Rows](https://datatables.net/examples/api/row_details.html) — Expandable row details API
-- [editbl Package](https://cran.r-project.org/web/packages/editbl/editbl.pdf) — Referenced table pattern for Shiny
-- [Progressive Disclosure Pattern](https://ui-patterns.com/patterns/ProgressiveDisclosure) — Reveal information as needed
-- [shinymgr Framework](https://journal.r-project.org/articles/RJ-2024-009/) — Tab-based workflow management
-
-### Chemical Inventory Context
-- [Chemical Inventory Management Best Practices](https://www.fldata.com/chemical-inventory-management-best-practices) — Data validation and reconciliation
-- [Chemical Inventory Software Comparison](https://safetyculture.com/apps/chemical-inventory-software) — Feature landscape for chemical tracking tools
-- [Data Cleaning Best Practices 2025](https://clevercsv.com/data-cleaning-best-practices/) — Audit trails and standardization
+- `curation/epa/sswqs/sswqs_curation.R` — PRIMARY reference implementation (lines 713-1142 cover full parsing + harmonization + ToxVal mapping pipeline)
+- [ToxValDB v9.7.0 on EPA Figshare](https://epa.figshare.com/articles/dataset/ToxValDB_v9_1/20394501) — Schema reference and version history
+- [USEPA/toxvaldbstage GitHub](https://github.com/USEPA/toxvaldbstage) — R package for ToxVal staging (code transparency; full reproduction not supported)
+- [Development of ToxValDB (Wall et al. 2025, ScienceDirect)](https://www.sciencedirect.com/article/abs/pii/S2468111325000258) — Schema design rationale, two-phase curation + standardization model
+- [baytrends: Processing Censored Water Quality Data (CRAN)](https://cran.r-project.org/web/packages/baytrends/vignettes/Processing_Censored_Data.html) — Censored data conventions (_lo/_hi suffix, upper >= lower validation)
+- [units package (CRAN)](https://cran.r-project.org/package=units) — Evaluated and rejected for this domain (see Anti-Features)
+- [R for Data Science 2e — Regular Expressions](https://r4ds.hadley.nz/regexps.html) — Named capture group patterns for qualifier extraction
