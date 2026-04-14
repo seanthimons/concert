@@ -77,20 +77,31 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 - ✓ Shiny app relocated to inst/app/app.R with run_app() launcher — v1.8 Phase 26
 - ✓ Reference cache relocated to inst/extdata/reference_cache/ with system.file() access — v1.8 Phase 26
 - ✓ 16 module functions exported to NAMESPACE — v1.8 Phase 26
+- ✓ DESCRIPTION + NAMESPACE scaffolding with devtools::install() + library(chemreg) working — v1.8 Phase 24
+- ✓ Zero bare library() calls in R/*.R source files, devtools::check() passes — v1.8 Phase 25
+- ✓ curate_headless() exported for scripting the full pipeline without Shiny UI — v1.8 Phase 27
+- ✓ tests/testthat/ standard structure with 953 passing tests — v1.8 Phase 28
 
-## Current Milestone: v1.8 R Package Migration
+## Current State
 
-**Goal:** Convert ChemReg into a proper R package so the cleaning and curation pipeline can be used headlessly from scripts without launching the Shiny UI.
+**Shipped:** v1.8 R Package Migration (2026-04-14)
 
-**Target features:**
-- DESCRIPTION + NAMESPACE scaffolding (package-valid structure)
-- Remove bare library() calls from R/*.R, verify :: coverage throughout
-- Move Shiny app to inst/app/ with run_app() launcher function
-- Fix here::here() → system.file() for reference_cache paths
-- curate_headless() exported function wired through the full pipeline
-- Migrate tests from tests/test_*.R → tests/testthat/ structure
+ChemReg is now a proper R package that can be installed via `devtools::install()` and used either interactively via `chemreg::run_app()` or headlessly via `chemreg::curate_headless()`.
 
-### Active
+**Package capabilities:**
+- `library(chemreg)` loads 72 exported functions
+- `chemreg::run_app()` launches the Shiny app from `inst/app/`
+- `chemreg::curate_headless(input, output, tag_map)` runs the full pipeline without UI
+- `devtools::test()` passes with 953 tests
+- Reference cache available via `system.file("extdata", "reference_cache", package = "chemreg")`
+
+**Known tech debt (from v1.8 audit):**
+- `^tests$` in `.Rbuildignore` blocks R CMD check from running tests (critical — devtools::test() works but devtools::check() runs 0 tests)
+- `R/archive/prototype_pipeline.R` has bare library() calls and is not excluded from build
+
+## Next Milestone Goals
+
+*(Planning required — run `/gsd:new-milestone` to define)*
 
 ### Out of Scope
 
@@ -108,24 +119,24 @@ Users can go from a messy chemical inventory file to validated, curated chemical
 
 ## Context
 
-Shipped v1.7 UI Polish & Isotope Cleaning. ~17,900 LOC R across 18 files (including tests).
-Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, openxlsx2, rhandsontable.
+Shipped v1.8 R Package Migration. ~9,700 LOC R in `R/` and `inst/app/`, plus ~2,800 LOC in `tests/testthat/`.
+Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, writexl, rhandsontable.
 
 The app has 8 top-level tabs: Data Preview, Detection Info, Raw Data, Clean Data, Tag Columns, Run Curation, Review Results, plus sidebar upload and config import. On startup only Upload is visible; tabs appear progressively as the user advances.
 
 Key files:
-- `inst/app/app.R` — orchestration-only UI/server (337 lines, relocated Phase 26)
-- `R/run_app.R` — exported launcher function `chemreg::run_app()` (Phase 26)
-- `R/mod_*.R` — 8 Shiny modules with @export tags (relocated from R/modules/ in Phase 26)
+- `inst/app/app.R` — orchestration-only UI/server (337 lines)
+- `R/run_app.R` — exported launcher function `chemreg::run_app()`
+- `R/curate_headless.R` — headless pipeline entry point `curate_headless()`
+- `R/mod_*.R` — 8 Shiny modules with @export tags
 - `R/curation.R` — curation pipeline orchestrator with enrichment (~1,020 lines)
 - `R/consensus.R` — consensus classification, resolution, and enrichment (320+ lines)
-- `R/cleaning_pipeline.R` — 15-step pre-curation cleaning pipeline (chiral protection, isotope expansion, multi-analyte flagging added in v1.7)
+- `R/cleaning_pipeline.R` — 15-step pre-curation cleaning pipeline
 - `R/cleaning_reference.R` — reference list loaders with provenance tracking
 - `R/file_handlers.R` — file reading/validation (218 lines)
 - `R/data_detection.R` — frontmatter detection algorithms (405 lines)
-- `inst/extdata/reference_cache/` — 5 RDS files for reference lists (relocated Phase 26)
-
-Known tech debt: `test_cleaning_reference.R` has 1 pre-existing failure (expects 3 keys from `load_all_reference_lists` but now returns 4 including `strip_terms`).
+- `inst/extdata/reference_cache/` — 5 RDS files for reference lists
+- `tests/testthat/` — 17 test files, 953 passing tests
 
 ## Constraints
 
@@ -175,4 +186,4 @@ Known tech debt: `test_cleaning_reference.R` has 1 pre-existing failure (expects
 | Greedy isotope matching (sort by symbol length desc) | Ensures Pb matched before P when element symbols share prefix | ✓ Good — v1.7 |
 
 ---
-*Last updated: 2026-04-13 — Phase 26 App Relocation complete, run_app() launcher available*
+*Last updated: 2026-04-14 — v1.8 R Package Migration complete, chemreg::run_app() and chemreg::curate_headless() available*

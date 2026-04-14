@@ -1,5 +1,28 @@
 # Milestones
 
+## v1.8 R Package Migration (Shipped: 2026-04-14)
+
+**Phases completed:** 5 phases, 5 plans
+**Lines of code:** ~9,700 LOC R in R/ and inst/app/; 72 exported functions
+**Requirements:** 20/20 satisfied (PKG-01/02/03, SRC-01/02/03/04, APP-01/02/03/04/05, HDL-01/02/03/04, TST-01/02/03/04)
+**Timeline:** 1 day (2026-04-13 → 2026-04-14)
+
+**Key accomplishments:**
+
+- DESCRIPTION/NAMESPACE/LICENSE scaffolding with `devtools::install()` and `library(chemreg)` fully working
+- Zero bare `library()` calls in R/*.R source files; `devtools::check()` passes with 0 errors
+- Shiny app relocated to `inst/app/app.R` with `chemreg::run_app()` launcher function
+- Reference cache relocated to `inst/extdata/reference_cache/` with `system.file()` access
+- `curate_headless(input, output, tag_map)` exported function wires entire pipeline for scripting without Shiny UI
+- Test suite migrated to standard `tests/testthat/` structure; `devtools::test()` passes with 953 tests (0 failures, 0 errors)
+
+**Known tech debt accepted:**
+
+- `^tests$` in `.Rbuildignore` blocks R CMD check from running tests (devtools::test() works but devtools::check() runs 0 tests)
+- `R/archive/prototype_pipeline.R` has bare library() calls and is not excluded from build
+
+---
+
 ## v1.7 UI Polish & Isotope Cleaning (Shipped: 2026-04-13)
 
 **Phases completed:** 2 phases, 3 plans
