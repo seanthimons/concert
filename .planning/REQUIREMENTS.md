@@ -9,9 +9,9 @@ Requirements for Number and Unit Coercion Harmonization milestone. Each maps to 
 
 ### Static Data Foundations
 
-- [ ] **DATA-01**: Unit conversion table (`inst/extdata/unit_conversion.rds`) with ECOTOX tribble (~200 rows) + regulatory extensions from SSWQS
+- [x] **DATA-01**: Unit conversion table (`inst/extdata/unit_conversion.rds`) with ECOTOX tribble (~200 rows) + regulatory extensions from SSWQS
 - [ ] **DATA-02**: ToxVal schema manifest (`inst/extdata/toxval_schema.rds`) — zero-row typed tibble for 56-column validation
-- [ ] **DATA-03**: `load_unit_map()` loader function in `cleaning_reference.R` following existing RDS caching pattern
+- [x] **DATA-03**: `load_unit_map()` loader function in `cleaning_reference.R` following existing RDS caching pattern
 - [ ] **DATA-04**: User-editable unit table UI following v1.3 reference list editor pattern with re-run cascade
 
 ### Numeric Parsing
@@ -83,9 +83,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-01 | Phase 29 | Pending |
+| DATA-01 | Phase 29 | Complete |
 | DATA-02 | Phase 29 | Pending |
-| DATA-03 | Phase 29 | Pending |
+| DATA-03 | Phase 29 | Complete |
 | DATA-04 | Phase 34 | Pending |
 | PARS-01 | Phase 30 | Pending |
 | PARS-02 | Phase 30 | Pending |

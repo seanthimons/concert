@@ -60,7 +60,7 @@
 - [ ] Phase 29: Static Data Foundations — DATA-01, DATA-02, DATA-03
   - **Goal:** Create static data infrastructure for numeric/unit harmonization
   - **Plans:** 2 plans
-    - [ ] 29-01-PLAN.md — Unit conversion table and loader function
+    - [x] 29-01-PLAN.md — Unit conversion table and loader function
     - [ ] 29-02-PLAN.md — ToxVal schema manifest
 - [ ] Phase 30: Numeric Result Parser — PARS-01 through PARS-05
 - [ ] Phase 31: Unit Harmonization Engine — UNIT-01 through UNIT-05
@@ -83,7 +83,7 @@
 | 26. App Relocation | v1.8 | 1/1 | Complete   | 2026-04-14 |
 | 27. Headless Pipeline | v1.8 | 1/1 | Complete    | 2026-04-14 |
 | 28. Test Migration | v1.8 | 1/1 | Complete    | 2026-04-14 |
-| 29. Static Data Foundations | v1.9 | 0/2 | Planned | — |
+| 29. Static Data Foundations | v1.9 | 1/2 | In Progress|  |
 | 30. Numeric Result Parser | v1.9 | 0/? | Not Started | — |
 | 31. Unit Harmonization Engine | v1.9 | 0/? | Not Started | — |
 | 32. ToxVal Schema Mapper | v1.9 | 0/? | Not Started | — |

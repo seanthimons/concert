@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Number and Unit Coercion Harmonization
-status: planning
-stopped_at: Phase 29 context gathered
-last_updated: "2026-04-14T19:40:31.728Z"
-last_activity: 2026-04-14 — Milestone v1.9 roadmap approved
+status: executing
+stopped_at: Completed 29-01-PLAN.md (unit conversion table and loader)
+last_updated: "2026-04-14T19:59:44.053Z"
+last_activity: 2026-04-14
 progress:
   total_phases: 15
   completed_phases: 8
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 10
+  completed_plans: 9
   percent: 0
 ---
 
@@ -18,7 +18,7 @@ progress:
 
 **Last Updated:** 2026-04-14
 **Milestone:** v1.9 Number and Unit Coercion Harmonization
-**Status:** Roadmap approved, ready for planning
+**Status:** Ready to execute
 
 ---
 
@@ -27,16 +27,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Users can go from messy regulatory/benchmark data files to validated, harmonized, toxval-compatible datasets in one workflow.
-**Current focus:** Phase 29 — Static Data Foundations
+**Current focus:** Phase 29 — static-data-foundations
 
 ---
 
 ## Current Position
 
-Phase: 29 — Static Data Foundations
-Plan: Not started
-Status: Ready for planning
-Last activity: 2026-04-14 — Milestone v1.9 roadmap approved
+Phase: 29 (static-data-foundations) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-04-14
 
 Progress: ░░░░░░░░░░ 0% (0/7 phases)
 
@@ -79,6 +79,7 @@ Notable additions in v1.7:
 - [Phase 28-test-migration]: isotope_lookup is list(lookup,elem_alt_names) not bare tibble — tests updated to match actual return type
 - [Phase 28-test-migration]: local_mocked_bindings(.package='ComptoxR') for API mocking in testthat — replaces broken assignInNamespace pattern
 - [Phase 28-test-migration]: enrich_candidates tryCatch added around ct_chemical_detail_search_bulk for graceful API failure
+- [Phase 29-static-data-foundations]: 6-column unit table schema (from_unit, to_unit, multiplier, category, confidence, source) with 151 rows from ECOTOX and SSWQS; molar/temperature units stored with LOW confidence for downstream special handling
 
 ### Pending Todos
 
@@ -92,9 +93,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-14T19:40:31.724Z
-Stopped at: Phase 29 context gathered
-Resume file: .planning/phases/29-static-data-foundations/29-CONTEXT.md
+Last session: 2026-04-14T19:59:44.048Z
+Stopped at: Completed 29-01-PLAN.md (unit conversion table and loader)
+Resume file: None
 
 ---
 
