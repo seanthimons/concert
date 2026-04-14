@@ -2,11 +2,11 @@
 
 ## What This Is
 
-A Shiny application for uploading, cleaning, and validating chemical inventory data with intelligent frontmatter detection, a 12-step pre-curation cleaning pipeline, DTXSID-based consensus curation, and post-curation QC. Users upload messy CSV/XLSX files, the app detects where actual data begins, cleans CAS numbers and chemical names, flags reference matches, then curates chemical identifiers against EPA's CompTox Dashboard via tiered search. Results are classified by consensus with per-row conflict resolution, exported as 7-sheet audit workbooks, and can be re-imported to restore state.
+A Shiny application and R package for curating chemical regulatory and benchmark data. Originally built for inventory curation (compound identification via DTXSID consensus), ChemReg is expanding to handle benchmark/regulatory datasets with numeric criteria, units, and exposure metadata. Users upload messy CSV/XLSX files, the app detects frontmatter, cleans chemical identifiers, harmonizes numeric values and units, and exports toxval-schema-compatible datasets for integration with local toxicological databases.
 
 ## Core Value
 
-Users can go from a messy chemical inventory file to validated, curated chemical data in one workflow — upload, detect, clean, tag, curate, resolve, export.
+Users can go from messy regulatory/benchmark data files to validated, harmonized, toxval-compatible datasets in one workflow — upload, detect, clean, tag columns, curate compounds, harmonize values/units, resolve conflicts, export.
 
 ## Requirements
 
@@ -99,9 +99,23 @@ ChemReg is now a proper R package that can be installed via `devtools::install()
 - `^tests$` in `.Rbuildignore` blocks R CMD check from running tests (critical — devtools::test() works but devtools::check() runs 0 tests)
 - `R/archive/prototype_pipeline.R` has bare library() calls and is not excluded from build
 
-## Next Milestone Goals
+## Current Milestone: v1.9 Number and Unit Coercion Harmonization
 
-*(Planning required — run `/gsd:new-milestone` to define)*
+**Goal:** Extend ChemReg from compound-only curation to full benchmark/regulatory data curation with numeric result parsing, unit harmonization, and toxval-schema output.
+
+**Target features:**
+- Numeric result parser (scientific notation, ranges, qualifiers, Fortran exponents)
+- Unit harmonization engine (lift ComptoxR tables + extend for regulatory data)
+- Duration/exposure classification (acute/chronic, freshwater/saltwater)
+- Extended column tagging UI (Result, Unit, Duration, Qualifier, etc.)
+- ToxVal schema mapper (56-column output with `*_original` audit columns)
+- Export to toxval-compatible format (parquet/CSV matching local toxval.duckdb)
+
+**Key context:**
+- Pivot milestone: ChemReg becomes a regulatory/benchmark data curation tool
+- Compound curation (DTXSID consensus) remains as one component of larger pipeline
+- Unit tables lifted from ComptoxR wholesale, improved iteratively with pinchpoint data
+- Output must match toxval schema exactly for database integration
 
 ### Out of Scope
 
@@ -185,5 +199,22 @@ Key files:
 | Content-encoded chiral placeholders (###CHIRAL_PLUS###) | Enables stateless restore without row-index tracking — survives synonym split row reordering | ✓ Good — v1.7 |
 | Greedy isotope matching (sort by symbol length desc) | Ensures Pb matched before P when element symbols share prefix | ✓ Good — v1.7 |
 
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd:transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd:complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
 ---
-*Last updated: 2026-04-14 — v1.8 R Package Migration complete, chemreg::run_app() and chemreg::curate_headless() available*
+*Last updated: 2026-04-14 — v1.9 Number and Unit Coercion Harmonization milestone started*
