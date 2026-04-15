@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Number and Unit Coercion Harmonization
-status: planning
-stopped_at: Phase 31 context gathered
-last_updated: "2026-04-15T17:44:31.491Z"
+status: executing
+stopped_at: Completed 31-01-PLAN.md
+last_updated: "2026-04-15T18:05:49.150Z"
 last_activity: 2026-04-14
 progress:
   total_phases: 15
-  completed_phases: 10
-  total_plans: 12
-  completed_plans: 12
-  percent: 100
+  completed_phases: 14
+  total_plans: 14
+  completed_plans: 14
+  percent: 93
 ---
 
 # Project State: ChemReg
@@ -34,11 +34,11 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 ## Current Position
 
 Phase: 31
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-04-14
+Current Plan: 1 of 1
+Status: Plan 31-01 complete
+Last activity: 2026-04-15
 
-Progress: ░░░░░░░░░░ 0% (0/7 phases)
+Progress: █████████░ 93% (14/15 phases)
 
 ---
 
@@ -85,6 +85,9 @@ Notable additions in v1.7:
 - [Phase 30]: Multi-pass comma stripping via 3-iteration for loop (vectorized, avoids while-grepl on vectors)
 - [Phase 30]: Range detection before Fortran normalization: normalize_numeric_string Fortran step converts '5-10' to '5e-10', so split_ranges must operate on pre-Fortran form
 - [Phase 30]: Tighter Fortran guard in split_ranges: decimal-mantissa-required regex distinguishes '4.56-02' (Fortran) from '5-10' (range) at pre-norm stage
+- [Phase 31]: Unit harmonization uses match() for O(n*m) lookup; acceptable for typical unit_map sizes (~150 rows)
+- [Phase 31]: normalize_unit_string() is internal (not exported) — normalization is an implementation detail
+- [Phase 31]: Empty string "" for exact match unit_flag instead of NA — keeps downstream joins clean
 
 ### Pending Todos
 
@@ -98,9 +101,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-15T17:44:31.484Z
-Stopped at: Phase 31 context gathered
-Resume file: .planning/phases/31-unit-harmonization-engine/31-CONTEXT.md
+Last session: 2026-04-15T18:04:59Z
+Stopped at: Completed 31-01-PLAN.md
+Resume file: .planning/phases/31-unit-harmonization-engine/31-01-SUMMARY.md
 
 ---
 
