@@ -36,3 +36,9 @@ playwright/
 # Allow
 !.gitignore
 !.planning/
+
+# Scratch files
+*.log
+log.txt
+test*.xlsx
+uncurated_sswqs.csv
