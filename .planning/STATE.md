@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Number and Unit Coercion Harmonization
-current_plan: 2 of 3
-status: executing
-stopped_at: Completed 31.5-02-PLAN.md
-last_updated: "2026-04-15T19:10:40Z"
+current_plan: 3 of 3
+status: phase_complete
+stopped_at: Completed 31.5-03-PLAN.md
+last_updated: "2026-04-15T19:26:29Z"
 last_activity: 2026-04-15
 progress:
   total_phases: 16
-  completed_phases: 11
+  completed_phases: 12
   total_plans: 17
-  completed_plans: 15
-  percent: 88
+  completed_plans: 17
+  percent: 100
 ---
 
 # Project State: ChemReg
@@ -35,11 +35,11 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 ## Current Position
 
 Phase: 31.5
-Current Plan: 2 of 3
-Status: Plan 31.5-02 complete
+Current Plan: 3 of 3
+Status: Phase 31.5 complete
 Last activity: 2026-04-15
 
-Progress: █████████░ 88% (15/17 plans)
+Progress: ██████████ 100% (17/17 plans)
 
 ---
 
@@ -91,6 +91,10 @@ Notable additions in v1.7:
 - [Phase 31]: Empty string "" for exact match unit_flag instead of NA — keeps downstream joins clean
 - [Phase 31.5]: units package as hard Imports dependency (D-03) — no requireNamespace() guard needed
 - [Phase 31.5]: Domain units registered via .onLoad() in R/zzz.R with tryCatch for reload resilience
+- [Phase 31.5-03]: Synonyms loaded internally via system.file() - no user parameter needed
+- [Phase 31.5-03]: Molarity conversion: mg/L = molarity x MW x scale_factor (M=1000, mM=1, uM=0.001)
+- [Phase 31.5-03]: ppb/ppm routing: aqueous->mg/L, solid->mg/kg, air->mg/m3; default aqueous with "media_inferred" flag
+- [Phase 31.5-03]: Extended unit_flag values: "", "case_fallback", "unmatched", "needs_mw", "media_inferred"
 
 ### Pending Todos
 
@@ -108,9 +112,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-15T19:10:40Z
-Stopped at: Completed 31.5-02-PLAN.md
-Resume file: .planning/phases/31.5-units-package-assimilation/31.5-02-SUMMARY.md
+Last session: 2026-04-15T19:26:29Z
+Stopped at: Completed 31.5-03-PLAN.md
+Resume file: .planning/phases/31.5-units-package-assimilation/31.5-03-SUMMARY.md
 
 ---
 
