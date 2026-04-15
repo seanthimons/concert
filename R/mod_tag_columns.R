@@ -37,7 +37,7 @@ mod_tag_columns_ui <- function(id) {
           icon = icon("tag")
         )
       ),
-      p("Categorize selected columns for chemical curation."),
+      p("Categorize selected columns for curation and harmonization."),
       uiOutput(ns("column_tagging_ui"))
     )
   )
@@ -81,11 +81,14 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
                 selectInput(
                   inputId = session$ns(paste0("tag_", make.names(col))),
                   label = NULL,
-                  choices = c(
-                    "Select type..." = "",
-                    "Chemical Name" = "Name",
-                    "CASRN" = "CASRN",
-                    "Other" = "Other"
+                  choices = list(
+                    "Select type..." = c("Select type..." = ""),
+                    "Chemical" = c("Chemical Name" = "Name", "CASRN" = "CASRN", "Other" = "Other"),
+                    "Numeric" = c("Result Value" = "Result", "Unit" = "Unit", "Qualifier" = "Qualifier"),
+                    "Study" = c(
+                      "Duration" = "Duration", "Duration Unit" = "DurationUnit",
+                      "Species" = "Species", "Exposure Route" = "ExposureRoute"
+                    )
                   ),
                   selected = "",
                   selectize = FALSE,
@@ -121,12 +124,25 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
         return()
       }
 
-      data_store$column_tags <- tags
+      # Classify tags into categories per D-03
+      classified <- classify_tags(tags)
 
-      # Generate dedup preview immediately
+      # Validate Result/Unit pairing per D-12/D-13
+      warning_msg <- validate_tag_pairing(tags)
+      if (!is.null(warning_msg)) {
+        showNotification(warning_msg, type = "warning", duration = 5)
+      }
+
+      # Store partitioned tags per D-04
+      # column_tags contains ONLY chemical tags for backwards compatibility
+      data_store$column_tags <- classified$chemical_tags
+      data_store$numeric_tags <- classified$numeric_tags
+      data_store$metadata_tags <- classified$metadata_tags
+
+      # Generate dedup preview immediately (uses chemical tags only)
       tryCatch(
         {
-          data_store$dedup_preview <- get_dedup_preview(data_store$clean, tags)
+          data_store$dedup_preview <- get_dedup_preview(data_store$clean, classified$chemical_tags)
         },
         error = function(e) {
           message("Dedup preview generation failed: ", e$message)
