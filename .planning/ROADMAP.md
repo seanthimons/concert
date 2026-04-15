@@ -82,6 +82,9 @@
   - **Plans:** 1 plan
     - [x] 32-01-PLAN.md -- Schema expansion, map_to_toxval_schema(), typed NAs, source_hash, audit columns
 - [ ] Phase 33: Extended Column Tagging -- UITG-01, UITG-02, UITG-03
+  - **Goal:** Extend tag columns UI with numeric/study optgroups and wire tag dispatch with independent cascade resets
+  - **Plans:** 1 plan
+    - [ ] 33-01-PLAN.md -- Optgroup UI, tag dispatch helpers, cascade reset extension
 - [ ] Phase 34: Harmonize Tab Module -- UITG-04, UITG-05, DATA-04, PARS-06, UNIT-06
 - [ ] Phase 35: Export Extension + Headless -- SCHM-03, SCHM-04, SCHM-05, UITG-06
 
@@ -104,6 +107,6 @@
 | 31. Unit Harmonization Engine | v1.9 | 1/1 | Complete | 2026-04-15 |
 | 31.5 Units Package Assimilation | v1.9 | 3/3 | Complete | 2026-04-15 |
 | 32. ToxVal Schema Mapper | v1.9 | 1/1 | Complete | 2026-04-15 |
-| 33. Extended Column Tagging | v1.9 | 0/? | Not Started | -- |
+| 33. Extended Column Tagging | v1.9 | 0/1 | Not Started | -- |
 | 34. Harmonize Tab Module | v1.9 | 0/? | Not Started | -- |
 | 35. Export Extension + Headless | v1.9 | 0/? | Not Started | -- |
