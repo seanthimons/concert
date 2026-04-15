@@ -4,7 +4,14 @@
 \alias{harmonize_units}
 \title{Harmonize unit values using a conversion table}
 \usage{
-harmonize_units(values, units, unit_map)
+harmonize_units(
+  values,
+  units,
+  unit_map,
+  media = NULL,
+  dtxsid = NULL,
+  molecular_weight = NULL
+)
 }
 \arguments{
 \item{values}{Numeric vector of parsed numeric values}
@@ -12,6 +19,13 @@ harmonize_units(values, units, unit_map)
 \item{units}{Character vector of unit strings (same length as values)}
 
 \item{unit_map}{Tibble from load_unit_map() with columns: from_unit, to_unit, multiplier}
+
+\item{media}{Optional character vector - media context for ppb/ppm routing.
+Values: "aqueous", "air", "solid", or NULL (defaults to aqueous per D-09)}
+
+\item{dtxsid}{Optional character vector - DTXSIDs for MW lookup when molarity detected}
+
+\item{molecular_weight}{Optional numeric vector - MW override (skips API call)}
 }
 \value{
 A tibble with columns:
@@ -21,7 +35,8 @@ A tibble with columns:
 \item harmonized_value: Value after conversion (value * multiplier)
 \item harmonized_unit: Target unit from table (or original if unmatched)
 \item conversion_factor: Multiplier applied (1 for pass-through)
-\item unit_flag: Status - "" (exact match), "case_fallback", or "unmatched"
+\item unit_flag: Status - "" (exact match), "case_fallback", "unmatched",
+"needs_mw" (molarity without MW), "media_inferred" (ppb/ppm default media)
 }
 }
 \description{
@@ -31,7 +46,10 @@ conversion table, and returns harmonized values with audit trail.
 \details{
 Lookup strategy:
 \enumerate{
-\item Normalize the input unit string (trim, micro symbols, spaces)
+\item Load synonyms internally via system.file() and apply normalization
+\item Apply normalize_unit_string() (trim, micro symbols, spaces)
+\item Check for molarity units - if detected and MW available, convert to mg/L
+\item Check for ppb/ppm - route based on media context
 \item Try case-sensitive exact match against unit_map$from_unit
 \item If no match, try case-insensitive fallback (with unit_flag = "case_fallback")
 \item If still no match, pass through unchanged (with unit_flag = "unmatched")
@@ -43,6 +61,13 @@ unit_map <- tibble::tibble(
   to_unit = c("mg/L", "mg/L"),
   multiplier = c(1, 0.001)
 )
+# Basic usage (backward compatible)
 harmonize_units(c(5, 10), c("ug/L", "mg/L"), unit_map)
+
+# With molarity conversion
+harmonize_units(c(1), c("mM"), unit_map, molecular_weight = c(100))
+
+# With media context for ppb/ppm
+harmonize_units(c(10), c("ppb"), unit_map, media = c("aqueous"))
 
 }
