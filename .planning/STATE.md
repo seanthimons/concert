@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Number and Unit Coercion Harmonization
 current_plan: 1 of 1
-status: executing
-stopped_at: Phase 33 context gathered
-last_updated: "2026-04-15T20:11:08.672Z"
+status: complete
+stopped_at: Phase 33-01 complete
+last_updated: "2026-04-15T20:26:18Z"
 last_activity: 2026-04-15
 progress:
   total_phases: 16
-  completed_phases: 13
-  total_plans: 17
-  completed_plans: 17
+  completed_phases: 14
+  total_plans: 18
+  completed_plans: 18
   percent: 100
 ---
 
@@ -19,7 +19,7 @@ progress:
 
 **Last Updated:** 2026-04-15
 **Milestone:** v1.9 Number and Unit Coercion Harmonization
-**Status:** Executing
+**Status:** Complete
 
 ---
 
@@ -28,18 +28,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Users can go from messy regulatory/benchmark data files to validated, harmonized, toxval-compatible datasets in one workflow.
-**Current focus:** Phase 32 — toxval-schema-mapper
+**Current focus:** Phase 33 — extended-column-tagging
 
 ---
 
 ## Current Position
 
-Phase: 32
+Phase: 33
 Current Plan: 1 of 1
-Status: Phase 32 complete
+Status: Phase 33-01 complete
 Last activity: 2026-04-15
 
-Progress: ██████████ 100% (18/18 plans)
+Progress: ██████████ 100% (19/19 plans)
 
 ---
 
@@ -98,6 +98,9 @@ Notable additions in v1.7:
 - [Phase 32]: digest package added to Imports for SHA256 source_hash generation
 - [Phase 32]: 56-column ToxVal schema with typed NAs (NA_character_, NA_real_) enforced via assert_typed_nas()
 - [Phase 32]: 19 audit columns (*_original + original_year) for harmonization tracking
+- [Phase 33]: Tag dispatch helpers as single source of truth (classify_tags, validate_tag_pairing, detect_tag_changes)
+- [Phase 33]: column_tags contains ONLY chemical tags for backwards compatibility with curation pipeline
+- [Phase 33]: Granular cascade resets per tag type (reset_chemical_downstream, reset_numeric_downstream)
 
 ### Pending Todos
 
@@ -115,9 +118,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-15T20:11:08.666Z
-Stopped at: Phase 33 context gathered
-Resume file: .planning/phases/33-extended-column-tagging/33-CONTEXT.md
+Last session: 2026-04-15T20:26:18Z
+Stopped at: Phase 33-01 complete
+Resume file: .planning/phases/33-extended-column-tagging/33-01-SUMMARY.md
 
 ---
 
