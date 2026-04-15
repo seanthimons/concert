@@ -294,6 +294,39 @@ load_unit_map <- function(cache_dir) {
   load_or_fetch_reference(cache_path, fetch_fn, "unit conversion map")
 }
 
+#' Load unit synonym normalization table
+#'
+#' Returns a tibble for normalizing variant unit spellings to canonical forms
+#' before lookup in the main unit conversion table.
+#'
+#' Note: harmonize_units() loads this table internally via system.file().
+#' This exported function is for inspection and debugging purposes.
+#'
+#' Structure:
+#' - input_pattern: String or regex pattern to match
+#' - normalized_unit: Canonical form to use for lookup
+#' - is_regex: TRUE if pattern is regex, FALSE if exact match
+#' - notes: Documentation for the mapping
+#'
+#' @param cache_dir Directory for cache files (e.g., "inst/extdata")
+#' @return Tibble with columns: input_pattern, normalized_unit, is_regex, notes
+#' @export
+load_unit_synonyms <- function(cache_dir) {
+  cache_path <- file.path(cache_dir, "unit_synonyms.rds")
+
+  fetch_fn <- function() {
+    warning("unit_synonyms.rds not found - returning minimal default")
+    tibble::tibble(
+      input_pattern = c("mg/kg bw/day", "ug/kg bw/day"),
+      normalized_unit = c("mg/kg/d", "ug/kg/d"),
+      is_regex = c(FALSE, FALSE),
+      notes = c("body weight qualifier", "body weight qualifier")
+    )
+  }
+
+  load_or_fetch_reference(cache_path, fetch_fn, "unit synonyms")
+}
+
 #' Load ToxVal schema manifest
 #'
 #' Returns a zero-row tibble defining the 56-column ToxVal schema with proper
@@ -342,7 +375,7 @@ load_toxval_schema <- function(cache_dir) {
 #' categories in one call. Returns a named list.
 #'
 #' @param cache_dir Directory for cache files (e.g., "data/reference_cache")
-#' @return List with keys: stop_words, block_patterns, functional_categories, strip_terms, isotope_lookup, unit_map, toxval_schema
+#' @return List with keys: stop_words, block_patterns, functional_categories, strip_terms, isotope_lookup, unit_map, unit_synonyms, toxval_schema
 #'
 #' @examples
 #' refs <- load_all_reference_lists("data/reference_cache")
@@ -352,6 +385,7 @@ load_toxval_schema <- function(cache_dir) {
 #' refs$strip_terms
 #' refs$isotope_lookup
 #' refs$unit_map
+#' refs$unit_synonyms
 #' refs$toxval_schema
 #' @export
 load_all_reference_lists <- function(cache_dir) {
@@ -362,6 +396,7 @@ load_all_reference_lists <- function(cache_dir) {
     strip_terms = load_strip_terms(cache_dir),
     isotope_lookup = load_isotope_lookup(cache_dir),
     unit_map = load_unit_map(cache_dir),
+    unit_synonyms = load_unit_synonyms(cache_dir),
     toxval_schema = load_toxval_schema(cache_dir)
   )
 }
