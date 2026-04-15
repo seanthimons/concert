@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Number and Unit Coercion Harmonization
-current_plan: 3 of 3
+current_plan: 1 of 1
 status: phase_complete
-stopped_at: Completed 31.5-03-PLAN.md
-last_updated: "2026-04-15T19:26:29Z"
+stopped_at: Completed 32-01-PLAN.md
+last_updated: "2026-04-15T19:45:00Z"
 last_activity: 2026-04-15
 progress:
   total_phases: 16
-  completed_phases: 12
-  total_plans: 17
-  completed_plans: 17
+  completed_phases: 13
+  total_plans: 18
+  completed_plans: 18
   percent: 100
 ---
 
@@ -28,18 +28,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Users can go from messy regulatory/benchmark data files to validated, harmonized, toxval-compatible datasets in one workflow.
-**Current focus:** Phase 31.5 — units-package-assimilation
+**Current focus:** Phase 32 — toxval-schema-mapper
 
 ---
 
 ## Current Position
 
-Phase: 31.5
-Current Plan: 3 of 3
-Status: Phase 31.5 complete
+Phase: 32
+Current Plan: 1 of 1
+Status: Phase 32 complete
 Last activity: 2026-04-15
 
-Progress: ██████████ 100% (17/17 plans)
+Progress: ██████████ 100% (18/18 plans)
 
 ---
 
@@ -95,6 +95,9 @@ Notable additions in v1.7:
 - [Phase 31.5-03]: Molarity conversion: mg/L = molarity x MW x scale_factor (M=1000, mM=1, uM=0.001)
 - [Phase 31.5-03]: ppb/ppm routing: aqueous->mg/L, solid->mg/kg, air->mg/m3; default aqueous with "media_inferred" flag
 - [Phase 31.5-03]: Extended unit_flag values: "", "case_fallback", "unmatched", "needs_mw", "media_inferred"
+- [Phase 32]: digest package added to Imports for SHA256 source_hash generation
+- [Phase 32]: 56-column ToxVal schema with typed NAs (NA_character_, NA_real_) enforced via assert_typed_nas()
+- [Phase 32]: 19 audit columns (*_original + original_year) for harmonization tracking
 
 ### Pending Todos
 
@@ -112,9 +115,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-15T19:26:29Z
-Stopped at: Completed 31.5-03-PLAN.md
-Resume file: .planning/phases/31.5-units-package-assimilation/31.5-03-SUMMARY.md
+Last session: 2026-04-15T19:45:00Z
+Stopped at: Completed 32-01-PLAN.md
+Resume file: .planning/phases/32-toxval-schema-mapper/32-01-SUMMARY.md
 
 ---
 
