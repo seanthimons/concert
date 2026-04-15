@@ -2,23 +2,24 @@
 gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Number and Unit Coercion Harmonization
+current_plan: 2 of 3
 status: executing
-stopped_at: Completed 31-01-PLAN.md
-last_updated: "2026-04-15T18:05:49.150Z"
-last_activity: 2026-04-14
+stopped_at: Completed 31.5-02-PLAN.md
+last_updated: "2026-04-15T19:10:40Z"
+last_activity: 2026-04-15
 progress:
-  total_phases: 15
-  completed_phases: 14
-  total_plans: 14
-  completed_plans: 14
-  percent: 93
+  total_phases: 16
+  completed_phases: 11
+  total_plans: 17
+  completed_plans: 15
+  percent: 88
 ---
 
 # Project State: ChemReg
 
-**Last Updated:** 2026-04-14
+**Last Updated:** 2026-04-15
 **Milestone:** v1.9 Number and Unit Coercion Harmonization
-**Status:** Ready to plan
+**Status:** Executing
 
 ---
 
@@ -27,18 +28,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Users can go from messy regulatory/benchmark data files to validated, harmonized, toxval-compatible datasets in one workflow.
-**Current focus:** Phase 30 — numeric-result-parser
+**Current focus:** Phase 31.5 — units-package-assimilation
 
 ---
 
 ## Current Position
 
-Phase: 31
-Current Plan: 1 of 1
-Status: Plan 31-01 complete
+Phase: 31.5
+Current Plan: 2 of 3
+Status: Plan 31.5-02 complete
 Last activity: 2026-04-15
 
-Progress: █████████░ 93% (14/15 phases)
+Progress: █████████░ 88% (15/17 plans)
 
 ---
 
@@ -88,10 +89,16 @@ Notable additions in v1.7:
 - [Phase 31]: Unit harmonization uses match() for O(n*m) lookup; acceptable for typical unit_map sizes (~150 rows)
 - [Phase 31]: normalize_unit_string() is internal (not exported) — normalization is an implementation detail
 - [Phase 31]: Empty string "" for exact match unit_flag instead of NA — keeps downstream joins clean
+- [Phase 31.5]: units package as hard Imports dependency (D-03) — no requireNamespace() guard needed
+- [Phase 31.5]: Domain units registered via .onLoad() in R/zzz.R with tryCatch for reload resilience
 
 ### Pending Todos
 
 None.
+
+### Roadmap Evolution
+
+- Phase 31.5 inserted after Phase 31: Units Package Assimilation (URGENT) — replaces manual unit table with `units` package + registrations, adds context-aware conversions
 
 ### Known Issues / Blockers
 
@@ -101,9 +108,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-15T18:04:59Z
-Stopped at: Completed 31-01-PLAN.md
-Resume file: .planning/phases/31-unit-harmonization-engine/31-01-SUMMARY.md
+Last session: 2026-04-15T19:10:40Z
+Stopped at: Completed 31.5-02-PLAN.md
+Resume file: .planning/phases/31.5-units-package-assimilation/31.5-02-SUMMARY.md
 
 ---
 
