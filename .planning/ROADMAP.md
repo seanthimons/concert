@@ -71,13 +71,16 @@
   - **Goal:** Convert parsed units to canonical forms via table lookup with case handling and pass-through
   - **Plans:** 1 plan
     - [x] 31-01-PLAN.md -- Unit normalization, case-safe lookup, conversion arithmetic
-- [ ] Phase 31.5: Units Package Assimilation -- UNIT-01, UNIT-02, UNIT-03, UNIT-04, UNIT-05
+- [x] Phase 31.5: Units Package Assimilation -- UNIT-01, UNIT-02, UNIT-03, UNIT-04, UNIT-05 (completed 2026-04-15)
   - **Goal:** Replace manual unit table with `units` package + registrations; add context-aware conversions (molarity with MW, media inference)
   - **Plans:** 3 plans
-    - [ ] 31.5-01-PLAN.md -- Extract units from ECOTOX/ToxVal/SSWQS, build expanded conversion table
-    - [ ] 31.5-02-PLAN.md -- Add units package dependency, register domain units in .onLoad()
-    - [ ] 31.5-03-PLAN.md -- Upgrade harmonize_units() with context-aware conversions
-- [ ] Phase 32: ToxVal Schema Mapper -- SCHM-01, SCHM-02
+    - [x] 31.5-01-PLAN.md -- Extract units from ECOTOX/ToxVal/SSWQS, build expanded conversion table
+    - [x] 31.5-02-PLAN.md -- Add units package dependency, register domain units in .onLoad()
+    - [x] 31.5-03-PLAN.md -- Upgrade harmonize_units() with context-aware conversions
+- [x] Phase 32: ToxVal Schema Mapper -- SCHM-01, SCHM-02 (completed 2026-04-15)
+  - **Goal:** Transform curated and harmonized data into 56-column ToxVal format with typed NAs and *_original audit columns
+  - **Plans:** 1 plan
+    - [x] 32-01-PLAN.md -- Schema expansion, map_to_toxval_schema(), typed NAs, source_hash, audit columns
 - [ ] Phase 33: Extended Column Tagging -- UITG-01, UITG-02, UITG-03
 - [ ] Phase 34: Harmonize Tab Module -- UITG-04, UITG-05, DATA-04, PARS-06, UNIT-06
 - [ ] Phase 35: Export Extension + Headless -- SCHM-03, SCHM-04, SCHM-05, UITG-06
@@ -99,8 +102,8 @@
 | 29. Static Data Foundations | v1.9 | 2/2 | Complete    | 2026-04-14 |
 | 30. Numeric Result Parser | v1.9 | 2/2 | Complete    | 2026-04-14 |
 | 31. Unit Harmonization Engine | v1.9 | 1/1 | Complete | 2026-04-15 |
-| 31.5 Units Package Assimilation | v1.9 | 0/3 | Not Started | -- |
-| 32. ToxVal Schema Mapper | v1.9 | 0/? | Not Started | -- |
+| 31.5 Units Package Assimilation | v1.9 | 3/3 | Complete | 2026-04-15 |
+| 32. ToxVal Schema Mapper | v1.9 | 1/1 | Complete | 2026-04-15 |
 | 33. Extended Column Tagging | v1.9 | 0/? | Not Started | -- |
 | 34. Harmonize Tab Module | v1.9 | 0/? | Not Started | -- |
 | 35. Export Extension + Headless | v1.9 | 0/? | Not Started | -- |
