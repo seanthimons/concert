@@ -228,14 +228,26 @@ harmonize_units <- function(values, units, unit_map,
                             media = NULL,
                             dtxsid = NULL,
                             molecular_weight = NULL) {
-  # Step 0: Capture orig_unit before any transformation
+  # Step 0: Handle empty input
+  n <- length(values)
+  if (n == 0) {
+    return(tibble::tibble(
+      orig_row_id = integer(0),
+      orig_unit = character(0),
+      harmonized_value = numeric(0),
+      harmonized_unit = character(0),
+      conversion_factor = numeric(0),
+      unit_flag = character(0)
+    ))
+  }
+
+  # Step 1: Capture orig_unit before any transformation
   orig_unit <- units
 
-  # Step 1: Assign orig_row_id
-  n <- length(values)
+  # Step 2: Assign orig_row_id
   orig_row_id <- seq_len(n)
 
-  # Step 2: Load synonyms internally and apply
+  # Step 3: Load synonyms internally and apply
   synonyms <- get_unit_synonyms()
 
   # Step 3: Normalize unit strings (trim, micro symbols, spaces)
