@@ -114,7 +114,15 @@ server <- function(input, output, session) {
     selected_error_rows = NULL, manual_queue = list(),
     qc_results = NULL,
     enrichment_cache = NULL,
-    enrichment_failed = NULL
+    enrichment_failed = NULL,
+    # Phase 33: Extended tag types and harmonization state
+    numeric_tags = NULL,
+    metadata_tags = NULL,
+    harmonize_results = NULL,
+    harmonize_audit = NULL,
+    toxval_output = NULL,
+    prev_chemical_tags = NULL,
+    prev_numeric_tags = NULL
   )
 
   # Store reference lists in data_store
@@ -262,6 +270,14 @@ server <- function(input, output, session) {
     data_store$qc_results <- NULL
     data_store$dtxsid_cols <- NULL
     data_store$priority_order <- NULL
+    # Phase 33: Reset extended tag types and harmonization state
+    data_store$numeric_tags <- NULL
+    data_store$metadata_tags <- NULL
+    data_store$harmonize_results <- NULL
+    data_store$harmonize_audit <- NULL
+    data_store$toxval_output <- NULL
+    data_store$prev_chemical_tags <- NULL
+    data_store$prev_numeric_tags <- NULL
     bslib::nav_hide("main_tabs", target = "detection_info", session = session)
     bslib::nav_hide("main_tabs", target = "raw_data", session = session)
     bslib::nav_hide("main_tabs", target = "clean_data", session = session)
@@ -269,6 +285,24 @@ server <- function(input, output, session) {
     bslib::nav_hide("main_tabs", target = "run_curation_tab", session = session)
     bslib::nav_hide("main_tabs", target = "review_results", session = session)
     bslib::nav_select("main_tabs", "data_preview", session = session)
+  }
+
+  # Phase 33: Granular cascade reset functions per D-09
+  reset_chemical_downstream <- function() {
+    data_store$curation_results <- NULL
+    data_store$curation_report <- NULL
+    data_store$curation_status <- NULL
+    data_store$consensus_data <- NULL
+    data_store$consensus_summary <- NULL
+    data_store$resolution_state <- NULL
+    data_store$qc_results <- NULL
+    data_store$toxval_output <- NULL
+  }
+
+  reset_numeric_downstream <- function() {
+    data_store$harmonize_results <- NULL
+    data_store$harmonize_audit <- NULL
+    data_store$toxval_output <- NULL
   }
 
   # Show tabs when data is available
@@ -291,6 +325,22 @@ server <- function(input, output, session) {
     is_curation <- input$main_tabs %in% curation_tabs
     bslib::toggle_sidebar("main_sidebar", open = !is_curation, session = session)
   })
+
+  # Phase 33: Independent cascade resets per D-09/D-10/D-11
+  shiny::observeEvent(data_store$column_tags, {
+    # Compare with previous state
+    if (chemreg::detect_tag_changes(data_store$prev_chemical_tags, data_store$column_tags)) {
+      reset_chemical_downstream()
+    }
+    data_store$prev_chemical_tags <- data_store$column_tags
+  }, ignoreNULL = FALSE)
+
+  shiny::observeEvent(data_store$numeric_tags, {
+    if (chemreg::detect_tag_changes(data_store$prev_numeric_tags, data_store$numeric_tags)) {
+      reset_numeric_downstream()
+    }
+    data_store$prev_numeric_tags <- data_store$numeric_tags
+  }, ignoreNULL = FALSE)
 
   # --- Initialize Modules ---
   upload_result <- chemreg::mod_file_upload_server("upload", data_store, reset_all_downstream)
