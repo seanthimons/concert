@@ -62,12 +62,15 @@
   - **Plans:** 2 plans
     - [x] 29-01-PLAN.md — Unit conversion table and loader function
     - [x] 29-02-PLAN.md — ToxVal schema manifest
-- [x] Phase 30: Numeric Result Parser — PARS-01 through PARS-05 (completed 2026-04-14)
+- [x] Phase 30: Numeric Result Parser — PARS-01 through PARS-05 (completed 2026-04-14)
   - **Goal:** Parse messy numeric result strings into structured numeric values with qualifiers, ranges, and audit trail
   - **Plans:** 2 plans
     - [x] 30-01-PLAN.md — Core parser: normalization, qualifier extraction, single-value parsing
     - [x] 30-02-PLAN.md — Range splitting with numeric pre-guard
 - [ ] Phase 31: Unit Harmonization Engine — UNIT-01 through UNIT-05
+  - **Goal:** Convert parsed units to canonical forms via table lookup with case handling and pass-through
+  - **Plans:** 1 plan
+    - [ ] 31-01-PLAN.md — Unit normalization, case-safe lookup, conversion arithmetic
 - [ ] Phase 32: ToxVal Schema Mapper — SCHM-01, SCHM-02
 - [ ] Phase 33: Extended Column Tagging — UITG-01, UITG-02, UITG-03
 - [ ] Phase 34: Harmonize Tab Module — UITG-04, UITG-05, DATA-04, PARS-06, UNIT-06
@@ -89,7 +92,7 @@
 | 28. Test Migration | v1.8 | 1/1 | Complete    | 2026-04-14 |
 | 29. Static Data Foundations | v1.9 | 2/2 | Complete    | 2026-04-14 |
 | 30. Numeric Result Parser | v1.9 | 2/2 | Complete    | 2026-04-14 |
-| 31. Unit Harmonization Engine | v1.9 | 0/? | Not Started | — |
+| 31. Unit Harmonization Engine | v1.9 | 0/1 | Not Started | — |
 | 32. ToxVal Schema Mapper | v1.9 | 0/? | Not Started | — |
 | 33. Extended Column Tagging | v1.9 | 0/? | Not Started | — |
 | 34. Harmonize Tab Module | v1.9 | 0/? | Not Started | — |
