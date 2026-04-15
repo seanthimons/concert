@@ -10,7 +10,7 @@ load_all_reference_lists(cache_dir)
 \item{cache_dir}{Directory for cache files (e.g., "data/reference_cache")}
 }
 \value{
-List with keys: stop_words, block_patterns, functional_categories, strip_terms, isotope_lookup
+List with keys: stop_words, block_patterns, functional_categories, strip_terms, isotope_lookup, unit_map, unit_synonyms, toxval_schema
 }
 \description{
 Convenience wrapper that loads stop words, block patterns, and functional
@@ -23,4 +23,7 @@ refs$block_patterns
 refs$functional_categories
 refs$strip_terms
 refs$isotope_lookup
+refs$unit_map
+refs$unit_synonyms
+refs$toxval_schema
 }
