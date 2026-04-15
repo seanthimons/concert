@@ -25,11 +25,11 @@ Requirements for Number and Unit Coercion Harmonization milestone. Each maps to 
 
 ### Unit Harmonization
 
-- [ ] **UNIT-01**: Case-safe unit lookup — case-sensitive match first, case-insensitive fallback flagged LOW confidence
-- [ ] **UNIT-02**: Unit string normalization — micro-symbol variants (`µ`/`\u03BC` → `u`), latin-ascii, spacing around "per" → "/"
-- [ ] **UNIT-03**: Compound unit decomposition — handle `mg/kg bw/day`, `mg/kg wet weight`, etc. via explicit enumeration
-- [ ] **UNIT-04**: Unit conversion arithmetic — `parsed_value * multiplier`, store `conversion_factor` in audit trail
-- [ ] **UNIT-05**: Harmonization result tibble: `harmonized_value`, `harmonized_unit`, `orig_unit`, `conversion_factor`, `unit_flag`
+- [x] **UNIT-01**: Case-safe unit lookup — case-sensitive match first, case-insensitive fallback flagged LOW confidence
+- [x] **UNIT-02**: Unit string normalization — micro-symbol variants (`µ`/`\u03BC` → `u`), latin-ascii, spacing around "per" → "/"
+- [x] **UNIT-03**: Compound unit decomposition — handle `mg/kg bw/day`, `mg/kg wet weight`, etc. via explicit enumeration
+- [x] **UNIT-04**: Unit conversion arithmetic — `parsed_value * multiplier`, store `conversion_factor` in audit trail
+- [x] **UNIT-05**: Harmonization result tibble: `harmonized_value`, `harmonized_unit`, `orig_unit`, `conversion_factor`, `unit_flag`
 - [ ] **UNIT-06**: Unmatched-unit review UI — show unmatched units, allow inline add to unit table, re-run harmonization
 
 ### ToxVal Schema & Export
@@ -93,11 +93,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PARS-04 | Phase 30 | Complete |
 | PARS-05 | Phase 30 | Complete |
 | PARS-06 | Phase 34 | Pending |
-| UNIT-01 | Phase 31 | Pending |
-| UNIT-02 | Phase 31 | Pending |
-| UNIT-03 | Phase 31 | Pending |
-| UNIT-04 | Phase 31 | Pending |
-| UNIT-05 | Phase 31 | Pending |
+| UNIT-01 | Phase 31 | Complete |
+| UNIT-02 | Phase 31 | Complete |
+| UNIT-03 | Phase 31 | Complete |
+| UNIT-04 | Phase 31 | Complete |
+| UNIT-05 | Phase 31 | Complete |
 | UNIT-06 | Phase 34 | Pending |
 | SCHM-01 | Phase 32 | Pending |
 | SCHM-02 | Phase 32 | Pending |
