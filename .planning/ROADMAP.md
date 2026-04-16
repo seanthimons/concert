@@ -86,6 +86,11 @@
   - **Plans:** 1 plan
     - [ ] 33-01-PLAN.md -- Optgroup UI, tag dispatch helpers, cascade reset extension
 - [ ] Phase 34: Harmonize Tab Module -- UITG-04, UITG-05, DATA-04, PARS-06, UNIT-06
+  - **Goal:** Build harmonize tab module with pipeline execution, QC dashboard, and three editor UIs (unit table, corrections, unmatched units)
+  - **Plans:** 3 plans
+    - [ ] 34-01-PLAN.md -- Corrections infrastructure, mod_harmonize.R pipeline + QC dashboard, app.R wiring
+    - [ ] 34-02-PLAN.md -- Editor UIs: unit table chips, corrections chips, unmatched units batch panel
+    - [ ] 34-03-PLAN.md -- Tests, module render verification, cold boot check
 - [ ] Phase 35: Export Extension + Headless -- SCHM-03, SCHM-04, SCHM-05, UITG-06
 
 ## Progress
@@ -108,5 +113,5 @@
 | 31.5 Units Package Assimilation | v1.9 | 3/3 | Complete | 2026-04-15 |
 | 32. ToxVal Schema Mapper | v1.9 | 1/1 | Complete | 2026-04-15 |
 | 33. Extended Column Tagging | v1.9 | 0/1 | Not Started | -- |
-| 34. Harmonize Tab Module | v1.9 | 0/? | Not Started | -- |
+| 34. Harmonize Tab Module | v1.9 | 0/3 | Not Started | -- |
 | 35. Export Extension + Headless | v1.9 | 0/? | Not Started | -- |
