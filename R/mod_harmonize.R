@@ -331,11 +331,339 @@ mod_harmonize_server <- function(id, data_store) {
       )
     })
 
-    # --- Editors panel placeholder (Plan 02 replaces) -------------------------
+    # --- Editors panel (Plan 02) ----------------------------------------------
+    # Three accordion panels: unit table editor, corrections editor, unmatched
+    # units batch-review panel. All start collapsed; titles include item counts.
 
     output$editors_panel <- renderUI({
-      # Editor accordions (unit table, corrections, unmatched units) added in Plan 02
-      NULL
+      # Only show after unit_map_working is initialized
+      req(unit_map_ready())
+
+      bslib::accordion(
+        id = session$ns("editors"),
+        open = FALSE,
+        multiple = TRUE,
+        bslib::accordion_panel(
+          title = uiOutput(session$ns("unit_editor_title")),
+          icon = bsicons::bs_icon("rulers"),
+          uiOutput(session$ns("unit_chip_editor")),
+          actionButton(
+            session$ns("add_unit_mapping"),
+            "Add Unit Mapping",
+            class = "btn-outline-primary btn-sm mt-2",
+            icon = icon("plus")
+          )
+        ),
+        bslib::accordion_panel(
+          title = uiOutput(session$ns("corrections_editor_title")),
+          icon = bsicons::bs_icon("pencil-square"),
+          uiOutput(session$ns("corrections_chip_editor")),
+          actionButton(
+            session$ns("add_correction"),
+            "Add Correction",
+            class = "btn-outline-primary btn-sm mt-2",
+            icon = icon("plus")
+          )
+        ),
+        bslib::accordion_panel(
+          title = uiOutput(session$ns("unmatched_title")),
+          icon = bsicons::bs_icon("question-circle"),
+          uiOutput(session$ns("unmatched_panel"))
+        )
+      )
+    })
+
+    # --- Accordion panel titles with item counts ------------------------------
+
+    output$unit_editor_title <- renderUI({
+      n <- if (!is.null(data_store$unit_map_working)) {
+        nrow(data_store$unit_map_working)
+      } else {
+        0
+      }
+      sprintf("Unit Table Editor (%d mappings)", n)
+    })
+
+    output$corrections_editor_title <- renderUI({
+      n <- if (!is.null(data_store$corrections_working)) {
+        nrow(data_store$corrections_working)
+      } else {
+        0
+      }
+      sprintf("Corrections Editor (%d corrections)", n)
+    })
+
+    output$unmatched_title <- renderUI({
+      if (is.null(data_store$harmonize_results)) {
+        return("Unmatched Units")
+      }
+      harmonized <- data_store$harmonize_results$harmonized
+      n_unique <- length(unique(
+        harmonized$orig_unit[harmonized$unit_flag == "unmatched"]
+      ))
+      sprintf("Unmatched Units (%d)", n_unique)
+    })
+
+    # --- Unit table chip editor (DATA-04) -------------------------------------
+    # Chips display "from_unit -> to_unit (xN)" per D-07. Badge class colors:
+    #   bg-success (ECOTOX), bg-info (SSWQS), bg-primary (user),
+    #   bg-secondary (user_passthrough). Only user-added rows get x-remove.
+
+    render_unit_chip_editor <- function(unit_map_tbl) {
+      ns <- session$ns
+      chips <- lapply(seq_len(nrow(unit_map_tbl)), function(i) {
+        row <- unit_map_tbl[i, ]
+
+        badge_class <- switch(
+          as.character(row$source),
+          ECOTOX = "badge bg-success ref-chip",
+          SSWQS = "badge bg-info ref-chip",
+          user = "badge bg-primary ref-chip",
+          user_passthrough = "badge bg-secondary ref-chip",
+          "badge bg-light text-dark ref-chip"
+        )
+
+        # Chip label: "from_unit -> to_unit (xmultiplier)" per D-07
+        chip_label <- sprintf("%s \u2192 %s", row$from_unit, row$to_unit)
+        if (!is.na(row$multiplier) && row$multiplier != 1) {
+          chip_label <- sprintf("%s (\u00d7%s)", chip_label, row$multiplier)
+        }
+
+        # X button only for user-added rows (app defaults not removable)
+        remove_btn <- if (row$source %in% c("user", "user_passthrough")) {
+          tags$span(
+            class = "ref-chip-remove",
+            `data-ns` = ns(""),
+            `data-type` = "unit_map",
+            `data-term` = row$from_unit,
+            HTML("&times;")
+          )
+        }
+
+        tags$span(
+          class = badge_class,
+          tags$span(
+            class = "ref-chip-body",
+            `data-ns` = ns(""),
+            `data-type` = "unit_map",
+            `data-term` = row$from_unit,
+            chip_label
+          ),
+          remove_btn
+        )
+      })
+
+      div(class = "ref-chip-container", chips)
+    }
+
+    output$unit_chip_editor <- renderUI({
+      req(data_store$unit_map_working)
+      render_unit_chip_editor(data_store$unit_map_working)
+    })
+
+    # --- Chip click observer -- opens edit modal (D-08, D-10) -----------------
+
+    observeEvent(input$chip_click, {
+      msg <- input$chip_click
+      req(msg$type, msg$term)
+
+      if (msg$type == "unit_map") {
+        tbl <- data_store$unit_map_working
+        row <- tbl[tbl$from_unit == msg$term, ][1, ]
+
+        showModal(modalDialog(
+          title = "Edit Unit Mapping",
+          textInput(session$ns("modal_from_unit"), "From Unit", value = row$from_unit),
+          textInput(session$ns("modal_to_unit"), "To Unit", value = row$to_unit),
+          numericInput(session$ns("modal_multiplier"), "Multiplier", value = row$multiplier),
+          selectInput(
+            session$ns("modal_category"),
+            "Category",
+            choices = c(
+              "mass_concentration",
+              "mass_per_mass",
+              "volume_concentration",
+              "molar",
+              "radioactivity",
+              "biological",
+              "dimensionless",
+              "other"
+            ),
+            selected = row$category
+          ),
+          selectInput(
+            session$ns("modal_confidence"),
+            "Confidence",
+            choices = c("HIGH", "MEDIUM", "LOW"),
+            selected = row$confidence
+          ),
+          textInput(session$ns("modal_source"), "Source", value = row$source),
+          # Store original from_unit for row lookup on save
+          tags$input(
+            type = "hidden",
+            id = session$ns("modal_orig_from"),
+            value = row$from_unit
+          ),
+          footer = tagList(
+            modalButton("Discard"),
+            actionButton(
+              session$ns("save_unit_mapping"),
+              "Save Mapping",
+              class = "btn-primary"
+            )
+          ),
+          easyClose = FALSE
+        ))
+      } else if (msg$type == "corrections") {
+        tbl <- data_store$corrections_working
+        row <- tbl[tbl$pattern == msg$term, ][1, ]
+
+        showModal(modalDialog(
+          title = "Edit Correction",
+          textInput(
+            session$ns("modal_corr_pattern"),
+            "Pattern (regex)",
+            value = row$pattern
+          ),
+          textInput(
+            session$ns("modal_corr_replacement"),
+            "Replacement",
+            value = row$replacement
+          ),
+          tags$input(
+            type = "hidden",
+            id = session$ns("modal_corr_orig_pattern"),
+            value = row$pattern
+          ),
+          footer = tagList(
+            modalButton("Discard"),
+            actionButton(
+              session$ns("save_correction"),
+              "Save Correction",
+              class = "btn-primary"
+            )
+          ),
+          easyClose = FALSE
+        ))
+      }
+    })
+
+    # --- Chip remove observer -- removes user-added rows only -----------------
+
+    observeEvent(input$chip_remove, {
+      msg <- input$chip_remove
+      req(msg$type, msg$term)
+
+      if (msg$type == "unit_map") {
+        tbl <- data_store$unit_map_working
+        idx <- which(
+          tbl$from_unit == msg$term &
+            tbl$source %in% c("user", "user_passthrough")
+        )
+        if (length(idx) > 0) {
+          data_store$unit_map_working <- tbl[-idx[1], ]
+        }
+      } else if (msg$type == "corrections") {
+        tbl <- data_store$corrections_working
+        idx <- which(tbl$pattern == msg$term)
+        if (length(idx) > 0) {
+          data_store$corrections_working <- tbl[-idx[1], ]
+        }
+      }
+    })
+
+    # --- "Add Unit Mapping" button observer -- opens blank modal (D-09) ------
+
+    observeEvent(input$add_unit_mapping, {
+      showModal(modalDialog(
+        title = "Add Unit Mapping",
+        textInput(
+          session$ns("modal_from_unit"),
+          "From Unit",
+          placeholder = "e.g., ug/L"
+        ),
+        textInput(
+          session$ns("modal_to_unit"),
+          "To Unit",
+          placeholder = "e.g., mg/L"
+        ),
+        numericInput(session$ns("modal_multiplier"), "Multiplier", value = NA),
+        selectInput(
+          session$ns("modal_category"),
+          "Category",
+          choices = c(
+            "mass_concentration",
+            "mass_per_mass",
+            "volume_concentration",
+            "molar",
+            "radioactivity",
+            "biological",
+            "dimensionless",
+            "other"
+          )
+        ),
+        selectInput(
+          session$ns("modal_confidence"),
+          "Confidence",
+          choices = c("HIGH", "MEDIUM", "LOW")
+        ),
+        textInput(session$ns("modal_source"), "Source", value = "user"),
+        tags$input(
+          type = "hidden",
+          id = session$ns("modal_orig_from"),
+          value = ""
+        ),
+        footer = tagList(
+          modalButton("Discard"),
+          actionButton(
+            session$ns("save_unit_mapping"),
+            "Save Mapping",
+            class = "btn-primary"
+          )
+        ),
+        easyClose = FALSE
+      ))
+    })
+
+    # --- save_unit_mapping observer -- append or update unit_map_working ------
+
+    observeEvent(input$save_unit_mapping, {
+      req(input$modal_from_unit, input$modal_to_unit)
+
+      from_val <- trimws(input$modal_from_unit)
+      to_val <- trimws(input$modal_to_unit)
+
+      if (from_val == "" || to_val == "") {
+        showNotification(
+          "From Unit and To Unit are required.",
+          type = "warning",
+          duration = 3
+        )
+        return()
+      }
+
+      new_row <- tibble::tibble(
+        from_unit = from_val,
+        to_unit = to_val,
+        multiplier = if (is.na(input$modal_multiplier)) 1 else input$modal_multiplier,
+        category = input$modal_category,
+        confidence = input$modal_confidence,
+        source = input$modal_source
+      )
+
+      tbl <- data_store$unit_map_working
+      orig_from <- input$modal_orig_from
+
+      if (!is.null(orig_from) && orig_from != "") {
+        # Edit mode: replace existing row
+        idx <- which(tbl$from_unit == orig_from)
+        if (length(idx) > 0) {
+          tbl <- tbl[-idx[1], ]
+        }
+      }
+
+      data_store$unit_map_working <- dplyr::bind_rows(tbl, new_row)
+      removeModal()
     })
 
     # --- Cascade reset observers (D-26, D-27, D-28) ---------------------------
