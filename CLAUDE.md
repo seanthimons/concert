@@ -39,6 +39,8 @@ testthat::test_dir("tests")
 source("tests/test_data_detection.R")
 ```
 
+**Shiny cold boot test is mandatory.** After any change that touches the Shiny app (UI modules, server logic, reactive state, app.R), verify the app starts cleanly from a fresh R session (`chemreg::run_app()`) before considering the work done. This catches missing imports, load-order issues, and broken reactive wiring that unit tests won't surface.
+
 ### Code Formatting
 
 The project uses `air` for R code formatting with configuration in `air.toml`:
