@@ -1,9 +1,9 @@
 ---
-status: partial
+status: diagnosed
 phase: 34-harmonize-tab-module
 source: 34-01-SUMMARY.md, 34-02-SUMMARY.md, 34-03-SUMMARY.md
 started: 2026-04-16T14:30:00Z
-updated: 2026-04-16T14:45:00Z
+updated: 2026-04-16T16:30:00Z
 ---
 
 ## Current Test
@@ -82,7 +82,11 @@ blocked: 0
   reason: "User reported: Modal that confirmed column tagging did not appear before going into cleaning - cleaning tags were not applied."
   severity: major
   test: 3
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "Working tree has uncommitted changes that reverted commit a5a402a. The modal fix (showModal) was replaced back with a transient 3-second showNotification toast."
+  artifacts:
+    - path: "R/mod_tag_columns.R"
+      issue: "65+ lines of blocking modal code replaced with 3-line showNotification call"
+  missing:
+    - "Restore the committed modal code from commit a5a402a"
+    - "Or run: git checkout -- R/mod_tag_columns.R"
+  debug_session: ".planning/debug/column-tagging-modal-regression.md"
