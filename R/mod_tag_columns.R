@@ -105,17 +105,20 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
     observeEvent(input$apply_tags, {
       req(data_store$selected_columns)
 
-      tags <- list()
+      # Collect non-empty tag selections from UI inputs.
+      # NOTE: named "col_tag_map" (not "tags") to avoid shadowing the htmltools
+      # tags namespace used in the modal construction below.
+      col_tag_map <- list()
       for (col in data_store$selected_columns) {
         tag_input_id <- paste0("tag_", make.names(col))
         tag_value <- input[[tag_input_id]]
 
         if (!is.null(tag_value) && tag_value != "") {
-          tags[[col]] <- tag_value
+          col_tag_map[[col]] <- tag_value
         }
       }
 
-      if (length(tags) == 0) {
+      if (length(col_tag_map) == 0) {
         showNotification(
           "Please select at least one column type before applying tags.",
           type = "warning",
@@ -125,13 +128,10 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
       }
 
       # Classify tags into categories per D-03
-      classified <- classify_tags(tags)
+      classified <- classify_tags(col_tag_map)
 
       # Validate Result/Unit pairing per D-12/D-13
-      warning_msg <- validate_tag_pairing(tags)
-      if (!is.null(warning_msg)) {
-        showNotification(warning_msg, type = "warning", duration = 5)
-      }
+      warning_msg <- validate_tag_pairing(col_tag_map)
 
       # Store partitioned tags per D-04
       # column_tags contains ONLY chemical tags for backwards compatibility
@@ -150,11 +150,76 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
         }
       )
 
-      showNotification(
-        paste("Tagged", length(tags), "column(s) successfully!"),
-        type = "message",
-        duration = 3
-      )
+      # Build confirmation modal -------------------------------------------
+
+      # Helper: render one category summary row (returns NULL when list is empty)
+      make_category_row <- function(label, tag_list, badge_class) {
+        if (length(tag_list) == 0) return(NULL)
+        col_names <- names(tag_list)
+        tag_values <- unlist(tag_list, use.names = FALSE)
+        entry_text <- paste(
+          mapply(function(cn, tv) paste0(cn, " \u2192 ", tv), col_names, tag_values),
+          collapse = ", "
+        )
+        tags$li(
+          class = "mb-1",
+          tags$span(class = paste("badge me-2", badge_class), label),
+          entry_text
+        )
+      }
+
+      n_chem <- length(classified$chemical_tags)
+      n_num <- length(classified$numeric_tags)
+
+      # Collect non-NULL category rows
+      category_items <- Filter(Negate(is.null), list(
+        make_category_row("Chemical", classified$chemical_tags, "bg-primary"),
+        make_category_row("Numeric", classified$numeric_tags, "bg-success"),
+        make_category_row("Study", classified$metadata_tags, "bg-info")
+      ))
+
+      # Collect next-step bullet items
+      next_step_items <- list()
+      if (n_chem > 0) {
+        next_step_items <- c(next_step_items, list(
+          tags$li("Clean Data tab is now available for chemical name curation")
+        ))
+      } else {
+        next_step_items <- c(next_step_items, list(
+          tags$li(class = "text-muted", "Clean Data requires at least one Chemical tag (Name or CASRN)")
+        ))
+      }
+      if (n_num > 0) {
+        next_step_items <- c(next_step_items, list(
+          tags$li("Harmonize tab is now available for numeric result harmonization")
+        ))
+      }
+
+      # Collect top-level modal body elements
+      body_items <- list()
+      if (!is.null(warning_msg)) {
+        body_items <- c(body_items, list(
+          div(
+            class = "alert alert-warning mb-3",
+            bsicons::bs_icon("exclamation-triangle"), " ", warning_msg
+          )
+        ))
+      }
+      body_items <- c(body_items, list(
+        tags$p(tags$strong(paste(length(col_tag_map), "column(s) tagged:"))),
+        do.call(tags$ul, category_items),
+        hr(),
+        tags$p(tags$strong("Next steps:")),
+        do.call(tags$ul, next_step_items)
+      ))
+
+      showModal(modalDialog(
+        title = tagList(bsicons::bs_icon("check-circle-fill"), " Tags Applied"),
+        do.call(tagList, body_items),
+        footer = modalButton("Continue"),
+        size = "m",
+        easyClose = TRUE
+      ))
 
       # Call navigation callback if provided
       if (!is.null(on_tags_applied)) {
