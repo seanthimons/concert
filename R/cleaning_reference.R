@@ -201,6 +201,28 @@ load_strip_terms <- function(cache_dir) {
   load_or_fetch_reference(cache_path, fetch_fn, "strip terms")
 }
 
+#' Load one-off corrections table
+#'
+#' Returns a tibble of (pattern, replacement) pairs for correcting source-specific
+#' malformed Result values before numeric parsing. Applied as vectorized gsub()
+#' before parse_numeric_results(). Patterns are treated as regex.
+#'
+#' @param cache_dir Directory for cache files (e.g., "inst/extdata/reference_cache")
+#' @return Tibble with columns: pattern (character), replacement (character)
+#' @export
+load_corrections <- function(cache_dir) {
+  cache_path <- file.path(cache_dir, "corrections.rds")
+
+  fetch_fn <- function() {
+    tibble::tibble(
+      pattern = character(),
+      replacement = character()
+    )
+  }
+
+  load_or_fetch_reference(cache_path, fetch_fn, "one-off corrections")
+}
+
 #' Load isotope lookup table
 #'
 #' Builds a pre-processed lookup table from ComptoxR::pt$isotope for use by
@@ -375,7 +397,7 @@ load_toxval_schema <- function(cache_dir) {
 #' categories in one call. Returns a named list.
 #'
 #' @param cache_dir Directory for cache files (e.g., "data/reference_cache")
-#' @return List with keys: stop_words, block_patterns, functional_categories, strip_terms, isotope_lookup, unit_map, unit_synonyms, toxval_schema
+#' @return List with keys: stop_words, block_patterns, functional_categories, strip_terms, corrections, isotope_lookup, unit_map, unit_synonyms, toxval_schema
 #'
 #' @examples
 #' refs <- load_all_reference_lists("data/reference_cache")
@@ -383,6 +405,7 @@ load_toxval_schema <- function(cache_dir) {
 #' refs$block_patterns
 #' refs$functional_categories
 #' refs$strip_terms
+#' refs$corrections
 #' refs$isotope_lookup
 #' refs$unit_map
 #' refs$unit_synonyms
@@ -394,6 +417,7 @@ load_all_reference_lists <- function(cache_dir) {
     block_patterns = load_block_patterns(cache_dir),
     functional_categories = load_functional_categories(cache_dir),
     strip_terms = load_strip_terms(cache_dir),
+    corrections = load_corrections(cache_dir),
     isotope_lookup = load_isotope_lookup(cache_dir),
     unit_map = load_unit_map(cache_dir),
     unit_synonyms = load_unit_synonyms(cache_dir),
