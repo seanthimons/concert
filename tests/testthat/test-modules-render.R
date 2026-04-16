@@ -10,7 +10,21 @@ create_test_store <- function() {
     dedup_preview = NULL, consensus_data = NULL, consensus_summary = NULL,
     resolution_state = NULL, dtxsid_cols = NULL, priority_order = NULL,
     error_filter_active = FALSE, display_row_map = NULL,
-    selected_error_rows = NULL, manual_queue = list()
+    selected_error_rows = NULL, manual_queue = list(),
+    qc_results = NULL,
+    enrichment_cache = NULL,
+    enrichment_failed = NULL,
+    # Phase 33: Extended tag types
+    numeric_tags = NULL,
+    metadata_tags = NULL,
+    harmonize_results = NULL,
+    harmonize_audit = NULL,
+    toxval_output = NULL,
+    prev_chemical_tags = NULL,
+    prev_numeric_tags = NULL,
+    # Phase 34: Editor working copies
+    unit_map_working = NULL,
+    corrections_working = NULL
   )
 }
 
@@ -88,6 +102,15 @@ test_that("mod_review_results_server initializes without error", {
   ), {
     session$flushReact()
     expect_true(TRUE)
+  })
+})
+
+test_that("mod_harmonize_server initializes without error", {
+  shiny::testServer(mod_harmonize_server, args = list(
+    data_store = create_test_store()
+  ), {
+    session$flushReact()
+    expect_true(TRUE)  # Reaching here means no init error
   })
 })
 
