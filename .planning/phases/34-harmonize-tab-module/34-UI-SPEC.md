@@ -5,6 +5,7 @@ status: draft
 shadcn_initialized: false
 preset: none
 created: 2026-04-16
+revised: 2026-04-16
 ---
 
 # Phase 34 — UI Design Contract
@@ -46,7 +47,7 @@ The app uses Bootstrap 5 utility classes. Declared equivalents for design decisi
 Exceptions:
 - Unmatched unit row list items: `mb-2` (8px) between each unit+action row — tight list, not loose sections
 - Value boxes: `layout_columns(col_widths = c(3, 3, 3, 3))` grid with default bslib gutter (matches `mod_clean_data.R` lines 382-488 pattern)
-- Chip container: `max-height: 200px; overflow-y: auto; padding: 6px` — reused directly from `mod_clean_data.R` lines 20-21
+- Chip container: `max-height: 200px; overflow-y: auto; padding: 8px` — updated from `mod_clean_data.R` lines 20-21 original 6px to align with 4-point scale
 
 **Source:** Existing modules — `mod_clean_data.R` and `mod_run_curation.R` spacing patterns.
 
@@ -67,6 +68,21 @@ Chip label typography: 14px, weight 400, inline badge element — inherits `.bad
 Modal header: h5, 20px, weight 600 — Bootstrap `modal-title` default.
 
 **Source:** Bootstrap 5 Flatly defaults; patterns from `mod_clean_data.R` and `mod_run_curation.R`.
+
+---
+
+## Visual Hierarchy
+
+**Primary focal point:** The "Run Harmonization" button. It is the single action entry point for the entire tab and must dominate the visual field above all other elements. Rendered as `btn-success btn-lg` — the largest, highest-contrast interactive element on the page.
+
+**Hierarchy order (top to bottom):**
+1. "Run Harmonization" button (`btn-success btn-lg`) — primary anchor, always visible
+2. QC value box grid — appears post-run, four equal-weight metrics, secondary focal cluster
+3. Accordion panels — tertiary, collapsed by default, subordinate to pipeline results
+
+No competing primary-weight buttons appear in the initial tab state. Modal-scoped actions (save, discard) are contained within modal dialogs and do not compete with the tab-level hierarchy.
+
+**Source:** `34-CONTEXT.md` D-02, D-03, D-05; pipeline button convention from `mod_run_curation.R` line 27.
 
 ---
 
@@ -194,7 +210,7 @@ Example: `"1.5E 3 → 1.5E3"`.
 - Click chip body → open edit modal pre-filled with all fields.
 - Click chip × button → remove immediately, no confirmation modal (single items only; non-default items only).
 - "Add Unit Mapping" button → open blank add modal.
-- Modal "Save" → append/update chip, trigger cascade reset (D-26).
+- Modal "Save Mapping" (unit modal) or "Save Correction" (corrections modal) → append/update chip, trigger cascade reset (D-26).
 - App-default unit mappings: no × button (not removable).
 
 ### Unmatched Unit Panel (D-12 through D-16)
@@ -228,8 +244,9 @@ Example: `"1.5E 3 → 1.5E3"`.
 | Unit modal title (edit) | "Edit Unit Mapping" |
 | Corrections modal title (add) | "Add Correction" |
 | Corrections modal title (edit) | "Edit Correction" |
-| Modal save button | "Save" |
-| Modal cancel button | "Cancel" |
+| Unit modal save button | "Save Mapping" |
+| Corrections modal save button | "Save Correction" |
+| Modal cancel/dismiss button | "Discard" |
 | Batch passthrough button | "Add All as Pass-through" |
 | Per-unit action button | "Add Mapping" |
 | Accordion: unit editor | "Unit Table Editor ({N} mappings)" |
@@ -286,6 +303,9 @@ No third-party block registries. No shadcn registry. No npm registry. R/Shiny pr
 | Chip label format "from → to (×mult)" | CONTEXT.md specifics block | CONTEXT.md |
 | Unmatched panel row structure | CONTEXT.md specifics block | CONTEXT.md |
 | Cascade reset behavior | CONTEXT.md D-26, D-27, D-28 | CONTEXT.md |
+| Chip container padding 8px | checker revision 2026-04-16 | Spacing compliance fix |
+| Specific modal save labels | checker revision 2026-04-16 | Copywriting compliance fix |
+| Visual hierarchy / focal point | checker revision 2026-04-16 | Visuals compliance fix |
 
 User questions asked: 0
 
