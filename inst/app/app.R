@@ -93,6 +93,10 @@ ui <- page_sidebar(
       icon = bsicons::bs_icon("play-circle"),
       chemreg::mod_run_curation_ui("curation")
     ),
+    nav_panel("Harmonize", value = "harmonize_tab",
+      icon = bsicons::bs_icon("sliders"),
+      chemreg::mod_harmonize_ui("harmonize")
+    ),
     nav_panel("Review Results", value = "review_results",
       icon = bsicons::bs_icon("clipboard-check"),
       chemreg::mod_review_results_ui("results")
@@ -122,7 +126,10 @@ server <- function(input, output, session) {
     harmonize_audit = NULL,
     toxval_output = NULL,
     prev_chemical_tags = NULL,
-    prev_numeric_tags = NULL
+    prev_numeric_tags = NULL,
+    # Phase 34: Harmonize working copies (session-local, initialized from reference_lists)
+    unit_map_working = NULL,
+    corrections_working = NULL
   )
 
   # Store reference lists in data_store
@@ -239,6 +246,7 @@ server <- function(input, output, session) {
     bslib::nav_hide("main_tabs", target = "clean_data", session = session)
     bslib::nav_hide("main_tabs", target = "tag_columns", session = session)
     bslib::nav_hide("main_tabs", target = "run_curation_tab", session = session)
+    bslib::nav_hide("main_tabs", target = "harmonize_tab", session = session)
     bslib::nav_hide("main_tabs", target = "review_results", session = session)
   }, once = TRUE)
 
@@ -278,11 +286,15 @@ server <- function(input, output, session) {
     data_store$toxval_output <- NULL
     data_store$prev_chemical_tags <- NULL
     data_store$prev_numeric_tags <- NULL
+    # Phase 34: Reset harmonize working copies
+    data_store$unit_map_working <- NULL
+    data_store$corrections_working <- NULL
     bslib::nav_hide("main_tabs", target = "detection_info", session = session)
     bslib::nav_hide("main_tabs", target = "raw_data", session = session)
     bslib::nav_hide("main_tabs", target = "clean_data", session = session)
     bslib::nav_hide("main_tabs", target = "tag_columns", session = session)
     bslib::nav_hide("main_tabs", target = "run_curation_tab", session = session)
+    bslib::nav_hide("main_tabs", target = "harmonize_tab", session = session)
     bslib::nav_hide("main_tabs", target = "review_results", session = session)
     bslib::nav_select("main_tabs", "data_preview", session = session)
   }
@@ -321,7 +333,7 @@ server <- function(input, output, session) {
 
   # Sidebar visibility based on active tab
   shiny::observeEvent(input$main_tabs, {
-    curation_tabs <- c("clean_data", "tag_columns", "run_curation_tab", "review_results")
+    curation_tabs <- c("clean_data", "tag_columns", "run_curation_tab", "review_results", "harmonize_tab")
     is_curation <- input$main_tabs %in% curation_tabs
     bslib::toggle_sidebar("main_sidebar", open = !is_curation, session = session)
   })
@@ -341,6 +353,12 @@ server <- function(input, output, session) {
     }
     data_store$prev_numeric_tags <- data_store$numeric_tags
   }, ignoreNULL = FALSE)
+
+  # Phase 34: Show Harmonize tab when numeric tags are set
+  shiny::observe({
+    shiny::req(data_store$numeric_tags)
+    show_tab_with_pulse("harmonize_tab")
+  })
 
   # --- Initialize Modules ---
   upload_result <- chemreg::mod_file_upload_server("upload", data_store, reset_all_downstream)
@@ -379,6 +397,8 @@ server <- function(input, output, session) {
       }
     }
   )
+
+  chemreg::mod_harmonize_server("harmonize", data_store)
 
   chemreg::mod_review_results_server("results", data_store)
 }
