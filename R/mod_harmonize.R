@@ -666,6 +666,269 @@ mod_harmonize_server <- function(id, data_store) {
       removeModal()
     })
 
+    # --- Corrections chip editor (PARS-06 UI, D-10) ---------------------------
+    # Pattern -> replacement chips. All corrections are user-added and removable.
+
+    render_corrections_chip_editor <- function(corrections_tbl) {
+      ns <- session$ns
+
+      if (nrow(corrections_tbl) == 0) {
+        return(p(
+          class = "text-muted small",
+          "No corrections defined. Add corrections for source-specific malformed values."
+        ))
+      }
+
+      chips <- lapply(seq_len(nrow(corrections_tbl)), function(i) {
+        row <- corrections_tbl[i, ]
+        chip_label <- sprintf("%s \u2192 %s", row$pattern, row$replacement)
+
+        tags$span(
+          class = "badge bg-primary ref-chip",
+          tags$span(
+            class = "ref-chip-body",
+            `data-ns` = ns(""),
+            `data-type` = "corrections",
+            `data-term` = row$pattern,
+            chip_label
+          ),
+          tags$span(
+            class = "ref-chip-remove",
+            `data-ns` = ns(""),
+            `data-type` = "corrections",
+            `data-term` = row$pattern,
+            HTML("&times;")
+          )
+        )
+      })
+
+      div(class = "ref-chip-container", chips)
+    }
+
+    output$corrections_chip_editor <- renderUI({
+      req(corrections_ready())
+      render_corrections_chip_editor(data_store$corrections_working)
+    })
+
+    # --- "Add Correction" button observer -> blank modal (D-10) ---------------
+
+    observeEvent(input$add_correction, {
+      showModal(modalDialog(
+        title = "Add Correction",
+        textInput(
+          session$ns("modal_corr_pattern"),
+          "Pattern (regex)",
+          placeholder = "e.g., 1\\.5E 3"
+        ),
+        textInput(
+          session$ns("modal_corr_replacement"),
+          "Replacement",
+          placeholder = "e.g., 1.5E3"
+        ),
+        tags$input(
+          type = "hidden",
+          id = session$ns("modal_corr_orig_pattern"),
+          value = ""
+        ),
+        footer = tagList(
+          modalButton("Discard"),
+          actionButton(
+            session$ns("save_correction"),
+            "Save Correction",
+            class = "btn-primary"
+          )
+        ),
+        easyClose = FALSE
+      ))
+    })
+
+    # --- save_correction observer -- append or update corrections_working -----
+
+    observeEvent(input$save_correction, {
+      req(input$modal_corr_pattern)
+
+      pattern_val <- trimws(input$modal_corr_pattern)
+      if (pattern_val == "") {
+        showNotification(
+          "Pattern is required.",
+          type = "warning",
+          duration = 3
+        )
+        return()
+      }
+
+      replacement_val <- if (is.null(input$modal_corr_replacement)) {
+        ""
+      } else {
+        input$modal_corr_replacement
+      }
+
+      new_row <- tibble::tibble(
+        pattern = pattern_val,
+        replacement = replacement_val
+      )
+
+      tbl <- data_store$corrections_working
+      orig_pattern <- input$modal_corr_orig_pattern
+
+      if (!is.null(orig_pattern) && orig_pattern != "") {
+        # Edit mode: remove old row
+        idx <- which(tbl$pattern == orig_pattern)
+        if (length(idx) > 0) {
+          tbl <- tbl[-idx[1], ]
+        }
+      }
+
+      data_store$corrections_working <- dplyr::bind_rows(tbl, new_row)
+      removeModal()
+    })
+
+    # --- Unmatched units batch panel (UNIT-06, D-12..D-16) --------------------
+    # Three display states:
+    #   1. Pre-run: "Run harmonization to see unmatched units."
+    #   2. Post-run, all matched: "All units matched successfully." (alert-success)
+    #   3. Post-run, unmatched: list with per-unit "Add Mapping" and batch action
+    # Per-unit unit-name values escaped in onclick to mitigate T-34-06 JS injection.
+
+    output$unmatched_panel <- renderUI({
+      ns <- session$ns
+
+      if (is.null(data_store$harmonize_results)) {
+        return(p(
+          class = "text-muted small",
+          "Run harmonization to see unmatched units."
+        ))
+      }
+
+      harmonized <- data_store$harmonize_results$harmonized
+      unmatched <- harmonized[harmonized$unit_flag == "unmatched", ]
+
+      if (nrow(unmatched) == 0) {
+        return(div(
+          class = "alert alert-success",
+          bsicons::bs_icon("check-circle"),
+          " All units matched successfully."
+        ))
+      }
+
+      # Summarize by unique unit string with row counts (D-13)
+      unmatched_summary <- unmatched |>
+        dplyr::count(orig_unit, name = "n") |>
+        dplyr::arrange(dplyr::desc(n))
+
+      div(
+        class = "mb-3",
+        # Batch action: Add All as Pass-through (D-14)
+        actionButton(
+          ns("add_all_passthrough"),
+          "Add All as Pass-through",
+          class = "btn-outline-secondary btn-sm"
+        ),
+        hr(),
+        # Per-unit rows with counts and individual Add Mapping buttons (D-13, D-15)
+        lapply(seq_len(nrow(unmatched_summary)), function(i) {
+          u <- unmatched_summary[i, ]
+          safe_id <- make.names(u$orig_unit)
+          div(
+            class = "d-flex justify-content-between align-items-center mb-2",
+            span(sprintf("%s (%d rows)", u$orig_unit, u$n)),
+            actionButton(
+              ns(paste0("add_map_", safe_id)),
+              "Add Mapping",
+              class = "btn-primary btn-sm",
+              onclick = sprintf(
+                "Shiny.setInputValue('%s', {unit: '%s', ts: Date.now()});",
+                ns("add_unmatched_mapping"),
+                gsub("'", "\\\\'", u$orig_unit)
+              )
+            )
+          )
+        })
+      )
+    })
+
+    # --- "Add All as Pass-through" observer (D-14) ----------------------------
+
+    observeEvent(input$add_all_passthrough, {
+      req(data_store$harmonize_results)
+
+      harmonized <- data_store$harmonize_results$harmonized
+      unmatched_units <- unique(
+        harmonized$orig_unit[harmonized$unit_flag == "unmatched"]
+      )
+
+      if (length(unmatched_units) == 0) return()
+
+      tbl <- data_store$unit_map_working
+      for (u in unmatched_units) {
+        tbl <- add_passthrough_mapping(u, tbl)
+      }
+      data_store$unit_map_working <- tbl
+
+      showNotification(
+        sprintf(
+          "Added %d pass-through mappings. Re-run harmonization to apply.",
+          length(unmatched_units)
+        ),
+        type = "message",
+        duration = 5
+      )
+    })
+
+    # --- Per-unit "Add Mapping" observer (D-15) -------------------------------
+    # Opens unit mapping modal pre-filled with msg$unit as from_unit. Reuses the
+    # same save_unit_mapping observer as the add/edit flows.
+
+    observeEvent(input$add_unmatched_mapping, {
+      msg <- input$add_unmatched_mapping
+      req(msg$unit)
+
+      showModal(modalDialog(
+        title = "Add Unit Mapping",
+        textInput(session$ns("modal_from_unit"), "From Unit", value = msg$unit),
+        textInput(
+          session$ns("modal_to_unit"),
+          "To Unit",
+          placeholder = "e.g., mg/L"
+        ),
+        numericInput(session$ns("modal_multiplier"), "Multiplier", value = NA),
+        selectInput(
+          session$ns("modal_category"),
+          "Category",
+          choices = c(
+            "mass_concentration",
+            "mass_per_mass",
+            "volume_concentration",
+            "molar",
+            "radioactivity",
+            "biological",
+            "dimensionless",
+            "other"
+          )
+        ),
+        selectInput(
+          session$ns("modal_confidence"),
+          "Confidence",
+          choices = c("HIGH", "MEDIUM", "LOW")
+        ),
+        textInput(session$ns("modal_source"), "Source", value = "user"),
+        tags$input(
+          type = "hidden",
+          id = session$ns("modal_orig_from"),
+          value = ""
+        ),
+        footer = tagList(
+          modalButton("Discard"),
+          actionButton(
+            session$ns("save_unit_mapping"),
+            "Save Mapping",
+            class = "btn-primary"
+          )
+        ),
+        easyClose = FALSE
+      ))
+    })
+
     # --- Cascade reset observers (D-26, D-27, D-28) ---------------------------
     # When the working copy of unit_map or corrections changes, invalidate
     # harmonize results and downstream toxval_output.
