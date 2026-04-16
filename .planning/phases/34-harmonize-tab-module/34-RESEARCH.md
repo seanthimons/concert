@@ -517,22 +517,25 @@ shiny::observe({
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **DTXSID column name for QC metric**
    - What we know: `n_dtxsid` requires checking if a DTXSID column exists; `consensus_dtxsid` is the name in the consensus pipeline
    - What's unclear: After the harmonize pipeline, the input data frame may not have been through curation (some users may skip chemical curation). The column may not exist.
    - Recommendation: Check for `consensus_dtxsid` first; fall back to 0 if absent. Display "0" for this metric with a tooltip "Run curation to add DTXSID data."
+   - **RESOLVED:** Use `consensus_dtxsid` column name. Check with `"consensus_dtxsid" %in% names(input_data)`, fall back to `0L` if absent. Implemented in Plan 01 Task 2 QC dashboard `output$qc_dashboard`.
 
 2. **Corrections persistence across sessions**
    - What we know: `PARS-06` says "user-editable" — implies session-level changes are expected. `cleaning_reference.R` caches reference data to disk.
    - What's unclear: Should corrections be saved to `corrections.rds` on change (write-through), or are they session-local only?
    - Recommendation: Mirror the reference list behavior — session-local edits, not persisted to disk. Phase 35 can export them as a sheet in the Excel export (consistent with how reference lists are exported).
+   - **RESOLVED:** Session-local only, no write-through to disk. Corrections live in `data_store$corrections_working` (initialized from `corrections.rds` seed). Consistent with how all reference lists work in this project. Implemented in Plan 01 Task 2 working copy initialization.
 
 3. **Accordion tab show trigger**
    - What we know: The Harmonize tab should appear after tagging. The existing app.R shows tabs via `show_tab_with_pulse()` in `observe()` blocks.
    - What's unclear: Should the tab appear as soon as `numeric_tags` is set (without requiring curation to also run), or only after curation?
    - Recommendation: Show when `numeric_tags` is non-null. Users may have purely numeric datasets with no chemical columns.
+   - **RESOLVED:** Show tab when `numeric_tags` is non-null via `shiny::observe({ shiny::req(data_store$numeric_tags); show_tab_with_pulse("harmonize_tab") })`. No curation gate required. Implemented in Plan 01 Task 3 app.R wiring.
 
 ---
 
