@@ -133,6 +133,20 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
       # Validate Result/Unit pairing per D-12/D-13
       warning_msg <- validate_tag_pairing(col_tag_map)
 
+      # Check for required chemical tags (Name AND CASRN)
+      has_req <- has_required_chemical_tags(classified$chemical_tags)
+      if (!has_req) {
+        tag_values <- unlist(classified$chemical_tags, use.names = FALSE)
+        missing <- c()
+        if (!"Name" %in% tag_values) missing <- c(missing, "Chemical Name")
+        if (!"CASRN" %in% tag_values) missing <- c(missing, "CASRN")
+        showNotification(
+          paste("Clean Data requires both Name and CASRN columns. Missing:", paste(missing, collapse = ", ")),
+          type = "warning",
+          duration = 6
+        )
+      }
+
       # Store partitioned tags per D-04
       # column_tags contains ONLY chemical tags for backwards compatibility
       data_store$column_tags <- classified$chemical_tags
@@ -140,86 +154,26 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
       data_store$metadata_tags <- classified$metadata_tags
 
       # Generate dedup preview immediately (uses chemical tags only)
-      tryCatch(
-        {
-          data_store$dedup_preview <- get_dedup_preview(data_store$clean, classified$chemical_tags)
-        },
-        error = function(e) {
-          message("Dedup preview generation failed: ", e$message)
-          data_store$dedup_preview <- NULL
-        }
-      )
-
-      # Build confirmation modal -------------------------------------------
-
-      # Helper: render one category summary row (returns NULL when list is empty)
-      make_category_row <- function(label, tag_list, badge_class) {
-        if (length(tag_list) == 0) return(NULL)
-        col_names <- names(tag_list)
-        tag_values <- unlist(tag_list, use.names = FALSE)
-        entry_text <- paste(
-          mapply(function(cn, tv) paste0(cn, " \u2192 ", tv), col_names, tag_values),
-          collapse = ", "
+      # Skip for large datasets (>10k rows) - deduplicate_tagged_columns is O(n²)
+      if (nrow(data_store$clean) <= 10000) {
+        tryCatch(
+          {
+            data_store$dedup_preview <- get_dedup_preview(data_store$clean, classified$chemical_tags)
+          },
+          error = function(e) {
+            message("Dedup preview generation failed: ", e$message)
+            data_store$dedup_preview <- NULL
+          }
         )
-        tags$li(
-          class = "mb-1",
-          tags$span(class = paste("badge me-2", badge_class), label),
-          entry_text
-        )
-      }
-
-      n_chem <- length(classified$chemical_tags)
-      n_num <- length(classified$numeric_tags)
-
-      # Collect non-NULL category rows
-      category_items <- Filter(Negate(is.null), list(
-        make_category_row("Chemical", classified$chemical_tags, "bg-primary"),
-        make_category_row("Numeric", classified$numeric_tags, "bg-success"),
-        make_category_row("Study", classified$metadata_tags, "bg-info")
-      ))
-
-      # Collect next-step bullet items
-      next_step_items <- list()
-      if (n_chem > 0) {
-        next_step_items <- c(next_step_items, list(
-          tags$li("Clean Data tab is now available for chemical name curation")
-        ))
       } else {
-        next_step_items <- c(next_step_items, list(
-          tags$li(class = "text-muted", "Clean Data requires at least one Chemical tag (Name or CASRN)")
-        ))
-      }
-      if (n_num > 0) {
-        next_step_items <- c(next_step_items, list(
-          tags$li("Harmonize tab is now available for numeric result harmonization")
-        ))
+        data_store$dedup_preview <- NULL
       }
 
-      # Collect top-level modal body elements
-      body_items <- list()
-      if (!is.null(warning_msg)) {
-        body_items <- c(body_items, list(
-          div(
-            class = "alert alert-warning mb-3",
-            bsicons::bs_icon("exclamation-triangle"), " ", warning_msg
-          )
-        ))
-      }
-      body_items <- c(body_items, list(
-        tags$p(tags$strong(paste(length(col_tag_map), "column(s) tagged:"))),
-        do.call(tags$ul, category_items),
-        hr(),
-        tags$p(tags$strong("Next steps:")),
-        do.call(tags$ul, next_step_items)
-      ))
-
-      showModal(modalDialog(
-        title = tagList(bsicons::bs_icon("check-circle-fill"), " Tags Applied"),
-        do.call(tagList, body_items),
-        footer = modalButton("Continue"),
-        size = "m",
-        easyClose = TRUE
-      ))
+      showNotification(
+        paste("Tagged", length(col_tag_map), "column(s) successfully!"),
+        type = "message",
+        duration = 3
+      )
 
       # Call navigation callback if provided
       if (!is.null(on_tags_applied)) {

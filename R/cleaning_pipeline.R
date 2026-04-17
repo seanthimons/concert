@@ -48,36 +48,35 @@ clean_text_field <- function(x) {
 #' @return Tibble with columns: row_id, field, step, original_value, new_value, reason
 #' @export
 build_audit_trail <- function(df_original, df_cleaned, step_name, reason_fn) {
-  # Initialize empty audit trail
-  audit_rows <- list()
-
   # Get character columns (only these are cleaned)
   char_cols <- names(df_original)[sapply(df_original, is.character)]
 
-  # Compare each column
+  # Pre-allocate vectors for all audit entries (avoids O(n^2) growing-list pattern)
+  all_row_ids <- integer()
+  all_fields <- character()
+  all_originals <- character()
+  all_news <- character()
+
+  # Compare each column and collect changes vectorized
+
   for (col_name in char_cols) {
     original_vals <- as.character(df_original[[col_name]])
     cleaned_vals <- as.character(df_cleaned[[col_name]])
 
-    # Find rows where values changed
+    # Find rows where values changed (vectorized comparison)
     changed_idx <- which(original_vals != cleaned_vals)
 
-    # Record changes
-    for (idx in changed_idx) {
-      audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-        row_id = as.integer(idx),
-        field = col_name,
-        step = step_name,
-        original_value = original_vals[idx],
-        new_value = cleaned_vals[idx],
-        reason = reason_fn(col_name)
-      )
+    if (length(changed_idx) > 0) {
+      # Vectorized append
+      all_row_ids <- c(all_row_ids, as.integer(changed_idx))
+      all_fields <- c(all_fields, rep(col_name, length(changed_idx)))
+      all_originals <- c(all_originals, original_vals[changed_idx])
+      all_news <- c(all_news, cleaned_vals[changed_idx])
     }
   }
 
-  # Combine all rows into single tibble
-  if (length(audit_rows) == 0) {
-    # Return empty tibble with correct structure
+  # Build single tibble from vectors (O(1) vs O(n) bind_rows)
+  if (length(all_row_ids) == 0) {
     return(tibble::tibble(
       row_id = integer(),
       field = character(),
@@ -88,7 +87,14 @@ build_audit_trail <- function(df_original, df_cleaned, step_name, reason_fn) {
     ))
   }
 
-  dplyr::bind_rows(audit_rows)
+  tibble::tibble(
+    row_id = all_row_ids,
+    field = all_fields,
+    step = rep(step_name, length(all_row_ids)),
+    original_value = all_originals,
+    new_value = all_news,
+    reason = vapply(all_fields, reason_fn, character(1))
+  )
 }
 
 #' Inject row lineage tracking
@@ -149,34 +155,31 @@ normalize_cas_fields <- function(df, tag_map) {
   df_after <- df %>%
     dplyr::mutate(dplyr::across(dplyr::all_of(cas_cols), ~ ComptoxR::as_cas(.x)))
 
-  # Build audit trail manually to handle NA transitions
-  audit_rows <- list()
+  # Build audit trail vectorized (avoids O(n^2) growing-list pattern)
+  all_row_ids <- integer()
+  all_fields <- character()
+  all_originals <- character()
+  all_news <- character()
 
   for (col_name in cas_cols) {
     original_vals <- as.character(df_before[[col_name]])
     cleaned_vals <- as.character(df_after[[col_name]])
 
-    # Find changes: either different values OR non-NA became NA
-    for (idx in seq_along(original_vals)) {
-      orig <- original_vals[idx]
-      new <- cleaned_vals[idx]
+    # Vectorized comparison: find rows where values differ (including NA transitions)
+    # Use mapply for pairwise identical check
+    differs <- !mapply(identical, original_vals, cleaned_vals, USE.NAMES = FALSE)
+    changed_idx <- which(differs)
 
-      # Record if values differ (including NA transitions)
-      if (!identical(orig, new)) {
-        audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-          row_id = as.integer(idx),
-          field = col_name,
-          step = "normalize_cas",
-          original_value = ifelse(is.na(orig), "[NA]", orig),
-          new_value = ifelse(is.na(new), "[NA]", new),
-          reason = paste0("Normalize CAS-RN in ", col_name, " using ComptoxR::as_cas()")
-        )
-      }
+    if (length(changed_idx) > 0) {
+      all_row_ids <- c(all_row_ids, as.integer(changed_idx))
+      all_fields <- c(all_fields, rep(col_name, length(changed_idx)))
+      all_originals <- c(all_originals, ifelse(is.na(original_vals[changed_idx]), "[NA]", original_vals[changed_idx]))
+      all_news <- c(all_news, ifelse(is.na(cleaned_vals[changed_idx]), "[NA]", cleaned_vals[changed_idx]))
     }
   }
 
-  # Combine audit rows
-  audit_trail <- if (length(audit_rows) == 0) {
+  # Build single tibble from vectors
+  audit_trail <- if (length(all_row_ids) == 0) {
     tibble::tibble(
       row_id = integer(),
       field = character(),
@@ -186,7 +189,14 @@ normalize_cas_fields <- function(df, tag_map) {
       reason = character()
     )
   } else {
-    dplyr::bind_rows(audit_rows)
+    tibble::tibble(
+      row_id = all_row_ids,
+      field = all_fields,
+      step = rep("normalize_cas", length(all_row_ids)),
+      original_value = all_originals,
+      new_value = all_news,
+      reason = paste0("Normalize CAS-RN in ", all_fields, " using ComptoxR::as_cas()")
+    )
   }
 
   list(
@@ -268,23 +278,22 @@ rescue_cas_from_text <- function(df, tag_map) {
         stringr::str_remove_all("\\s*[\\(\\[]?\\d{1,7}-\\d{2}-\\d[\\)\\]]?\\s*") %>%
         stringr::str_squish()
 
-      # Build audit trail for extractions
-      for (idx in seq_along(extracted_cas)) {
-        if (!is.na(extracted_cas[idx])) {
-          audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-            row_id = as.integer(idx),
-            field = col_name,
-            step = "rescue_cas",
-            original_value = as.character(df[[col_name]][idx]),
-            new_value = paste0("Extracted ", extracted_cas[idx], " to ", new_col_name),
-            reason = paste0("Extract CAS-RN from ", col_name, " using ComptoxR::extract_cas()")
-          )
-        }
+      # Build audit trail for extractions (vectorized)
+      extracted_idx <- which(!is.na(extracted_cas))
+      if (length(extracted_idx) > 0) {
+        audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
+          row_id = as.integer(extracted_idx),
+          field = rep(col_name, length(extracted_idx)),
+          step = rep("rescue_cas", length(extracted_idx)),
+          original_value = as.character(df[[col_name]][extracted_idx]),
+          new_value = paste0("Extracted ", extracted_cas[extracted_idx], " to ", new_col_name),
+          reason = rep(paste0("Extract CAS-RN from ", col_name, " using ComptoxR::extract_cas()"), length(extracted_idx))
+        )
       }
     }
   }
 
-  # Combine audit rows
+  # Combine audit rows (now a list of tibbles, not a list of single-row tibbles)
   audit_trail <- if (length(audit_rows) == 0) {
     tibble::tibble(
       row_id = integer(),
@@ -513,33 +522,29 @@ strip_quality_adjectives <- function(df, name_cols) {
       stringr::str_squish()
   }
 
-  # Build audit trail manually
-  audit_rows <- list()
+  # Build audit trail vectorized
+  all_row_ids <- integer()
+  all_fields <- character()
+  all_originals <- character()
+  all_news <- character()
 
   for (col_name in name_cols) {
     original_vals <- as.character(df_before[[col_name]])
     cleaned_vals <- as.character(df_after[[col_name]])
 
-    # Find changes
-    for (idx in seq_along(original_vals)) {
-      orig <- original_vals[idx]
-      new <- cleaned_vals[idx]
+    # Vectorized: find rows where non-NA values changed
+    changed_idx <- which(!is.na(original_vals) & !is.na(cleaned_vals) & original_vals != cleaned_vals)
 
-      if (!is.na(orig) && !is.na(new) && orig != new) {
-        audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-          row_id = as.integer(idx),
-          field = col_name,
-          step = "strip_quality_adjectives",
-          original_value = orig,
-          new_value = new,
-          reason = paste0("Remove quality adjectives from ", col_name)
-        )
-      }
+    if (length(changed_idx) > 0) {
+      all_row_ids <- c(all_row_ids, as.integer(changed_idx))
+      all_fields <- c(all_fields, rep(col_name, length(changed_idx)))
+      all_originals <- c(all_originals, original_vals[changed_idx])
+      all_news <- c(all_news, cleaned_vals[changed_idx])
     }
   }
 
-  # Combine audit rows
-  audit_trail <- if (length(audit_rows) == 0) {
+  # Build single tibble from vectors
+  audit_trail <- if (length(all_row_ids) == 0) {
     tibble::tibble(
       row_id = integer(),
       field = character(),
@@ -549,7 +554,14 @@ strip_quality_adjectives <- function(df, name_cols) {
       reason = character()
     )
   } else {
-    dplyr::bind_rows(audit_rows)
+    tibble::tibble(
+      row_id = all_row_ids,
+      field = all_fields,
+      step = rep("strip_quality_adjectives", length(all_row_ids)),
+      original_value = all_originals,
+      new_value = all_news,
+      reason = paste0("Remove quality adjectives from ", all_fields)
+    )
   }
 
   list(
@@ -585,33 +597,29 @@ strip_salt_references <- function(df, name_cols) {
       stringr::str_trim()
   }
 
-  # Build audit trail manually
-  audit_rows <- list()
+  # Build audit trail vectorized
+  all_row_ids <- integer()
+  all_fields <- character()
+  all_originals <- character()
+  all_news <- character()
 
   for (col_name in name_cols) {
     original_vals <- as.character(df_before[[col_name]])
     cleaned_vals <- as.character(df_after[[col_name]])
 
-    # Find changes
-    for (idx in seq_along(original_vals)) {
-      orig <- original_vals[idx]
-      new <- cleaned_vals[idx]
+    # Vectorized: find rows where non-NA values changed
+    changed_idx <- which(!is.na(original_vals) & !is.na(cleaned_vals) & original_vals != cleaned_vals)
 
-      if (!is.na(orig) && !is.na(new) && orig != new) {
-        audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-          row_id = as.integer(idx),
-          field = col_name,
-          step = "strip_salt_references",
-          original_value = orig,
-          new_value = new,
-          reason = paste0("Remove ambiguous salt reference from ", col_name)
-        )
-      }
+    if (length(changed_idx) > 0) {
+      all_row_ids <- c(all_row_ids, as.integer(changed_idx))
+      all_fields <- c(all_fields, rep(col_name, length(changed_idx)))
+      all_originals <- c(all_originals, original_vals[changed_idx])
+      all_news <- c(all_news, cleaned_vals[changed_idx])
     }
   }
 
-  # Combine audit rows
-  audit_trail <- if (length(audit_rows) == 0) {
+  # Build single tibble from vectors
+  audit_trail <- if (length(all_row_ids) == 0) {
     tibble::tibble(
       row_id = integer(),
       field = character(),
@@ -621,7 +629,14 @@ strip_salt_references <- function(df, name_cols) {
       reason = character()
     )
   } else {
-    dplyr::bind_rows(audit_rows)
+    tibble::tibble(
+      row_id = all_row_ids,
+      field = all_fields,
+      step = rep("strip_salt_references", length(all_row_ids)),
+      original_value = all_originals,
+      new_value = all_news,
+      reason = paste0("Remove ambiguous salt reference from ", all_fields)
+    )
   }
 
   list(
@@ -657,33 +672,29 @@ strip_terminal_unspecified <- function(df, name_cols) {
       stringr::str_trim()
   }
 
-  # Build audit trail manually
-  audit_rows <- list()
+  # Build audit trail vectorized
+  all_row_ids <- integer()
+  all_fields <- character()
+  all_originals <- character()
+  all_news <- character()
 
   for (col_name in name_cols) {
     original_vals <- as.character(df_before[[col_name]])
     cleaned_vals <- as.character(df_after[[col_name]])
 
-    # Find changes
-    for (idx in seq_along(original_vals)) {
-      orig <- original_vals[idx]
-      new <- cleaned_vals[idx]
+    # Vectorized: find rows where non-NA values changed
+    changed_idx <- which(!is.na(original_vals) & !is.na(cleaned_vals) & original_vals != cleaned_vals)
 
-      if (!is.na(orig) && !is.na(new) && orig != new) {
-        audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-          row_id = as.integer(idx),
-          field = col_name,
-          step = "strip_terminal_unspecified",
-          original_value = orig,
-          new_value = new,
-          reason = paste0("Remove terminal 'unspecified' suffix from ", col_name)
-        )
-      }
+    if (length(changed_idx) > 0) {
+      all_row_ids <- c(all_row_ids, as.integer(changed_idx))
+      all_fields <- c(all_fields, rep(col_name, length(changed_idx)))
+      all_originals <- c(all_originals, original_vals[changed_idx])
+      all_news <- c(all_news, cleaned_vals[changed_idx])
     }
   }
 
-  # Combine audit rows
-  audit_trail <- if (length(audit_rows) == 0) {
+  # Build single tibble from vectors
+  audit_trail <- if (length(all_row_ids) == 0) {
     tibble::tibble(
       row_id = integer(),
       field = character(),
@@ -693,7 +704,14 @@ strip_terminal_unspecified <- function(df, name_cols) {
       reason = character()
     )
   } else {
-    dplyr::bind_rows(audit_rows)
+    tibble::tibble(
+      row_id = all_row_ids,
+      field = all_fields,
+      step = rep("strip_terminal_unspecified", length(all_row_ids)),
+      original_value = all_originals,
+      new_value = all_news,
+      reason = paste0("Remove terminal 'unspecified' suffix from ", all_fields)
+    )
   }
 
   list(
@@ -769,32 +787,29 @@ strip_reference_terms <- function(df, name_cols, strip_terms_tbl) {
     }
   }
 
-  # Build audit trail
-  audit_rows <- list()
+  # Build audit trail vectorized
+  all_row_ids <- integer()
+  all_fields <- character()
+  all_originals <- character()
+  all_news <- character()
 
   for (col_name in name_cols) {
     original_vals <- as.character(df_before[[col_name]])
     cleaned_vals <- as.character(df_after[[col_name]])
 
-    for (idx in seq_along(original_vals)) {
-      orig <- original_vals[idx]
-      new <- cleaned_vals[idx]
+    # Vectorized: find rows where non-NA values changed
+    changed_idx <- which(!is.na(original_vals) & !is.na(cleaned_vals) & original_vals != cleaned_vals)
 
-      if (!is.na(orig) && !is.na(new) && orig != new) {
-        audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-          row_id = as.integer(idx),
-          field = col_name,
-          step = "strip_reference_terms",
-          original_value = orig,
-          new_value = new,
-          reason = paste0("Remove user-defined strip terms from ", col_name)
-        )
-      }
+    if (length(changed_idx) > 0) {
+      all_row_ids <- c(all_row_ids, as.integer(changed_idx))
+      all_fields <- c(all_fields, rep(col_name, length(changed_idx)))
+      all_originals <- c(all_originals, original_vals[changed_idx])
+      all_news <- c(all_news, cleaned_vals[changed_idx])
     }
   }
 
-  # Combine audit rows
-  audit_trail <- if (length(audit_rows) == 0) {
+  # Build single tibble from vectors
+  audit_trail <- if (length(all_row_ids) == 0) {
     tibble::tibble(
       row_id = integer(),
       field = character(),
@@ -804,7 +819,14 @@ strip_reference_terms <- function(df, name_cols, strip_terms_tbl) {
       reason = character()
     )
   } else {
-    dplyr::bind_rows(audit_rows)
+    tibble::tibble(
+      row_id = all_row_ids,
+      field = all_fields,
+      step = rep("strip_reference_terms", length(all_row_ids)),
+      original_value = all_originals,
+      new_value = all_news,
+      reason = paste0("Remove user-defined strip terms from ", all_fields)
+    )
   }
 
   list(
@@ -834,124 +856,149 @@ strip_reference_terms <- function(df, name_cols, strip_terms_tbl) {
 #' split_synonyms(df, "chemical_name", tag_map)
 #' @export
 split_synonyms <- function(df, name_cols, tag_map) {
+
   # Get CASRN columns
   cas_cols <- names(tag_map)[tag_map == "CASRN"]
 
-  # Initialize result
+  # Helper: protect IUPAC patterns and split a single string
+  split_one_name <- function(name) {
+    if (is.na(name)) return(NA_character_)
+
+    # Protect IUPAC comma patterns (repeat until stable)
+    protected <- name
+    for (iter in seq_len(10)) {
+      prev <- protected
+      protected <- stringr::str_replace_all(protected, "([A-Za-z]),([A-Za-z])", "\\1@@@\\2")
+      protected <- stringr::str_replace_all(protected, "([A-Za-z]),(\\d)", "\\1@@@\\2")
+      protected <- stringr::str_replace_all(protected, "(\\d+),(\\d+)", "\\1@@@\\2")
+      if (identical(prev, protected)) break
+    }
+
+    # Protect IUPAC inverted names
+    protected <- stringr::str_replace_all(protected, ",\\s+(\\d)", "%%%\\1")
+
+    # Split and restore
+    parts <- protected %>%
+      stringr::str_split(";") %>%
+      unlist() %>%
+      stringr::str_split(",") %>%
+      unlist() %>%
+      stringr::str_trim() %>%
+      stringr::str_replace_all("@@@", ",") %>%
+      stringr::str_replace_all("%%%", ", ")
+
+    parts[parts != "" & !is.na(parts)]
+  }
+
   df_result <- df
-  audit_rows <- list()
 
-  # Process each name column
+  # Pre-allocate audit vectors
+  audit_row_ids <- integer()
+  audit_fields <- character()
+  audit_originals <- character()
+  audit_news <- character()
+  audit_reasons <- character()
+
   for (col_name in name_cols) {
-    # Build expanded dataframe
-    expanded_rows <- list()
+    col_values <- df_result[[col_name]]
+    n_rows <- nrow(df_result)
 
-    for (idx in seq_len(nrow(df_result))) {
-      row_data <- df_result[idx, ]
-      original_name <- row_data[[col_name]]
+    # Vectorized: quick check for potential splits (contains ; or ,)
+    # This lets us skip the expensive split_one_name for most rows
+    might_split <- !is.na(col_values) & stringr::str_detect(col_values, "[;,]")
+    might_split[is.na(might_split)] <- FALSE
 
-      # Skip NA
-      if (is.na(original_name)) {
-        expanded_rows[[length(expanded_rows) + 1]] <- row_data %>%
-          dplyr::mutate(
-            synonym_count = 1L,
-            synonym_index = 1L
-          )
-        next
-      }
+    # If nothing might split, just add synonym columns and continue
+    if (!any(might_split)) {
+      df_result$synonym_count <- rep(1L, n_rows)
+      df_result$synonym_index <- rep(1L, n_rows)
+      next
+    }
 
-      # Step 0+1: Protect IUPAC comma patterns with repeat-until-stable loop
-      # Single pass of (\d+),(\d+) only catches one pair per adjacency:
-      # "2,4,6" -> "2@@@4,6" (misses second comma). Loop until no changes.
-      protected_name <- original_name
-      for (iter in seq_len(10)) {
-        prev <- protected_name
-        # Protect letter-comma-letter (N,N- O,O- S,S- alpha,alpha- etc.)
-        protected_name <- stringr::str_replace_all(protected_name, "([A-Za-z]),([A-Za-z])", "\\1@@@\\2")
-        # Protect letter-comma-digit (alpha,2,4- Greek prefix locants)
-        protected_name <- stringr::str_replace_all(protected_name, "([A-Za-z]),(\\d)", "\\1@@@\\2")
-        # Protect digit-comma-digit (IUPAC locants like 2,4- or 1,3-)
-        protected_name <- stringr::str_replace_all(protected_name, "(\\d+),(\\d+)", "\\1@@@\\2")
-        if (identical(prev, protected_name)) break
-      }
+    # Pre-compute splits only for rows that might split
+    split_indices <- which(might_split)
+    split_results <- lapply(col_values[split_indices], split_one_name)
+    split_counts <- vapply(split_results, length, integer(1))
 
-      # Step 2: Protect IUPAC inverted names (e.g., "butane, 2,2-dimethyl")
-      # Pattern: comma followed by space and digit indicates inverted IUPAC name
-      # Replace that comma with a different placeholder
-      protected_name <- stringr::str_replace_all(protected_name, ",\\s+(\\d)", "%%%\\1")
+    # Identify which rows actually split (>1 part)
+    actually_splits <- split_counts > 1
+    expand_indices <- split_indices[actually_splits]
+    expand_results <- split_results[actually_splits]
+    expand_counts <- split_counts[actually_splits]
 
-      # Step 3: Split on semicolons first, then commas
-      parts <- protected_name %>%
-        stringr::str_split(";") %>%
-        unlist() %>%
-        stringr::str_split(",") %>%
-        unlist() %>%
-        stringr::str_trim() %>%
-        stringr::str_replace_all("@@@", ",") %>%   # Restore digit-comma-digit
-        stringr::str_replace_all("%%%", ", ")      # Restore inverted name comma
+    # If nothing actually splits, just add synonym columns
+    if (length(expand_indices) == 0) {
+      df_result$synonym_count <- rep(1L, n_rows)
+      df_result$synonym_index <- rep(1L, n_rows)
+      next
+    }
 
-      # Remove empty strings
-      parts <- parts[parts != "" & !is.na(parts)]
+    # Build expanded dataframe efficiently
+    # 1. Keep non-expanding rows as-is
+    # 2. Expand only the rows that split
 
-      # If no split occurred (single name), keep as-is
-      if (length(parts) <= 1) {
-        expanded_rows[[length(expanded_rows) + 1]] <- row_data %>%
-          dplyr::mutate(
-            synonym_count = 1L,
-            synonym_index = 1L
-          )
-        next
-      }
+    non_expand_mask <- rep(TRUE, n_rows)
+    non_expand_mask[expand_indices] <- FALSE
 
-      # Multiple synonyms found - expand rows
-      synonym_count <- length(parts)
+    # Non-expanding rows: keep with synonym metadata
+    non_expand_df <- df_result[non_expand_mask, , drop = FALSE]
+    if (nrow(non_expand_df) > 0) {
+      non_expand_df$synonym_count <- 1L
+      non_expand_df$synonym_index <- 1L
+    }
 
-      # Add audit entry for original row
-      audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-        row_id = as.integer(row_data$original_row_id),
-        field = col_name,
-        step = "split_synonyms",
-        original_value = original_name,
-        new_value = paste0("Split into ", synonym_count, " synonyms: ", paste(parts, collapse = "; ")),
-        reason = paste0("Split comma/semicolon-separated synonyms in ", col_name)
-      )
+    # Expanding rows: create multiple rows per original
+    expand_dfs <- vector("list", length(expand_indices))
 
-      # Create rows for each synonym
-      for (syn_idx in seq_along(parts)) {
-        new_row <- row_data
-        new_row[[col_name]] <- parts[syn_idx]
-        new_row$synonym_count <- as.integer(synonym_count)
-        new_row$synonym_index <- as.integer(syn_idx)
+    for (i in seq_along(expand_indices)) {
+      idx <- expand_indices[i]
+      parts <- expand_results[[i]]
+      synonym_count <- expand_counts[i]
+      original_name <- col_values[idx]
+      original_row_id <- df_result$original_row_id[idx]
 
-        # Set CAS columns to NA for synonym rows (index > 1)
-        if (syn_idx > 1) {
-          for (cas_col in cas_cols) {
-            if (cas_col %in% names(new_row)) {
-              new_row[[cas_col]] <- NA_character_
-            }
+      # Create expanded rows by replicating the original row
+      expanded <- df_result[rep(idx, synonym_count), , drop = FALSE]
+      expanded[[col_name]] <- parts
+      expanded$synonym_count <- synonym_count
+      expanded$synonym_index <- seq_len(synonym_count)
+
+      # Set CAS columns to NA for synonym rows (index > 1)
+      if (synonym_count > 1 && length(cas_cols) > 0) {
+        for (cas_col in cas_cols) {
+          if (cas_col %in% names(expanded)) {
+            expanded[[cas_col]][2:synonym_count] <- NA_character_
           }
-
-          # Add audit entry for synonym row
-          audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-            row_id = as.integer(row_data$original_row_id),
-            field = col_name,
-            step = "split_synonyms",
-            original_value = original_name,
-            new_value = paste0("Synonym row ", syn_idx, ": ", parts[syn_idx]),
-            reason = paste0("Synonym from row ", row_data$original_row_id)
-          )
         }
+      }
 
-        expanded_rows[[length(expanded_rows) + 1]] <- new_row
+      expand_dfs[[i]] <- expanded
+
+      # Collect audit entries for this expansion
+      audit_row_ids <- c(audit_row_ids, as.integer(original_row_id))
+      audit_fields <- c(audit_fields, col_name)
+      audit_originals <- c(audit_originals, original_name)
+      audit_news <- c(audit_news, paste0("Split into ", synonym_count, " synonyms: ", paste(parts, collapse = "; ")))
+      audit_reasons <- c(audit_reasons, paste0("Split comma/semicolon-separated synonyms in ", col_name))
+
+      # Audit entries for synonym rows (index > 1)
+      if (synonym_count > 1) {
+        for (syn_idx in 2:synonym_count) {
+          audit_row_ids <- c(audit_row_ids, as.integer(original_row_id))
+          audit_fields <- c(audit_fields, col_name)
+          audit_originals <- c(audit_originals, original_name)
+          audit_news <- c(audit_news, paste0("Synonym row ", syn_idx, ": ", parts[syn_idx]))
+          audit_reasons <- c(audit_reasons, paste0("Synonym from row ", original_row_id))
+        }
       }
     }
 
-    # Combine all expanded rows
-    df_result <- dplyr::bind_rows(expanded_rows)
+    # Combine: non-expanding rows + all expanded rows
+    df_result <- dplyr::bind_rows(c(list(non_expand_df), expand_dfs))
   }
 
-  # Combine audit rows
-  audit_trail <- if (length(audit_rows) == 0) {
+  # Build audit trail from vectors
+  audit_trail <- if (length(audit_row_ids) == 0) {
     tibble::tibble(
       row_id = integer(),
       field = character(),
@@ -961,7 +1008,14 @@ split_synonyms <- function(df, name_cols, tag_map) {
       reason = character()
     )
   } else {
-    dplyr::bind_rows(audit_rows)
+    tibble::tibble(
+      row_id = audit_row_ids,
+      field = audit_fields,
+      step = rep("split_synonyms", length(audit_row_ids)),
+      original_value = audit_originals,
+      new_value = audit_news,
+      reason = audit_reasons
+    )
   }
 
   list(
@@ -1015,7 +1069,23 @@ detect_bare_formulas <- function(df, name_cols) {
     df_result$cleaning_flag <- NA_character_
   }
 
-  # Process each name column
+  # Pre-allocate audit vectors
+  audit_row_ids <- integer()
+  audit_fields <- character()
+  audit_originals <- character()
+  audit_blocked_cols <- character()
+
+  # Get row IDs (use original_row_id if available)
+  row_ids <- if ("original_row_id" %in% names(df_result)) {
+    df_result$original_row_id
+  } else {
+    seq_len(nrow(df_result))
+  }
+
+  # Pre-compile the full formula regex once
+  full_formula_regex <- paste0("^", validator_regex, "$")
+
+  # Process each name column (vectorized per column)
   for (col_name in name_cols) {
     # Create formula_blocked column if it doesn't exist
     blocked_col_name <- paste0("formula_blocked_", col_name)
@@ -1023,62 +1093,54 @@ detect_bare_formulas <- function(df, name_cols) {
       df_result[[blocked_col_name]] <- NA_character_
     }
 
-    # Process each row
-    for (idx in seq_len(nrow(df))) {
-      original_value <- df[[col_name]][idx]
+    col_values <- df[[col_name]]
 
-      # Skip NA
-      if (is.na(original_value)) {
-        next
-      }
+    # Skip entirely NA columns
+    if (all(is.na(col_values))) next
 
-      # Clean the value same way ComptoxR does: remove spaces and dots
-      cleaned_for_test <- original_value %>%
-        stringr::str_remove_all("\\s+") %>%
-        stringr::str_remove_all("\\.")
+    # Vectorized cleaning: remove spaces and dots
+    cleaned_for_test <- col_values %>%
+      stringr::str_remove_all("\\s+") %>%
+      stringr::str_remove_all("\\.")
 
-      # Heuristic pre-check: real formulas never contain 2+ consecutive lowercase letters
-      # "NaCl" has only single lowercase chars; "Naphthalene" has "aphthalene"
-      # This prevents false positives from chemical names that look like element sequences
-      has_word_pattern <- stringr::str_detect(original_value, "[a-z]{2}")
+    # Vectorized heuristic checks
+    has_word_pattern <- stringr::str_detect(col_values, "[a-z]{2}")
+    has_word_pattern[is.na(has_word_pattern)] <- FALSE
 
-      # Additional heuristic: pure uppercase with no digits is almost always an abbreviation, not a formula
-      # Real formulas have numbers (C10H22, CaCl2) or mixed case (NaCl, CuSO4)
-      # Abbreviations are all uppercase letters (DEHP, PFOA, PCB, DDT)
-      is_all_uppercase_no_digits <- stringr::str_detect(original_value, "^[A-Z]+$")
+    is_all_uppercase_no_digits <- stringr::str_detect(col_values, "^[A-Z]+$")
+    is_all_uppercase_no_digits[is.na(is_all_uppercase_no_digits)] <- FALSE
 
-      # Test if the ENTIRE cleaned string matches the validator regex
-      # Skip the regex check if:
-      # 1. It looks like a word (has 2+ consecutive lowercase letters), OR
-      # 2. It's all uppercase with no digits (abbreviation)
-      is_bare_formula <- if (has_word_pattern || is_all_uppercase_no_digits) {
-        FALSE
-      } else {
-        stringr::str_detect(cleaned_for_test, paste0("^", validator_regex, "$"))
-      }
+    # Vectorized formula detection (only on candidates that pass heuristics)
+    candidates <- which(!is.na(col_values) & !has_word_pattern & !is_all_uppercase_no_digits)
 
-      if (is_bare_formula) {
-        # Block this row
-        df_result$cleaning_flag[idx] <- "BLOCK: bare formula"
-        df_result[[blocked_col_name]][idx] <- original_value
-        df_result[[col_name]][idx] <- NA_character_
+    is_bare_formula <- rep(FALSE, length(col_values))
+    if (length(candidates) > 0) {
+      is_bare_formula[candidates] <- stringr::str_detect(
+        cleaned_for_test[candidates],
+        full_formula_regex
+      )
+      is_bare_formula[is.na(is_bare_formula)] <- FALSE
+    }
 
-        # Add audit entry (use original_row_id if available post-synonym-split)
-        rid <- if ("original_row_id" %in% names(df_result)) df_result$original_row_id[idx] else idx
-        audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-          row_id = as.integer(rid),
-          field = col_name,
-          step = "detect_bare_formula",
-          original_value = original_value,
-          new_value = "[NA]",
-          reason = paste0("Bare molecular formula detected in ", col_name, "; preserved in ", blocked_col_name)
-        )
-      }
+    # Get indices of bare formulas
+    bare_formula_idx <- which(is_bare_formula)
+
+    if (length(bare_formula_idx) > 0) {
+      # Vectorized assignment
+      df_result$cleaning_flag[bare_formula_idx] <- "BLOCK: bare formula"
+      df_result[[blocked_col_name]][bare_formula_idx] <- col_values[bare_formula_idx]
+      df_result[[col_name]][bare_formula_idx] <- NA_character_
+
+      # Collect audit entries
+      audit_row_ids <- c(audit_row_ids, as.integer(row_ids[bare_formula_idx]))
+      audit_fields <- c(audit_fields, rep(col_name, length(bare_formula_idx)))
+      audit_originals <- c(audit_originals, col_values[bare_formula_idx])
+      audit_blocked_cols <- c(audit_blocked_cols, rep(blocked_col_name, length(bare_formula_idx)))
     }
   }
 
-  # Combine audit rows
-  audit_trail <- if (length(audit_rows) == 0) {
+  # Build single audit tibble from vectors
+  audit_trail <- if (length(audit_row_ids) == 0) {
     tibble::tibble(
       row_id = integer(),
       field = character(),
@@ -1088,7 +1150,14 @@ detect_bare_formulas <- function(df, name_cols) {
       reason = character()
     )
   } else {
-    dplyr::bind_rows(audit_rows)
+    tibble::tibble(
+      row_id = audit_row_ids,
+      field = audit_fields,
+      step = rep("detect_bare_formula", length(audit_row_ids)),
+      original_value = audit_originals,
+      new_value = rep("[NA]", length(audit_row_ids)),
+      reason = paste0("Bare molecular formula detected in ", audit_fields, "; preserved in ", audit_blocked_cols)
+    )
   }
 
   list(
@@ -1118,7 +1187,6 @@ detect_bare_formulas <- function(df, name_cols) {
 flag_reference_matches <- function(df, name_cols, reference_list, flag_type, flag_label) {
   # Initialize result
   df_result <- df
-  audit_rows <- list()
 
   # Add cleaning_flag column if it doesn't exist
   if (!"cleaning_flag" %in% names(df_result)) {
@@ -1147,81 +1215,102 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
   # Determine flag prefix
   flag_prefix <- if (flag_type == "blocking") "BLOCK" else "WARN"
 
+  # Pre-compile all regex patterns ONCE (outside all loops) - fixes O(rows*terms) compilation
+
+  ref_terms_lower <- tolower(active_refs$term)
+  compiled_patterns <- lapply(active_refs$term, function(term) {
+    escaped_term <- stringr::str_replace_all(term, "([/.])", "\\\\\\1")
+    stringr::regex(paste0("\\b", escaped_term, "\\b"), ignore_case = TRUE)
+  })
+
+  # Pre-allocate audit trail vectors (avoids O(n^2) growing-list pattern)
+  audit_row_ids <- integer()
+  audit_fields <- character()
+  audit_steps <- character()
+  audit_originals <- character()
+  audit_news <- character()
+  audit_reasons <- character()
+
+  # Track which rows already have a flag (for "first flag wins")
+  already_flagged <- !is.na(df_result$cleaning_flag) & df_result$cleaning_flag != ""
+
   # Process each name column
   for (col_name in name_cols) {
-    # Process each row
-    for (idx in seq_len(nrow(df))) {
-      # Skip if already flagged (first flag wins - bare formula has priority)
-      if (!is.na(df_result$cleaning_flag[idx]) && df_result$cleaning_flag[idx] != "") {
-        next
-      }
+    col_values <- df_result[[col_name]]
+    col_values_lower <- tolower(col_values)
 
-      original_value <- df[[col_name]][idx]
+    # Get row IDs (use original_row_id if available)
+    row_ids <- if ("original_row_id" %in% names(df_result)) {
+      df_result$original_row_id
+    } else {
+      seq_len(nrow(df_result))
+    }
 
-      # Skip NA
-      if (is.na(original_value)) {
-        next
-      }
+    # === PASS 1: Exact match (vectorized via match()) ===
+    exact_match_idx <- match(col_values_lower, ref_terms_lower)
+    has_exact_match <- !is.na(exact_match_idx) & !already_flagged & !is.na(col_values)
 
-      # Two-pass matching
-      matched <- FALSE
-      match_type <- NA_character_
-      matched_term <- NA_character_
-      matched_source <- NA_character_
+    if (any(has_exact_match)) {
+      matched_indices <- which(has_exact_match)
+      ref_indices <- exact_match_idx[matched_indices]
 
-      # Pass 1: Exact match (case-insensitive)
-      for (ref_idx in seq_len(nrow(active_refs))) {
-        ref_term <- active_refs$term[ref_idx]
-        if (tolower(original_value) == tolower(ref_term)) {
-          matched <- TRUE
-          match_type <- "exact"
-          matched_term <- ref_term
-          matched_source <- active_refs$source[ref_idx]
-          break
+      # Set flags (vectorized assignment)
+      df_result$cleaning_flag[matched_indices] <- paste0(flag_prefix, ": ", flag_label, " [exact]")
+      already_flagged[matched_indices] <- TRUE
+
+      # Build audit entries (vectorized append)
+      audit_row_ids <- c(audit_row_ids, as.integer(row_ids[matched_indices]))
+      audit_fields <- c(audit_fields, rep(col_name, length(matched_indices)))
+      audit_steps <- c(audit_steps, rep(paste0("flag_", flag_type), length(matched_indices)))
+      audit_originals <- c(audit_originals, col_values[matched_indices])
+      audit_news <- c(audit_news, df_result$cleaning_flag[matched_indices])
+      audit_reasons <- c(audit_reasons, paste0(
+        "Matched '", active_refs$term[ref_indices], "' (source: ",
+        active_refs$source[ref_indices], ", match type: exact) in ", col_name
+      ))
+    }
+
+    # === PASS 2: Substring match (loop over terms, vectorized str_detect per term) ===
+    # Only check rows that aren't already flagged and have non-NA values
+    candidates <- which(!already_flagged & !is.na(col_values))
+
+    if (length(candidates) > 0) {
+      for (ref_idx in seq_along(compiled_patterns)) {
+        # Skip if no candidates left
+        if (length(candidates) == 0) break
+
+        # Vectorized str_detect over candidate rows (no per-row regex compilation)
+        candidate_values <- col_values[candidates]
+        matches <- stringr::str_detect(candidate_values, compiled_patterns[[ref_idx]])
+        matches[is.na(matches)] <- FALSE
+
+        if (any(matches)) {
+          matched_positions <- candidates[matches]
+
+          # Set flags
+          df_result$cleaning_flag[matched_positions] <- paste0(flag_prefix, ": ", flag_label, " [substring]")
+          already_flagged[matched_positions] <- TRUE
+
+          # Build audit entries
+          audit_row_ids <- c(audit_row_ids, as.integer(row_ids[matched_positions]))
+          audit_fields <- c(audit_fields, rep(col_name, length(matched_positions)))
+          audit_steps <- c(audit_steps, rep(paste0("flag_", flag_type), length(matched_positions)))
+          audit_originals <- c(audit_originals, col_values[matched_positions])
+          audit_news <- c(audit_news, df_result$cleaning_flag[matched_positions])
+          audit_reasons <- c(audit_reasons, paste0(
+            "Matched '", active_refs$term[ref_idx], "' (source: ",
+            active_refs$source[ref_idx], ", match type: substring) in ", col_name
+          ))
+
+          # Remove matched rows from candidates (shrinks search space)
+          candidates <- candidates[!matches]
         }
-      }
-
-      # Pass 2: Substring match with word boundaries (only if no exact match)
-      if (!matched) {
-        for (ref_idx in seq_len(nrow(active_refs))) {
-          ref_term <- active_refs$term[ref_idx]
-          # Use word boundaries to prevent substring false positives
-          # e.g., stop word "na" should NOT match inside "Naphthalene"
-          # Escape special regex characters in ref_term, then wrap in \b boundaries
-          escaped_term <- stringr::str_replace_all(ref_term, "([/.])", "\\\\\\1")
-          bounded_pattern <- paste0("\\b", escaped_term, "\\b")
-          if (stringr::str_detect(original_value, stringr::regex(bounded_pattern, ignore_case = TRUE))) {
-            matched <- TRUE
-            match_type <- "substring"
-            matched_term <- ref_term
-            matched_source <- active_refs$source[ref_idx]
-            break
-          }
-        }
-      }
-
-      # If matched, set flag
-      if (matched) {
-        df_result$cleaning_flag[idx] <- paste0(flag_prefix, ": ", flag_label, " [", match_type, "]")
-
-        # Add audit entry (use original_row_id if available post-synonym-split)
-        rid <- if ("original_row_id" %in% names(df_result)) df_result$original_row_id[idx] else idx
-        audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-          row_id = as.integer(rid),
-          field = col_name,
-          step = paste0("flag_", flag_type),
-          original_value = original_value,
-          new_value = df_result$cleaning_flag[idx],
-          reason = paste0(
-            "Matched '", matched_term, "' (source: ", matched_source, ", match type: ", match_type, ") in ", col_name
-          )
-        )
       }
     }
   }
 
-  # Combine audit rows
-  audit_trail <- if (length(audit_rows) == 0) {
+  # Build audit trail from vectors (single tibble construction - O(1) vs O(n) bind_rows)
+  audit_trail <- if (length(audit_row_ids) == 0) {
     tibble::tibble(
       row_id = integer(),
       field = character(),
@@ -1231,7 +1320,14 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
       reason = character()
     )
   } else {
-    dplyr::bind_rows(audit_rows)
+    tibble::tibble(
+      row_id = audit_row_ids,
+      field = audit_fields,
+      step = audit_steps,
+      original_value = audit_originals,
+      new_value = audit_news,
+      reason = audit_reasons
+    )
   }
 
   list(
@@ -1602,30 +1698,43 @@ protect_chiral_designations <- function(df, name_cols) {
   CHIRAL_REGEX <- "\\((\\+|-|\\+-|\\+/-|R,S|S,R|R|S|[dD][lL]|[dD]|[lL])\\)"
 
   df_result <- df
-  audit_rows <- list()
 
   # Add cleaning_flag column if missing
   if (!"cleaning_flag" %in% names(df_result)) {
     df_result$cleaning_flag <- NA_character_
   }
 
+  # Pre-allocate audit vectors
+  audit_row_ids <- integer()
+  audit_fields <- character()
+  audit_originals <- character()
+  audit_news <- character()
+
   # Process each name column
   for (col_name in name_cols) {
     if (!col_name %in% names(df_result)) next
 
-    for (idx in seq_len(nrow(df_result))) {
-      original_value <- df_result[[col_name]][idx]
+    col_values <- df_result[[col_name]]
 
-      # Skip NA
-      if (is.na(original_value)) next
+    # Vectorized detection: find rows with chiral markers
+    has_chiral <- grepl(CHIRAL_REGEX, col_values, perl = TRUE)
+    has_chiral[is.na(has_chiral)] <- FALSE
+    chiral_idx <- which(has_chiral)
+
+    if (length(chiral_idx) == 0) next
+
+    # Process only rows with chiral markers
+    original_values <- col_values[chiral_idx]
+    protected_values <- character(length(chiral_idx))
+
+    for (i in seq_along(chiral_idx)) {
+      original_value <- original_values[i]
 
       # Find chiral markers
       matches <- gregexpr(CHIRAL_REGEX, original_value, perl = TRUE)
       match_positions <- regmatches(original_value, matches)[[1]]
 
-      if (length(match_positions) == 0) next
-
-      # Replace each chiral marker with a content-encoded placeholder (enables stateless restore)
+      # Replace each chiral marker with a content-encoded placeholder
       protected_value <- original_value
       for (marker in match_positions) {
         inner <- sub("^\\((.+)\\)$", "\\1", marker)
@@ -1638,31 +1747,30 @@ protect_chiral_designations <- function(df, name_cols) {
         protected_value <- sub(CHIRAL_REGEX, placeholder, protected_value, perl = TRUE)
       }
 
-      df_result[[col_name]][idx] <- protected_value
-
-      # Set WARNING flag (append if existing flag present)
-      existing_flag <- df_result$cleaning_flag[idx]
-      new_flag <- "WARNING: chiral designation"
-      if (is.na(existing_flag)) {
-        df_result$cleaning_flag[idx] <- new_flag
-      } else {
-        df_result$cleaning_flag[idx] <- paste0(existing_flag, "; ", new_flag)
-      }
-
-      # Record audit trail entry
-      audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-        row_id = as.integer(idx),
-        field = col_name,
-        step = "protect_chiral_designations",
-        original_value = original_value,
-        new_value = protected_value,
-        reason = paste0("Chiral designation detected in ", col_name, "; protected with placeholder")
-      )
+      protected_values[i] <- protected_value
     }
+
+    # Vectorized updates
+    df_result[[col_name]][chiral_idx] <- protected_values
+
+    # Vectorized flag update
+    existing_flags <- df_result$cleaning_flag[chiral_idx]
+    new_flag <- "WARNING: chiral designation"
+    df_result$cleaning_flag[chiral_idx] <- ifelse(
+      is.na(existing_flags),
+      new_flag,
+      paste0(existing_flags, "; ", new_flag)
+    )
+
+    # Collect audit entries
+    audit_row_ids <- c(audit_row_ids, as.integer(chiral_idx))
+    audit_fields <- c(audit_fields, rep(col_name, length(chiral_idx)))
+    audit_originals <- c(audit_originals, original_values)
+    audit_news <- c(audit_news, protected_values)
   }
 
-  # Build audit trail
-  audit_trail <- if (length(audit_rows) == 0) {
+  # Build audit trail from vectors
+  audit_trail <- if (length(audit_row_ids) == 0) {
     tibble::tibble(
       row_id = integer(),
       field = character(),
@@ -1672,7 +1780,14 @@ protect_chiral_designations <- function(df, name_cols) {
       reason = character()
     )
   } else {
-    dplyr::bind_rows(audit_rows)
+    tibble::tibble(
+      row_id = audit_row_ids,
+      field = audit_fields,
+      step = rep("protect_chiral_designations", length(audit_row_ids)),
+      original_value = audit_originals,
+      new_value = audit_news,
+      reason = paste0("Chiral designation detected in ", audit_fields, "; protected with placeholder")
+    )
   }
 
   list(
@@ -1703,16 +1818,31 @@ restore_chiral_designations <- function(df, name_cols) {
   }
 
   df_result <- df
-  audit_rows <- list()
+
+  # Pre-allocate audit vectors
+  audit_row_ids <- integer()
+  audit_fields <- character()
+  audit_originals <- character()
+  audit_news <- character()
 
   for (col_name in name_cols) {
     if (!col_name %in% names(df_result)) next
 
-    for (idx in seq_len(nrow(df_result))) {
-      original_value <- df_result[[col_name]][idx]
-      if (is.na(original_value)) next
-      if (!grepl(CHIRAL_RESTORE_REGEX, original_value, perl = TRUE)) next
+    col_values <- df_result[[col_name]]
 
+    # Vectorized detection: find rows with chiral placeholders
+    has_placeholder <- grepl(CHIRAL_RESTORE_REGEX, col_values, perl = TRUE)
+    has_placeholder[is.na(has_placeholder)] <- FALSE
+    restore_idx <- which(has_placeholder)
+
+    if (length(restore_idx) == 0) next
+
+    # Process only rows with placeholders
+    original_values <- col_values[restore_idx]
+    restored_values <- character(length(restore_idx))
+
+    for (i in seq_along(restore_idx)) {
+      original_value <- original_values[i]
       restored_value <- original_value
       placeholders <- regmatches(restored_value, gregexpr(CHIRAL_RESTORE_REGEX, restored_value, perl = TRUE))[[1]]
 
@@ -1722,20 +1852,21 @@ restore_chiral_designations <- function(df, name_cols) {
         restored_value <- sub(ph, original_marker, restored_value, fixed = TRUE)
       }
 
-      df_result[[col_name]][idx] <- restored_value
-
-      audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-        row_id = as.integer(idx),
-        field = col_name,
-        step = "restore_chiral_designations",
-        original_value = original_value,
-        new_value = restored_value,
-        reason = "Restored chiral designation placeholder(s) after cleaning"
-      )
+      restored_values[i] <- restored_value
     }
+
+    # Vectorized update
+    df_result[[col_name]][restore_idx] <- restored_values
+
+    # Collect audit entries
+    audit_row_ids <- c(audit_row_ids, as.integer(restore_idx))
+    audit_fields <- c(audit_fields, rep(col_name, length(restore_idx)))
+    audit_originals <- c(audit_originals, original_values)
+    audit_news <- c(audit_news, restored_values)
   }
 
-  audit_trail <- if (length(audit_rows) == 0) {
+  # Build audit trail from vectors
+  audit_trail <- if (length(audit_row_ids) == 0) {
     tibble::tibble(
       row_id = integer(),
       field = character(),
@@ -1745,7 +1876,14 @@ restore_chiral_designations <- function(df, name_cols) {
       reason = character()
     )
   } else {
-    dplyr::bind_rows(audit_rows)
+    tibble::tibble(
+      row_id = audit_row_ids,
+      field = audit_fields,
+      step = rep("restore_chiral_designations", length(audit_row_ids)),
+      original_value = audit_originals,
+      new_value = audit_news,
+      reason = rep("Restored chiral designation placeholder(s) after cleaning", length(audit_row_ids))
+    )
   }
 
   list(
@@ -1973,7 +2111,6 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
 #' @export
 flag_multi_analyte <- function(df, name_cols) {
   df_result <- df
-  audit_rows <- list()
 
   # Add cleaning_flag column if missing
   if (!"cleaning_flag" %in% names(df_result)) {
@@ -1988,45 +2125,53 @@ flag_multi_analyte <- function(df, name_cols) {
   # Pattern for naked " and ": word boundary " and " word boundary (case-insensitive)
   NAKED_AND_PATTERN <- "(?i)\\s+and\\s+"
 
+  # Pre-allocate audit vectors
+  audit_row_ids <- integer()
+  audit_fields <- character()
+  audit_originals <- character()
+
+  # Get row IDs (use original_row_id if available)
+  row_ids <- if ("original_row_id" %in% names(df_result)) {
+    df_result$original_row_id
+  } else {
+    seq_len(nrow(df_result))
+  }
+
   for (col_name in name_cols) {
     if (!col_name %in% names(df_result)) next
 
-    for (idx in seq_len(nrow(df_result))) {
-      original_value <- df_result[[col_name]][idx]
+    col_values <- df_result[[col_name]]
 
-      # Skip NA
-      if (is.na(original_value)) next
+    # Vectorized pattern detection
+    has_naked_plus <- grepl(NAKED_PLUS_PATTERN, col_values, perl = TRUE)
+    has_naked_plus[is.na(has_naked_plus)] <- FALSE
 
-      has_naked_plus <- grepl(NAKED_PLUS_PATTERN, original_value, perl = TRUE)
-      has_naked_and <- grepl(NAKED_AND_PATTERN, original_value, perl = TRUE)
+    has_naked_and <- grepl(NAKED_AND_PATTERN, col_values, perl = TRUE)
+    has_naked_and[is.na(has_naked_and)] <- FALSE
 
-      if (!has_naked_plus && !has_naked_and) next
+    # Find rows to flag (non-NA values that match either pattern)
+    to_flag <- which(!is.na(col_values) & (has_naked_plus | has_naked_and))
 
-      # Flag the row — value is UNCHANGED
-      existing_flag <- df_result$cleaning_flag[idx]
+    if (length(to_flag) > 0) {
+      # Vectorized flag update
       new_flag <- "WARNING: potential multi-analyte"
-      if (is.na(existing_flag)) {
-        df_result$cleaning_flag[idx] <- new_flag
-      } else {
-        df_result$cleaning_flag[idx] <- paste0(existing_flag, "; ", new_flag)
-      }
+      existing_flags <- df_result$cleaning_flag[to_flag]
 
-      # Record audit trail entry — original_value == new_value (no change)
-      # Use original_row_id if available (post-synonym-split dataframes have expanded rows)
-      rid <- if ("original_row_id" %in% names(df_result)) df_result$original_row_id[idx] else idx
-      audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-        row_id = as.integer(rid),
-        field = col_name,
-        step = "flag_multi_analyte",
-        original_value = original_value,
-        new_value = original_value,
-        reason = paste0("Potential multi-analyte expression detected in ", col_name)
+      df_result$cleaning_flag[to_flag] <- ifelse(
+        is.na(existing_flags),
+        new_flag,
+        paste0(existing_flags, "; ", new_flag)
       )
+
+      # Collect audit entries
+      audit_row_ids <- c(audit_row_ids, as.integer(row_ids[to_flag]))
+      audit_fields <- c(audit_fields, rep(col_name, length(to_flag)))
+      audit_originals <- c(audit_originals, col_values[to_flag])
     }
   }
 
-  # Build audit trail
-  audit_trail <- if (length(audit_rows) == 0) {
+  # Build audit trail from vectors
+  audit_trail <- if (length(audit_row_ids) == 0) {
     tibble::tibble(
       row_id = integer(),
       field = character(),
@@ -2036,7 +2181,14 @@ flag_multi_analyte <- function(df, name_cols) {
       reason = character()
     )
   } else {
-    dplyr::bind_rows(audit_rows)
+    tibble::tibble(
+      row_id = audit_row_ids,
+      field = audit_fields,
+      step = rep("flag_multi_analyte", length(audit_row_ids)),
+      original_value = audit_originals,
+      new_value = audit_originals,
+      reason = paste0("Potential multi-analyte expression detected in ", audit_fields)
+    )
   }
 
   list(

@@ -345,6 +345,7 @@ mod_harmonize_server <- function(id, data_store) {
         multiple = TRUE,
         bslib::accordion_panel(
           title = uiOutput(session$ns("unit_editor_title")),
+          value = "unit_editor",
           icon = bsicons::bs_icon("rulers"),
           uiOutput(session$ns("unit_chip_editor")),
           actionButton(
@@ -356,6 +357,7 @@ mod_harmonize_server <- function(id, data_store) {
         ),
         bslib::accordion_panel(
           title = uiOutput(session$ns("corrections_editor_title")),
+          value = "corrections_editor",
           icon = bsicons::bs_icon("pencil-square"),
           uiOutput(session$ns("corrections_chip_editor")),
           actionButton(
@@ -367,6 +369,7 @@ mod_harmonize_server <- function(id, data_store) {
         ),
         bslib::accordion_panel(
           title = uiOutput(session$ns("unmatched_title")),
+          value = "unmatched_units",
           icon = bsicons::bs_icon("question-circle"),
           uiOutput(session$ns("unmatched_panel"))
         )

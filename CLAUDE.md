@@ -305,3 +305,130 @@ The codebase uses consistent error handling:
 - Validation before processing (file type, size, dataframe structure)
 - Graceful degradation (fallback detection if all methods fail)
 - User notifications for all error states (via `showNotification()`)
+
+## R Performance Patterns
+
+The cleaning pipeline processes datasets with 100k+ rows. Avoid these anti-patterns that cause O(n²) or worse performance:
+
+### Growing-List Pattern (O(n²) memory allocation)
+
+**BAD** - List grows inside loop, causing repeated memory reallocation:
+```r
+audit_rows <- list()
+for (idx in seq_len(nrow(df))) {
+  audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(row_id = idx, ...)
+}
+dplyr::bind_rows(audit_rows)
+```
+
+**GOOD** - Pre-allocate vectors, build single tibble at end:
+```r
+all_row_ids <- integer()
+all_values <- character()
+for (col_name in cols) {
+  changed_idx <- which(original != cleaned)
+  all_row_ids <- c(all_row_ids, changed_idx)
+  all_values <- c(all_values, original[changed_idx])
+}
+tibble::tibble(row_id = all_row_ids, value = all_values)
+```
+
+### Regex Compilation Inside Loops (O(n×m) compilation overhead)
+
+**BAD** - Regex compiled on every iteration:
+```r
+for (idx in seq_len(nrow(df))) {
+  for (term in terms) {
+    pattern <- stringr::regex(paste0("\\b", term, "\\b"), ignore_case = TRUE)
+    stringr::str_detect(df$col[idx], pattern)
+  }
+}
+```
+
+**GOOD** - Pre-compile all patterns once, use vectorized detection:
+```r
+compiled_patterns <- lapply(terms, function(term) {
+  stringr::regex(paste0("\\b", term, "\\b"), ignore_case = TRUE)
+})
+for (pattern in compiled_patterns) {
+  matches <- stringr::str_detect(df$col, pattern)  # vectorized over entire column
+}
+```
+
+### Row-by-Row Loops When Vectorization Is Possible
+
+**BAD** - Scalar operations in loop:
+```r
+for (idx in seq_len(nrow(df))) {
+  if (!is.na(df$col[idx]) && df$col[idx] != "") {
+    df$result[idx] <- "flagged"
+  }
+}
+```
+
+**GOOD** - Vectorized comparison and assignment:
+```r
+to_flag <- which(!is.na(df$col) & df$col != "")
+df$result[to_flag] <- "flagged"
+```
+
+### Scalar Column Assignment (copy-on-modify)
+
+**BAD** - Each assignment copies the entire column:
+```r
+for (idx in seq_len(nrow(df))) {
+  df$col[idx] <- new_value  # triggers copy-on-modify each iteration
+}
+```
+
+**GOOD** - Batch updates or work on extracted vector:
+```r
+col_values <- df$col
+col_values[changed_indices] <- new_values
+df$col <- col_values
+```
+
+### Audit Trail Building in Cleaning Functions
+
+All cleaning functions in `R/cleaning_pipeline.R` return `list(cleaned_data, audit_trail)`. Use this pattern:
+
+```r
+my_cleaning_function <- function(df, cols) {
+  df_result <- df
+
+  # Pre-allocate audit vectors (not a list of tibbles)
+  audit_row_ids <- integer()
+  audit_fields <- character()
+  audit_originals <- character()
+  audit_news <- character()
+
+  for (col_name in cols) {
+    original_vals <- df[[col_name]]
+    cleaned_vals <- some_vectorized_operation(original_vals)
+
+    # Vectorized change detection
+    changed_idx <- which(!is.na(original_vals) & !is.na(cleaned_vals) & original_vals != cleaned_vals)
+
+    if (length(changed_idx) > 0) {
+      df_result[[col_name]] <- cleaned_vals
+
+      # Batch append to vectors
+      audit_row_ids <- c(audit_row_ids, as.integer(changed_idx))
+      audit_fields <- c(audit_fields, rep(col_name, length(changed_idx)))
+      audit_originals <- c(audit_originals, original_vals[changed_idx])
+      audit_news <- c(audit_news, cleaned_vals[changed_idx])
+    }
+  }
+
+  # Single tibble construction at end
+  audit_trail <- tibble::tibble(
+    row_id = audit_row_ids,
+    field = audit_fields,
+    step = rep("my_step", length(audit_row_ids)),
+    original_value = audit_originals,
+    new_value = audit_news,
+    reason = paste0("Cleaned ", audit_fields)
+  )
+
+  list(cleaned_data = df_result, audit_trail = audit_trail)
+}
