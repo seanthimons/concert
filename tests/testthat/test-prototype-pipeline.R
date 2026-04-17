@@ -340,7 +340,6 @@ test_that("starts-with 3-char minimum filter excludes short strings", {
 # ============================================================================
 
 test_that("mixed-case cache hit returns current query casing in searchValue", {
-  # Clear cache before test
   clear_starts_with_cache()
 
   # Prime cache with lowercase key and payload (no searchValue)
@@ -350,15 +349,15 @@ test_that("mixed-case cache hit returns current query casing in searchValue", {
     searchName = "Approved Name",
     rank = 1L
   )
-  assign("toluene", payload, envir = chemreg:::.starts_with_cache)
+  assign("toluene", payload, envir = .starts_with_cache)
 
-  # Query with mixed case — should get searchValue = "Toluene" (current query), not stale casing
+  # Query with mixed case — should get searchValue = "Toluene", not stale casing
   result <- search_starts_with("Toluene")
 
   expect_true(nrow(result) >= 1)
   expect_equal(result$searchValue[1], "Toluene")
 
-  # Query again with different casing
+  # Query again with different casing — same cache hit, different searchValue
   result2 <- search_starts_with("TOLUENE")
   expect_equal(result2$searchValue[1], "TOLUENE")
 
@@ -368,49 +367,53 @@ test_that("mixed-case cache hit returns current query casing in searchValue", {
 test_that("API error is NOT cached — allows retry on later runs", {
   clear_starts_with_cache()
 
-  # Verify cache is empty for our test key
-  expect_false(exists("errortest", envir = chemreg:::.starts_with_cache))
-
-  # Mock an API error by calling search_starts_with with a name that will fail
-
-  # We can't easily mock ComptoxR here, but we can verify the contract:
-  # After an error, the cache key should NOT exist.
-  # Use a direct unit test of the error-handler logic:
-  cache_key <- "errortestchemical"
-  tryCatch(
-    {
-      stop("simulated API failure")
-    },
-    error = function(e) {
-      message(sprintf("  Warning: starts-with failed for '%s': %s", "ErrorTestChemical", e$message))
-      # The FIXED code does NOT cache on error — verify no assign happens
-    }
+  # Mock ComptoxR API to throw an error, then call the real search_starts_with
+  local_mocked_bindings(
+    ct_chemical_search_start_with = function(name) stop("simulated API failure"),
+    .package = "ComptoxR"
   )
 
-  expect_false(exists(cache_key, envir = chemreg:::.starts_with_cache))
+  cache_key <- "errortestchem"
+  expect_false(exists(cache_key, envir = .starts_with_cache))
+
+  # Call the production function — should log warning, NOT cache
+  suppressMessages(search_starts_with("ErrorTestChem"))
+
+  # Cache must NOT contain an entry for this key
+
+  expect_false(exists(cache_key, envir = .starts_with_cache))
+
   clear_starts_with_cache()
 })
 
 test_that("true empty API response IS cached to avoid re-fetching", {
   clear_starts_with_cache()
 
-  # Store a zero-row payload tibble (confirmed empty = true miss)
-  empty_payload <- tibble::tibble(
-    dtxsid = character(0),
-    preferredName = character(0),
-    searchName = character(0),
-    rank = integer(0)
+  # Mock ComptoxR API to return NULL (0 results)
+  call_count <- 0L
+  local_mocked_bindings(
+    ct_chemical_search_start_with = function(name) {
+      call_count <<- call_count + 1L
+      NULL
+    },
+    .package = "ComptoxR"
   )
+
   cache_key <- "nosuchchem"
-  assign(cache_key, empty_payload, envir = chemreg:::.starts_with_cache)
 
-  # Cache key should exist (true misses are cached)
-  expect_true(exists(cache_key, envir = chemreg:::.starts_with_cache))
+  # First call — API returns NULL, should cache the true miss
+  suppressMessages(search_starts_with("NoSuchChem"))
+  expect_true(exists(cache_key, envir = .starts_with_cache))
+  expect_equal(call_count, 1L)
 
-  # Retrieving should return empty result (not trigger a new API call)
-  cached <- get(cache_key, envir = chemreg:::.starts_with_cache)
+  # Cached payload should be zero-row with correct columns
+  cached <- get(cache_key, envir = .starts_with_cache)
   expect_equal(nrow(cached), 0)
   expect_true(all(c("dtxsid", "preferredName", "searchName", "rank") %in% names(cached)))
+
+  # Second call — should serve from cache, NOT call API again
+  suppressMessages(search_starts_with("NoSuchChem"))
+  expect_equal(call_count, 1L)
 
   clear_starts_with_cache()
 })
