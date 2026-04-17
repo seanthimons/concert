@@ -1,11 +1,11 @@
 # Export Helper Functions for ChemReg Multi-Sheet Excel Export
 #
-# This module provides functions to build 7-sheet Excel exports from ChemReg
+# This module provides functions to build 8-sheet Excel exports from ChemReg
 # pipeline state and validate Excel file size limits.
 
 #' Build Export Sheets
 #'
-#' Converts ChemReg pipeline state into a named list of 7 data frames ready
+#' Converts ChemReg pipeline state into a named list of 8 data frames ready
 #' for Excel export via writexl::write_xlsx().
 #'
 #' @param raw Original uploaded data frame
@@ -16,13 +16,24 @@
 #' @param column_tags Named list (column_name = "CASRN"/"Name"/"Other")
 #' @param detection List with $method, $confidence
 #' @param file_info List with $name, $size
+#' @param enrichment_cache Enrichment cache data frame (may be NULL)
+#' @param toxval_output Tibble with 56 ToxVal columns from map_to_toxval_schema(),
+#'   or NULL (default). When NULL, Sheet 8 contains a placeholder note row.
 #'
-#' @return Named list of 7 data frames with sheet names as keys
+#' @return Named list of 8 data frames with sheet names as keys
 #' @export
-build_export_sheets <- function(raw, resolution_state, consensus_summary,
-                                 cleaning_audit, reference_lists, column_tags,
-                                 detection, file_info, enrichment_cache = NULL) {
-
+build_export_sheets <- function(
+  raw,
+  resolution_state,
+  consensus_summary,
+  cleaning_audit,
+  reference_lists,
+  column_tags,
+  detection,
+  file_info,
+  enrichment_cache = NULL,
+  toxval_output = NULL
+) {
   # Sheet 1: Raw Data (as-is)
   raw_data_sheet <- raw
 
@@ -132,6 +143,16 @@ build_export_sheets <- function(raw, resolution_state, consensus_summary,
     )
   )
 
+  # Sheet 8: ToxVal Output (always present per D-09)
+  toxval_output_sheet <- if (!is.null(toxval_output) && nrow(toxval_output) > 0) {
+    toxval_output
+  } else {
+    # D-10: placeholder note row when harmonization has not run
+    tibble::tibble(
+      note = "Harmonization not run -- run harmonization to populate this sheet"
+    )
+  }
+
   # Return named list
   list(
     "Raw Data" = raw_data_sheet,
@@ -140,7 +161,8 @@ build_export_sheets <- function(raw, resolution_state, consensus_summary,
     "Cleaning Audit" = cleaning_audit_sheet,
     "Reference Lists" = reference_lists_sheet,
     "Column Tags" = column_tags_sheet,
-    "Pipeline Config" = config_sheet
+    "Pipeline Config" = config_sheet,
+    "ToxVal Output" = toxval_output_sheet
   )
 }
 
