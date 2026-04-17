@@ -1,9 +1,9 @@
 ---
 status: complete
 phase: 34-harmonize-tab-module
-source: 34-01-SUMMARY.md, 34-02-SUMMARY.md, 34-03-SUMMARY.md
+source: 34-01-SUMMARY.md, 34-02-SUMMARY.md, 34-03-SUMMARY.md, 34-04-SUMMARY.md
 started: 2026-04-16T14:30:00Z
-updated: 2026-04-17T12:00:00Z
+updated: 2026-04-17T19:00:00Z
 ---
 
 ## Current Test
@@ -58,9 +58,8 @@ result: pass
 
 ### 11. Add Mapping from Unmatched
 expected: With unmatched units present, click "Add Mapping" next to an unmatched unit row. The unit mapping modal opens with the from_unit field pre-filled with that unit value. Complete the mapping and save. The unit is added to the unit table.
-result: issue
-reported: "Adding mapping resets harmonization state, requiring 2+ min re-run. Bad UX for iterative editing."
-severity: major
+result: pass
+note: Originally failed (cascade reset UX). Fixed by Plan 34-04 — verified in Test 14.
 
 ### 12. Add All Passthrough
 expected: With unmatched units present, click "Add All Passthrough" button. All unmatched units are added as identity mappings (from_unit = to_unit, multiplier=1, source="user_passthrough"). The unmatched list clears (shows success alert).
@@ -69,13 +68,19 @@ result: pass
 ### 13. Cascade Reset on Editor Mutation
 expected: After running harmonization (with results visible), add or edit a unit mapping. The harmonization results should reset (value boxes clear or update). You need to re-run harmonization to see new results.
 result: pass
-note: Cascade works but is too aggressive — every edit triggers full reset requiring 2+ min re-run. See Test 11 issue.
+note: Cascade works but is too aggressive — every edit triggers full reset requiring 2+ min re-run. See Test 11 issue. FIXED in Plan 34-04.
+
+### 14. Post-Hotfix: Stale Results Pattern
+expected: After Plan 34-04 fix — adding unit mapping should NOT clear results. Instead: yellow warning banner "Results may be stale", dimmed value boxes (50% opacity), "Re-run now" link available.
+result: pass
+note: Stale pattern works correctly. Cosmetic issue noted: Run Harmonization button spacing is off.
 
 ## Summary
 
-total: 13
-passed: 12
-issues: 1
+total: 14
+passed: 14
+issues: 0
+cosmetic: 1
 pending: 0
 skipped: 0
 blocked: 0
@@ -83,11 +88,20 @@ blocked: 0
 ## Gaps
 
 - truth: "Add unit mapping without resetting harmonization state"
-  status: failed
+  status: fixed
   reason: "User reported: Adding mapping resets harmonization state, requiring 2+ min re-run. Bad UX for iterative editing."
   severity: major
   test: 11
+  root_cause: "observeEvent cascade immediately cleared harmonize_results on any unit_map change"
+  fix: "Plan 34-04: Stale results pattern + vectorized harmonization"
+  verified: 2026-04-17
+  artifacts: [R/mod_harmonize.R, R/unit_harmonizer.R, inst/app/app.R]
+
+- truth: "Run Harmonization button should have proper spacing"
+  status: open
+  reason: "User reported: Run Harmonization button is still not properly spaced."
+  severity: cosmetic
+  test: 14
   root_cause: ""
   artifacts: []
   missing: []
-  debug_session: ""
