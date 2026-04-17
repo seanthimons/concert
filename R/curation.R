@@ -32,24 +32,35 @@ deduplicate_tagged_columns <- function(df, tag_map, skip_flags = NULL) {
     }
   }
 
-  # Build dedup key map: one row per original row+column combination
-  key_rows <- list()
 
-  for (col_name in names(tag_map)) {
-    tag_type <- tag_map[[col_name]]
-    values <- df[[col_name]]
+  # Build dedup key map using vectorized operations (O(n) instead of O(n²))
+  n_rows <- nrow(df)
+  col_names <- names(tag_map)
+  n_cols <- length(col_names)
 
-    for (i in seq_along(values)) {
-      key_rows[[length(key_rows) + 1]] <- tibble::tibble(
-        row_idx = i,
-        column_name = col_name,
-        tag_type = tag_type,
-        dedup_key = as.character(values[i])
-      )
-    }
+  # Pre-allocate vectors for the full result
+  total_entries <- n_rows * n_cols
+  all_row_idx <- integer(total_entries)
+  all_col_names <- character(total_entries)
+  all_tag_types <- character(total_entries)
+  all_dedup_keys <- character(total_entries)
+
+  idx <- 1L
+  for (col_name in col_names) {
+    end_idx <- idx + n_rows - 1L
+    all_row_idx[idx:end_idx] <- seq_len(n_rows)
+    all_col_names[idx:end_idx] <- col_name
+    all_tag_types[idx:end_idx] <- tag_map[[col_name]]
+    all_dedup_keys[idx:end_idx] <- as.character(df[[col_name]])
+    idx <- end_idx + 1L
   }
 
-  dedup_key_map <- dplyr::bind_rows(key_rows)
+  dedup_key_map <- tibble::tibble(
+    row_idx = all_row_idx,
+    column_name = all_col_names,
+    tag_type = all_tag_types,
+    dedup_key = all_dedup_keys
+  )
 
   # Extract unique non-NA values by type, excluding skipped rows
   unique_names <- character(0)
