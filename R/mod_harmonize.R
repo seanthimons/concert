@@ -75,6 +75,9 @@ mod_harmonize_ui <- function(id) {
       # QC value boxes render after pipeline completes
       uiOutput(ns("qc_dashboard")),
 
+      # Stale results warning banner (Plan 34-04)
+      uiOutput(ns("stale_warning")),
+
       # --- Editor accordions added in Plan 02 ---
       uiOutput(ns("editors_panel"))
     ),
@@ -185,6 +188,10 @@ mod_harmonize_server <- function(id, data_store) {
 
     observeEvent(input$run_harmonization, {
       req(data_store$clean, data_store$numeric_tags)
+
+      # Clear stale flag at start of run (Plan 34-04)
+      data_store$harmonize_results_stale <- FALSE
+      data_store$changed_units <- character(0)
 
       # Guard: require at least one Result-tagged column (Pitfall 5)
       numeric_tags_vec <- unlist(data_store$numeric_tags, use.names = TRUE)
@@ -302,7 +309,14 @@ mod_harmonize_server <- function(id, data_store) {
       }
       n_na_numeric <- sum(is.na(hr$parsed$numeric_value))
 
-      bslib::layout_columns(
+      # Apply opacity when results are stale (Plan 34-04)
+      stale_class <- if (isTRUE(data_store$harmonize_results_stale)) {
+        "opacity-50"
+      } else {
+        ""
+      }
+
+      div(class = stale_class, bslib::layout_columns(
         col_widths = c(3, 3, 3, 3),
         bslib::value_box(
           title = "Rows Parsed",
@@ -328,7 +342,56 @@ mod_harmonize_server <- function(id, data_store) {
           showcase = bsicons::bs_icon("exclamation-triangle"),
           theme = "warning"
         )
+      ))
+    })
+
+    # --- Stale warning banner (Plan 34-04) -------------------------------------
+    # Shows when harmonize_results_stale is TRUE with affected row count
+
+    output$stale_warning <- renderUI({
+      if (!isTRUE(data_store$harmonize_results_stale)) {
+        return(NULL)
+      }
+
+      n_changed <- length(data_store$changed_units)
+
+      # Count affected rows if we have the data
+      n_affected <- 0
+      if (!is.null(data_store$numeric_tags) && !is.null(data_store$cleaned_data)) {
+        numeric_tags_vec <- unlist(data_store$numeric_tags, use.names = TRUE)
+        unit_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Unit"]
+        if (length(unit_cols) > 0) {
+          unit_col <- unit_cols[1]
+          n_affected <- sum(
+            data_store$cleaned_data[[unit_col]] %in% data_store$changed_units,
+            na.rm = TRUE
+          )
+        }
+      }
+
+      detail_text <- if (n_changed > 0 && n_affected > 0) {
+        sprintf(" %d unit(s) changed, affecting %d rows.", n_changed, n_affected)
+      } else if (n_changed > 0) {
+        sprintf(" %d unit mapping(s) changed.", n_changed)
+      } else {
+        " Corrections changed since last run."
+      }
+
+      div(
+        class = "alert alert-warning d-flex align-items-center mb-3",
+        role = "alert",
+        bsicons::bs_icon("exclamation-triangle-fill", class = "me-2"),
+        tags$div(
+          tags$strong("Results may be stale."),
+          detail_text,
+          actionLink(session$ns("rerun_now"), "Re-run now", class = "alert-link ms-2")
+        )
       )
+    })
+
+    # Wire rerun_now link to trigger harmonization (Task 4)
+    observeEvent(input$rerun_now, {
+      shinyjs::click("run_harmonization")
     })
 
     # --- Editors panel (Plan 02) ----------------------------------------------
@@ -936,14 +999,25 @@ mod_harmonize_server <- function(id, data_store) {
     # When the working copy of unit_map or corrections changes, invalidate
     # harmonize results and downstream toxval_output.
 
+    # --- Stale results pattern (Plan 34-04) ------------------------------------
+    # Instead of clearing results on edit, mark as stale and track changed units.
+    # This allows batch edits without forcing full re-runs each time.
+
     prev_unit_map <- reactiveVal(NULL)
     observeEvent(data_store$unit_map_working,
       {
         if (!is.null(prev_unit_map()) &&
             !identical(prev_unit_map(), data_store$unit_map_working)) {
-          data_store$harmonize_results <- NULL
-          data_store$harmonize_audit <- NULL
-          data_store$toxval_output <- NULL
+          # Mark stale instead of clearing — allows batch edits
+          if (!is.null(data_store$harmonize_results)) {
+            data_store$harmonize_results_stale <- TRUE
+
+            # Track which from_units were added/changed for incremental re-run
+            old_units <- prev_unit_map()$from_unit
+            new_units <- data_store$unit_map_working$from_unit
+            added <- setdiff(new_units, old_units)
+            data_store$changed_units <- unique(c(data_store$changed_units, added))
+          }
         }
         prev_unit_map(data_store$unit_map_working)
       },
@@ -955,9 +1029,10 @@ mod_harmonize_server <- function(id, data_store) {
       {
         if (!is.null(prev_corrections()) &&
             !identical(prev_corrections(), data_store$corrections_working)) {
-          data_store$harmonize_results <- NULL
-          data_store$harmonize_audit <- NULL
-          data_store$toxval_output <- NULL
+          # Mark stale instead of clearing
+          if (!is.null(data_store$harmonize_results)) {
+            data_store$harmonize_results_stale <- TRUE
+          }
         }
         prev_corrections(data_store$corrections_working)
       },
