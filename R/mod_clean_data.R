@@ -120,8 +120,9 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
     })
 
     # Has data indicator for conditionalPanel
+    # Requires both Name AND CASRN columns tagged for cleaning pipeline
     output$has_data <- reactive({
-      !is.null(data_store$column_tags) && length(data_store$column_tags) > 0
+      !is.null(data_store$column_tags) && has_required_chemical_tags(data_store$column_tags)
     })
     outputOptions(output, "has_data", suspendWhenHidden = FALSE)
 

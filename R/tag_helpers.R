@@ -162,6 +162,44 @@ validate_tag_pairing <- function(tags) {
 #' # Changed value - returns TRUE
 #' detect_tag_changes(list(col1 = "Name"), list(col1 = "CASRN"))
 #'
+#' Check for Required Chemical Tags
+#'
+#' Validates that both Name and CASRN tags are present, which are required
+#' for the cleaning pipeline to operate.
+#'
+#' @param chemical_tags Named list of chemical tags (output from classify_tags)
+#'
+#' @return Logical: TRUE if both Name and CASRN are present, FALSE otherwise
+#'
+#' @details
+#' The cleaning pipeline requires both a chemical name column and a CASRN column
+#' to perform deduplication and enrichment. This function checks that at least
+#' one column is tagged as "Name" and at least one as "CASRN".
+#'
+#' @examples
+#' # Both present - returns TRUE
+#' has_required_chemical_tags(list(col1 = "Name", col2 = "CASRN"))
+#'
+#' # Missing CASRN - returns FALSE
+#' has_required_chemical_tags(list(col1 = "Name"))
+#'
+#' # Empty - returns FALSE
+#' has_required_chemical_tags(list())
+#'
+#' @export
+has_required_chemical_tags <- function(chemical_tags) {
+  if (length(chemical_tags) == 0) {
+    return(FALSE)
+  }
+
+  tag_values <- unlist(chemical_tags, use.names = FALSE)
+  has_name <- "Name" %in% tag_values
+  has_casrn <- "CASRN" %in% tag_values
+
+
+  has_name && has_casrn
+}
+
 #' @export
 detect_tag_changes <- function(old_tags, new_tags) {
   # NULL old_tags means first application
