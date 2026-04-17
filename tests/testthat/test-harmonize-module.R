@@ -184,3 +184,74 @@ test_that("load_corrections returns correct tibble structure", {
   expect_s3_class(result, "tbl_df")
   expect_equal(names(result), c("pattern", "replacement"))
 })
+
+# --- Incremental merge regression tests (orig_row_id lineage) ---
+
+test_that("incremental merge preserves orig_row_id (mutable-column-only)", {
+  # Simulate existing harmonized results with lineage-tracking orig_row_id
+  old_harmonize <- tibble::tibble(
+    orig_row_id = c(10L, 20L, 30L, 40L, 50L),
+    orig_unit = c("mg/L", "ug/L", "mg/L", "ppb", "NTU"),
+    harmonized_value = c(1.5, 2.0, 3.0, 4.0, 5.0),
+    harmonized_unit = c("mg/L", "mg/L", "mg/L", "mg/L", "NTU"),
+    conversion_factor = c(1, 0.001, 1, 0.001, 1),
+    unit_flag = c("", "", "", "", "unmatched")
+  )
+
+  # Simulate harmonize_units() output for affected rows — returns orig_row_id = 1:n
+
+  affected_mask <- c(FALSE, TRUE, FALSE, TRUE, TRUE)
+  incremental_result <- tibble::tibble(
+    orig_row_id = 1:3, # BUG: harmonize_units always returns 1:n
+    orig_unit = c("ug/L", "ppb", "NTU"),
+    harmonized_value = c(0.002, 0.004, 5.0),
+    harmonized_unit = c("mg/L", "mg/L", "NTU"),
+    conversion_factor = c(0.001, 0.001, 1),
+    unit_flag = c("", "", "passthrough")
+  )
+
+  # Apply the FIXED mutable-column-only merge
+  new_harmonize <- old_harmonize
+  mutable_cols <- c("harmonized_value", "harmonized_unit", "conversion_factor", "unit_flag")
+  new_harmonize[affected_mask, mutable_cols] <- incremental_result[, mutable_cols]
+
+  # orig_row_id MUST be unchanged — this is the lineage contract
+  expect_identical(new_harmonize$orig_row_id, old_harmonize$orig_row_id)
+  # orig_unit MUST also be unchanged
+  expect_identical(new_harmonize$orig_unit, old_harmonize$orig_unit)
+})
+
+test_that("incremental merge only changes mutable columns for affected rows", {
+  old_harmonize <- tibble::tibble(
+    orig_row_id = c(10L, 20L, 30L),
+    orig_unit = c("mg/L", "ug/L", "mg/L"),
+    harmonized_value = c(1.5, 2.0, 3.0),
+    harmonized_unit = c("mg/L", "mg/L", "mg/L"),
+    conversion_factor = c(1, 0.001, 1),
+    unit_flag = c("", "", "")
+  )
+
+  affected_mask <- c(FALSE, TRUE, FALSE)
+  incremental_result <- tibble::tibble(
+    orig_row_id = 1L,
+    orig_unit = "ug/L",
+    harmonized_value = 0.005,
+    harmonized_unit = "mg/L",
+    conversion_factor = 0.001,
+    unit_flag = "converted"
+  )
+
+  new_harmonize <- old_harmonize
+  mutable_cols <- c("harmonized_value", "harmonized_unit", "conversion_factor", "unit_flag")
+  new_harmonize[affected_mask, mutable_cols] <- incremental_result[, mutable_cols]
+
+  # Unaffected rows (1 and 3) must be identical
+  expect_identical(new_harmonize[1, ], old_harmonize[1, ])
+  expect_identical(new_harmonize[3, ], old_harmonize[3, ])
+
+  # Affected row (2) has updated mutable cols but preserved identity cols
+  expect_equal(new_harmonize$orig_row_id[2], 20L)
+  expect_equal(new_harmonize$orig_unit[2], "ug/L")
+  expect_equal(new_harmonize$harmonized_value[2], 0.005)
+  expect_equal(new_harmonize$unit_flag[2], "converted")
+})

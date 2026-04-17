@@ -15,6 +15,7 @@ apply_synonyms(unit_strings, synonyms)
 Character vector with synonyms applied
 }
 \description{
-Apply synonym normalization to unit strings
+Performance: Split exact-match rules (hash lookup O(1)) from regex rules.
+Only regex rules require per-rule gsub passes. (Codex optimization)
 }
 \keyword{internal}
