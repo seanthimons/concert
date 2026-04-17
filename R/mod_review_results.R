@@ -24,7 +24,8 @@ mod_review_results_ui <- function(id) {
   ns <- NS(id)
 
   # Filter persistence JavaScript — saves/restores reactable filters across re-renders
-  filter_persist_js <- tags$script(HTML(sprintf("
+  filter_persist_js <- tags$script(HTML(sprintf(
+    "
     (function() {
       var tableId = '%s';
       var savedFilters = [];
@@ -70,10 +71,13 @@ mod_review_results_ui <- function(id) {
         }
       });
     })();
-  ", ns("curation_table"))))
+  ",
+    ns("curation_table")
+  )))
 
   # Resolution dropdown JavaScript (namespace-aware)
-  resolution_js <- tags$script(HTML(sprintf("
+  resolution_js <- tags$script(HTML(sprintf(
+    "
     $(document).on('change', '.resolve-select', function() {
       var row = $(this).data('row');
       var column = $(this).val();
@@ -81,10 +85,13 @@ mod_review_results_ui <- function(id) {
         Shiny.setInputValue('%s', {row: row, column: column}, {priority: 'event'});
       }
     });
-  ", ns("resolve_row_choice"))))
+  ",
+    ns("resolve_row_choice")
+  )))
 
   # Compare button JavaScript (for modal-based resolution)
-  compare_js <- tags$script(HTML(sprintf("
+  compare_js <- tags$script(HTML(sprintf(
+    "
     $(document).on('click', '.compare-btn', function() {
       var row = $(this).data('row');
       Shiny.setInputValue('%s', {row: row, t: Math.random()}, {priority: 'event'});
@@ -104,10 +111,16 @@ mod_review_results_ui <- function(id) {
       // Show confirm button
       $('#%s').show();
     });
-  ", ns("compare_row_click"), ns("compare_row_click"), ns("modal_candidate_select"), ns("confirm_container"))))
+  ",
+    ns("compare_row_click"),
+    ns("compare_row_click"),
+    ns("modal_candidate_select"),
+    ns("confirm_container")
+  )))
 
   # Inline DTXSID editing JavaScript (namespace-aware)
-  dtxsid_edit_js <- tags$script(HTML(sprintf("
+  dtxsid_edit_js <- tags$script(HTML(sprintf(
+    "
     $(document).on('blur', '.dtxsid-edit', function() {
       var row = parseInt($(this).data('row'));
       var value = $(this).val().trim();
@@ -116,10 +129,13 @@ mod_review_results_ui <- function(id) {
     $(document).on('keypress', '.dtxsid-edit', function(e) {
       if (e.which === 13) { $(this).blur(); }
     });
-  ", ns("dtxsid_manual_edit"))))
+  ",
+    ns("dtxsid_manual_edit")
+  )))
 
   # Copy table to clipboard JavaScript
-  copy_table_js <- tags$script(HTML(sprintf("
+  copy_table_js <- tags$script(HTML(sprintf(
+    "
     $(document).on('click', '#%s', function() {
       var table = document.querySelector('.ReactTable');
       if (!table) return;
@@ -141,7 +157,10 @@ mod_review_results_ui <- function(id) {
         Shiny.setInputValue('%s', {t: Math.random()});
       });
     });
-  ", ns("copy_table"), ns("copy_done"))))
+  ",
+    ns("copy_table"),
+    ns("copy_done")
+  )))
 
   tagList(
     filter_persist_js,
@@ -234,7 +253,8 @@ mod_review_results_ui <- function(id) {
         tags$details(
           tags$summary(
             class = "btn btn-sm btn-outline-secondary",
-            icon("columns"), " Toggle Columns"
+            icon("columns"),
+            " Toggle Columns"
           ),
           div(
             class = "card card-body mt-1 p-2",
@@ -246,8 +266,11 @@ mod_review_results_ui <- function(id) {
           class = "d-flex align-items-center gap-2",
           tags$label("Rows:", `for` = ns("page_size"), class = "mb-0 small text-muted"),
           selectInput(
-            ns("page_size"), label = NULL, width = "80px",
-            choices = c(10, 25, 50, 100), selected = 25
+            ns("page_size"),
+            label = NULL,
+            width = "80px",
+            choices = c(10, 25, 50, 100),
+            selected = 25
           )
         )
       ),
@@ -277,7 +300,6 @@ mod_review_results_ui <- function(id) {
 #' @export
 mod_review_results_server <- function(id, data_store) {
   moduleServer(id, function(input, output, session) {
-
     # Curation statistics
     output$curation_stats <- renderUI({
       req(data_store$consensus_summary, data_store$resolution_state)
@@ -289,8 +311,10 @@ mod_review_results_server <- function(id, data_store) {
       matched_rows <- sum(!is.na(data_store$resolution_state$consensus_dtxsid))
       match_rate <- round((matched_rows / total_rows) * 100, 1)
 
-      resolved <- summary$n_agree + (summary$n_agree_caveat %||% 0) +
-        (summary$n_single %||% 0) + (summary$n_manual %||% 0)
+      resolved <- summary$n_agree +
+        (summary$n_agree_caveat %||% 0) +
+        (summary$n_single %||% 0) +
+        (summary$n_manual %||% 0)
       errors <- (summary$n_error %||% 0) + (summary$n_unresolvable %||% 0)
 
       layout_columns(
@@ -455,7 +479,9 @@ mod_review_results_server <- function(id, data_store) {
 
       df$match_type <- sapply(seq_len(nrow(df)), function(i) {
         tier_cols <- grep("^source_tier_", names(df), value = TRUE)
-        if (length(tier_cols) == 0) return("Unknown")
+        if (length(tier_cols) == 0) {
+          return("Unknown")
+        }
 
         if (!is.na(df$consensus_dtxsid[i])) {
           for (tc in tier_cols) {
@@ -469,7 +495,9 @@ mod_review_results_server <- function(id, data_store) {
 
         all_tiers <- sapply(tier_cols, function(tc) df[[tc]][i])
         all_tiers <- all_tiers[!is.na(all_tiers)]
-        if (length(all_tiers) == 0) return("No Match")
+        if (length(all_tiers) == 0) {
+          return("No Match")
+        }
 
         for (tv in all_tiers) {
           if (tv %in% c("exact", "cas", "starts_with")) {
@@ -499,7 +527,10 @@ mod_review_results_server <- function(id, data_store) {
             pref_cols <- grep("^preferredName_", names(df), value = TRUE)
             pref_name <- NA_character_
             for (pc in pref_cols) {
-              if (!is.na(df[[pc]][i])) { pref_name <- df[[pc]][i]; break }
+              if (!is.na(df[[pc]][i])) {
+                pref_name <- df[[pc]][i]
+                break
+              }
             }
             if (!is.na(pref_name)) {
               paste0("\u2705 ", htmltools::htmlEscape(dtxsid), " \u2014 ", htmltools::htmlEscape(pref_name))
@@ -516,7 +547,10 @@ mod_review_results_server <- function(id, data_store) {
               pref_cols <- grep("^preferredName_", names(df), value = TRUE)
               pref_name <- NA_character_
               for (pc in pref_cols) {
-                if (!is.na(df[[pc]][i])) { pref_name <- df[[pc]][i]; break }
+                if (!is.na(df[[pc]][i])) {
+                  pref_name <- df[[pc]][i]
+                  break
+                }
               }
               if (!is.na(pref_name)) {
                 paste0("\U0001F4CC ", htmltools::htmlEscape(dtxsid), " \u2014 ", htmltools::htmlEscape(pref_name))
@@ -526,14 +560,20 @@ mod_review_results_server <- function(id, data_store) {
             } else {
               paste0("\U0001F4CC (None selected)")
             }
-            paste0(base_display,
-              ' <a href="#" class="change-resolution-link small text-primary" data-row="', i,
-              '" style="text-decoration:underline;cursor:pointer;">Change</a>')
+            paste0(
+              base_display,
+              ' <a href="#" class="change-resolution-link small text-primary" data-row="',
+              i,
+              '" style="text-decoration:underline;cursor:pointer;">Change</a>'
+            )
           } else {
             search_icon <- as.character(shiny::icon("search"))
             paste0(
-              '<button class="compare-btn btn btn-sm btn-outline-primary" data-row="', i, '">',
-              search_icon, ' Compare',
+              '<button class="compare-btn btn btn-sm btn-outline-primary" data-row="',
+              i,
+              '">',
+              search_icon,
+              ' Compare',
               '</button>'
             )
           }
@@ -543,12 +583,22 @@ mod_review_results_server <- function(id, data_store) {
           if (is.na(pref_name)) {
             pref_cols <- grep("^preferredName_", names(df), value = TRUE)
             for (pc in pref_cols) {
-              if (!is.na(df[[pc]][i])) { pref_name <- df[[pc]][i]; break }
+              if (!is.na(df[[pc]][i])) {
+                pref_name <- df[[pc]][i]
+                break
+              }
             }
           }
           manual_badge <- '<span class="badge bg-info ms-1" style="font-size:0.7em;">manual</span>'
           if (!is.na(dtxsid) && !is.na(pref_name)) {
-            paste0("\u2705 ", htmltools::htmlEscape(dtxsid), " \u2014 ", htmltools::htmlEscape(pref_name), " ", manual_badge)
+            paste0(
+              "\u2705 ",
+              htmltools::htmlEscape(dtxsid),
+              " \u2014 ",
+              htmltools::htmlEscape(pref_name),
+              " ",
+              manual_badge
+            )
           } else if (!is.na(dtxsid)) {
             paste0("\u2705 ", htmltools::htmlEscape(dtxsid), " ", manual_badge)
           } else {
@@ -620,7 +670,8 @@ mod_review_results_server <- function(id, data_store) {
           htmltools::tags$select(
             onchange = sprintf(
               "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
-              table_id, col_name
+              table_id,
+              col_name
             ),
             style = "width:100%;font-size:0.85em;padding:2px;",
             htmltools::tags$option(value = "", "All"),
@@ -653,7 +704,8 @@ mod_review_results_server <- function(id, data_store) {
             htmltools::span(
               style = sprintf(
                 "background:%s;color:%s;padding:2px 8px;border-radius:4px;font-weight:600;font-size:0.85em;display:inline-block;",
-                bg, fg
+                bg,
+                fg
               ),
               val
             )
@@ -726,7 +778,8 @@ mod_review_results_server <- function(id, data_store) {
               htmltools::tags$select(
                 onchange = sprintf(
                   "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
-                  table_id, "qc_flag"
+                  table_id,
+                  "qc_flag"
                 ),
                 style = "width:100%;font-size:0.85em;padding:2px;",
                 htmltools::tags$option(value = "", "All"),
@@ -869,39 +922,49 @@ mod_review_results_server <- function(id, data_store) {
 
       lapply(seq_along(priority), function(i) {
         # Up button
-        observeEvent(input[[paste0("priority_up_", i)]], {
-          if (i > 1) {
-            new_priority <- data_store$priority_order
-            # Swap with previous
-            temp <- new_priority[i - 1]
-            new_priority[i - 1] <- new_priority[i]
-            new_priority[i] <- temp
-            data_store$priority_order <- new_priority
-          }
-        }, ignoreInit = TRUE)
+        observeEvent(
+          input[[paste0("priority_up_", i)]],
+          {
+            if (i > 1) {
+              new_priority <- data_store$priority_order
+              # Swap with previous
+              temp <- new_priority[i - 1]
+              new_priority[i - 1] <- new_priority[i]
+              new_priority[i] <- temp
+              data_store$priority_order <- new_priority
+            }
+          },
+          ignoreInit = TRUE
+        )
 
         # Down button
-        observeEvent(input[[paste0("priority_down_", i)]], {
-          if (i < length(data_store$priority_order)) {
-            new_priority <- data_store$priority_order
-            # Swap with next
-            temp <- new_priority[i + 1]
-            new_priority[i + 1] <- new_priority[i]
-            new_priority[i] <- temp
-            data_store$priority_order <- new_priority
-          }
-        }, ignoreInit = TRUE)
+        observeEvent(
+          input[[paste0("priority_down_", i)]],
+          {
+            if (i < length(data_store$priority_order)) {
+              new_priority <- data_store$priority_order
+              # Swap with next
+              temp <- new_priority[i + 1]
+              new_priority[i + 1] <- new_priority[i]
+              new_priority[i] <- temp
+              data_store$priority_order <- new_priority
+            }
+          },
+          ignoreInit = TRUE
+        )
       })
     })
 
     # Handle inline cell editing for manual DTXSID entry
     observeEvent(input$dtxsid_manual_edit, {
       info <- input$dtxsid_manual_edit
-      row_idx <- info$row  # Already mapped to original index via data-row attribute
+      row_idx <- info$row # Already mapped to original index via data-row attribute
       new_value <- trimws(as.character(info$value))
 
       # Ignore empty values
-      if (new_value == "") return()
+      if (new_value == "") {
+        return()
+      }
 
       # Only allow edits on error/unresolvable rows
       current_status <- as.character(isolate(data_store$resolution_state)$consensus_status[row_idx])
@@ -914,7 +977,8 @@ mod_review_results_server <- function(id, data_store) {
       if (!grepl("^DTXSID\\d+$", new_value, ignore.case = TRUE)) {
         showNotification(
           paste0("Invalid format: ", new_value, ". Expected: DTXSIDxxxxxxx"),
-          type = "warning", duration = 5
+          type = "warning",
+          duration = 5
         )
         return()
       }
@@ -944,46 +1008,49 @@ mod_review_results_server <- function(id, data_store) {
       row_idx <- choice$row
       chosen_column <- choice$column
 
-      tryCatch({
-        if (chosen_column == "__none__") {
-          # "None" selected: pin the row without setting a DTXSID
+      tryCatch(
+        {
+          if (chosen_column == "__none__") {
+            # "None" selected: pin the row without setting a DTXSID
+            updated_df <- data_store$resolution_state
+            updated_df <- init_resolution_state(updated_df)
+            updated_df$.pinned[row_idx] <- TRUE
+            # Leave consensus_dtxsid as-is (NA)
+            data_store$resolution_state <- updated_df
+
+            showNotification(
+              paste0("Row ", row_idx, " marked as skipped (None)"),
+              type = "message"
+            )
+          } else {
+            # Normal resolution: call resolve_row function
+            updated_df <- resolve_row(
+              data_store$resolution_state,
+              row_idx,
+              chosen_column,
+              data_store$dtxsid_cols
+            )
+
+            # Update state
+            data_store$resolution_state <- updated_df
+
+            showNotification(
+              paste0("Row ", row_idx, " resolved using ", sub("^dtxsid_", "", chosen_column)),
+              type = "message"
+            )
+          }
+
+          # Recalculate consensus summary
           updated_df <- data_store$resolution_state
-          updated_df <- init_resolution_state(updated_df)
-          updated_df$.pinned[row_idx] <- TRUE
-          # Leave consensus_dtxsid as-is (NA)
-          data_store$resolution_state <- updated_df
-
+          data_store$consensus_summary <- recalc_consensus_summary(updated_df)
+        },
+        error = function(e) {
           showNotification(
-            paste0("Row ", row_idx, " marked as skipped (None)"),
-            type = "message"
-          )
-        } else {
-          # Normal resolution: call resolve_row function
-          updated_df <- resolve_row(
-            data_store$resolution_state,
-            row_idx,
-            chosen_column,
-            data_store$dtxsid_cols
-          )
-
-          # Update state
-          data_store$resolution_state <- updated_df
-
-          showNotification(
-            paste0("Row ", row_idx, " resolved using ", sub("^dtxsid_", "", chosen_column)),
-            type = "message"
+            paste0("Error resolving row: ", e$message),
+            type = "error"
           )
         }
-
-        # Recalculate consensus summary
-        updated_df <- data_store$resolution_state
-        data_store$consensus_summary <- recalc_consensus_summary(updated_df)
-      }, error = function(e) {
-        showNotification(
-          paste0("Error resolving row: ", e$message),
-          type = "error"
-        )
-      })
+      )
     })
 
     # Handle Compare button click - open modal with candidate comparison
@@ -1045,7 +1112,8 @@ mod_review_results_server <- function(id, data_store) {
           style = "border: 2px solid #dee2e6; border-radius: 8px; transition: border-color 0.2s;",
           div(
             class = "card-body",
-            div(class = "d-flex justify-content-between align-items-start",
+            div(
+              class = "d-flex justify-content-between align-items-start",
               div(
                 tags$h6(class = "mb-1 fw-bold", opt$dtxsid),
                 if (!is.na(opt$preferredName)) tags$p(class = "mb-1 text-muted", opt$preferredName) else NULL
@@ -1060,8 +1128,18 @@ mod_review_results_server <- function(id, data_store) {
             div(
               class = "row small",
               div(class = "col-4", tags$strong("CASRN"), tags$br(), if (!is.na(opt$casrn)) opt$casrn else "N/A"),
-              div(class = "col-4", tags$strong("Formula"), tags$br(), if (!is.na(opt$molecular_formula)) opt$molecular_formula else "N/A"),
-              div(class = "col-4", tags$strong("Mol. Weight"), tags$br(), if (!is.na(opt$molecular_weight)) round(opt$molecular_weight, 2) else "N/A")
+              div(
+                class = "col-4",
+                tags$strong("Formula"),
+                tags$br(),
+                if (!is.na(opt$molecular_formula)) opt$molecular_formula else "N/A"
+              ),
+              div(
+                class = "col-4",
+                tags$strong("Mol. Weight"),
+                tags$br(),
+                if (!is.na(opt$molecular_weight)) round(opt$molecular_weight, 2) else "N/A"
+              )
             ),
             div(
               class = "row small mt-2",
@@ -1085,7 +1163,10 @@ mod_review_results_server <- function(id, data_store) {
         ),
         tags$button(
           class = "btn btn-outline-secondary",
-          onclick = sprintf("Shiny.setInputValue('%s', {t: Math.random()}, {priority: 'event'});", session$ns("modal_skip")),
+          onclick = sprintf(
+            "Shiny.setInputValue('%s', {t: Math.random()}, {priority: 'event'});",
+            session$ns("modal_skip")
+          ),
           "Skip this row"
         ),
         modalButton("Cancel")
@@ -1228,8 +1309,7 @@ mod_review_results_server <- function(id, data_store) {
             n_valid <- n_valid + 1
           } else {
             # Invalid: keep error status, track for feedback
-            invalid_details <- c(invalid_details,
-              sprintf("Row %d: %s", row_idx, entered_dtxsid))
+            invalid_details <- c(invalid_details, sprintf("Row %d: %s", row_idx, entered_dtxsid))
             n_invalid <- n_invalid + 1
           }
         }
@@ -1244,17 +1324,14 @@ mod_review_results_server <- function(id, data_store) {
 
       # Summary notification
       msg <- sprintf("Validation complete: %d validated, %d failed", n_valid, n_invalid)
-      showNotification(msg,
-        type = if (n_invalid > 0) "warning" else "message",
-        duration = 8
-      )
+      showNotification(msg, type = if (n_invalid > 0) "warning" else "message", duration = 8)
 
       # Detail notification for failures
       if (n_invalid > 0) {
         showNotification(
           paste("Failed entries:", paste(invalid_details, collapse = "; ")),
           type = "error",
-          duration = NULL  # Stays until dismissed
+          duration = NULL # Stays until dismissed
         )
       }
 
@@ -1301,46 +1378,49 @@ mod_review_results_server <- function(id, data_store) {
     observeEvent(input$apply_priority, {
       req(data_store$resolution_state, data_store$priority_order, data_store$dtxsid_cols)
 
-      tryCatch({
-        # Count disagree rows before
-        before_count <- sum(
-          data_store$resolution_state$consensus_status == "disagree" &
-          !isTRUE(data_store$resolution_state$.pinned),
-          na.rm = TRUE
-        )
+      tryCatch(
+        {
+          # Count disagree rows before
+          before_count <- sum(
+            data_store$resolution_state$consensus_status == "disagree" &
+              !isTRUE(data_store$resolution_state$.pinned),
+            na.rm = TRUE
+          )
 
-        # Apply priority chain
-        updated_df <- apply_priority_chain(
-          data_store$resolution_state,
-          data_store$priority_order,
-          data_store$dtxsid_cols
-        )
+          # Apply priority chain
+          updated_df <- apply_priority_chain(
+            data_store$resolution_state,
+            data_store$priority_order,
+            data_store$dtxsid_cols
+          )
 
-        # Update state
-        data_store$resolution_state <- updated_df
+          # Update state
+          data_store$resolution_state <- updated_df
 
-        # Count disagree rows after
-        after_count <- sum(
-          updated_df$consensus_status == "disagree" &
-          !isTRUE(updated_df$.pinned),
-          na.rm = TRUE
-        )
+          # Count disagree rows after
+          after_count <- sum(
+            updated_df$consensus_status == "disagree" &
+              !isTRUE(updated_df$.pinned),
+            na.rm = TRUE
+          )
 
-        resolved_count <- before_count - after_count
+          resolved_count <- before_count - after_count
 
-        # Recalculate consensus summary
-        data_store$consensus_summary <- recalc_consensus_summary(updated_df)
+          # Recalculate consensus summary
+          data_store$consensus_summary <- recalc_consensus_summary(updated_df)
 
-        showNotification(
-          paste0("Applied priority chain: ", resolved_count, " rows resolved"),
-          type = "message"
-        )
-      }, error = function(e) {
-        showNotification(
-          paste0("Error applying priority: ", e$message),
-          type = "error"
-        )
-      })
+          showNotification(
+            paste0("Applied priority chain: ", resolved_count, " rows resolved"),
+            type = "message"
+          )
+        },
+        error = function(e) {
+          showNotification(
+            paste0("Error applying priority: ", e$message),
+            type = "error"
+          )
+        }
+      )
     })
 
     # Export Functionality
@@ -1372,7 +1452,7 @@ mod_review_results_server <- function(id, data_store) {
           }
         )
 
-        # Build all 7 export sheets
+        # Build all 8 export sheets
         sheets <- build_export_sheets(
           raw = data_store$raw,
           resolution_state = data_store$resolution_state,
@@ -1382,7 +1462,8 @@ mod_review_results_server <- function(id, data_store) {
           column_tags = data_store$column_tags,
           detection = data_store$detection,
           file_info = data_store$file_info,
-          enrichment_cache = data_store$enrichment_cache
+          enrichment_cache = data_store$enrichment_cache,
+          toxval_output = data_store$toxval_output
         )
 
         # Write to Excel
@@ -1398,7 +1479,8 @@ mod_review_results_server <- function(id, data_store) {
 
       # Update button label
       updateActionButton(
-        session, "filter_errors",
+        session,
+        "filter_errors",
         label = if (data_store$error_filter_active) "Show All" else "Show Errors"
       )
     })
@@ -1500,7 +1582,7 @@ mod_review_results_server <- function(id, data_store) {
 
       # Check if tags changed from original
       tags_changed <- !identical(sort(names(new_tags)), sort(names(data_store$column_tags))) ||
-                      !identical(new_tags[sort(names(new_tags))], data_store$column_tags[sort(names(data_store$column_tags))])
+        !identical(new_tags[sort(names(new_tags))], data_store$column_tags[sort(names(data_store$column_tags))])
 
       # Extract subset of clean data for selected rows
       subset_data <- data_store$clean[selected_rows, , drop = FALSE]
@@ -1508,18 +1590,21 @@ mod_review_results_server <- function(id, data_store) {
       # Run full curation pipeline on subset (button is in modal which is already closed)
 
       withProgress(message = "Re-curating selected rows...", value = 0, {
-        retry_result <- tryCatch({
-          run_curation_pipeline(
-            clean_data = subset_data,
-            column_tags = new_tags,
-            progress_callback = function(stage, msg) {
-              incProgress(0.2, detail = msg)
-            }
-          )
-        }, error = function(e) {
-          showNotification(paste("Re-curation failed:", e$message), type = "error", duration = NULL)
-          NULL
-        })
+        retry_result <- tryCatch(
+          {
+            run_curation_pipeline(
+              clean_data = subset_data,
+              column_tags = new_tags,
+              progress_callback = function(stage, msg) {
+                incProgress(0.2, detail = msg)
+              }
+            )
+          },
+          error = function(e) {
+            showNotification(paste("Re-curation failed:", e$message), type = "error", duration = NULL)
+            NULL
+          }
+        )
 
         if (!is.null(retry_result)) {
           incProgress(0.3, detail = "Merging results...")
@@ -1540,8 +1625,11 @@ mod_review_results_server <- function(id, data_store) {
           }
 
           # Count results
-          n_resolved <- sum(updated_state$consensus_status[selected_rows] %in%
-            c("agree", "agree_caveat", "single", "manual"), na.rm = TRUE)
+          n_resolved <- sum(
+            updated_state$consensus_status[selected_rows] %in%
+              c("agree", "agree_caveat", "single", "manual"),
+            na.rm = TRUE
+          )
           n_still_error <- sum(updated_state$consensus_status[selected_rows] == "unresolvable", na.rm = TRUE)
 
           showNotification(
