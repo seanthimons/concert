@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Number and Unit Coercion Harmonization
 current_plan: 2
-status: executing
-stopped_at: Completed 35-02-PLAN.md
-last_updated: "2026-04-17T21:24:00.000Z"
-last_activity: 2026-04-17 -- Phase 35 Plan 02 complete (headless harmonize + parquet tests)
+status: phase_complete
+stopped_at: Phase 35 complete — all plans executed, smoke test passed
+last_updated: "2026-04-17T21:45:00.000Z"
+last_activity: 2026-04-17 -- Phase 35 complete (export extension + headless harmonize)
 progress:
   total_phases: 16
   completed_phases: 15
@@ -28,17 +28,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Users can go from messy regulatory/benchmark data files to validated, harmonized, toxval-compatible datasets in one workflow.
-**Current focus:** Phase 34 — harmonize-tab-module
+**Current focus:** Phase 35 — export-extension-headless (COMPLETE)
 
 ---
 
 ## Current Position
 
-Phase: 34 (harmonize-tab-module) — EXECUTING
-Plan: 1 of 3
-Current Plan: 1
-Status: Ready to execute
-Last activity: 2026-04-17 -- Phase 35 Plan 02 complete (headless harmonize + parquet tests)
+Phase: 35 (export-extension-headless) — COMPLETE
+Plan: 2 of 2
+Current Plan: 2
+Status: Phase complete
+Last activity: 2026-04-17 -- Phase 35 complete (export extension + headless harmonize)
 
 Progress: ██████████ 100% (24/24 plans)
 
@@ -102,6 +102,10 @@ Notable additions in v1.7:
 - [Phase 33]: Tag dispatch helpers as single source of truth (classify_tags, validate_tag_pairing, detect_tag_changes)
 - [Phase 33]: column_tags contains ONLY chemical tags for backwards compatibility with curation pipeline
 - [Phase 33]: Granular cascade resets per tag type (reset_chemical_downstream, reset_numeric_downstream)
+- [Phase 35]: arrow as hard Imports dependency (D-02) — parquet always available, no requireNamespace() guard
+- [Phase 35]: Sheet 8 "ToxVal Output" always present in Excel export; placeholder note when harmonization not run (D-09, D-10)
+- [Phase 35]: curate_headless(harmonize=TRUE) runs full pipeline: corrections → parse → harmonize → toxval map (D-05)
+- [Phase 35]: Parquet round-trip validation is test-only (D-12) — no runtime schema assertion at export time
 
 ### Pending Todos
 
@@ -119,8 +123,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-17T21:24:00.000Z
-Stopped at: Completed 35-02-PLAN.md
+Last session: 2026-04-17T21:45:00.000Z
+Stopped at: Phase 35 complete — all plans executed, smoke test passed
 Resume file: .planning/phases/35-export-extension-headless/35-02-SUMMARY.md
 
 ---
