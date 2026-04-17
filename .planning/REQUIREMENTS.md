@@ -36,9 +36,9 @@ Requirements for Number and Unit Coercion Harmonization milestone. Each maps to 
 
 - [ ] **SCHM-01**: ToxVal 56-column schema transmutation with `*_original` audit columns for all harmonized fields
 - [ ] **SCHM-02**: Typed NA (`NA_character_`, `NA_real_`) throughout — never bare `NA` to prevent parquet type mismatch
-- [ ] **SCHM-03**: Parquet export via `arrow::write_parquet()` with explicit schema assertion; read-back validation test
+- [x] **SCHM-03**: Parquet export via `arrow::write_parquet()` with explicit schema assertion; read-back validation test
 - [ ] **SCHM-04**: CSV export fallback when arrow unavailable (arrow in Suggests with `requireNamespace()` guard)
-- [ ] **SCHM-05**: `curate_headless()` extension with `harmonize=TRUE` param (default FALSE for backward compat)
+- [x] **SCHM-05**: `curate_headless()` extension with `harmonize=TRUE` param (default FALSE for backward compat)
 
 ### UI Integration
 
@@ -101,9 +101,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UNIT-06 | Phase 34 | Pending |
 | SCHM-01 | Phase 32 | Pending |
 | SCHM-02 | Phase 32 | Pending |
-| SCHM-03 | Phase 35 | Pending |
+| SCHM-03 | Phase 35 | Complete |
 | SCHM-04 | Phase 35 | Pending |
-| SCHM-05 | Phase 35 | Pending |
+| SCHM-05 | Phase 35 | Complete |
 | UITG-01 | Phase 33 | Pending |
 | UITG-02 | Phase 33 | Pending |
 | UITG-03 | Phase 33 | Pending |
