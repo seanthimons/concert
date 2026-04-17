@@ -248,9 +248,15 @@ mod_harmonize_server <- function(id, data_store) {
                   unit_map = data_store$unit_map_working
                 )
 
-                # Merge back into full results
+                # Merge back into full results — mutable columns only.
+                # harmonize_units() returns orig_row_id = 1:n for its input
+                # slice, so writing that back would destroy lineage.
                 new_harmonize <- old_harmonize
-                new_harmonize[affected_mask, ] <- incremental_result
+                mutable_cols <- c("harmonized_value", "harmonized_unit", "conversion_factor", "unit_flag")
+                new_harmonize[affected_mask, mutable_cols] <- incremental_result[, mutable_cols]
+
+                # Invariant: orig_row_id must be unchanged after incremental merge
+                stopifnot(identical(new_harmonize$orig_row_id, old_harmonize$orig_row_id))
 
                 incProgress(0.6, detail = "Merging results...")
 

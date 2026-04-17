@@ -187,9 +187,19 @@ search_starts_with <- function(missed_names) {
   uncached_names <- unique_names[!cached_mask]
   cached_names <- unique_names[cached_mask]
 
-  # Retrieve cached results
+
+  # Retrieve cached results — rebuild searchValue from current query casing.
+  # Cache stores payload-only (no searchValue) to avoid stale casing in setdiff().
   cached_results <- if (length(cached_names) > 0) {
-    lapply(tolower(cached_names), function(k) get(k, envir = .starts_with_cache))
+    mapply(function(name, k) {
+      cached_payload <- get(k, envir = .starts_with_cache)
+      if (nrow(cached_payload) > 0) {
+        cached_payload |> dplyr::mutate(searchValue = name, .before = 1)
+      } else {
+        # True miss — return empty with correct schema
+        empty_result
+      }
+    }, cached_names, tolower(cached_names), SIMPLIFY = FALSE, USE.NAMES = FALSE)
   } else {
     list()
   }
@@ -221,18 +231,24 @@ search_starts_with <- function(missed_names) {
               searchName = if (length(col_map$searchName) > 0) raw[[col_map$searchName[1]]] else NA_character_,
               rank = if (length(col_map$rank) > 0) as.integer(raw[[col_map$rank[1]]]) else NA_integer_
             )
-            # Cache both hits and structure
-            assign(cache_key, result_chunk, envir = .starts_with_cache)
+            # Cache payload only (no searchValue) — avoids stale casing on retrieval
+            payload <- result_chunk[, c("dtxsid", "preferredName", "searchName", "rank")]
+            assign(cache_key, payload, envir = .starts_with_cache)
             cached_results[[length(cached_results) + 1]] <- result_chunk
           } else {
-            # Cache misses too (empty tibble) to avoid re-fetching
-            assign(cache_key, empty_result, envir = .starts_with_cache)
+            # Confirmed empty response (true miss) — cache a zero-row payload tibble
+            empty_payload <- tibble::tibble(
+              dtxsid = character(0),
+              preferredName = character(0),
+              searchName = character(0),
+              rank = integer(0)
+            )
+            assign(cache_key, empty_payload, envir = .starts_with_cache)
           }
         },
         error = function(e) {
           message(sprintf("  Warning: starts-with failed for '%s': %s", name, e$message))
-          # Cache failures as empty to avoid re-trying
-          assign(cache_key, empty_result, envir = .starts_with_cache)
+          # Do NOT cache — allow retry on later runs
         }
       )
     }
