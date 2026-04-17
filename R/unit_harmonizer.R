@@ -47,24 +47,55 @@ get_unit_synonyms <- function() {
 
 #' Apply synonym normalization to unit strings
 #'
+#' Performance: Split exact-match rules (hash lookup O(1)) from regex rules.
+#' Only regex rules require per-rule gsub passes. (Codex optimization)
+#'
 #' @param unit_strings Character vector of normalized unit strings
 #' @param synonyms Tibble from get_unit_synonyms() or NULL
 #' @return Character vector with synonyms applied
 #' @keywords internal
 apply_synonyms <- function(unit_strings, synonyms) {
+
   if (is.null(synonyms) || nrow(synonyms) == 0) return(unit_strings)
 
-  result <- unit_strings
-  for (i in seq_len(nrow(synonyms))) {
-    pattern <- synonyms$input_pattern[i]
-    replacement <- synonyms$normalized_unit[i]
-    if (isTRUE(synonyms$is_regex[i])) {
-      result <- gsub(pattern, replacement, result, ignore.case = TRUE)
-    } else {
-      # Exact match (case-insensitive)
-      result <- ifelse(tolower(result) == tolower(pattern), replacement, result)
+ result <- unit_strings
+
+  # Split rules into exact-match vs regex
+  is_regex <- if ("is_regex" %in% names(synonyms)) {
+    isTRUE(synonyms$is_regex) | synonyms$is_regex %in% c(TRUE, "TRUE", "true", 1)
+  } else {
+    rep(FALSE, nrow(synonyms))
+  }
+
+  exact_rules <- synonyms[!is_regex, , drop = FALSE]
+  regex_rules <- synonyms[is_regex, , drop = FALSE]
+
+  # ---- Exact-match: hash lookup O(n), not O(n*m) ----
+  if (nrow(exact_rules) > 0) {
+    # Build case-insensitive lookup hash
+    lookup_hash <- stats::setNames(
+      exact_rules$normalized_unit,
+      tolower(exact_rules$input_pattern)
+    )
+    # Vectorized lookup
+    result_lower <- tolower(result)
+    matches <- lookup_hash[result_lower]
+    matched_mask <- !is.na(matches)
+    result[matched_mask] <- matches[matched_mask]
+  }
+
+  # ---- Regex rules: still need per-rule gsub, but smaller subset ----
+  if (nrow(regex_rules) > 0) {
+    for (i in seq_len(nrow(regex_rules))) {
+      result <- gsub(
+        regex_rules$input_pattern[i],
+        regex_rules$normalized_unit[i],
+        result,
+        ignore.case = TRUE
+      )
     }
   }
+
   result
 }
 
