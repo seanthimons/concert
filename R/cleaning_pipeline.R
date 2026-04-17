@@ -358,123 +358,151 @@ detect_multi_cas <- function(df, tag_map) {
 #' strip_terminal_enclosures(df, "chemical_name")
 #' @export
 strip_terminal_enclosures <- function(df, name_cols) {
-  # Initialize result
+ # Initialize result
   df_result <- df
-  audit_rows <- list()
 
-  # Process each name column
+  # Pre-allocate audit vectors (avoid list-growth O(n²))
+  audit_row_ids <- integer()
+  audit_fields <- character()
+  audit_originals <- character()
+  audit_news <- character()
+  audit_reasons <- character()
+
+  # Exception words for vectorized detection
+  exception_words <- c("density", "probably", "average", "combination")
+
+  # Process each name column (vectorized per column, not per row)
   for (col_name in name_cols) {
-    # Create formula_extract column name (if it doesn't exist)
     extract_col_name <- paste0("formula_extract_", col_name)
     if (!extract_col_name %in% names(df_result)) {
       df_result[[extract_col_name]] <- NA_character_
     }
 
-    # Process each row
-    for (idx in seq_len(nrow(df))) {
-      original_value <- df[[col_name]][idx]
+    original_vals <- df[[col_name]]
+    n <- length(original_vals)
+    stripped_vals <- original_vals
+    extracted_vals <- rep(NA_character_, n)
 
-      # Skip NA
-      if (is.na(original_value)) {
-        next
+    # ---- Pass 1: Strip terminal parentheticals (vectorized) ----
+    parenth_match <- stringr::str_match(stripped_vals, "^(.*)\\(([^)]*)\\)\\s*$")
+    has_parenth <- !is.na(parenth_match[, 1])
+
+    if (any(has_parenth)) {
+      parenth_base <- parenth_match[has_parenth, 2]
+      parenth_content <- parenth_match[has_parenth, 3]
+      parenth_trimmed <- stringr::str_trim(parenth_content)
+
+      # Vectorized empty check
+      is_empty <- parenth_trimmed == ""
+
+      # Empty parentheticals: strip without audit
+      empty_idx <- which(has_parenth)[is_empty]
+      if (length(empty_idx) > 0) {
+        stripped_vals[empty_idx] <- stringr::str_trim(parenth_base[is_empty])
       }
 
-      stripped_value <- original_value
-      extracted_content <- NA_character_
+      # Non-empty: check strip conditions vectorized
+      non_empty_idx <- which(has_parenth)[!is_empty]
+      if (length(non_empty_idx) > 0) {
+        content_ne <- parenth_content[!is_empty]
+        content_lower <- stringr::str_to_lower(content_ne)
+        trimmed_ne <- parenth_trimmed[!is_empty]
 
-      # Try to strip terminal parenthetical (...) - check for empty content first
-      parenth_match <- stringr::str_match(stripped_value, "^(.*)\\(([^)]*)\\)\\s*$")
-      if (!is.na(parenth_match[1, 1])) {
-        content <- parenth_match[1, 3]
-        base <- parenth_match[1, 2]
+        has_yl <- stringr::str_detect(content_ne, "yl")
+        has_pct <- stringr::str_detect(content_ne, "%")
+        has_roman <- stringr::str_detect(trimmed_ne, ROMAN_NUMERAL_PATTERN)
 
-        # Skip empty parentheticals
-        paren_content_trimmed <- stringr::str_trim(content)
-        if (paren_content_trimmed == "") {
-          # Remove empty parenthetical without audit
-          stripped_value <- stringr::str_trim(base)
-        } else {
-          # Check if we should keep it (contains "yl" but not exception words, OR contains %)
-          exception_words <- c("density", "probably", "average", "combination")
-          has_yl <- stringr::str_detect(content, "yl")
-          has_exception <- any(sapply(exception_words, function(w) stringr::str_detect(stringr::str_to_lower(content), w)))
-          has_percentage <- stringr::str_detect(content, "%")
-          has_roman <- stringr::str_detect(paren_content_trimmed, ROMAN_NUMERAL_PATTERN)
+        # Vectorized exception check
+        has_exception <- Reduce(`|`, lapply(exception_words, function(w) {
+          stringr::str_detect(content_lower, w)
+        }))
 
-          # Strip if: (no yl OR has exception) AND no percentage AND no roman numeral
-          should_strip <- (!has_yl || has_exception) && !has_percentage && !has_roman
+        should_strip <- (!has_yl | has_exception) & !has_pct & !has_roman
+        strip_idx <- non_empty_idx[should_strip]
 
-          if (should_strip) {
-            # Strip it
-            stripped_value <- stringr::str_trim(base)
-            extracted_content <- content
-          }
+        if (length(strip_idx) > 0) {
+          stripped_vals[strip_idx] <- stringr::str_trim(parenth_base[!is_empty][should_strip])
+          extracted_vals[strip_idx] <- content_ne[should_strip]
         }
       }
+    }
 
-      # Try to strip terminal bracket [...] - check for empty content first
-      bracket_match <- stringr::str_match(stripped_value, "^(.*)\\[([^]]*)\\]\\s*$")
-      if (!is.na(bracket_match[1, 1])) {
-        content <- bracket_match[1, 3]
-        base <- bracket_match[1, 2]
+    # ---- Pass 2: Strip terminal brackets (vectorized) ----
+    bracket_match <- stringr::str_match(stripped_vals, "^(.*)\\[([^]]*)\\]\\s*$")
+    has_bracket <- !is.na(bracket_match[, 1])
 
-        # Skip empty brackets
-        bracket_content_trimmed <- stringr::str_trim(content)
-        if (bracket_content_trimmed == "") {
-          # Remove empty bracket without audit
-          stripped_value <- stringr::str_trim(base)
-        } else {
-          # Same logic for brackets
-          exception_words <- c("density", "probably", "average", "combination")
-          has_yl <- stringr::str_detect(content, "yl")
-          has_exception <- any(sapply(exception_words, function(w) stringr::str_detect(stringr::str_to_lower(content), w)))
-          has_percentage <- stringr::str_detect(content, "%")
-          has_roman <- stringr::str_detect(bracket_content_trimmed, ROMAN_NUMERAL_PATTERN)
+    if (any(has_bracket)) {
+      bracket_base <- bracket_match[has_bracket, 2]
+      bracket_content <- bracket_match[has_bracket, 3]
+      bracket_trimmed <- stringr::str_trim(bracket_content)
 
-          # Strip if: (no yl OR has exception) AND no percentage AND no roman numeral
-          should_strip <- (!has_yl || has_exception) && !has_percentage && !has_roman
+      is_empty <- bracket_trimmed == ""
 
-          if (should_strip) {
-            # Strip it
-            stripped_value <- stringr::str_trim(base)
-            # If we already extracted from parenthetical, combine
-            if (!is.na(extracted_content)) {
-              extracted_content <- paste(extracted_content, content, sep = "; ")
-            } else {
-              extracted_content <- content
-            }
-          }
-        }
+      # Empty brackets: strip without audit
+      empty_idx <- which(has_bracket)[is_empty]
+      if (length(empty_idx) > 0) {
+        stripped_vals[empty_idx] <- stringr::str_trim(bracket_base[is_empty])
       }
 
-      # Update result
-      if (stripped_value != original_value) {
-        df_result[[col_name]][idx] <- stripped_value
-        # Only update extract column if we extracted something new (don't overwrite existing)
-        if (!is.na(extracted_content)) {
-          # If there's already content, append
-          if (!is.na(df_result[[extract_col_name]][idx]) && df_result[[extract_col_name]][idx] != "") {
-            df_result[[extract_col_name]][idx] <- paste(df_result[[extract_col_name]][idx], extracted_content, sep = "; ")
-          } else {
-            df_result[[extract_col_name]][idx] <- extracted_content
-          }
-        }
+      # Non-empty: check strip conditions
+      non_empty_idx <- which(has_bracket)[!is_empty]
+      if (length(non_empty_idx) > 0) {
+        content_ne <- bracket_content[!is_empty]
+        content_lower <- stringr::str_to_lower(content_ne)
+        trimmed_ne <- bracket_trimmed[!is_empty]
 
-        # Add audit entry
-        audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
-          row_id = as.integer(idx),
-          field = col_name,
-          step = "strip_terminal_enclosures",
-          original_value = original_value,
-          new_value = stripped_value,
-          reason = paste0("Strip terminal enclosure from ", col_name, "; content saved to ", extract_col_name)
-        )
+        has_yl <- stringr::str_detect(content_ne, "yl")
+        has_pct <- stringr::str_detect(content_ne, "%")
+        has_roman <- stringr::str_detect(trimmed_ne, ROMAN_NUMERAL_PATTERN)
+
+        has_exception <- Reduce(`|`, lapply(exception_words, function(w) {
+          stringr::str_detect(content_lower, w)
+        }))
+
+        should_strip <- (!has_yl | has_exception) & !has_pct & !has_roman
+        strip_idx <- non_empty_idx[should_strip]
+
+        if (length(strip_idx) > 0) {
+          stripped_vals[strip_idx] <- stringr::str_trim(bracket_base[!is_empty][should_strip])
+          # Combine with existing extracted content
+          new_content <- content_ne[should_strip]
+          existing <- extracted_vals[strip_idx]
+          extracted_vals[strip_idx] <- ifelse(
+            is.na(existing), new_content, paste(existing, new_content, sep = "; ")
+          )
+        }
       }
+    }
+
+    # ---- Batch update and audit ----
+    changed_mask <- !is.na(original_vals) & (stripped_vals != original_vals)
+    if (any(changed_mask)) {
+      changed_idx <- which(changed_mask)
+      df_result[[col_name]] <- stripped_vals
+
+      # Update extract column (merge with existing)
+      existing_extract <- df_result[[extract_col_name]][changed_idx]
+      new_extract <- extracted_vals[changed_idx]
+      df_result[[extract_col_name]][changed_idx] <- ifelse(
+        is.na(existing_extract) | existing_extract == "",
+        new_extract,
+        ifelse(is.na(new_extract), existing_extract, paste(existing_extract, new_extract, sep = "; "))
+      )
+
+      # Batch append to audit vectors
+      audit_row_ids <- c(audit_row_ids, as.integer(changed_idx))
+      audit_fields <- c(audit_fields, rep(col_name, length(changed_idx)))
+      audit_originals <- c(audit_originals, original_vals[changed_idx])
+      audit_news <- c(audit_news, stripped_vals[changed_idx])
+      audit_reasons <- c(audit_reasons, rep(
+        paste0("Strip terminal enclosure from ", col_name, "; content saved to ", extract_col_name),
+        length(changed_idx)
+      ))
     }
   }
 
-  # Combine audit rows
-  audit_trail <- if (length(audit_rows) == 0) {
+  # Build audit trail from vectors (single tibble construction)
+  audit_trail <- if (length(audit_row_ids) == 0) {
     tibble::tibble(
       row_id = integer(),
       field = character(),
@@ -484,13 +512,20 @@ strip_terminal_enclosures <- function(df, name_cols) {
       reason = character()
     )
   } else {
-    dplyr::bind_rows(audit_rows)
+    tibble::tibble(
+      row_id = audit_row_ids,
+      field = audit_fields,
+      step = rep("strip_terminal_enclosures", length(audit_row_ids)),
+      original_value = audit_originals,
+      new_value = audit_news,
+      reason = audit_reasons
+    )
   }
 
   list(
     cleaned_data = df_result,
     audit_trail = audit_trail,
-    new_tags = list()  # formula_extract columns are informational, not auto-tagged
+    new_tags = list()
   )
 }
 
@@ -1982,40 +2017,67 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
     # Work only on eligible values
     work_vals <- vals[eligible]
 
-    # ---- Pass 1: Naked shortcode expansion (vectorized per isotope) ----
-    for (i in seq_len(nrow(lookup))) {
-      sym <- lookup$symbol[i]
-      mass_num <- lookup$mass[i]
-      canonical <- lookup$canonical[i]
+    # ---- Codex optimization: Prefilter lookup to symbols actually present ----
+    # Instead of O(rows × lookup_size), filter lookup first then O(rows × matches)
+    collapsed_text <- paste(tolower(work_vals), collapse = " ")
 
-      pattern <- paste0(
-        "(?<![0-9])\\b(?i:", stringr::str_escape(sym), ")(",
-        stringr::str_escape(mass_num), ")\\b(?![A-Z])"
-      )
-      work_vals <- gsub(pattern, canonical, work_vals, perl = TRUE)
+    # Pass 1 filter: keep only isotopes whose symbol appears in the text
+    symbols_present <- vapply(lookup$symbol, function(sym) {
+      grepl(tolower(sym), collapsed_text, fixed = TRUE)
+    }, logical(1))
+    filtered_lookup <- lookup[symbols_present, , drop = FALSE]
+
+    # ---- Pass 1: Naked shortcode expansion (filtered subset only) ----
+    if (nrow(filtered_lookup) > 0) {
+      for (i in seq_len(nrow(filtered_lookup))) {
+        sym <- filtered_lookup$symbol[i]
+        mass_num <- filtered_lookup$mass[i]
+        canonical <- filtered_lookup$canonical[i]
+
+        pattern <- paste0(
+          "(?<![0-9])\\b(?i:", stringr::str_escape(sym), ")(",
+          stringr::str_escape(mass_num), ")\\b(?![A-Z])"
+        )
+        work_vals <- gsub(pattern, canonical, work_vals, perl = TRUE)
+      }
     }
 
-    # ---- Pass 2: Spelled-out normalization (vectorized per element+mass) ----
+    # ---- Pass 2: Spelled-out normalization (prefiltered) ----
     # Deduplicate to unique (element_name, mass, canonical) combos
     spelled_lookup <- unique(lookup[, c("element_name", "mass", "canonical")])
 
-    for (i in seq_len(nrow(spelled_lookup))) {
-      elem_name <- spelled_lookup$element_name[i]
-      mass_num <- spelled_lookup$mass[i]
-      canonical <- spelled_lookup$canonical[i]
+    # Filter to element names actually present in text
+    elem_names_present <- vapply(spelled_lookup$element_name, function(nm) {
+      grepl(tolower(nm), collapsed_text, fixed = TRUE)
+    }, logical(1))
 
-      names_to_match <- elem_name
-      alt_matches <- names(ELEMENT_ALT_NAMES)[ELEMENT_ALT_NAMES == elem_name]
-      if (length(alt_matches) > 0) {
-        names_to_match <- c(names_to_match, alt_matches)
-      }
+    # Also check alt names
+    alt_names_present <- vapply(spelled_lookup$element_name, function(nm) {
+      alts <- names(ELEMENT_ALT_NAMES)[ELEMENT_ALT_NAMES == nm]
+      any(vapply(alts, function(a) grepl(tolower(a), collapsed_text, fixed = TRUE), logical(1)))
+    }, logical(1))
 
-      for (match_name in names_to_match) {
-        spelled_pattern <- paste0(
-          "(?i)\\b", stringr::str_escape(match_name),
-          "(?:\\s+|-)", stringr::str_escape(mass_num), "\\b"
-        )
-        work_vals <- gsub(spelled_pattern, canonical, work_vals, perl = TRUE)
+    filtered_spelled <- spelled_lookup[elem_names_present | alt_names_present, , drop = FALSE]
+
+    if (nrow(filtered_spelled) > 0) {
+      for (i in seq_len(nrow(filtered_spelled))) {
+        elem_name <- filtered_spelled$element_name[i]
+        mass_num <- filtered_spelled$mass[i]
+        canonical <- filtered_spelled$canonical[i]
+
+        names_to_match <- elem_name
+        alt_matches <- names(ELEMENT_ALT_NAMES)[ELEMENT_ALT_NAMES == elem_name]
+        if (length(alt_matches) > 0) {
+          names_to_match <- c(names_to_match, alt_matches)
+        }
+
+        for (match_name in names_to_match) {
+          spelled_pattern <- paste0(
+            "(?i)\\b", stringr::str_escape(match_name),
+            "(?:\\s+|-)", stringr::str_escape(mass_num), "\\b"
+          )
+          work_vals <- gsub(spelled_pattern, canonical, work_vals, perl = TRUE)
+        }
       }
     }
 

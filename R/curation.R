@@ -143,10 +143,24 @@ search_exact <- function(unique_names) {
 }
 
 # ============================================================================
-# search_starts_with
+# search_starts_with (with session cache - Codex optimization)
 # ============================================================================
 
+# Session-level cache for starts-with results (survives across calls within session)
+.starts_with_cache <- new.env(parent = emptyenv())
+
+#' Clear the starts-with cache
+#'
+#' @export
+clear_starts_with_cache <- function() {
+  rm(list = ls(.starts_with_cache), envir = .starts_with_cache)
+  invisible(NULL)
+}
+
 #' Starts-with fallback search for names that failed exact match
+#'
+#' Uses a session-level cache to avoid redundant API calls for repeated terms.
+#' Cache keys are lowercased search terms; cache persists within R session.
 #'
 #' @param missed_names Character vector of names that failed exact match
 #' @return Tibble with same columns as search_exact, may have multiple rows per input
@@ -163,43 +177,74 @@ search_starts_with <- function(missed_names) {
     return(empty_result)
   }
 
-  message(sprintf("Falling back on %d misses with starts-with search...", length(missed_names)))
+  # Deduplicate input (same term may appear multiple times)
+  unique_names <- unique(missed_names)
 
-  results_list <- list()
-  for (name in missed_names) {
-    tryCatch(
-      {
-        raw <- ComptoxR::ct_chemical_search_start_with(name)
-        if (!is.null(raw) && nrow(raw) > 0) {
-          # Standardize columns
-          col_map <- list(
-            dtxsid = grep("^dtxsid$", names(raw), ignore.case = TRUE, value = TRUE),
-            preferredName = grep("^preferred.?name$", names(raw), ignore.case = TRUE, value = TRUE),
-            searchName = grep("^search.?name$", names(raw), ignore.case = TRUE, value = TRUE),
-            rank = grep("^rank$", names(raw), ignore.case = TRUE, value = TRUE)
-          )
+  # Check cache for already-fetched terms
+  cache_keys <- tolower(unique_names)
+  cached_mask <- vapply(cache_keys, exists, logical(1), envir = .starts_with_cache)
 
-          result_chunk <- tibble::tibble(
-            searchValue = name,
-            dtxsid = if (length(col_map$dtxsid) > 0) raw[[col_map$dtxsid[1]]] else NA_character_,
-            preferredName = if (length(col_map$preferredName) > 0) raw[[col_map$preferredName[1]]] else NA_character_,
-            searchName = if (length(col_map$searchName) > 0) raw[[col_map$searchName[1]]] else NA_character_,
-            rank = if (length(col_map$rank) > 0) as.integer(raw[[col_map$rank[1]]]) else NA_integer_
-          )
-          results_list[[length(results_list) + 1]] <- result_chunk
-        }
-      },
-      error = function(e) {
-        message(sprintf("  Warning: starts-with failed for '%s': %s", name, e$message))
-      }
-    )
+  uncached_names <- unique_names[!cached_mask]
+  cached_names <- unique_names[cached_mask]
+
+  # Retrieve cached results
+  cached_results <- if (length(cached_names) > 0) {
+    lapply(tolower(cached_names), function(k) get(k, envir = .starts_with_cache))
+  } else {
+    list()
   }
 
-  if (length(results_list) == 0) {
+  # Fetch uncached names
+  if (length(uncached_names) > 0) {
+    message(sprintf(
+      "Falling back on %d misses with starts-with search (%d cached)...",
+      length(uncached_names), length(cached_names)
+    ))
+
+    for (name in uncached_names) {
+      cache_key <- tolower(name)
+      tryCatch(
+        {
+          raw <- ComptoxR::ct_chemical_search_start_with(name)
+          if (!is.null(raw) && nrow(raw) > 0) {
+            col_map <- list(
+              dtxsid = grep("^dtxsid$", names(raw), ignore.case = TRUE, value = TRUE),
+              preferredName = grep("^preferred.?name$", names(raw), ignore.case = TRUE, value = TRUE),
+              searchName = grep("^search.?name$", names(raw), ignore.case = TRUE, value = TRUE),
+              rank = grep("^rank$", names(raw), ignore.case = TRUE, value = TRUE)
+            )
+
+            result_chunk <- tibble::tibble(
+              searchValue = name,
+              dtxsid = if (length(col_map$dtxsid) > 0) raw[[col_map$dtxsid[1]]] else NA_character_,
+              preferredName = if (length(col_map$preferredName) > 0) raw[[col_map$preferredName[1]]] else NA_character_,
+              searchName = if (length(col_map$searchName) > 0) raw[[col_map$searchName[1]]] else NA_character_,
+              rank = if (length(col_map$rank) > 0) as.integer(raw[[col_map$rank[1]]]) else NA_integer_
+            )
+            # Cache both hits and structure
+            assign(cache_key, result_chunk, envir = .starts_with_cache)
+            cached_results[[length(cached_results) + 1]] <- result_chunk
+          } else {
+            # Cache misses too (empty tibble) to avoid re-fetching
+            assign(cache_key, empty_result, envir = .starts_with_cache)
+          }
+        },
+        error = function(e) {
+          message(sprintf("  Warning: starts-with failed for '%s': %s", name, e$message))
+          # Cache failures as empty to avoid re-trying
+          assign(cache_key, empty_result, envir = .starts_with_cache)
+        }
+      )
+    }
+  } else if (length(cached_names) > 0) {
+    message(sprintf("All %d starts-with lookups served from cache", length(cached_names)))
+  }
+
+  if (length(cached_results) == 0) {
     return(empty_result)
   }
 
-  dplyr::bind_rows(results_list)
+  dplyr::bind_rows(cached_results)
 }
 
 # ============================================================================
