@@ -95,7 +95,7 @@ create_test_data <- function() {
 
 # ===== Test Suite: multi-sheet export =====
 
-test_that("build_export_sheets returns list of length 7", {
+test_that("build_export_sheets returns list of length 8", {
   test_data <- create_test_data()
 
   sheets <- build_export_sheets(
@@ -110,7 +110,7 @@ test_that("build_export_sheets returns list of length 7", {
   )
 
   expect_type(sheets, "list")
-  expect_length(sheets, 7)
+  expect_length(sheets, 8)
 })
 
 test_that("Sheet names match expected", {
@@ -128,11 +128,68 @@ test_that("Sheet names match expected", {
   )
 
   expected_names <- c(
-    "Raw Data", "Curated Data", "Summary", "Cleaning Audit",
-    "Reference Lists", "Column Tags", "Pipeline Config"
+    "Raw Data",
+    "Curated Data",
+    "Summary",
+    "Cleaning Audit",
+    "Reference Lists",
+    "Column Tags",
+    "Pipeline Config",
+    "ToxVal Output"
   )
 
   expect_equal(names(sheets), expected_names)
+})
+
+test_that("Sheet 8 ToxVal Output contains placeholder when toxval_output is NULL", {
+  td <- create_test_data()
+  sheets <- build_export_sheets(
+    raw = td$raw,
+    resolution_state = td$resolution_state,
+    consensus_summary = td$consensus_summary,
+    cleaning_audit = td$cleaning_audit,
+    reference_lists = td$reference_lists,
+    column_tags = td$column_tags,
+    detection = td$detection,
+    file_info = td$file_info
+  )
+
+  expect_equal(length(sheets), 8)
+  expect_true("ToxVal Output" %in% names(sheets))
+  expect_equal(names(sheets[[8]]), "note")
+  expect_true(grepl("Harmonization not run", sheets[["ToxVal Output"]]$note))
+})
+
+test_that("Sheet 8 ToxVal Output contains data when toxval_output provided", {
+  td <- create_test_data()
+
+  # Minimal 56-column fixture (use load_toxval_schema for template)
+  cache_dir <- system.file("extdata/reference_cache", package = "chemreg")
+  schema <- load_toxval_schema(cache_dir)
+  # Create 1-row toxval tibble from schema
+  toxval_row <- as.list(schema)
+  toxval_row <- lapply(toxval_row, function(x) {
+    if (is.character(x)) NA_character_ else NA_real_
+  })
+  toxval_row$dtxsid <- "DTXSID7020182"
+  toxval_row$toxval_numeric <- 0.5
+  toxval_data <- tibble::as_tibble(toxval_row)
+
+  sheets <- build_export_sheets(
+    raw = td$raw,
+    resolution_state = td$resolution_state,
+    consensus_summary = td$consensus_summary,
+    cleaning_audit = td$cleaning_audit,
+    reference_lists = td$reference_lists,
+    column_tags = td$column_tags,
+    detection = td$detection,
+    file_info = td$file_info,
+    toxval_output = toxval_data
+  )
+
+  expect_equal(length(sheets), 8)
+  expect_equal(ncol(sheets[["ToxVal Output"]]), 56)
+  expect_equal(sheets[["ToxVal Output"]]$dtxsid, "DTXSID7020182")
 })
 
 test_that("Curated Data has needs_review column, no .pinned column", {
@@ -177,7 +234,7 @@ test_that("Summary has Metric and Value columns with correct row count", {
 
   expect_true("Metric" %in% names(summary))
   expect_true("Value" %in% names(summary))
-  expect_equal(nrow(summary), 9)  # 8 consensus metrics + match rate
+  expect_equal(nrow(summary), 9) # 8 consensus metrics + match rate
 
   # Check that Total Rows metric is present
   expect_true("Total Rows" %in% summary$Metric)
@@ -261,7 +318,7 @@ test_that("NULL cleaning_audit produces empty Cleaning Audit sheet (0 rows, corr
     raw = test_data$raw,
     resolution_state = test_data$resolution_state,
     consensus_summary = test_data$consensus_summary,
-    cleaning_audit = test_data$cleaning_audit,  # NULL
+    cleaning_audit = test_data$cleaning_audit, # NULL
     reference_lists = test_data$reference_lists,
     column_tags = test_data$column_tags,
     detection = test_data$detection,
@@ -453,7 +510,7 @@ test_that("merge_reference_lists with non-overlapping terms appends imported ent
   expect_true("^[.]+$" %in% result$block_patterns$term)
 
   # Check counts
-  expect_equal(nrow(result$functional_categories), 3)  # 2 existing + 1 imported
+  expect_equal(nrow(result$functional_categories), 3) # 2 existing + 1 imported
   expect_equal(nrow(result$stop_words), 3)
   expect_equal(nrow(result$block_patterns), 3)
 })
@@ -482,7 +539,7 @@ test_that("merge_reference_lists with overlapping terms keeps imported version",
   imported <- tibble::tibble(
     type = c("functional_category"),
     term = c("solvent"),
-    source = c("user_edit"),  # Will be overwritten to "imported"
+    source = c("user_edit"), # Will be overwritten to "imported"
     active = c(FALSE)
   )
 
