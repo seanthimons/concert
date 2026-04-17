@@ -92,6 +92,10 @@
     - [x] 34-02-PLAN.md -- Editor UIs: unit table chips, corrections chips, unmatched units batch panel
     - [ ] 34-03-PLAN.md -- Tests, module render verification, cold boot check
 - [ ] Phase 35: Export Extension + Headless -- SCHM-03, SCHM-04, SCHM-05, UITG-06
+  - **Goal:** Extend export with parquet/CSV output, Sheet 8 ToxVal Output, and headless harmonization pipeline
+  - **Plans:** 2 plans
+    - [ ] 35-01-PLAN.md -- Arrow dependency, Sheet 8 in build_export_sheets(), Shiny export wiring
+    - [ ] 35-02-PLAN.md -- curate_headless() harmonize extension, parquet/CSV export, round-trip tests
 
 ## Progress
 
@@ -114,4 +118,4 @@
 | 32. ToxVal Schema Mapper | v1.9 | 1/1 | Complete | 2026-04-15 |
 | 33. Extended Column Tagging | v1.9 | 0/1 | Not Started | -- |
 | 34. Harmonize Tab Module | v1.9 | 2/3 | In Progress|  |
-| 35. Export Extension + Headless | v1.9 | 0/? | Not Started | -- |
+| 35. Export Extension + Headless | v1.9 | 0/2 | Not Started | -- |
