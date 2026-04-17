@@ -129,7 +129,10 @@ server <- function(input, output, session) {
     prev_numeric_tags = NULL,
     # Phase 34: Harmonize working copies (session-local, initialized from reference_lists)
     unit_map_working = NULL,
-    corrections_working = NULL
+    corrections_working = NULL,
+    # Phase 34-04: Stale results pattern for cascade reset UX
+    harmonize_results_stale = FALSE,
+    changed_units = character(0)
   )
 
   # Store reference lists in data_store
