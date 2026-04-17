@@ -67,7 +67,7 @@ mod_harmonize_ui <- function(id) {
         actionButton(
           ns("run_harmonization"),
           "Run Harmonization",
-          class = "btn-success btn-lg mt-3",
+          class = "btn-success btn-lg mt-3 mb-3",
           icon = icon("play")
         )
       ),
