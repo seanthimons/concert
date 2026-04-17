@@ -339,27 +339,27 @@ harmonize_units <- function(values, units, unit_map,
   # ---- Handle ppb/ppm rows (vectorized) ----
 
   if (any(ppx_mask)) {
-    # Vectorized ppx conversion factors
-    ppx_factors <- vapply(
-      normalized[ppx_mask],
-      get_ppx_conversion_factor,
-      numeric(1)
-    )
+    # Pre-compute indices ONCE to avoid O(k²) which() calls (Codex fix)
+    ppx_idx <- which(ppx_mask)
+    ppx_units <- normalized[ppx_idx]
+    ppx_media <- media_vec[ppx_idx]
 
-    # Vectorized media target lookup
-    ppx_targets <- vapply(seq_len(sum(ppx_mask)), function(i) {
-      idx <- which(ppx_mask)[i]
-      get_media_target(normalized[idx], media_vec[idx]) %||% "mg/L"
+    # Vectorized ppx conversion factors
+    ppx_factors <- vapply(ppx_units, get_ppx_conversion_factor, numeric(1))
+
+    # Vectorized media target lookup (now O(k), not O(k²))
+    ppx_targets <- vapply(seq_along(ppx_idx), function(i) {
+      get_media_target(ppx_units[i], ppx_media[i]) %||% "mg/L"
     }, character(1))
 
-    harmonized_value[ppx_mask] <- values[ppx_mask] * ppx_factors
-    harmonized_unit[ppx_mask] <- ppx_targets
-    conversion_factor[ppx_mask] <- ppx_factors
+    harmonized_value[ppx_idx] <- values[ppx_idx] * ppx_factors
+    harmonized_unit[ppx_idx] <- ppx_targets
+    conversion_factor[ppx_idx] <- ppx_factors
 
     # Flag as media_inferred if media was NULL/NA
-    ppx_media_inferred <- ppx_mask & (is.na(media_vec) | media_vec == "")
-    unit_flag[ppx_mask] <- ""
-    unit_flag[ppx_media_inferred] <- "media_inferred"
+    ppx_media_na <- is.na(ppx_media) | ppx_media == ""
+    unit_flag[ppx_idx] <- ""
+    unit_flag[ppx_idx[ppx_media_na]] <- "media_inferred"
   }
 
   # ---- Handle standard table lookup (vectorized with hash) ----

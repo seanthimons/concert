@@ -189,6 +189,9 @@ mod_harmonize_server <- function(id, data_store) {
     observeEvent(input$run_harmonization, {
       req(data_store$clean, data_store$numeric_tags)
 
+      # Capture changed_units before clearing (for incremental mode)
+      pending_changes <- data_store$changed_units
+
       # Clear stale flag at start of run (Plan 34-04)
       data_store$harmonize_results_stale <- FALSE
       data_store$changed_units <- character(0)
@@ -208,75 +211,148 @@ mod_harmonize_server <- function(id, data_store) {
 
       unit_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Unit"]
 
+      # Determine if incremental mode is possible:
+      # - Have existing results
+      # - Have changed_units (unit mappings changed, not corrections)
+      # - Have a Unit column tagged
+      can_incremental <- length(pending_changes) > 0 &&
+        !is.null(data_store$harmonize_results) &&
+        length(unit_cols) > 0
+
       shinyjs::disable("run_harmonization")
 
       tryCatch(
         {
-          withProgress(message = "Running harmonization...", value = 0, {
-            # Use cleaned_data (post-cleaning) when present, otherwise raw clean
-            input_df <- if (!is.null(data_store$cleaned_data)) {
-              data_store$cleaned_data
-            } else {
-              data_store$clean
-            }
+          if (can_incremental) {
+            # --- INCREMENTAL MODE: Only re-harmonize affected rows ---
+            withProgress(message = "Incremental harmonization...", value = 0, {
+              existing <- data_store$harmonize_results
+              parse_tibble <- existing$parsed
+              old_harmonize <- existing$harmonized
 
-            # Extract Result column (first Result-tagged column if multiple)
-            result_values <- as.character(input_df[[result_cols[1]]])
+              # Find rows where orig_unit matches changed units OR was unmatched
+              # (unmatched rows should be re-checked against new mappings)
+              affected_mask <- old_harmonize$orig_unit %in% pending_changes |
+                old_harmonize$unit_flag == "unmatched"
 
-            # Stage 1: Apply one-off corrections (PARS-06)
-            incProgress(0.15, detail = "Applying corrections...")
-            corrected_values <- apply_corrections(
-              result_values,
-              data_store$corrections_working
-            )
+              incProgress(0.3, detail = sprintf(
+                "Re-processing %d of %d rows...",
+                sum(affected_mask), nrow(old_harmonize)
+              ))
 
-            # Stage 2: Parse numeric results
-            incProgress(0.30, detail = "Parsing numeric results...")
-            parse_tibble <- parse_numeric_results(corrected_values)
+              if (sum(affected_mask) > 0) {
+                # Re-run harmonize_units on affected subset only
+                incremental_result <- harmonize_units(
+                  values = parse_tibble$numeric_value[affected_mask],
+                  units = old_harmonize$orig_unit[affected_mask],
+                  unit_map = data_store$unit_map_working
+                )
 
-            # Stage 3: Harmonize units (if a Unit column is tagged)
-            incProgress(0.30, detail = "Harmonizing units...")
-            if (length(unit_cols) > 0) {
-              unit_values <- as.character(input_df[[unit_cols[1]]])
-              # Ranges expand rows -- re-broadcast unit via orig_row_id
-              if (nrow(parse_tibble) > length(unit_values)) {
-                unit_values_expanded <- unit_values[parse_tibble$orig_row_id]
+                # Merge back into full results
+                new_harmonize <- old_harmonize
+                new_harmonize[affected_mask, ] <- incremental_result
+
+                incProgress(0.6, detail = "Merging results...")
+
+                data_store$harmonize_results <- list(
+                  parsed = parse_tibble,
+                  harmonized = new_harmonize,
+                  input_data = existing$input_data
+                )
+                data_store$harmonize_audit <- dplyr::bind_cols(
+                  parse_tibble,
+                  new_harmonize[, c(
+                    "orig_unit", "harmonized_value", "harmonized_unit",
+                    "conversion_factor", "unit_flag"
+                  )]
+                )
+
+                showNotification(
+                  sprintf(
+                    "Incremental: %d rows re-harmonized",
+                    sum(affected_mask)
+                  ),
+                  type = "message",
+                  duration = 3
+                )
               } else {
-                unit_values_expanded <- unit_values
+                showNotification(
+                  "No rows affected by unit changes",
+                  type = "message",
+                  duration = 3
+                )
               }
-              harmonize_tibble <- harmonize_units(
-                values = parse_tibble$numeric_value,
-                units = unit_values_expanded,
-                unit_map = data_store$unit_map_working
-              )
-            } else {
-              # No Unit column -- placeholder harmonize output with NA units
-              harmonize_tibble <- tibble::tibble(
-                orig_row_id = parse_tibble$orig_row_id,
-                orig_unit = rep(NA_character_, nrow(parse_tibble)),
-                harmonized_value = parse_tibble$numeric_value,
-                harmonized_unit = rep(NA_character_, nrow(parse_tibble)),
-                conversion_factor = rep(1, nrow(parse_tibble)),
-                unit_flag = rep("", nrow(parse_tibble))
-              )
-            }
 
-            # Stage 4: Store results
-            incProgress(0.25, detail = "Finalizing...")
-            data_store$harmonize_results <- list(
-              parsed = parse_tibble,
-              harmonized = harmonize_tibble,
-              input_data = input_df
-            )
-            # Audit trail: joined tibble for export
-            data_store$harmonize_audit <- dplyr::bind_cols(
-              parse_tibble,
-              harmonize_tibble[, c(
-                "orig_unit", "harmonized_value", "harmonized_unit",
-                "conversion_factor", "unit_flag"
-              )]
-            )
-          })
+              incProgress(0.1, detail = "Done")
+            })
+          } else {
+            # --- FULL MODE: Parse + harmonize everything ---
+            withProgress(message = "Running harmonization...", value = 0, {
+              # Use cleaned_data (post-cleaning) when present, otherwise raw clean
+              input_df <- if (!is.null(data_store$cleaned_data)) {
+                data_store$cleaned_data
+              } else {
+                data_store$clean
+              }
+
+              # Extract Result column (first Result-tagged column if multiple)
+              result_values <- as.character(input_df[[result_cols[1]]])
+
+              # Stage 1: Apply one-off corrections (PARS-06)
+              incProgress(0.15, detail = "Applying corrections...")
+              corrected_values <- apply_corrections(
+                result_values,
+                data_store$corrections_working
+              )
+
+              # Stage 2: Parse numeric results
+              incProgress(0.30, detail = "Parsing numeric results...")
+              parse_tibble <- parse_numeric_results(corrected_values)
+
+              # Stage 3: Harmonize units (if a Unit column is tagged)
+              incProgress(0.30, detail = "Harmonizing units...")
+              if (length(unit_cols) > 0) {
+                unit_values <- as.character(input_df[[unit_cols[1]]])
+                # Ranges expand rows -- re-broadcast unit via orig_row_id
+                if (nrow(parse_tibble) > length(unit_values)) {
+                  unit_values_expanded <- unit_values[parse_tibble$orig_row_id]
+                } else {
+                  unit_values_expanded <- unit_values
+                }
+                harmonize_tibble <- harmonize_units(
+                  values = parse_tibble$numeric_value,
+                  units = unit_values_expanded,
+                  unit_map = data_store$unit_map_working
+                )
+              } else {
+                # No Unit column -- placeholder harmonize output with NA units
+                harmonize_tibble <- tibble::tibble(
+                  orig_row_id = parse_tibble$orig_row_id,
+                  orig_unit = rep(NA_character_, nrow(parse_tibble)),
+                  harmonized_value = parse_tibble$numeric_value,
+                  harmonized_unit = rep(NA_character_, nrow(parse_tibble)),
+                  conversion_factor = rep(1, nrow(parse_tibble)),
+                  unit_flag = rep("", nrow(parse_tibble))
+                )
+              }
+
+              # Stage 4: Store results
+              incProgress(0.25, detail = "Finalizing...")
+              data_store$harmonize_results <- list(
+                parsed = parse_tibble,
+                harmonized = harmonize_tibble,
+                input_data = input_df
+              )
+              # Audit trail: joined tibble for export
+              data_store$harmonize_audit <- dplyr::bind_cols(
+                parse_tibble,
+                harmonize_tibble[, c(
+                  "orig_unit", "harmonized_value", "harmonized_unit",
+                  "conversion_factor", "unit_flag"
+                )]
+              )
+            })
+          }
         },
         error = function(e) {
           showNotification(
