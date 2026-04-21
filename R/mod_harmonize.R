@@ -381,9 +381,13 @@ mod_harmonize_server <- function(id, data_store) {
 
               # Stage 5: Map to ToxVal schema (SCHM-01, UITG-06)
               incProgress(0.10, detail = "Mapping to ToxVal schema...")
+              # Expand curated_data rows to match harmonized rows via orig_row_id.
+              # parse_numeric_results() expands range values (1 row -> 3 rows),
+              # so harmonize_tibble may have more rows than resolution_state.
+              expanded_curated <- data_store$resolution_state[harmonize_tibble$orig_row_id, ]
               toxval_tibble <- tryCatch(
                 map_to_toxval_schema(
-                  curated_data = data_store$resolution_state,
+                  curated_data = expanded_curated,
                   harmonized_data = harmonize_tibble,
                   source_name = data_store$file_info$name
                 ),
