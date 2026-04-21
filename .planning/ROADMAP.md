@@ -100,8 +100,9 @@
     - [x] 35-02-PLAN.md -- curate_headless() harmonize extension, parquet/CSV export, round-trip tests
 - [ ] Phase 36: Wire ToxVal Schema in Shiny Path -- SCHM-01, UITG-06, SCHM-04 (gap closure)
   - **Goal:** Wire map_to_toxval_schema() into mod_harmonize.R so the Shiny interactive path produces toxval_output and Sheet 8 shows real data
-  - **Gap Closure:** Closes integration gap (Ph32→Ph34), Shiny E2E flow break, and SCHM-04 requirement wording
-  - **Plans:** TBD
+  - **Gap Closure:** Closes integration gap (Ph32->Ph34), Shiny E2E flow break, and SCHM-04 requirement wording
+  - **Plans:** 1 plan
+    - [ ] 36-01-PLAN.md -- Wire mapper call in mod_harmonize.R, gate harmonize tab, close requirements
   - **Requirements:** SCHM-01, UITG-06, SCHM-04
 
 </details>
@@ -128,4 +129,4 @@
 | 33. Extended Column Tagging | v1.9 | 1/1 | Complete | 2026-04-15 |
 | 34. Harmonize Tab Module | v1.9 | 4/4 | Complete | 2026-04-17 |
 | 35. Export Extension + Headless | v1.9 | 2/2 | Complete | 2026-04-17 |
-| 36. Wire ToxVal Schema in Shiny Path | v1.9 | 0/0 | Planned | — |
+| 36. Wire ToxVal Schema in Shiny Path | v1.9 | 0/1 | Planned | -- |
