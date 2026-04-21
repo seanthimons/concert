@@ -34,10 +34,10 @@ Requirements for Number and Unit Coercion Harmonization milestone. Each maps to 
 
 ### ToxVal Schema & Export
 
-- [ ] **SCHM-01**: ToxVal 56-column schema transmutation with `*_original` audit columns for all harmonized fields
+- [x] **SCHM-01**: ToxVal 56-column schema transmutation with `*_original` audit columns for all harmonized fields
 - [x] **SCHM-02**: Typed NA (`NA_character_`, `NA_real_`) throughout — never bare `NA` to prevent parquet type mismatch
 - [x] **SCHM-03**: Parquet export via `arrow::write_parquet()` with explicit schema assertion; read-back validation test
-- [ ] **SCHM-04**: CSV export fallback when arrow unavailable (arrow in Suggests with `requireNamespace()` guard)
+- [x] **SCHM-04**: CSV export fallback when arrow unavailable -- superseded by D-02 (arrow as hard dep). CSV available as format choice via `format="csv"` in `curate_headless()`, not as a fallback.
 - [x] **SCHM-05**: `curate_headless()` extension with `harmonize=TRUE` param (default FALSE for backward compat)
 
 ### UI Integration
@@ -47,7 +47,7 @@ Requirements for Number and Unit Coercion Harmonization milestone. Each maps to 
 - [x] **UITG-03**: Cascade reset extension — null `harmonize_results`, `harmonize_audit`, `toxval_output` on re-upload, tag change, or re-run curation
 - [x] **UITG-04**: Harmonize tab module following `mod_run_curation.R` pattern — button-triggered pipeline, `withProgress()`, write to data_store
 - [x] **UITG-05**: Pre-export QC dashboard — value boxes: rows parsed, rows harmonized, rows with dtxsid, rows with NA toxval_numeric
-- [ ] **UITG-06**: Sheet 8 "ToxVal Output" in existing Excel export (separate sheet, not merged with data)
+- [x] **UITG-06**: Sheet 8 "ToxVal Output" in existing Excel export (separate sheet, not merged with data)
 
 ## v2+ Requirements
 
@@ -99,23 +99,23 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UNIT-04 | Phase 31 | Complete |
 | UNIT-05 | Phase 31 | Complete |
 | UNIT-06 | Phase 34 | Complete |
-| SCHM-01 | Phase 36 | Pending |
+| SCHM-01 | Phase 36 | Complete |
 | SCHM-02 | Phase 32 | Complete |
 | SCHM-03 | Phase 35 | Complete |
-| SCHM-04 | Phase 36 | Pending |
+| SCHM-04 | Phase 36 | Complete |
 | SCHM-05 | Phase 35 | Complete |
 | UITG-01 | Phase 33 | Complete |
 | UITG-02 | Phase 33 | Complete |
 | UITG-03 | Phase 33 | Complete |
 | UITG-04 | Phase 34 | Complete |
 | UITG-05 | Phase 34 | Complete |
-| UITG-06 | Phase 36 | Pending |
+| UITG-06 | Phase 36 | Complete |
 
 **Coverage:**
 - v1.9 requirements: 27 total
 - Mapped to phases: 27
-- Complete: 24
-- Pending (Phase 36 gap closure): 3 (SCHM-01, SCHM-04, UITG-06)
+- Complete: 27
+- Pending (Phase 36 gap closure): 0
 
 ---
 *Requirements defined: 2026-04-14*
