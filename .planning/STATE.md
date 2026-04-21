@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.9
-milestone_name: Number and Unit Coercion Harmonization
+milestone: v1.5
+milestone_name: milestone
 current_plan: 2
-status: phase_complete
-stopped_at: Phase 35 complete — all plans executed, smoke test passed
-last_updated: "2026-04-17T21:45:00.000Z"
+status: completed
+stopped_at: Phase 36 context gathered
+last_updated: "2026-04-21T20:36:40.229Z"
 last_activity: 2026-04-17 -- Phase 35 complete (export extension + headless harmonize)
 progress:
-  total_phases: 16
-  completed_phases: 15
+  total_phases: 17
+  completed_phases: 16
   total_plans: 24
   completed_plans: 24
   percent: 100
@@ -17,9 +17,9 @@ progress:
 
 # Project State: ChemReg
 
-**Last Updated:** 2026-04-15
+**Last Updated:** 2026-04-17
 **Milestone:** v1.9 Number and Unit Coercion Harmonization
-**Status:** Ready to execute
+**Status:** Milestone complete
 
 ---
 
@@ -53,10 +53,11 @@ Progress: ██████████ 100% (24/24 plans)
 - Total plans: 40 complete
 - LOC: ~17,900 R
 
-**v1.8 so far:**
+**v1.9 final:**
 
-- Phases complete: 0/5
-- Plans complete: 0 (TBD after plan-phase runs)
+- Phases complete: 7/7
+- Plans complete: 13/13
+- Milestone shipped: 2026-04-17
 
 ---
 
@@ -123,9 +124,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-17T21:45:00.000Z
-Stopped at: Phase 35 complete — all plans executed, smoke test passed
-Resume file: .planning/phases/35-export-extension-headless/35-02-SUMMARY.md
+Last session: 2026-04-21T20:36:40.215Z
+Stopped at: Phase 36 context gathered
+Resume file: .planning/phases/36-wire-toxval-shiny/36-CONTEXT.md
 
 ---
 
