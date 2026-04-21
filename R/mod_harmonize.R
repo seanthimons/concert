@@ -1151,6 +1151,7 @@ mod_harmonize_server <- function(id, data_store) {
           # Mark stale instead of clearing — allows batch edits
           if (!is.null(data_store$harmonize_results)) {
             data_store$harmonize_results_stale <- TRUE
+            data_store$toxval_output <- NULL # Force re-generation on next run
 
             # Track which from_units were added/changed for incremental re-run
             old_units <- prev_unit_map()$from_unit
@@ -1175,6 +1176,7 @@ mod_harmonize_server <- function(id, data_store) {
           # Mark stale instead of clearing
           if (!is.null(data_store$harmonize_results)) {
             data_store$harmonize_results_stale <- TRUE
+            data_store$toxval_output <- NULL # Force re-generation on next run
           }
         }
         prev_corrections(data_store$corrections_working)
