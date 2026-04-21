@@ -1038,9 +1038,9 @@ mod_harmonize_server <- function(id, data_store) {
               "Add Mapping",
               class = "btn-primary btn-sm",
               onclick = sprintf(
-                "Shiny.setInputValue('%s', {unit: '%s', ts: Date.now()});",
+                "Shiny.setInputValue('%s', {unit: %s, ts: Date.now()});",
                 ns("add_unmatched_mapping"),
-                gsub("'", "\\\\'", u$orig_unit)
+                jsonlite::toJSON(u$orig_unit, auto_unbox = TRUE)
               )
             )
           )
