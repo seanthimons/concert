@@ -291,6 +291,11 @@ mod_harmonize_server <- function(id, data_store) {
                   )]
                 )
 
+                # Invalidate toxval_output after incremental re-harmonization.
+                # The stale output would not reflect updated unit mappings;
+                # the next full-mode run will regenerate it with correct data.
+                data_store$toxval_output <- NULL
+
                 showNotification(
                   sprintf(
                     "Incremental: %d rows re-harmonized",
