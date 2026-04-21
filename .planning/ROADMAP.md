@@ -6,7 +6,7 @@
 - **v1.6 Cleaning Ruleset Fixes** -- Phases 19-21 (shipped 2026-03-20)
 - **v1.7 UI Polish & Isotope Cleaning** -- Phases 22-23 (shipped 2026-04-13)
 - **v1.8 R Package Migration** -- Phases 24-28 (shipped 2026-04-14)
-- **v1.9 Number and Unit Coercion Harmonization** -- Phases 29-35 (active)
+- **v1.9 Number and Unit Coercion Harmonization** -- Phases 29-36 (gap closure in progress)
 
 ## Phases
 
@@ -51,7 +51,8 @@
 
 </details>
 
-### v1.9 Number and Unit Coercion Harmonization (Phases 29-35)
+<details>
+<summary>v1.9 Number and Unit Coercion Harmonization (Phases 29-36) -- GAP CLOSURE IN PROGRESS</summary>
 
 **Goal:** Extend ChemReg from compound-only curation to full benchmark/regulatory data curation with numeric result parsing, unit harmonization, and toxval-schema output.
 
@@ -81,21 +82,29 @@
   - **Goal:** Transform curated and harmonized data into 56-column ToxVal format with typed NAs and *_original audit columns
   - **Plans:** 1 plan
     - [x] 32-01-PLAN.md -- Schema expansion, map_to_toxval_schema(), typed NAs, source_hash, audit columns
-- [ ] Phase 33: Extended Column Tagging -- UITG-01, UITG-02, UITG-03
+- [x] Phase 33: Extended Column Tagging -- UITG-01, UITG-02, UITG-03 (completed 2026-04-15)
   - **Goal:** Extend tag columns UI with numeric/study optgroups and wire tag dispatch with independent cascade resets
   - **Plans:** 1 plan
-    - [ ] 33-01-PLAN.md -- Optgroup UI, tag dispatch helpers, cascade reset extension
-- [ ] Phase 34: Harmonize Tab Module -- UITG-04, UITG-05, DATA-04, PARS-06, UNIT-06
+    - [x] 33-01-PLAN.md -- Optgroup UI, tag dispatch helpers, cascade reset extension
+- [x] Phase 34: Harmonize Tab Module -- UITG-04, UITG-05, DATA-04, PARS-06, UNIT-06 (completed 2026-04-17)
   - **Goal:** Build harmonize tab module with pipeline execution, QC dashboard, and three editor UIs (unit table, corrections, unmatched units)
-  - **Plans:** 3 plans
+  - **Plans:** 4 plans
     - [x] 34-01-PLAN.md -- Corrections infrastructure, mod_harmonize.R pipeline + QC dashboard, app.R wiring
     - [x] 34-02-PLAN.md -- Editor UIs: unit table chips, corrections chips, unmatched units batch panel
-    - [ ] 34-03-PLAN.md -- Tests, module render verification, cold boot check
-- [ ] Phase 35: Export Extension + Headless -- SCHM-03, SCHM-04, SCHM-05, UITG-06
+    - [x] 34-03-PLAN.md -- Tests, module render verification, cold boot check
+    - [x] 34-04-PLAN.md -- Stale results UX and harmonization performance follow-up
+- [x] Phase 35: Export Extension + Headless -- SCHM-03, SCHM-04, SCHM-05, UITG-06 (completed 2026-04-17)
   - **Goal:** Extend export with parquet/CSV output, Sheet 8 ToxVal Output, and headless harmonization pipeline
   - **Plans:** 2 plans
     - [x] 35-01-PLAN.md -- Arrow dependency, Sheet 8 in build_export_sheets(), Shiny export wiring
     - [x] 35-02-PLAN.md -- curate_headless() harmonize extension, parquet/CSV export, round-trip tests
+- [ ] Phase 36: Wire ToxVal Schema in Shiny Path -- SCHM-01, UITG-06, SCHM-04 (gap closure)
+  - **Goal:** Wire map_to_toxval_schema() into mod_harmonize.R so the Shiny interactive path produces toxval_output and Sheet 8 shows real data
+  - **Gap Closure:** Closes integration gap (Ph32→Ph34), Shiny E2E flow break, and SCHM-04 requirement wording
+  - **Plans:** TBD
+  - **Requirements:** SCHM-01, UITG-06, SCHM-04
+
+</details>
 
 ## Progress
 
@@ -116,6 +125,7 @@
 | 31. Unit Harmonization Engine | v1.9 | 1/1 | Complete | 2026-04-15 |
 | 31.5 Units Package Assimilation | v1.9 | 3/3 | Complete | 2026-04-15 |
 | 32. ToxVal Schema Mapper | v1.9 | 1/1 | Complete | 2026-04-15 |
-| 33. Extended Column Tagging | v1.9 | 0/1 | Not Started | -- |
-| 34. Harmonize Tab Module | v1.9 | 2/3 | In Progress|  |
+| 33. Extended Column Tagging | v1.9 | 1/1 | Complete | 2026-04-15 |
+| 34. Harmonize Tab Module | v1.9 | 4/4 | Complete | 2026-04-17 |
 | 35. Export Extension + Headless | v1.9 | 2/2 | Complete | 2026-04-17 |
+| 36. Wire ToxVal Schema in Shiny Path | v1.9 | 0/0 | Planned | — |
