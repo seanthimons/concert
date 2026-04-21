@@ -28,7 +28,8 @@ ui <- page_sidebar(
   shinyjs::useShinyjs(),
 
   # Tab pulse animation CSS
-  tags$head(tags$style("
+  tags$head(tags$style(
+    "
     @keyframes tab-pulse {
       0% { background-color: transparent; }
       50% { background-color: rgba(0, 123, 255, 0.15); }
@@ -37,7 +38,8 @@ ui <- page_sidebar(
     .tab-pulse > .nav-link {
       animation: tab-pulse 0.5s ease-in-out 2;
     }
-  ")),
+  "
+  )),
 
   # Theme
   theme = bs_theme(
@@ -69,35 +71,46 @@ ui <- page_sidebar(
   # Main Content — module UIs in tabs
   navset_underline(
     id = "main_tabs",
-    nav_panel("Data Preview", value = "data_preview",
+    nav_panel(
+      "Data Preview",
+      value = "data_preview",
       icon = bsicons::bs_icon("table"),
       chemreg::mod_data_preview_ui("preview")
     ),
-    nav_panel("Detection Info", value = "detection_info",
+    nav_panel(
+      "Detection Info",
+      value = "detection_info",
       icon = bsicons::bs_icon("search"),
       chemreg::mod_detection_info_ui("detection")
     ),
-    nav_panel("Raw Data", value = "raw_data",
-      icon = bsicons::bs_icon("file-text"),
-      chemreg::mod_raw_data_ui("raw")
-    ),
-    nav_panel("Tag Columns", value = "tag_columns",
+    nav_panel("Raw Data", value = "raw_data", icon = bsicons::bs_icon("file-text"), chemreg::mod_raw_data_ui("raw")),
+    nav_panel(
+      "Tag Columns",
+      value = "tag_columns",
       icon = bsicons::bs_icon("tags"),
       chemreg::mod_tag_columns_ui("tags")
     ),
-    nav_panel("Clean Data", value = "clean_data",
+    nav_panel(
+      "Clean Data",
+      value = "clean_data",
       icon = bsicons::bs_icon("magic"),
       chemreg::mod_clean_data_ui("cleaning")
     ),
-    nav_panel("Run Curation", value = "run_curation_tab",
+    nav_panel(
+      "Run Curation",
+      value = "run_curation_tab",
       icon = bsicons::bs_icon("play-circle"),
       chemreg::mod_run_curation_ui("curation")
     ),
-    nav_panel("Harmonize", value = "harmonize_tab",
+    nav_panel(
+      "Harmonize",
+      value = "harmonize_tab",
       icon = bsicons::bs_icon("sliders"),
       chemreg::mod_harmonize_ui("harmonize")
     ),
-    nav_panel("Review Results", value = "review_results",
+    nav_panel(
+      "Review Results",
+      value = "review_results",
       icon = bsicons::bs_icon("clipboard-check"),
       chemreg::mod_review_results_ui("results")
     )
@@ -108,14 +121,28 @@ ui <- page_sidebar(
 server <- function(input, output, session) {
   # Create shared data store
   data_store <- shiny::reactiveValues(
-    raw = NULL, clean = NULL, detection = NULL, file_info = NULL,
-    selected_columns = NULL, column_tags = NULL,
-    cleaning_audit = NULL, cleaned_data = NULL, reference_lists = NULL,
-    curation_results = NULL, curation_report = NULL, curation_status = NULL,
-    dedup_preview = NULL, consensus_data = NULL, consensus_summary = NULL,
-    resolution_state = NULL, dtxsid_cols = NULL, priority_order = NULL,
-    error_filter_active = FALSE, display_row_map = NULL,
-    selected_error_rows = NULL, manual_queue = list(),
+    raw = NULL,
+    clean = NULL,
+    detection = NULL,
+    file_info = NULL,
+    selected_columns = NULL,
+    column_tags = NULL,
+    cleaning_audit = NULL,
+    cleaned_data = NULL,
+    reference_lists = NULL,
+    curation_results = NULL,
+    curation_report = NULL,
+    curation_status = NULL,
+    dedup_preview = NULL,
+    consensus_data = NULL,
+    consensus_summary = NULL,
+    resolution_state = NULL,
+    dtxsid_cols = NULL,
+    priority_order = NULL,
+    error_filter_active = FALSE,
+    display_row_map = NULL,
+    selected_error_rows = NULL,
+    manual_queue = list(),
     qc_results = NULL,
     enrichment_cache = NULL,
     enrichment_failed = NULL,
@@ -243,19 +270,23 @@ server <- function(input, output, session) {
   })
 
   # --- Gated Navigation ---
-  session$onFlushed(function() {
-    bslib::nav_hide("main_tabs", target = "detection_info", session = session)
-    bslib::nav_hide("main_tabs", target = "raw_data", session = session)
-    bslib::nav_hide("main_tabs", target = "clean_data", session = session)
-    bslib::nav_hide("main_tabs", target = "tag_columns", session = session)
-    bslib::nav_hide("main_tabs", target = "run_curation_tab", session = session)
-    bslib::nav_hide("main_tabs", target = "harmonize_tab", session = session)
-    bslib::nav_hide("main_tabs", target = "review_results", session = session)
-  }, once = TRUE)
+  session$onFlushed(
+    function() {
+      bslib::nav_hide("main_tabs", target = "detection_info", session = session)
+      bslib::nav_hide("main_tabs", target = "raw_data", session = session)
+      bslib::nav_hide("main_tabs", target = "clean_data", session = session)
+      bslib::nav_hide("main_tabs", target = "tag_columns", session = session)
+      bslib::nav_hide("main_tabs", target = "run_curation_tab", session = session)
+      bslib::nav_hide("main_tabs", target = "harmonize_tab", session = session)
+      bslib::nav_hide("main_tabs", target = "review_results", session = session)
+    },
+    once = TRUE
+  )
 
   show_tab_with_pulse <- function(tab_value) {
     bslib::nav_show("main_tabs", target = tab_value, session = session)
-    shinyjs::runjs(sprintf("
+    shinyjs::runjs(sprintf(
+      "
       var tab = document.querySelector('[data-value=\"%s\"]');
       if (tab) {
         var li = tab.closest('li');
@@ -264,7 +295,9 @@ server <- function(input, output, session) {
           setTimeout(function() { li.classList.remove('tab-pulse'); }, 1200);
         }
       }
-    ", tab_value))
+    ",
+      tab_value
+    ))
   }
 
   reset_all_downstream <- function() {
@@ -342,24 +375,32 @@ server <- function(input, output, session) {
   })
 
   # Phase 33: Independent cascade resets per D-09/D-10/D-11
-  shiny::observeEvent(data_store$column_tags, {
-    # Compare with previous state
-    if (chemreg::detect_tag_changes(data_store$prev_chemical_tags, data_store$column_tags)) {
-      reset_chemical_downstream()
-    }
-    data_store$prev_chemical_tags <- data_store$column_tags
-  }, ignoreNULL = FALSE)
+  shiny::observeEvent(
+    data_store$column_tags,
+    {
+      # Compare with previous state
+      if (chemreg::detect_tag_changes(data_store$prev_chemical_tags, data_store$column_tags)) {
+        reset_chemical_downstream()
+      }
+      data_store$prev_chemical_tags <- data_store$column_tags
+    },
+    ignoreNULL = FALSE
+  )
 
-  shiny::observeEvent(data_store$numeric_tags, {
-    if (chemreg::detect_tag_changes(data_store$prev_numeric_tags, data_store$numeric_tags)) {
-      reset_numeric_downstream()
-    }
-    data_store$prev_numeric_tags <- data_store$numeric_tags
-  }, ignoreNULL = FALSE)
+  shiny::observeEvent(
+    data_store$numeric_tags,
+    {
+      if (chemreg::detect_tag_changes(data_store$prev_numeric_tags, data_store$numeric_tags)) {
+        reset_numeric_downstream()
+      }
+      data_store$prev_numeric_tags <- data_store$numeric_tags
+    },
+    ignoreNULL = FALSE
+  )
 
-  # Phase 34: Show Harmonize tab when numeric tags are set
+  # Phase 36: Show Harmonize tab when numeric tags AND curation are complete
   shiny::observe({
-    shiny::req(data_store$numeric_tags)
+    shiny::req(data_store$numeric_tags, data_store$resolution_state)
     show_tab_with_pulse("harmonize_tab")
   })
 
@@ -371,35 +412,30 @@ server <- function(input, output, session) {
   chemreg::mod_detection_info_server("detection", data_store)
   chemreg::mod_raw_data_server("raw", data_store)
 
-  chemreg::mod_clean_data_server("cleaning", data_store,
-    on_cleaning_complete = function() {
-      show_tab_with_pulse("run_curation_tab")
-    }
-  )
+  chemreg::mod_clean_data_server("cleaning", data_store, on_cleaning_complete = function() {
+    show_tab_with_pulse("run_curation_tab")
+  })
 
-  chemreg::mod_tag_columns_server("tags", data_store,
-    on_tags_applied = function() {
-      show_tab_with_pulse("clean_data")
-      bslib::nav_hide("main_tabs", target = "run_curation_tab", session = session)
-      bslib::nav_hide("main_tabs", target = "review_results", session = session)
-    }
-  )
+  chemreg::mod_tag_columns_server("tags", data_store, on_tags_applied = function() {
+    show_tab_with_pulse("clean_data")
+    bslib::nav_hide("main_tabs", target = "run_curation_tab", session = session)
+    bslib::nav_hide("main_tabs", target = "review_results", session = session)
+  })
 
-  chemreg::mod_run_curation_server("curation", data_store,
-    on_curation_complete = function() {
-      show_tab_with_pulse("review_results")
+  chemreg::mod_run_curation_server("curation", data_store, on_curation_complete = function() {
+    show_tab_with_pulse("review_results")
 
-      # Auto-run post-curation QC
-      qc_results <- chemreg::perform_unicode_qc(data_store$resolution_state)
-      data_store$qc_results <- qc_results
-      if (qc_results$rows_with_non_ascii > 0) {
-        shiny::showNotification(
-          sprintf("QC: %d rows contain non-ASCII characters", qc_results$rows_with_non_ascii),
-          type = "warning", duration = 5
-        )
-      }
+    # Auto-run post-curation QC
+    qc_results <- chemreg::perform_unicode_qc(data_store$resolution_state)
+    data_store$qc_results <- qc_results
+    if (qc_results$rows_with_non_ascii > 0) {
+      shiny::showNotification(
+        sprintf("QC: %d rows contain non-ASCII characters", qc_results$rows_with_non_ascii),
+        type = "warning",
+        duration = 5
+      )
     }
-  )
+  })
 
   chemreg::mod_harmonize_server("harmonize", data_store)
 
