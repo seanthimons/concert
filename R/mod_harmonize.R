@@ -28,18 +28,21 @@ mod_harmonize_ui <- function(id) {
 
   tagList(
     # Chip editor CSS (verbatim from mod_clean_data.R lines 15-22)
-    tags$style(HTML(sprintf("
+    tags$style(HTML(sprintf(
+      "
       .ref-chip { cursor: pointer; margin: 2px; display: inline-block; }
       .ref-chip:hover { opacity: 0.8; }
       .ref-chip-remove { cursor: pointer; margin-left: 4px; font-weight: bold; }
       .ref-chip-remove:hover { color: red; }
       .ref-chip-container { max-height: 200px; overflow-y: auto; padding: 8px; border: 1px solid #dee2e6; border-radius: 4px; background: #f8f9fa; }
       .ref-term-input { margin-top: 6px; }
-    "))),
+    "
+    ))),
 
     # Chip editor JS -- delegated events scoped to this module's namespace via data-ns
     # Two handlers: chip_click (body click -> edit modal) and chip_remove (x button)
-    tags$script(HTML(sprintf("
+    tags$script(HTML(sprintf(
+      "
       $(document).on('click', '.ref-chip-body[data-ns=\"%s\"]', function() {
         var $chip = $(this);
         Shiny.setInputValue('%s', {
@@ -57,7 +60,12 @@ mod_harmonize_ui <- function(id) {
           ts: Date.now()
         });
       });
-    ", ns(""), ns("chip_click"), ns(""), ns("chip_remove")))),
+    ",
+      ns(""),
+      ns("chip_click"),
+      ns(""),
+      ns("chip_remove")
+    ))),
 
     # Main content when numeric tags exist
     conditionalPanel(
@@ -104,7 +112,6 @@ mod_harmonize_ui <- function(id) {
 #' @export
 mod_harmonize_server <- function(id, data_store) {
   moduleServer(id, function(input, output, session) {
-
     # --- Internal helpers -----------------------------------------------------
 
     # Apply one-off corrections (PARS-06). Each pattern is treated as regex;
@@ -120,7 +127,8 @@ mod_harmonize_server <- function(id, data_store) {
           error = function(e) {
             warning(sprintf(
               "Correction pattern '%s' failed: %s",
-              corrections_tbl$pattern[i], e$message
+              corrections_tbl$pattern[i],
+              e$message
             ))
           }
         )
@@ -168,8 +176,10 @@ mod_harmonize_server <- function(id, data_store) {
 
     unit_map_ready <- reactiveVal(FALSE)
     observe({
-      if (is.null(data_store$unit_map_working) &&
-          !is.null(data_store$reference_lists$unit_map)) {
+      if (
+        is.null(data_store$unit_map_working) &&
+          !is.null(data_store$reference_lists$unit_map)
+      ) {
         data_store$unit_map_working <- data_store$reference_lists$unit_map
         if (!unit_map_ready()) unit_map_ready(TRUE)
       }
@@ -177,8 +187,10 @@ mod_harmonize_server <- function(id, data_store) {
 
     corrections_ready <- reactiveVal(FALSE)
     observe({
-      if (is.null(data_store$corrections_working) &&
-          !is.null(data_store$reference_lists$corrections)) {
+      if (
+        is.null(data_store$corrections_working) &&
+          !is.null(data_store$reference_lists$corrections)
+      ) {
         data_store$corrections_working <- data_store$reference_lists$corrections
         if (!corrections_ready()) corrections_ready(TRUE)
       }
@@ -232,13 +244,16 @@ mod_harmonize_server <- function(id, data_store) {
 
               # Find rows where orig_unit matches changed units OR was unmatched
               # (unmatched rows should be re-checked against new mappings)
-              affected_mask <- old_harmonize$orig_unit %in% pending_changes |
-                old_harmonize$unit_flag == "unmatched"
+              affected_mask <- old_harmonize$orig_unit %in% pending_changes | old_harmonize$unit_flag == "unmatched"
 
-              incProgress(0.3, detail = sprintf(
-                "Re-processing %d of %d rows...",
-                sum(affected_mask), nrow(old_harmonize)
-              ))
+              incProgress(
+                0.3,
+                detail = sprintf(
+                  "Re-processing %d of %d rows...",
+                  sum(affected_mask),
+                  nrow(old_harmonize)
+                )
+              )
 
               if (sum(affected_mask) > 0) {
                 # Re-run harmonize_units on affected subset only
@@ -268,8 +283,11 @@ mod_harmonize_server <- function(id, data_store) {
                 data_store$harmonize_audit <- dplyr::bind_cols(
                   parse_tibble,
                   new_harmonize[, c(
-                    "orig_unit", "harmonized_value", "harmonized_unit",
-                    "conversion_factor", "unit_flag"
+                    "orig_unit",
+                    "harmonized_value",
+                    "harmonized_unit",
+                    "conversion_factor",
+                    "unit_flag"
                   )]
                 )
 
@@ -343,7 +361,7 @@ mod_harmonize_server <- function(id, data_store) {
               }
 
               # Stage 4: Store results
-              incProgress(0.25, detail = "Finalizing...")
+              incProgress(0.15, detail = "Finalizing...")
               data_store$harmonize_results <- list(
                 parsed = parse_tibble,
                 harmonized = harmonize_tibble,
@@ -353,17 +371,40 @@ mod_harmonize_server <- function(id, data_store) {
               data_store$harmonize_audit <- dplyr::bind_cols(
                 parse_tibble,
                 harmonize_tibble[, c(
-                  "orig_unit", "harmonized_value", "harmonized_unit",
-                  "conversion_factor", "unit_flag"
+                  "orig_unit",
+                  "harmonized_value",
+                  "harmonized_unit",
+                  "conversion_factor",
+                  "unit_flag"
                 )]
               )
+
+              # Stage 5: Map to ToxVal schema (SCHM-01, UITG-06)
+              incProgress(0.10, detail = "Mapping to ToxVal schema...")
+              toxval_tibble <- tryCatch(
+                map_to_toxval_schema(
+                  curated_data = data_store$resolution_state,
+                  harmonized_data = harmonize_tibble,
+                  source_name = data_store$file_info$name
+                ),
+                error = function(e) {
+                  showNotification(
+                    paste("ToxVal mapping failed:", conditionMessage(e)),
+                    type = "warning",
+                    duration = 8
+                  )
+                  NULL
+                }
+              )
+              data_store$toxval_output <- toxval_tibble
             })
           }
         },
         error = function(e) {
           showNotification(
             paste(
-              "Harmonization failed:", e$message,
+              "Harmonization failed:",
+              e$message,
               "Check column tags and try again."
             ),
             type = "error",
@@ -398,33 +439,36 @@ mod_harmonize_server <- function(id, data_store) {
         ""
       }
 
-      div(class = stale_class, bslib::layout_columns(
-        col_widths = c(3, 3, 3, 3),
-        bslib::value_box(
-          title = "Rows Parsed",
-          value = n_parsed,
-          showcase = bsicons::bs_icon("123"),
-          theme = "primary"
-        ),
-        bslib::value_box(
-          title = "Rows Harmonized",
-          value = n_harmonized,
-          showcase = bsicons::bs_icon("check-circle"),
-          theme = "success"
-        ),
-        bslib::value_box(
-          title = "With DTXSID",
-          value = n_dtxsid,
-          showcase = bsicons::bs_icon("database"),
-          theme = "info"
-        ),
-        bslib::value_box(
-          title = "NA Results",
-          value = n_na_numeric,
-          showcase = bsicons::bs_icon("exclamation-triangle"),
-          theme = "warning"
+      div(
+        class = stale_class,
+        bslib::layout_columns(
+          col_widths = c(3, 3, 3, 3),
+          bslib::value_box(
+            title = "Rows Parsed",
+            value = n_parsed,
+            showcase = bsicons::bs_icon("123"),
+            theme = "primary"
+          ),
+          bslib::value_box(
+            title = "Rows Harmonized",
+            value = n_harmonized,
+            showcase = bsicons::bs_icon("check-circle"),
+            theme = "success"
+          ),
+          bslib::value_box(
+            title = "With DTXSID",
+            value = n_dtxsid,
+            showcase = bsicons::bs_icon("database"),
+            theme = "info"
+          ),
+          bslib::value_box(
+            title = "NA Results",
+            value = n_na_numeric,
+            showcase = bsicons::bs_icon("exclamation-triangle"),
+            theme = "warning"
+          )
         )
-      ))
+      )
     })
 
     # --- Stale warning banner (Plan 34-04) -------------------------------------
@@ -1005,7 +1049,9 @@ mod_harmonize_server <- function(id, data_store) {
         harmonized$orig_unit[harmonized$unit_flag == "unmatched"]
       )
 
-      if (length(unmatched_units) == 0) return()
+      if (length(unmatched_units) == 0) {
+        return()
+      }
 
       tbl <- data_store$unit_map_working
       for (u in unmatched_units) {
@@ -1086,10 +1132,13 @@ mod_harmonize_server <- function(id, data_store) {
     # This allows batch edits without forcing full re-runs each time.
 
     prev_unit_map <- reactiveVal(NULL)
-    observeEvent(data_store$unit_map_working,
+    observeEvent(
+      data_store$unit_map_working,
       {
-        if (!is.null(prev_unit_map()) &&
-            !identical(prev_unit_map(), data_store$unit_map_working)) {
+        if (
+          !is.null(prev_unit_map()) &&
+            !identical(prev_unit_map(), data_store$unit_map_working)
+        ) {
           # Mark stale instead of clearing — allows batch edits
           if (!is.null(data_store$harmonize_results)) {
             data_store$harmonize_results_stale <- TRUE
@@ -1107,10 +1156,13 @@ mod_harmonize_server <- function(id, data_store) {
     )
 
     prev_corrections <- reactiveVal(NULL)
-    observeEvent(data_store$corrections_working,
+    observeEvent(
+      data_store$corrections_working,
       {
-        if (!is.null(prev_corrections()) &&
-            !identical(prev_corrections(), data_store$corrections_working)) {
+        if (
+          !is.null(prev_corrections()) &&
+            !identical(prev_corrections(), data_store$corrections_working)
+        ) {
           # Mark stale instead of clearing
           if (!is.null(data_store$harmonize_results)) {
             data_store$harmonize_results_stale <- TRUE
