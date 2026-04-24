@@ -1710,6 +1710,9 @@ perform_unicode_qc <- function(df) {
 #' @param df Dataframe to clean
 #' @param tag_map Optional named list mapping column names to types ("CASRN", "Name", "Other")
 #' @param reference_lists Optional list of reference data (unused in Phase 11, reserved for future)
+#' @param use_dedup Logical. When TRUE (default), uses dedup_step() wrappers
+#'   and pre-check predicates for performance optimization. Set to FALSE for
+#'   benchmark comparison against the non-dedup baseline path.
 #' @return List with cleaned_data (tibble), audit_trail (tibble), and new_tags (list)
 #'
 #' @examples
@@ -1724,7 +1727,7 @@ perform_unicode_qc <- function(df) {
 #' result <- run_cleaning_pipeline(df, tag_map)
 #' result$new_tags  # => list(cas_extract_name = "CASRN")
 #' @export
-run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
+run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL, use_dedup = TRUE) {
   # Step 0: Inject row lineage
   df_after_lineage <- inject_row_lineage(df)
 
