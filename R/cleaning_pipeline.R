@@ -97,6 +97,153 @@ build_audit_trail <- function(df_original, df_cleaned, step_name, reason_fn) {
   )
 }
 
+#' Remap audit trail row IDs from unique-string slice to parent dataset
+#'
+#' When a step function runs on a deduplicated slice of a dataframe, its audit
+#' trail contains row IDs 1..n_unique. This function expands those IDs back to
+#' the full set of matching parent rows, producing an audit trail with correct
+#' row IDs relative to the original (parent) dataframe.
+#'
+#' @param audit_slice 6-column audit tibble from the deduped unique-string slice.
+#'   Row IDs are positions 1..n_unique within the unique slice.
+#' @param parent_map Named list where names are character representations of
+#'   positions in the unique slice ("1", "2", ...) and values are integer vectors
+#'   of ALL parent row indices that mapped to that unique value.
+#' @return 6-column audit tibble with row_id values expanded to parent row indices.
+#'   Preserves all other columns (field, step, original_value, new_value, reason).
+#' @export
+remap_audit_to_parent <- function(audit_slice, parent_map) {
+  # Fast path: no audit entries to expand
+  if (nrow(audit_slice) == 0) {
+    return(audit_slice)
+  }
+
+  # Pre-allocate vectors (avoids O(n^2) growing-list pattern per CLAUDE.md guardrail)
+  all_row_ids <- integer()
+  all_fields <- character()
+  all_steps <- character()
+  all_originals <- character()
+  all_news <- character()
+  all_reasons <- character()
+
+  for (i in seq_len(nrow(audit_slice))) {
+    slice_pos <- as.character(audit_slice$row_id[i])
+    parent_indices <- parent_map[[slice_pos]]
+
+    if (is.null(parent_indices) || length(parent_indices) == 0) {
+      next
+    }
+
+    n_expand <- length(parent_indices)
+
+    all_row_ids <- c(all_row_ids, parent_indices)
+    all_fields <- c(all_fields, rep(audit_slice$field[i], n_expand))
+    all_steps <- c(all_steps, rep(audit_slice$step[i], n_expand))
+    all_originals <- c(all_originals, rep(audit_slice$original_value[i], n_expand))
+    all_news <- c(all_news, rep(audit_slice$new_value[i], n_expand))
+    all_reasons <- c(all_reasons, rep(audit_slice$reason[i], n_expand))
+  }
+
+  result <- tibble::tibble(
+    row_id = all_row_ids,
+    field = all_fields,
+    step = all_steps,
+    original_value = all_originals,
+    new_value = all_news,
+    reason = all_reasons
+  )
+
+  # Type safety assertion (PERF-02 companion: row_id must be integer)
+  stopifnot(is.integer(result$row_id))
+
+  result
+}
+
+#' Deduplication wrapper for cleaning step functions
+#'
+#' Runs a cleaning step function on only the distinct values of the target
+#' columns, then remaps the results back to the full parent dataframe. This
+#' provides a significant speedup when the dataset has many repeated values
+#' (e.g., the same chemical name appearing in thousands of rows).
+#'
+#' If the uniqueness ratio (n_distinct / n_total) exceeds \code{uniqueness_threshold},
+#' deduplication is bypassed and the step function is called directly on the full
+#' dataframe (D-03). This avoids overhead in datasets that are already highly unique.
+#'
+#' @param step_fn Step function to call. Must return \code{list(cleaned_data, audit_trail)}.
+#' @param df Full parent dataframe to process.
+#' @param ... Additional arguments passed to \code{step_fn} (e.g., \code{tag_map}).
+#' @param dedup_cols Character vector of column names to dedup on. The composite
+#'   key is constructed by pasting these column values together.
+#' @param uniqueness_threshold Numeric in [0,1]. If n_distinct/n_total exceeds
+#'   this value, skip dedup and call the step directly. Default: 0.5.
+#' @return List with \code{cleaned_data} (same row count as \code{df}) and
+#'   \code{audit_trail} (row IDs valid for \code{df}). Identical shape to calling
+#'   \code{step_fn(df, ...)} directly.
+#' @export
+dedup_step <- function(step_fn, df, ..., dedup_cols, uniqueness_threshold = 0.5) {
+  # Build composite dedup key: NA values become "__NA__" sentinel (T-37-02)
+  key_parts <- lapply(dedup_cols, function(col) {
+    vals <- df[[col]]
+    ifelse(is.na(vals), "__NA__", as.character(vals))
+  })
+  key_vec <- do.call(paste0, key_parts)
+
+  n_total <- length(key_vec)
+  unique_keys <- unique(key_vec)
+  n_distinct <- length(unique_keys)
+
+  # Uniqueness bypass (D-03): high-cardinality data gets direct processing
+  if (n_total == 0 || n_distinct / n_total > uniqueness_threshold) {
+    return(step_fn(df, ...))
+  }
+
+  # Build dedup map
+  # first_occurrence[i] = index of the first occurrence of unique_keys[i] in key_vec
+  first_occurrence <- match(unique_keys, key_vec)
+  df_unique <- df[first_occurrence, , drop = FALSE]
+
+  # parent_map: named list, names = position in unique slice (as character),
+  # values = integer vectors of ALL parent row indices mapping to that unique value.
+  # Use split() + match() to build in O(n) rather than O(n*m) with which() per key.
+  key_to_unique_pos <- match(key_vec, unique_keys) # integer position in unique_keys for each parent row
+  groups <- split(seq_along(key_vec), key_to_unique_pos) # O(n): group parent indices by unique position
+  parent_map <- stats::setNames(
+    lapply(as.character(seq_along(unique_keys)), function(pos) {
+      idx <- groups[[pos]]
+      if (is.null(idx)) integer(0L) else as.integer(idx)
+    }),
+    as.character(seq_along(unique_keys))
+  )
+
+  # Run step on unique slice only
+  result <- step_fn(df_unique, ...)
+
+  # Remap cleaned_data: for each parent row, copy the cleaned values from its
+  # corresponding unique-slice position (vectorized via match)
+  key_to_unique_idx <- match(key_vec, unique_keys)
+  df_remapped <- result$cleaned_data[key_to_unique_idx, , drop = FALSE]
+  rownames(df_remapped) <- NULL
+
+  # Remap audit trail: expand slice row IDs to all matching parent rows
+  remapped_audit <- remap_audit_to_parent(result$audit_trail, parent_map)
+
+  # PERF-02 assertion: remapped audit row_ids must not exceed parent row count (T-37-04)
+  if (nrow(remapped_audit) > 0) {
+    stopifnot(max(remapped_audit$row_id) <= nrow(df))
+  }
+
+  # Build return list preserving step contract
+  return_list <- list(cleaned_data = df_remapped, audit_trail = remapped_audit)
+
+  # Preserve new_tags if step returned them (e.g., normalize_cas_fields variants)
+  if (!is.null(result$new_tags)) {
+    return_list$new_tags <- result$new_tags
+  }
+
+  return_list
+}
+
 #' Inject row lineage tracking
 #'
 #' Adds original_row_id column as first column to track row identity through transformations.
@@ -257,7 +404,7 @@ rescue_cas_from_text <- function(df, tag_map) {
         if (length(x) == 0 || is.na(x[1])) {
           return(NA_character_)
         } else {
-          return(x[1])  # Take first CAS if multiple found
+          return(x[1]) # Take first CAS if multiple found
         }
       })
     }
@@ -287,7 +434,10 @@ rescue_cas_from_text <- function(df, tag_map) {
           step = rep("rescue_cas", length(extracted_idx)),
           original_value = as.character(df[[col_name]][extracted_idx]),
           new_value = paste0("Extracted ", extracted_cas[extracted_idx], " to ", new_col_name),
-          reason = rep(paste0("Extract CAS-RN from ", col_name, " using ComptoxR::extract_cas()"), length(extracted_idx))
+          reason = rep(
+            paste0("Extract CAS-RN from ", col_name, " using ComptoxR::extract_cas()"),
+            length(extracted_idx)
+          )
         )
       }
     }
@@ -358,7 +508,7 @@ detect_multi_cas <- function(df, tag_map) {
 #' strip_terminal_enclosures(df, "chemical_name")
 #' @export
 strip_terminal_enclosures <- function(df, name_cols) {
- # Initialize result
+  # Initialize result
   df_result <- df
 
   # Pre-allocate audit vectors (avoid list-growth O(n²))
@@ -413,9 +563,12 @@ strip_terminal_enclosures <- function(df, name_cols) {
         has_roman <- stringr::str_detect(trimmed_ne, ROMAN_NUMERAL_PATTERN)
 
         # Vectorized exception check
-        has_exception <- Reduce(`|`, lapply(exception_words, function(w) {
-          stringr::str_detect(content_lower, w)
-        }))
+        has_exception <- Reduce(
+          `|`,
+          lapply(exception_words, function(w) {
+            stringr::str_detect(content_lower, w)
+          })
+        )
 
         should_strip <- (!has_yl | has_exception) & !has_pct & !has_roman
         strip_idx <- non_empty_idx[should_strip]
@@ -455,9 +608,12 @@ strip_terminal_enclosures <- function(df, name_cols) {
         has_pct <- stringr::str_detect(content_ne, "%")
         has_roman <- stringr::str_detect(trimmed_ne, ROMAN_NUMERAL_PATTERN)
 
-        has_exception <- Reduce(`|`, lapply(exception_words, function(w) {
-          stringr::str_detect(content_lower, w)
-        }))
+        has_exception <- Reduce(
+          `|`,
+          lapply(exception_words, function(w) {
+            stringr::str_detect(content_lower, w)
+          })
+        )
 
         should_strip <- (!has_yl | has_exception) & !has_pct & !has_roman
         strip_idx <- non_empty_idx[should_strip]
@@ -468,7 +624,9 @@ strip_terminal_enclosures <- function(df, name_cols) {
           new_content <- content_ne[should_strip]
           existing <- extracted_vals[strip_idx]
           extracted_vals[strip_idx] <- ifelse(
-            is.na(existing), new_content, paste(existing, new_content, sep = "; ")
+            is.na(existing),
+            new_content,
+            paste(existing, new_content, sep = "; ")
           )
         }
       }
@@ -494,10 +652,13 @@ strip_terminal_enclosures <- function(df, name_cols) {
       audit_fields <- c(audit_fields, rep(col_name, length(changed_idx)))
       audit_originals <- c(audit_originals, original_vals[changed_idx])
       audit_news <- c(audit_news, stripped_vals[changed_idx])
-      audit_reasons <- c(audit_reasons, rep(
-        paste0("Strip terminal enclosure from ", col_name, "; content saved to ", extract_col_name),
-        length(changed_idx)
-      ))
+      audit_reasons <- c(
+        audit_reasons,
+        rep(
+          paste0("Strip terminal enclosure from ", col_name, "; content saved to ", extract_col_name),
+          length(changed_idx)
+        )
+      )
     }
   }
 
@@ -776,7 +937,7 @@ strip_reference_terms <- function(df, name_cols, strip_terms_tbl) {
   df_before <- df
 
   # Filter to active terms
- active_terms <- strip_terms_tbl %>%
+  active_terms <- strip_terms_tbl %>%
     dplyr::filter(active == TRUE)
 
   # Skip if no active terms
@@ -891,13 +1052,14 @@ strip_reference_terms <- function(df, name_cols, strip_terms_tbl) {
 #' split_synonyms(df, "chemical_name", tag_map)
 #' @export
 split_synonyms <- function(df, name_cols, tag_map) {
-
   # Get CASRN columns
   cas_cols <- names(tag_map)[tag_map == "CASRN"]
 
   # Helper: protect IUPAC patterns and split a single string
   split_one_name <- function(name) {
-    if (is.na(name)) return(NA_character_)
+    if (is.na(name)) {
+      return(NA_character_)
+    }
 
     # Protect IUPAC comma patterns (repeat until stable)
     protected <- name
@@ -1131,7 +1293,9 @@ detect_bare_formulas <- function(df, name_cols) {
     col_values <- df[[col_name]]
 
     # Skip entirely NA columns
-    if (all(is.na(col_values))) next
+    if (all(is.na(col_values))) {
+      next
+    }
 
     # Vectorized cleaning: remove spaces and dots
     cleaned_for_test <- col_values %>%
@@ -1299,10 +1463,17 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
       audit_steps <- c(audit_steps, rep(paste0("flag_", flag_type), length(matched_indices)))
       audit_originals <- c(audit_originals, col_values[matched_indices])
       audit_news <- c(audit_news, df_result$cleaning_flag[matched_indices])
-      audit_reasons <- c(audit_reasons, paste0(
-        "Matched '", active_refs$term[ref_indices], "' (source: ",
-        active_refs$source[ref_indices], ", match type: exact) in ", col_name
-      ))
+      audit_reasons <- c(
+        audit_reasons,
+        paste0(
+          "Matched '",
+          active_refs$term[ref_indices],
+          "' (source: ",
+          active_refs$source[ref_indices],
+          ", match type: exact) in ",
+          col_name
+        )
+      )
     }
 
     # === PASS 2: Substring match (loop over terms, vectorized str_detect per term) ===
@@ -1312,7 +1483,9 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
     if (length(candidates) > 0) {
       for (ref_idx in seq_along(compiled_patterns)) {
         # Skip if no candidates left
-        if (length(candidates) == 0) break
+        if (length(candidates) == 0) {
+          break
+        }
 
         # Vectorized str_detect over candidate rows (no per-row regex compilation)
         candidate_values <- col_values[candidates]
@@ -1332,10 +1505,17 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
           audit_steps <- c(audit_steps, rep(paste0("flag_", flag_type), length(matched_positions)))
           audit_originals <- c(audit_originals, col_values[matched_positions])
           audit_news <- c(audit_news, df_result$cleaning_flag[matched_positions])
-          audit_reasons <- c(audit_reasons, paste0(
-            "Matched '", active_refs$term[ref_idx], "' (source: ",
-            active_refs$source[ref_idx], ", match type: substring) in ", col_name
-          ))
+          audit_reasons <- c(
+            audit_reasons,
+            paste0(
+              "Matched '",
+              active_refs$term[ref_idx],
+              "' (source: ",
+              active_refs$source[ref_idx],
+              ", match type: substring) in ",
+              col_name
+            )
+          )
 
           # Remove matched rows from candidates (shrinks search space)
           candidates <- candidates[!matches]
@@ -1497,7 +1677,8 @@ perform_unicode_qc <- function(df) {
         # Merge into all_non_ascii_chars (accumulating counts)
         for (codepoint in names(non_ascii_found)) {
           if (codepoint %in% names(all_non_ascii_chars)) {
-            all_non_ascii_chars[[codepoint]]$count <- all_non_ascii_chars[[codepoint]]$count + non_ascii_found[[codepoint]]$count
+            all_non_ascii_chars[[codepoint]]$count <- all_non_ascii_chars[[codepoint]]$count +
+              non_ascii_found[[codepoint]]$count
           } else {
             all_non_ascii_chars[[codepoint]] <- non_ascii_found[[codepoint]]
           }
@@ -1637,14 +1818,17 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
 
       # Step 6d2: Final cleanup BEFORE second stripping - str_squish and remove trailing punctuation
       df_before_second_strip <- df_after_unspec %>%
-        dplyr::mutate(dplyr::across(dplyr::all_of(name_cols), ~ {
-          .x %>%
-            stringr::str_squish() %>%
-            stringr::str_remove("\\(\\s*\\)\\s*$") %>%  # Remove empty parentheticals
-            stringr::str_trim() %>%
-            stringr::str_remove("[,;-]+$") %>%  # Remove trailing punctuation
-            stringr::str_trim()
-        }))
+        dplyr::mutate(dplyr::across(
+          dplyr::all_of(name_cols),
+          ~ {
+            .x %>%
+              stringr::str_squish() %>%
+              stringr::str_remove("\\(\\s*\\)\\s*$") %>% # Remove empty parentheticals
+              stringr::str_trim() %>%
+              stringr::str_remove("[,;-]+$") %>% # Remove trailing punctuation
+              stringr::str_trim()
+          }
+        ))
 
       # Step 6d3: Strip terminal enclosures AGAIN (after text cleaning exposes new terminal enclosures)
       enclosure_result2 <- strip_terminal_enclosures(df_before_second_strip, name_cols)
@@ -1658,12 +1842,15 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
 
       # Step 6f: Final cleanup after synonym split - str_squish and remove empty parentheticals
       df_after_synonyms <- df_after_synonyms %>%
-        dplyr::mutate(dplyr::across(dplyr::all_of(name_cols), ~ {
-          .x %>%
-            stringr::str_squish() %>%
-            stringr::str_remove_all("\\(\\s*\\)") %>%  # Remove empty parentheticals
-            stringr::str_trim()
-        }))
+        dplyr::mutate(dplyr::across(
+          dplyr::all_of(name_cols),
+          ~ {
+            .x %>%
+              stringr::str_squish() %>%
+              stringr::str_remove_all("\\(\\s*\\)") %>% # Remove empty parentheticals
+              stringr::str_trim()
+          }
+        ))
 
       # Remove rows where all name columns are empty or NA
       name_check <- df_after_synonyms[, name_cols, drop = FALSE]
@@ -1747,7 +1934,9 @@ protect_chiral_designations <- function(df, name_cols) {
 
   # Process each name column
   for (col_name in name_cols) {
-    if (!col_name %in% names(df_result)) next
+    if (!col_name %in% names(df_result)) {
+      next
+    }
 
     col_values <- df_result[[col_name]]
 
@@ -1756,7 +1945,9 @@ protect_chiral_designations <- function(df, name_cols) {
     has_chiral[is.na(has_chiral)] <- FALSE
     chiral_idx <- which(has_chiral)
 
-    if (length(chiral_idx) == 0) next
+    if (length(chiral_idx) == 0) {
+      next
+    }
 
     # Process only rows with chiral markers
     original_values <- col_values[chiral_idx]
@@ -1861,7 +2052,9 @@ restore_chiral_designations <- function(df, name_cols) {
   audit_news <- character()
 
   for (col_name in name_cols) {
-    if (!col_name %in% names(df_result)) next
+    if (!col_name %in% names(df_result)) {
+      next
+    }
 
     col_values <- df_result[[col_name]]
 
@@ -1870,7 +2063,9 @@ restore_chiral_designations <- function(df, name_cols) {
     has_placeholder[is.na(has_placeholder)] <- FALSE
     restore_idx <- which(has_placeholder)
 
-    if (length(restore_idx) == 0) next
+    if (length(restore_idx) == 0) {
+      next
+    }
 
     # Process only rows with placeholders
     original_values <- col_values[restore_idx]
@@ -1951,8 +2146,12 @@ restore_chiral_designations <- function(df, name_cols) {
 #' @export
 expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
   empty_audit <- tibble::tibble(
-    row_id = integer(), field = character(), step = character(),
-    original_value = character(), new_value = character(), reason = character()
+    row_id = integer(),
+    field = character(),
+    step = character(),
+    original_value = character(),
+    new_value = character(),
+    reason = character()
   )
 
   if (nrow(df) == 0) {
@@ -1967,7 +2166,9 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
   } else if (requireNamespace("ComptoxR", quietly = TRUE)) {
     isotopes <- ComptoxR::pt$isotope
     lookup <- tibble::tibble(
-      symbol = isotopes$element, mass = isotopes$Z, element_name = isotopes$Name,
+      symbol = isotopes$element,
+      mass = isotopes$Z,
+      element_name = isotopes$Name,
       shortcode = tolower(paste0(isotopes$element, isotopes$Z)),
       canonical = paste0(isotopes$Name, "-", isotopes$Z),
       dtxsid = if ("DTXSID" %in% names(isotopes)) isotopes$DTXSID else NA_character_
@@ -1988,7 +2189,9 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
   }
 
   for (col_name in name_cols) {
-    if (!col_name %in% names(df_result)) next
+    if (!col_name %in% names(df_result)) {
+      next
+    }
 
     vals <- df_result[[col_name]]
     original_vals <- vals
@@ -2008,11 +2211,15 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
       existing <- df_result$cleaning_flag[unat_idx]
       new_flag <- "WARNING: unresolvable isotope (unat)"
       df_result$cleaning_flag[unat_idx] <- ifelse(
-        is.na(existing), new_flag, paste0(existing, "; ", new_flag)
+        is.na(existing),
+        new_flag,
+        paste0(existing, "; ", new_flag)
       )
     }
 
-    if (!any(eligible)) next
+    if (!any(eligible)) {
+      next
+    }
 
     # Work only on eligible values
     work_vals <- vals[eligible]
@@ -2022,9 +2229,13 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
     collapsed_text <- paste(tolower(work_vals), collapse = " ")
 
     # Pass 1 filter: keep only isotopes whose symbol appears in the text
-    symbols_present <- vapply(lookup$symbol, function(sym) {
-      grepl(tolower(sym), collapsed_text, fixed = TRUE)
-    }, logical(1))
+    symbols_present <- vapply(
+      lookup$symbol,
+      function(sym) {
+        grepl(tolower(sym), collapsed_text, fixed = TRUE)
+      },
+      logical(1)
+    )
     filtered_lookup <- lookup[symbols_present, , drop = FALSE]
 
     # ---- Pass 1: Naked shortcode expansion (filtered subset only) ----
@@ -2035,8 +2246,11 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
         canonical <- filtered_lookup$canonical[i]
 
         pattern <- paste0(
-          "(?<![0-9])\\b(?i:", stringr::str_escape(sym), ")(",
-          stringr::str_escape(mass_num), ")\\b(?![A-Z])"
+          "(?<![0-9])\\b(?i:",
+          stringr::str_escape(sym),
+          ")(",
+          stringr::str_escape(mass_num),
+          ")\\b(?![A-Z])"
         )
         work_vals <- gsub(pattern, canonical, work_vals, perl = TRUE)
       }
@@ -2047,15 +2261,23 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
     spelled_lookup <- unique(lookup[, c("element_name", "mass", "canonical")])
 
     # Filter to element names actually present in text
-    elem_names_present <- vapply(spelled_lookup$element_name, function(nm) {
-      grepl(tolower(nm), collapsed_text, fixed = TRUE)
-    }, logical(1))
+    elem_names_present <- vapply(
+      spelled_lookup$element_name,
+      function(nm) {
+        grepl(tolower(nm), collapsed_text, fixed = TRUE)
+      },
+      logical(1)
+    )
 
     # Also check alt names
-    alt_names_present <- vapply(spelled_lookup$element_name, function(nm) {
-      alts <- names(ELEMENT_ALT_NAMES)[ELEMENT_ALT_NAMES == nm]
-      any(vapply(alts, function(a) grepl(tolower(a), collapsed_text, fixed = TRUE), logical(1)))
-    }, logical(1))
+    alt_names_present <- vapply(
+      spelled_lookup$element_name,
+      function(nm) {
+        alts <- names(ELEMENT_ALT_NAMES)[ELEMENT_ALT_NAMES == nm]
+        any(vapply(alts, function(a) grepl(tolower(a), collapsed_text, fixed = TRUE), logical(1)))
+      },
+      logical(1)
+    )
 
     filtered_spelled <- spelled_lookup[elem_names_present | alt_names_present, , drop = FALSE]
 
@@ -2073,8 +2295,11 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
 
         for (match_name in names_to_match) {
           spelled_pattern <- paste0(
-            "(?i)\\b", stringr::str_escape(match_name),
-            "(?:\\s+|-)", stringr::str_escape(mass_num), "\\b"
+            "(?i)\\b",
+            stringr::str_escape(match_name),
+            "(?:\\s+|-)",
+            stringr::str_escape(mass_num),
+            "\\b"
           )
           work_vals <- gsub(spelled_pattern, canonical, work_vals, perl = TRUE)
         }
@@ -2141,7 +2366,9 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
       # Try to resolve DTXSID from expanded canonical name
       if (length(dtxsid_map) > 0) {
         for (col_name in name_cols) {
-          if (!col_name %in% names(df_result)) next
+          if (!col_name %in% names(df_result)) {
+            next
+          }
           val <- df_result[[col_name]][ridx]
           if (!is.na(val) && val %in% names(dtxsid_map)) {
             df_result$isotope_dtxsid[ridx] <- dtxsid_map[[val]]
@@ -2200,7 +2427,9 @@ flag_multi_analyte <- function(df, name_cols) {
   }
 
   for (col_name in name_cols) {
-    if (!col_name %in% names(df_result)) next
+    if (!col_name %in% names(df_result)) {
+      next
+    }
 
     col_values <- df_result[[col_name]]
 
