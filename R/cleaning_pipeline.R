@@ -244,6 +244,215 @@ dedup_step <- function(step_fn, df, ..., dedup_cols, uniqueness_threshold = 0.5)
   return_list
 }
 
+# ==============================================================================
+# Phase 37: Pre-check Predicate Functions (SKIP-01)
+# Orchestrator-only functions per D-12. Step functions remain unchanged.
+# Each returns list(should_run = logical, est_changes = integer).
+# ==============================================================================
+
+#' Construct a pre-check skip result for a cleaning pipeline step
+#'
+#' @param df Dataframe to pass through unchanged.
+#' @param step_name Character. The step being skipped (for message).
+#' @return list with cleaned_data passthrough and empty typed audit trail.
+#' @keywords internal
+build_skip_result <- function(df, step_name) {
+  message(sprintf("Step %s skipped -- pre-check FALSE", step_name))
+  list(
+    cleaned_data = df,
+    audit_trail = tibble::tibble(
+      row_id = integer(),
+      field = character(),
+      step = character(),
+      original_value = character(),
+      new_value = character(),
+      reason = character()
+    )
+  )
+}
+
+#' Pre-check predicate for unicode_to_ascii step
+#'
+#' Performs a cheap vectorized scan of all character columns using
+#' \code{stringi::stri_enc_isascii()} to determine if any non-ASCII values
+#' exist that \code{ComptoxR::clean_unicode()} would transform.
+#'
+#' @param df Dataframe to check.
+#' @return list(should_run = logical, est_changes = integer).
+#' @keywords internal
+precheck_unicode_to_ascii <- function(df) {
+  char_cols <- names(df)[vapply(df, is.character, logical(1))]
+  if (length(char_cols) == 0) {
+    return(list(should_run = FALSE, est_changes = 0L))
+  }
+  # Vectorized per-column scan: check if any value in any col is non-ASCII
+  all_ascii <- vapply(
+    char_cols,
+    function(col) all(stringi::stri_enc_isascii(df[[col]]), na.rm = TRUE),
+    logical(1)
+  )
+  should_run <- !all(all_ascii)
+  est_changes <- as.integer(sum(vapply(
+    char_cols,
+    function(col) sum(!stringi::stri_enc_isascii(df[[col]]), na.rm = TRUE),
+    integer(1)
+  )))
+  list(should_run = should_run, est_changes = est_changes)
+}
+
+#' Pre-check predicate for trim_whitespace_punctuation step
+#'
+#' Checks whether any character column contains values that
+#' \code{clean_text_field()} would change (leading/trailing whitespace,
+#' excess internal whitespace, leading/trailing underscores or asterisks).
+#'
+#' @param df Dataframe to check.
+#' @return list(should_run = logical, est_changes = integer).
+#' @keywords internal
+precheck_trim_whitespace <- function(df) {
+  char_cols <- names(df)[vapply(df, is.character, logical(1))]
+  if (length(char_cols) == 0) {
+    return(list(should_run = FALSE, est_changes = 0L))
+  }
+  est_changes <- 0L
+  for (col in char_cols) {
+    vals <- df[[col]]
+    cleaned <- clean_text_field(vals)
+    diff_count <- sum(
+      !is.na(vals) & !mapply(identical, vals, cleaned, USE.NAMES = FALSE),
+      na.rm = TRUE
+    )
+    est_changes <- est_changes + as.integer(diff_count)
+  }
+  list(should_run = est_changes > 0L, est_changes = est_changes)
+}
+
+#' Pre-check predicate for normalize_cas step
+#'
+#' Checks whether any CASRN-tagged column contains values that
+#' \code{ComptoxR::as_cas()} would transform (unformatted pure-digit strings,
+#' or common placeholder text).
+#'
+#' @param df Dataframe to check.
+#' @param tag_map Named character vector or list mapping column names to types.
+#' @return list(should_run = logical, est_changes = integer).
+#' @keywords internal
+precheck_normalize_cas <- function(df, tag_map) {
+  cas_cols <- names(tag_map)[tag_map == "CASRN"]
+  if (length(cas_cols) == 0) {
+    return(list(should_run = FALSE, est_changes = 0L))
+  }
+  placeholder_pattern <- "(?i)^\\s*(no\\s*cas|n/?a|proprietary|none|-)\\s*$"
+  unformatted_pattern <- "^\\d+$"
+  est_changes <- 0L
+  for (col in cas_cols) {
+    vals <- df[[col]]
+    # Unformatted pure digits (e.g. "67641") would be reformatted
+    unformatted <- !is.na(vals) & stringr::str_detect(vals, unformatted_pattern)
+    # Placeholder text would be set to NA
+    placeholders <- !is.na(vals) & stringr::str_detect(vals, placeholder_pattern)
+    est_changes <- est_changes + as.integer(sum(unformatted | placeholders, na.rm = TRUE))
+  }
+  list(should_run = est_changes > 0L, est_changes = est_changes)
+}
+
+#' Pre-check predicate for the name cleaning chain (Steps 6-pre through 6d3)
+#'
+#' Intentionally broad: returns TRUE whenever any name column has non-empty
+#' values, because the individual name steps have complex interdependencies
+#' that make cell-level prediction impractical.
+#'
+#' @param df Dataframe to check.
+#' @param name_cols Character vector of name column names.
+#' @return list(should_run = logical, est_changes = integer).
+#' @keywords internal
+precheck_name_cleaning <- function(df, name_cols) {
+  if (length(name_cols) == 0) {
+    return(list(should_run = FALSE, est_changes = 0L))
+  }
+  # Count non-empty, non-NA name values across all name columns
+  est_changes <- as.integer(sum(vapply(
+    name_cols,
+    function(col) sum(!is.na(df[[col]]) & nchar(trimws(df[[col]])) > 0, na.rm = TRUE),
+    integer(1)
+  )))
+  list(should_run = est_changes > 0L, est_changes = est_changes)
+}
+
+#' Pre-check predicate for expand_isotope_shortcodes step
+#'
+#' Uses a compiled word-boundary regex from the isotope lookup shortcodes to
+#' count values that contain a recognizable isotope abbreviation.
+#'
+#' @param df Dataframe to check.
+#' @param name_cols Character vector of name column names.
+#' @param isotope_lookup Dataframe with a \code{shortcode} column, or NULL.
+#' @return list(should_run = logical, est_changes = integer).
+#' @keywords internal
+precheck_isotope_shortcodes <- function(df, name_cols, isotope_lookup) {
+  if (is.null(isotope_lookup) || nrow(isotope_lookup) == 0) {
+    return(list(should_run = FALSE, est_changes = 0L))
+  }
+  if (length(name_cols) == 0) {
+    return(list(should_run = FALSE, est_changes = 0L))
+  }
+  shortcodes <- isotope_lookup$shortcode
+  # Sort by length descending so longer prefixes match first (greedy)
+  shortcodes <- shortcodes[order(nchar(shortcodes), decreasing = TRUE)]
+  pattern <- paste0("\\b(", paste(stringr::str_escape(shortcodes), collapse = "|"), ")\\b")
+  est_changes <- as.integer(sum(vapply(
+    name_cols,
+    function(col) sum(stringr::str_detect(df[[col]], pattern), na.rm = TRUE),
+    integer(1)
+  )))
+  list(should_run = est_changes > 0L, est_changes = est_changes)
+}
+
+#' Pre-check predicate for flag_multi_analyte step
+#'
+#' Checks for multi-analyte patterns: strings containing common separator
+#' tokens (\code{and}, \code{&}, \code{/}) flanked by whitespace.
+#'
+#' @param df Dataframe to check.
+#' @param name_cols Character vector of name column names.
+#' @return list(should_run = logical, est_changes = integer).
+#' @keywords internal
+precheck_multi_analyte <- function(df, name_cols) {
+  if (length(name_cols) == 0) {
+    return(list(should_run = FALSE, est_changes = 0L))
+  }
+  pattern <- "\\s+(and|&|/)\\s+"
+  est_changes <- as.integer(sum(vapply(
+    name_cols,
+    function(col) sum(stringr::str_detect(df[[col]], pattern), na.rm = TRUE),
+    integer(1)
+  )))
+  list(should_run = est_changes > 0L, est_changes = est_changes)
+}
+
+#' Pre-check predicate for restore_chiral_designations step
+#'
+#' Checks whether any name column contains the chiral placeholder token
+#' (\code{###CHIRAL_}), which is only present when
+#' \code{protect_chiral_designations()} was previously applied.
+#'
+#' @param df Dataframe to check.
+#' @param name_cols Character vector of name column names.
+#' @return list(should_run = logical, est_changes = integer).
+#' @keywords internal
+precheck_chiral_restore <- function(df, name_cols) {
+  if (length(name_cols) == 0) {
+    return(list(should_run = FALSE, est_changes = 0L))
+  }
+  pattern <- "###CHIRAL_"
+  est_changes <- as.integer(sum(vapply(
+    name_cols,
+    function(col) sum(stringr::str_detect(df[[col]], pattern), na.rm = TRUE),
+    integer(1)
+  )))
+  list(should_run = est_changes > 0L, est_changes = est_changes)
+}
+
 #' Inject row lineage tracking
 #'
 #' Adds original_row_id column as first column to track row identity through transformations.
