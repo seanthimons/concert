@@ -107,7 +107,10 @@ Plans:
   1. `scripts/benchmark_pipeline.R` runs to completion against real data at n = 1K, 10K, and 100K rows and produces a results table with median timing and memory allocation per level
   2. The benchmark measures cold-start cost separately from steady-state cost and reports the actual uniqueness rate of the test data
   3. A before/after speedup factor is documented showing the measured improvement from the dedup architecture
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 38-01-PLAN.md -- Add use_dedup toggle to pipeline functions and package config
+- [ ] 38-02-PLAN.md -- Create benchmark script and results summary
 
 ### Phase 39: Duration Conversion
 **Goal**: Users can tag columns as DurationUnit and have the harmonization pipeline convert duration values to hours as a common base unit, with the result wired into the ToxVal schema study_duration fields.
@@ -180,7 +183,7 @@ Plans:
 | 35. Export Extension + Headless | v1.9 | 2/2 | Complete | 2026-04-17 |
 | 36. Wire ToxVal Schema in Shiny Path | v1.9 | 1/1 | Complete | 2026-04-21 |
 | 37. Performance Architecture | v2.0 | 1/4 | In Progress|  |
-| 38. Benchmark Harness | v2.0 | 0/TBD | Not started | - |
+| 38. Benchmark Harness | v2.0 | 0/2 | Not started | - |
 | 39. Duration Conversion | v2.0 | 0/TBD | Not started | - |
 | 40. Date Parser | v2.0 | 0/TBD | Not started | - |
 | 41. Media Harmonizer & AMOS Pipeline | v2.0 | 0/TBD | Not started | - |
