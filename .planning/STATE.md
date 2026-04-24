@@ -2,11 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Pipeline Performance & Date/Media Harmonization
-current_plan: 0
-status: ready_to_plan
-stopped_at: null
-last_updated: "2026-04-24"
-last_activity: 2026-04-24 -- Roadmap created; 6 phases defined (37-42)
+status: planning
+stopped_at: Phase 37 context gathered
+last_updated: "2026-04-24T18:35:11.672Z"
+last_activity: 2026-04-24 — v2.0 roadmap created; Phases 37-42 defined
 progress:
   total_phases: 6
   completed_phases: 0
@@ -68,6 +67,7 @@ Notable additions in v1.9:
 - [Phase 33]: Tag dispatch helpers as single source of truth; column_tags contains ONLY chemical tags for backwards compat
 
 v2.0 architecture decisions (from research 2026-04-24):
+
 - Dedup is orchestrator wrapper (`dedup_step()`), NOT internal to step functions
 - Short-circuit pre-checks are orchestrator-only; step functions always return `list(cleaned_data, audit_trail)`
 - Date parsing is harmonization-layer (post-tagging), new `R/date_parser.R`
@@ -98,9 +98,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-24
-Stopped at: v2.0 roadmap created; ready to plan Phase 37
-Resume file: —
+Last session: 2026-04-24T18:35:11.667Z
+Stopped at: Phase 37 context gathered
+Resume file: .planning/phases/37-performance-architecture/37-CONTEXT.md
 
 ---
 
