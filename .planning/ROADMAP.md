@@ -73,7 +73,7 @@
 
 **Milestone Goal:** Make the cleaning+harmonization pipeline production-fast at 100K+ rows via distinct-string dedup and short-circuit evaluation, then extend harmonization coverage to date/duration parsing and environmental media classification.
 
-- [ ] **Phase 37: Performance Architecture** -- PERF-01, PERF-02, PERF-03, PERF-04, SKIP-01, SKIP-02, SKIP-03
+- [x] **Phase 37: Performance Architecture** -- PERF-01, PERF-02, PERF-03, PERF-04, SKIP-01, SKIP-02, SKIP-03 (completed 2026-04-24)
 - [ ] **Phase 38: Benchmark Harness** -- BENCH-01, BENCH-02, BENCH-03
 - [ ] **Phase 39: Duration Conversion** -- DUR-01, DUR-02, DUR-03, DUR-04, DUR-05
 - [ ] **Phase 40: Date Parser** -- DATE-01, DATE-02, DATE-03, DATE-04, DATE-05, DATE-06
@@ -92,11 +92,11 @@
   3. A cleaning step whose pre-check returns FALSE (e.g., no non-ASCII characters present) is skipped entirely and produces an empty-but-typed audit trail row, not NULL
   4. Companion tests exist for each pre-check that prove a vector passing the pre-check but requiring transformation would still be caught (false-negative detection)
   5. Dedup-eligible steps are migrated one at a time with the 953+ test suite green after each migration
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 Plans:
 - [x] 37-01-PLAN.md -- Dedup infrastructure: dedup_step() and remap_audit_to_parent()
 - [x] 37-02-PLAN.md -- Pre-check predicates and SKIP-03 false-negative companion tests
-- [ ] 37-03-PLAN.md -- Wire dedup and pre-checks into run_cleaning_pipeline()
+- [x] 37-03-PLAN.md -- Wire dedup and pre-checks into run_cleaning_pipeline()
 - [x] 37-04-PLAN.md -- Unit-key dedup in harmonize_units()
 
 ### Phase 38: Benchmark Harness
@@ -179,7 +179,7 @@ Plans:
 | 34. Harmonize Tab Module | v1.9 | 4/4 | Complete | 2026-04-17 |
 | 35. Export Extension + Headless | v1.9 | 2/2 | Complete | 2026-04-17 |
 | 36. Wire ToxVal Schema in Shiny Path | v1.9 | 1/1 | Complete | 2026-04-21 |
-| 37. Performance Architecture | v2.0 | 3/4 | In Progress|  |
+| 37. Performance Architecture | v2.0 | 4/4 | Complete   | 2026-04-24 |
 | 38. Benchmark Harness | v2.0 | 0/TBD | Not started | - |
 | 39. Duration Conversion | v2.0 | 0/TBD | Not started | - |
 | 40. Date Parser | v2.0 | 0/TBD | Not started | - |
