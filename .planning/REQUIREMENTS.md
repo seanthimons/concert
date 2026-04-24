@@ -98,17 +98,49 @@ Deferred to future milestone. Tracked but not in current roadmap.
 
 ## Traceability
 
-Updated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated by roadmapper) | | |
+| PERF-01 | Phase 37 | Pending |
+| PERF-02 | Phase 37 | Pending |
+| PERF-03 | Phase 37 | Pending |
+| PERF-04 | Phase 37 | Pending |
+| SKIP-01 | Phase 37 | Pending |
+| SKIP-02 | Phase 37 | Pending |
+| SKIP-03 | Phase 37 | Pending |
+| BENCH-01 | Phase 38 | Pending |
+| BENCH-02 | Phase 38 | Pending |
+| BENCH-03 | Phase 38 | Pending |
+| DUR-01 | Phase 39 | Pending |
+| DUR-02 | Phase 39 | Pending |
+| DUR-03 | Phase 39 | Pending |
+| DUR-04 | Phase 39 | Pending |
+| DUR-05 | Phase 39 | Pending |
+| DATE-01 | Phase 40 | Pending |
+| DATE-02 | Phase 40 | Pending |
+| DATE-03 | Phase 40 | Pending |
+| DATE-04 | Phase 40 | Pending |
+| DATE-05 | Phase 40 | Pending |
+| DATE-06 | Phase 40 | Pending |
+| MEDIA-01 | Phase 41 | Pending |
+| MEDIA-02 | Phase 41 | Pending |
+| MEDIA-03 | Phase 41 | Pending |
+| MEDIA-04 | Phase 41 | Pending |
+| MEDIA-05 | Phase 41 | Pending |
+| MEDIA-06 | Phase 41 | Pending |
+| AMOS-01 | Phase 41 | Pending |
+| AMOS-02 | Phase 41 | Pending |
+| AMOS-03 | Phase 41 | Pending |
+| RECO-01 | Phase 42 | Pending |
+| RECO-02 | Phase 42 | Pending |
+| MEDIT-01 | Phase 42 | Pending |
+| MEDIT-02 | Phase 42 | Pending |
+| MEDIT-03 | Phase 42 | Pending |
 
 **Coverage:**
-- v2.0 requirements: 33 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 33
+- v2.0 requirements: 35 total (33 active + 2 RECO added to traceability)
+- Mapped to phases: 35
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-24*
-*Last updated: 2026-04-24 after initial definition*
+*Last updated: 2026-04-24 — traceability populated by roadmapper*
