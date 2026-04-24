@@ -13,7 +13,8 @@ build_export_sheets(
   column_tags,
   detection,
   file_info,
-  enrichment_cache = NULL
+  enrichment_cache = NULL,
+  toxval_output = NULL
 )
 }
 \arguments{
@@ -32,11 +33,16 @@ build_export_sheets(
 \item{detection}{List with $method, $confidence}
 
 \item{file_info}{List with $name, $size}
+
+\item{enrichment_cache}{Enrichment cache data frame (may be NULL)}
+
+\item{toxval_output}{Tibble with 56 ToxVal columns from map_to_toxval_schema(),
+or NULL (default). When NULL, Sheet 8 contains a placeholder note row.}
 }
 \value{
-Named list of 7 data frames with sheet names as keys
+Named list of 8 data frames with sheet names as keys
 }
 \description{
-Converts ChemReg pipeline state into a named list of 7 data frames ready
+Converts ChemReg pipeline state into a named list of 8 data frames ready
 for Excel export via writexl::write_xlsx().
 }
