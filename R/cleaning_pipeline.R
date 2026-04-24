@@ -1938,26 +1938,45 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
   df_after_lineage <- inject_row_lineage(df)
 
   # Step 1: Unicode to ASCII (using ComptoxR for chemistry-specific mappings)
-  df_after_unicode <- df_after_lineage %>%
-    dplyr::mutate(dplyr::across(tidyselect::where(is.character), ComptoxR::clean_unicode))
-
-  audit_unicode <- build_audit_trail(
-    df_original = df_after_lineage,
-    df_cleaned = df_after_unicode,
-    step_name = "unicode_to_ascii",
-    reason_fn = function(field) paste0("Convert unicode characters to ASCII equivalents in ", field)
-  )
+  unicode_check <- precheck_unicode_to_ascii(df_after_lineage)
+  if (!unicode_check$should_run) {
+    df_after_unicode <- df_after_lineage
+    audit_unicode <- build_skip_result(df_after_lineage, "unicode_to_ascii")$audit_trail
+  } else {
+    # Wrap inline transform as step function for dedup_step compatibility
+    unicode_step_fn <- function(df_in, ...) {
+      df_out <- df_in %>%
+        dplyr::mutate(dplyr::across(tidyselect::where(is.character), ComptoxR::clean_unicode))
+      audit <- build_audit_trail(df_in, df_out, "unicode_to_ascii", function(field) {
+        paste0("Convert unicode characters to ASCII equivalents in ", field)
+      })
+      list(cleaned_data = df_out, audit_trail = audit)
+    }
+    char_cols <- names(df_after_lineage)[vapply(df_after_lineage, is.character, logical(1))]
+    unicode_result <- dedup_step(unicode_step_fn, df_after_lineage, dedup_cols = char_cols)
+    df_after_unicode <- unicode_result$cleaned_data
+    audit_unicode <- unicode_result$audit_trail
+  }
 
   # Step 2: Whitespace and punctuation artifact stripping
-  df_after_trim <- df_after_unicode %>%
-    dplyr::mutate(dplyr::across(tidyselect::where(is.character), clean_text_field))
-
-  audit_trim <- build_audit_trail(
-    df_original = df_after_unicode,
-    df_cleaned = df_after_trim,
-    step_name = "trim_whitespace_punctuation",
-    reason_fn = function(field) paste0("Strip leading/trailing whitespace and punctuation artifacts from ", field)
-  )
+  whitespace_check <- precheck_trim_whitespace(df_after_unicode)
+  if (!whitespace_check$should_run) {
+    df_after_trim <- df_after_unicode
+    audit_trim <- build_skip_result(df_after_unicode, "trim_whitespace_punctuation")$audit_trail
+  } else {
+    trim_step_fn <- function(df_in, ...) {
+      df_out <- df_in %>%
+        dplyr::mutate(dplyr::across(tidyselect::where(is.character), clean_text_field))
+      audit <- build_audit_trail(df_in, df_out, "trim_whitespace_punctuation", function(field) {
+        paste0("Strip leading/trailing whitespace and punctuation artifacts from ", field)
+      })
+      list(cleaned_data = df_out, audit_trail = audit)
+    }
+    char_cols_trim <- names(df_after_unicode)[vapply(df_after_unicode, is.character, logical(1))]
+    trim_result <- dedup_step(trim_step_fn, df_after_unicode, dedup_cols = char_cols_trim)
+    df_after_trim <- trim_result$cleaned_data
+    audit_trim <- trim_result$audit_trail
+  }
 
   # Combine basic audit trails
   audit_combined <- dplyr::bind_rows(audit_unicode, audit_trim)
@@ -1968,9 +1987,16 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL) {
   # If tag_map provided, run CAS and name steps
   if (!is.null(tag_map)) {
     # Step 3: Normalize CAS fields
-    cas_result <- normalize_cas_fields(df_after_trim, tag_map)
-    df_after_cas <- cas_result$cleaned_data
-    audit_combined <- dplyr::bind_rows(audit_combined, cas_result$audit_trail)
+    cas_check <- precheck_normalize_cas(df_after_trim, tag_map)
+    if (!cas_check$should_run) {
+      df_after_cas <- df_after_trim
+      audit_combined <- dplyr::bind_rows(audit_combined, build_skip_result(df_after_trim, "normalize_cas")$audit_trail)
+    } else {
+      cas_cols <- names(tag_map)[tag_map == "CASRN"]
+      cas_result <- dedup_step(normalize_cas_fields, df_after_trim, tag_map, dedup_cols = cas_cols)
+      df_after_cas <- cas_result$cleaned_data
+      audit_combined <- dplyr::bind_rows(audit_combined, cas_result$audit_trail)
+    }
 
     # Step 4: Rescue CAS from text columns
     rescue_result <- rescue_cas_from_text(df_after_cas, tag_map)
