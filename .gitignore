@@ -17,6 +17,7 @@ config.yml
 # Storage
 storage/
 data/reference_cache/
+data/benchmark/
 tests/testthat/data/reference_cache/isotope_lookup.rds
 tests/testthat/testthat-problems.rds
 
