@@ -41,6 +41,7 @@ Imports:
     units (>= 0.8-0),
     writexl
 Suggests:
+    bench,
     testthat (>= 3.0.0),
     withr
 Remotes:
