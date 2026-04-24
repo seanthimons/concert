@@ -163,3 +163,21 @@ test_that("UIPOL-03: unlist(queue) is wrapped with unname() to prevent jsonlite 
   bare_unlist_lines <- grep("^\\s*all_dtxsids\\s*<-\\s*unlist\\(queue\\)", src)
   expect_equal(length(bare_unlist_lines), 0, info = "bare unlist(queue) without unname() must not be present at the all_dtxsids assignment")
 })
+
+test_that("UIPOL-04: re-tag modal uses named list choices to avoid jsonlite warning", {
+  src_path <- find_mod_review_results()
+  skip_if(is.null(src_path), "R/mod_review_results.R not found from test context")
+  src <- readLines(src_path)
+
+  named_list_lines <- grep(
+    "choices = list\\(\"\\(none\\)\" = \"\", \"Name\" = \"Name\", \"CASRN\" = \"CASRN\", \"Other\" = \"Other\"\\)",
+    src
+  )
+  expect_true(length(named_list_lines) > 0, info = "re-tag modal choices must use list(...)")
+
+  named_vector_lines <- grep(
+    "choices = c\\(\"\\(none\\)\" = \"\", \"Name\" = \"Name\", \"CASRN\" = \"CASRN\", \"Other\" = \"Other\"\\)",
+    src
+  )
+  expect_equal(length(named_vector_lines), 0, info = "re-tag modal choices must not use c(...)")
+})

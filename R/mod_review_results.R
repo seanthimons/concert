@@ -1517,7 +1517,7 @@ mod_review_results_server <- function(id, data_store) {
             selectInput(
               inputId = session$ns(paste0("retag_col_", col)),
               label = col,
-              choices = c("(none)" = "", "Name" = "Name", "CASRN" = "CASRN", "Other" = "Other"),
+              choices = list("(none)" = "", "Name" = "Name", "CASRN" = "CASRN", "Other" = "Other"),
               selected = current_tag,
               width = "100%"
             )

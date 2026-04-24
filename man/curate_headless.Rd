@@ -11,7 +11,12 @@ curate_headless(
   skip_flags = NULL,
   header_row = NULL,
   reference_lists = NULL,
-  verbose = TRUE
+  verbose = TRUE,
+  harmonize = FALSE,
+  format = "parquet",
+  unit_map = NULL,
+  corrections = NULL,
+  media = NULL
 )
 }
 \arguments{
@@ -22,8 +27,9 @@ directories are created automatically if they do not exist.}
 
 \item{tag_map}{Named list mapping cleaned column names to tag roles. Keys
 must match column names \emph{after} \code{janitor::clean_names()} normalization.
-Values are one of \code{"Name"}, \code{"CASRN"}, or \code{"Other"}. Example:
-\code{list(chemical_name = "Name", cas_number = "CASRN")}.}
+Values are one of \code{"Name"}, \code{"CASRN"}, \code{"Other"}, \code{"Result"}, \code{"Unit"},
+\code{"Qualifier"}, etc. Example:
+\code{list(chemical_name = "Name", cas_number = "CASRN", result = "Result", unit = "Unit")}.}
 
 \item{skip_flags}{Character vector of cleaning flag codes whose rows should
 skip the CompTox API search. Reserved for future use; isotope_match rows
@@ -40,19 +46,46 @@ contain keys: \code{stop_words}, \code{functional_categories}, \code{block_patte
 
 \item{verbose}{Logical. If TRUE (default), progress messages are printed to
 the console. If FALSE, all messages are suppressed.}
+
+\item{harmonize}{Logical. If TRUE, runs numeric parsing, unit harmonization,
+and ToxVal schema mapping after curation. Default FALSE for backward compat.}
+
+\item{format}{Character. Output format for ToxVal data when harmonize=TRUE.
+One of "parquet", "csv", or "both". Default "parquet". Ignored when
+harmonize=FALSE.}
+
+\item{unit_map}{Tibble with unit conversion mappings, or NULL (default) to
+load from package cache via load_unit_map().}
+
+\item{corrections}{Tibble with pattern/replacement columns for one-off
+corrections, or NULL (default) to load from package cache.}
+
+\item{media}{Character. Media context for ppb/ppm routing: "aqueous", "air",
+or "solid". NULL (default) uses aqueous assumption.}
 }
 \value{
-Invisibly returns a list with two elements:
+Invisibly returns a list:
 \describe{
-\item{\verb{$data}}{Tibble — the resolution_state table (curated data with
-consensus classifications and per-row resolution).}
-\item{\verb{$audit_trail}}{Tibble — the cleaning audit trail documenting every
-transformation applied to each cell.}
+\item{When \code{harmonize=FALSE}:}{
+\itemize{
+\item \code{$data} -- resolution_state tibble
+\item \code{$audit_trail} -- cleaning audit tibble
+}
+}
+\item{When \code{harmonize=TRUE}:}{
+\itemize{
+\item \code{$data} -- 56-column ToxVal tibble (per D-05)
+\item \code{$audit_trail} -- cleaning audit tibble
+\item \code{$harmonize_audit} -- harmonization audit tibble (per D-06)
+}
+}
 }
 }
 \description{
 Runs the complete ChemReg curation pipeline — file read, frontmatter
 detection, cleaning, CompTox API search, consensus classification, and
-7-sheet XLSX export — from a single R script call with no Shiny session
-required.
+8-sheet XLSX export — from a single R script call with no Shiny session
+required. When harmonize=TRUE, additionally runs the numeric parsing, unit
+harmonization, and ToxVal schema mapping pipeline, and writes parquet/CSV
+output alongside the XLSX.
 }
