@@ -17,7 +17,7 @@
 normalize_unit_string <- function(x) {
   # (a) Trim whitespace
 
-x <- trimws(x)
+  x <- trimws(x)
 
   # (b) Replace micro symbols with ASCII 'u'
   # U+00B5 = micro sign, U+03BC = Greek lowercase mu
@@ -55,10 +55,11 @@ get_unit_synonyms <- function() {
 #' @return Character vector with synonyms applied
 #' @keywords internal
 apply_synonyms <- function(unit_strings, synonyms) {
+  if (is.null(synonyms) || nrow(synonyms) == 0) {
+    return(unit_strings)
+  }
 
-  if (is.null(synonyms) || nrow(synonyms) == 0) return(unit_strings)
-
- result <- unit_strings
+  result <- unit_strings
 
   # Split rules into exact-match vs regex
   is_regex <- if ("is_regex" %in% names(synonyms)) {
@@ -119,12 +120,17 @@ is_molarity_unit <- function(unit) {
 #' @keywords internal
 get_molarity_scale <- function(unit) {
   scales <- c(
-    "m" = 1000, "mol/l" = 1000,        # M * MW * 1000 = mg/L
-    "mm" = 1, "mmol/l" = 1,            # mM * MW = mg/L
-    "um" = 0.001, "umol/l" = 0.001,    # uM * MW * 0.001 = mg/L
-    "nm" = 1e-6, "nmol/l" = 1e-6,
-    "pm" = 1e-9, "pmol/l" = 1e-9
- )
+    "m" = 1000,
+    "mol/l" = 1000, # M * MW * 1000 = mg/L
+    "mm" = 1,
+    "mmol/l" = 1, # mM * MW = mg/L
+    "um" = 0.001,
+    "umol/l" = 0.001, # uM * MW * 0.001 = mg/L
+    "nm" = 1e-6,
+    "nmol/l" = 1e-6,
+    "pm" = 1e-9,
+    "pmol/l" = 1e-9
+  )
   scales[tolower(unit)]
 }
 
@@ -140,28 +146,31 @@ fetch_molecular_weight <- function(dtxsids) {
     return(result)
   }
 
-  tryCatch({
-    raw <- suppressMessages(ComptoxR::ct_chemical_detail_search_bulk(dtxsids))
-    if (is.null(raw) || nrow(raw) == 0) {
+  tryCatch(
+    {
+      raw <- suppressMessages(ComptoxR::ct_chemical_detail_search_bulk(dtxsids))
+      if (is.null(raw) || nrow(raw) == 0) {
+        result <- rep(NA_real_, length(dtxsids))
+        names(result) <- dtxsids
+        return(result)
+      }
+      # Find MW column - may be "mol_weight" or "molecular_weight"
+      mw_col <- intersect(c("mol_weight", "molecular_weight", "average_mass"), names(raw))
+      if (length(mw_col) == 0) {
+        result <- rep(NA_real_, length(dtxsids))
+        names(result) <- dtxsids
+        return(result)
+      }
+      mw_values <- raw[[mw_col[1]]][match(dtxsids, raw$dtxsid)]
+      names(mw_values) <- dtxsids
+      mw_values
+    },
+    error = function(e) {
       result <- rep(NA_real_, length(dtxsids))
       names(result) <- dtxsids
-      return(result)
+      result
     }
-    # Find MW column - may be "mol_weight" or "molecular_weight"
-    mw_col <- intersect(c("mol_weight", "molecular_weight", "average_mass"), names(raw))
-    if (length(mw_col) == 0) {
-      result <- rep(NA_real_, length(dtxsids))
-      names(result) <- dtxsids
-      return(result)
-    }
-    mw_values <- raw[[mw_col[1]]][match(dtxsids, raw$dtxsid)]
-    names(mw_values) <- dtxsids
-    mw_values
-  }, error = function(e) {
-    result <- rep(NA_real_, length(dtxsids))
-    names(result) <- dtxsids
-    result
-  })
+  )
 }
 
 # ---- Internal helpers for media-based routing ----
@@ -183,11 +192,12 @@ get_media_target <- function(unit, media) {
     media <- "aqueous"
   }
 
-  switch(media,
+  switch(
+    media,
     "aqueous" = "mg/L",
     "air" = "mg/m3",
     "solid" = "mg/kg",
-    "mg/L"  # default fallback
+    "mg/L" # default fallback
   )
 }
 
@@ -199,9 +209,9 @@ get_media_target <- function(unit, media) {
 get_ppx_conversion_factor <- function(unit) {
   unit_lower <- tolower(unit)
   if (unit_lower == "ppb") {
-    0.001  # ppb = ug/L = 0.001 mg/L (for aqueous; same ratio for others)
+    0.001 # ppb = ug/L = 0.001 mg/L (for aqueous; same ratio for others)
   } else if (unit_lower == "ppm") {
-    1      # ppm = mg/L (for aqueous; same ratio for others)
+    1 # ppm = mg/L (for aqueous; same ratio for others)
   } else {
     1
   }
@@ -231,6 +241,8 @@ get_ppx_conversion_factor <- function(unit) {
 #'   Values: "aqueous", "air", "solid", or NULL (defaults to aqueous per D-09)
 #' @param dtxsid Optional character vector - DTXSIDs for MW lookup when molarity detected
 #' @param molecular_weight Optional numeric vector - MW override (skips API call)
+#' @param use_dedup Logical. When TRUE (default), applies unit-key dedup
+#'   optimization (Phase 37 D-07). Set to FALSE for benchmark baseline.
 #'
 #' @return A tibble with columns:
 #'   - orig_row_id: Integer linking back to input position
@@ -258,10 +270,15 @@ get_ppx_conversion_factor <- function(unit) {
 #'
 #' @importFrom tibble tibble
 #' @export
-harmonize_units <- function(values, units, unit_map,
-                            media = NULL,
-                            dtxsid = NULL,
-                            molecular_weight = NULL) {
+harmonize_units <- function(
+  values,
+  units,
+  unit_map,
+  media = NULL,
+  dtxsid = NULL,
+  molecular_weight = NULL,
+  use_dedup = TRUE
+) {
   # Step 0: Handle empty input
   n <- length(values)
   if (n == 0) {
@@ -379,9 +396,13 @@ harmonize_units <- function(values, units, unit_map,
     ppx_factors <- vapply(ppx_units, get_ppx_conversion_factor, numeric(1))
 
     # Vectorized media target lookup (now O(k), not O(k²))
-    ppx_targets <- vapply(seq_along(ppx_idx), function(i) {
-      get_media_target(ppx_units[i], ppx_media[i]) %||% "mg/L"
-    }, character(1))
+    ppx_targets <- vapply(
+      seq_along(ppx_idx),
+      function(i) {
+        get_media_target(ppx_units[i], ppx_media[i]) %||% "mg/L"
+      },
+      character(1)
+    )
 
     harmonized_value[ppx_idx] <- values[ppx_idx] * ppx_factors
     harmonized_unit[ppx_idx] <- ppx_targets
