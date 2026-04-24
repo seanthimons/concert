@@ -92,7 +92,12 @@
   3. A cleaning step whose pre-check returns FALSE (e.g., no non-ASCII characters present) is skipped entirely and produces an empty-but-typed audit trail row, not NULL
   4. Companion tests exist for each pre-check that prove a vector passing the pre-check but requiring transformation would still be caught (false-negative detection)
   5. Dedup-eligible steps are migrated one at a time with the 953+ test suite green after each migration
-**Plans**: TBD
+**Plans:** 4 plans
+Plans:
+- [ ] 37-01-PLAN.md -- Dedup infrastructure: dedup_step() and remap_audit_to_parent()
+- [ ] 37-02-PLAN.md -- Pre-check predicates and SKIP-03 false-negative companion tests
+- [ ] 37-03-PLAN.md -- Wire dedup and pre-checks into run_cleaning_pipeline()
+- [ ] 37-04-PLAN.md -- Unit-key dedup in harmonize_units()
 
 ### Phase 38: Benchmark Harness
 **Goal**: Users (and developers) can run a documented benchmark script that proves the dedup architecture delivers measurable speedup at 100K rows, with before/after comparison committed to the repository.
@@ -174,7 +179,7 @@
 | 34. Harmonize Tab Module | v1.9 | 4/4 | Complete | 2026-04-17 |
 | 35. Export Extension + Headless | v1.9 | 2/2 | Complete | 2026-04-17 |
 | 36. Wire ToxVal Schema in Shiny Path | v1.9 | 1/1 | Complete | 2026-04-21 |
-| 37. Performance Architecture | v2.0 | 0/TBD | Not started | - |
+| 37. Performance Architecture | v2.0 | 0/4 | Planning | - |
 | 38. Benchmark Harness | v2.0 | 0/TBD | Not started | - |
 | 39. Duration Conversion | v2.0 | 0/TBD | Not started | - |
 | 40. Date Parser | v2.0 | 0/TBD | Not started | - |
