@@ -81,41 +81,58 @@ Users can go from messy regulatory/benchmark data files to validated, harmonized
 - ✓ Zero bare library() calls in R/*.R source files, devtools::check() passes — v1.8 Phase 25
 - ✓ curate_headless() exported for scripting the full pipeline without Shiny UI — v1.8 Phase 27
 - ✓ tests/testthat/ standard structure with 953 passing tests — v1.8 Phase 28
+- ✓ Static unit conversion table (151 rows, 6-column schema from ECOTOX/SSWQS) — v1.9 Phase 29
+- ✓ ToxVal 56-column schema manifest with typed NAs — v1.9 Phase 29
+- ✓ Numeric result parser (scientific notation, ranges, qualifiers, Fortran exponents) — v1.9 Phase 30
+- ✓ Unit harmonization engine with units package, domain registrations, context-aware conversions — v1.9 Phases 31/31.5
+- ✓ Molarity conversion (MW-dependent) and ppb/ppm media routing (aqueous/solid/air) — v1.9 Phase 31.5
+- ✓ ToxVal schema mapper with 19 audit columns (*_original) and source_hash — v1.9 Phase 32
+- ✓ Extended column tagging UI with numeric/study optgroups and independent cascade resets — v1.9 Phase 33
+- ✓ Harmonize tab module with pipeline execution, QC dashboard, and editor UIs — v1.9 Phase 34
+- ✓ Parquet/CSV export, Sheet 8 ToxVal Output, curate_headless(harmonize=TRUE) — v1.9 Phase 35
+- ✓ ToxVal schema wired into Shiny interactive path — v1.9 Phase 36
 
 ## Current State
 
-**Shipped:** v1.8 R Package Migration (2026-04-14)
+**Shipped:** v1.9 Number and Unit Coercion Harmonization (2026-04-17)
 
-ChemReg is now a proper R package that can be installed via `devtools::install()` and used either interactively via `chemreg::run_app()` or headlessly via `chemreg::curate_headless()`.
+ChemReg is a proper R package with full compound curation + numeric/unit harmonization + ToxVal schema output. Installed via `devtools::install()`, used interactively via `chemreg::run_app()` or headlessly via `chemreg::curate_headless()`.
 
 **Package capabilities:**
-- `library(chemreg)` loads 72 exported functions
+- `library(chemreg)` loads 72+ exported functions
 - `chemreg::run_app()` launches the Shiny app from `inst/app/`
-- `chemreg::curate_headless(input, output, tag_map)` runs the full pipeline without UI
-- `devtools::test()` passes with 953 tests
-- Reference cache available via `system.file("extdata", "reference_cache", package = "chemreg")`
+- `chemreg::curate_headless(input, output, tag_map, harmonize=TRUE)` runs full pipeline including harmonization
+- Numeric result parsing: scientific notation, ranges, qualifiers, Fortran exponents
+- Unit harmonization via `units` package with domain registrations, molarity/ppb context routing
+- ToxVal 56-column schema mapper with 19 audit columns and source_hash
+- Parquet/CSV export alongside 8-sheet Excel export
+- `devtools::test()` passes with 953+ tests
 
-**Known tech debt (from v1.8 audit):**
+**Known tech debt:**
 - `^tests$` in `.Rbuildignore` blocks R CMD check from running tests (critical — devtools::test() works but devtools::check() runs 0 tests)
 - `R/archive/prototype_pipeline.R` has bare library() calls and is not excluded from build
+- Pipeline performance degrades at 100K+ rows — cleaning and harmonization both affected
 
-## Current Milestone: v1.9 Number and Unit Coercion Harmonization
+## Current Milestone: v2.0 Pipeline Performance & Date/Media Harmonization
 
-**Goal:** Extend ChemReg from compound-only curation to full benchmark/regulatory data curation with numeric result parsing, unit harmonization, and toxval-schema output.
+**Goal:** Make the cleaning+harmonization pipeline production-fast at 100K+ rows via distinct-string dedup and short-circuit evaluation, then extend harmonization coverage to date/duration parsing and environmental media classification.
 
 **Target features:**
-- Numeric result parser (scientific notation, ranges, qualifiers, Fortran exponents)
-- Unit harmonization engine (lift ComptoxR tables + extend for regulatory data)
-- Duration/exposure classification (acute/chronic, freshwater/saltwater)
-- Extended column tagging UI (Result, Unit, Duration, Qualifier, etc.)
-- ToxVal schema mapper (56-column output with `*_original` audit columns)
-- Export to toxval-compatible format (parquet/CSV matching local toxval.duckdb)
+- Distinct-string dedup architecture for cleaning and harmonization pipelines
+- Short-circuit evaluation with per-step checkers and recommendation modal
+- Performance benchmark harness for 100K training set validation
+- Date/study date parsing into structured date values
+- Duration conversion lifting ECOTOX pattern (hours as base unit)
+- Media/matrix harmonization with extensible source maps and editor UI
+- AMOS media ontology pipeline (~7,500 methods via ComptoxR::chemi_amos_method_pagination())
 
 **Key context:**
-- Pivot milestone: ChemReg becomes a regulatory/benchmark data curation tool
-- Compound curation (DTXSID consensus) remains as one component of larger pipeline
-- Unit tables lifted from ComptoxR wholesale, improved iteratively with pinchpoint data
-- Output must match toxval schema exactly for database integration
+- Speed is first priority — architecture change before new features
+- At 100K rows, current pipeline is unacceptably slow even with vectorization
+- Dedup pattern: extract distinct strings → process uniques → remap to parent dataset
+- Duration conversion table exists in ComptoxR ECOTOX builder (section 12 of ecotox.R)
+- AMOS methods have messy descriptions requiring ontology extraction, not just lookup
+- WQX parameter mapping deferred to its own milestone
 
 ### Out of Scope
 
@@ -133,24 +150,27 @@ ChemReg is now a proper R package that can be installed via `devtools::install()
 
 ## Context
 
-Shipped v1.8 R Package Migration. ~9,700 LOC R in `R/` and `inst/app/`, plus ~2,800 LOC in `tests/testthat/`.
-Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, writexl, rhandsontable.
+Shipped v1.9 Number and Unit Coercion Harmonization. ~17,900 LOC R across `R/`, `inst/app/`, and `tests/testthat/`.
+Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, writexl, rhandsontable, arrow, units, digest.
 
-The app has 8 top-level tabs: Data Preview, Detection Info, Raw Data, Clean Data, Tag Columns, Run Curation, Review Results, plus sidebar upload and config import. On startup only Upload is visible; tabs appear progressively as the user advances.
+The app has 9 top-level tabs: Data Preview, Detection Info, Raw Data, Clean Data, Tag Columns, Run Curation, Review Results, Harmonize, plus sidebar upload and config import. On startup only Upload is visible; tabs appear progressively as the user advances.
 
 Key files:
-- `inst/app/app.R` — orchestration-only UI/server (337 lines)
+- `inst/app/app.R` — orchestration-only UI/server
 - `R/run_app.R` — exported launcher function `chemreg::run_app()`
 - `R/curate_headless.R` — headless pipeline entry point `curate_headless()`
-- `R/mod_*.R` — 8 Shiny modules with @export tags
-- `R/curation.R` — curation pipeline orchestrator with enrichment (~1,020 lines)
-- `R/consensus.R` — consensus classification, resolution, and enrichment (320+ lines)
+- `R/mod_*.R` — 9 Shiny modules with @export tags (including mod_harmonize.R)
+- `R/curation.R` — curation pipeline orchestrator with enrichment
+- `R/consensus.R` — consensus classification, resolution, and enrichment
 - `R/cleaning_pipeline.R` — 15-step pre-curation cleaning pipeline
 - `R/cleaning_reference.R` — reference list loaders with provenance tracking
-- `R/file_handlers.R` — file reading/validation (218 lines)
-- `R/data_detection.R` — frontmatter detection algorithms (405 lines)
-- `inst/extdata/reference_cache/` — 5 RDS files for reference lists
-- `tests/testthat/` — 17 test files, 953 passing tests
+- `R/numeric_parser.R` — numeric result parsing (sci notation, ranges, qualifiers, Fortran)
+- `R/unit_harmonization.R` — unit harmonization with units package + context-aware conversions
+- `R/toxval_schema.R` — 56-column ToxVal schema mapper with audit columns
+- `R/tag_dispatch.R` — tag classification and cascade reset helpers
+- `inst/extdata/reference_cache/` — RDS files for reference lists
+- `inst/extdata/unit_table.csv` — unit conversion table (151 rows)
+- `tests/testthat/` — test suite with 953+ passing tests
 
 ## Constraints
 
@@ -217,4 +237,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-14 — v1.9 Number and Unit Coercion Harmonization milestone started*
+*Last updated: 2026-04-24 — v2.0 Pipeline Performance & Date/Media Harmonization milestone started*
