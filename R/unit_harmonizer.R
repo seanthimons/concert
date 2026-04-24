@@ -17,7 +17,7 @@
 normalize_unit_string <- function(x) {
   # (a) Trim whitespace
 
-x <- trimws(x)
+  x <- trimws(x)
 
   # (b) Replace micro symbols with ASCII 'u'
   # U+00B5 = micro sign, U+03BC = Greek lowercase mu
@@ -55,10 +55,11 @@ get_unit_synonyms <- function() {
 #' @return Character vector with synonyms applied
 #' @keywords internal
 apply_synonyms <- function(unit_strings, synonyms) {
+  if (is.null(synonyms) || nrow(synonyms) == 0) {
+    return(unit_strings)
+  }
 
-  if (is.null(synonyms) || nrow(synonyms) == 0) return(unit_strings)
-
- result <- unit_strings
+  result <- unit_strings
 
   # Split rules into exact-match vs regex
   is_regex <- if ("is_regex" %in% names(synonyms)) {
@@ -119,12 +120,17 @@ is_molarity_unit <- function(unit) {
 #' @keywords internal
 get_molarity_scale <- function(unit) {
   scales <- c(
-    "m" = 1000, "mol/l" = 1000,        # M * MW * 1000 = mg/L
-    "mm" = 1, "mmol/l" = 1,            # mM * MW = mg/L
-    "um" = 0.001, "umol/l" = 0.001,    # uM * MW * 0.001 = mg/L
-    "nm" = 1e-6, "nmol/l" = 1e-6,
-    "pm" = 1e-9, "pmol/l" = 1e-9
- )
+    "m" = 1000,
+    "mol/l" = 1000, # M * MW * 1000 = mg/L
+    "mm" = 1,
+    "mmol/l" = 1, # mM * MW = mg/L
+    "um" = 0.001,
+    "umol/l" = 0.001, # uM * MW * 0.001 = mg/L
+    "nm" = 1e-6,
+    "nmol/l" = 1e-6,
+    "pm" = 1e-9,
+    "pmol/l" = 1e-9
+  )
   scales[tolower(unit)]
 }
 
@@ -140,28 +146,31 @@ fetch_molecular_weight <- function(dtxsids) {
     return(result)
   }
 
-  tryCatch({
-    raw <- suppressMessages(ComptoxR::ct_chemical_detail_search_bulk(dtxsids))
-    if (is.null(raw) || nrow(raw) == 0) {
+  tryCatch(
+    {
+      raw <- suppressMessages(ComptoxR::ct_chemical_detail_search_bulk(dtxsids))
+      if (is.null(raw) || nrow(raw) == 0) {
+        result <- rep(NA_real_, length(dtxsids))
+        names(result) <- dtxsids
+        return(result)
+      }
+      # Find MW column - may be "mol_weight" or "molecular_weight"
+      mw_col <- intersect(c("mol_weight", "molecular_weight", "average_mass"), names(raw))
+      if (length(mw_col) == 0) {
+        result <- rep(NA_real_, length(dtxsids))
+        names(result) <- dtxsids
+        return(result)
+      }
+      mw_values <- raw[[mw_col[1]]][match(dtxsids, raw$dtxsid)]
+      names(mw_values) <- dtxsids
+      mw_values
+    },
+    error = function(e) {
       result <- rep(NA_real_, length(dtxsids))
       names(result) <- dtxsids
-      return(result)
+      result
     }
-    # Find MW column - may be "mol_weight" or "molecular_weight"
-    mw_col <- intersect(c("mol_weight", "molecular_weight", "average_mass"), names(raw))
-    if (length(mw_col) == 0) {
-      result <- rep(NA_real_, length(dtxsids))
-      names(result) <- dtxsids
-      return(result)
-    }
-    mw_values <- raw[[mw_col[1]]][match(dtxsids, raw$dtxsid)]
-    names(mw_values) <- dtxsids
-    mw_values
-  }, error = function(e) {
-    result <- rep(NA_real_, length(dtxsids))
-    names(result) <- dtxsids
-    result
-  })
+  )
 }
 
 # ---- Internal helpers for media-based routing ----
@@ -183,11 +192,12 @@ get_media_target <- function(unit, media) {
     media <- "aqueous"
   }
 
-  switch(media,
+  switch(
+    media,
     "aqueous" = "mg/L",
     "air" = "mg/m3",
     "solid" = "mg/kg",
-    "mg/L"  # default fallback
+    "mg/L" # default fallback
   )
 }
 
@@ -199,9 +209,9 @@ get_media_target <- function(unit, media) {
 get_ppx_conversion_factor <- function(unit) {
   unit_lower <- tolower(unit)
   if (unit_lower == "ppb") {
-    0.001  # ppb = ug/L = 0.001 mg/L (for aqueous; same ratio for others)
+    0.001 # ppb = ug/L = 0.001 mg/L (for aqueous; same ratio for others)
   } else if (unit_lower == "ppm") {
-    1      # ppm = mg/L (for aqueous; same ratio for others)
+    1 # ppm = mg/L (for aqueous; same ratio for others)
   } else {
     1
   }
@@ -258,10 +268,7 @@ get_ppx_conversion_factor <- function(unit) {
 #'
 #' @importFrom tibble tibble
 #' @export
-harmonize_units <- function(values, units, unit_map,
-                            media = NULL,
-                            dtxsid = NULL,
-                            molecular_weight = NULL) {
+harmonize_units <- function(values, units, unit_map, media = NULL, dtxsid = NULL, molecular_weight = NULL) {
   # Step 0: Handle empty input
   n <- length(values)
   if (n == 0) {
@@ -331,9 +338,8 @@ harmonize_units <- function(values, units, unit_map,
   ppx_mask <- tolower(normalized) %in% ppx_units
   standard_mask <- !molarity_mask & !ppx_mask
 
-  # ---- Handle molarity rows (vectorized where possible) ----
-
   # Pre-fetch MW for rows that need it (molarity + dtxsid but no mw_override)
+  # Must run before dedup key construction since mw_vec is used in molarity keys (D-07)
   needs_api_lookup <- molarity_mask & !is.na(dtxsid_vec) & is.na(mw_vec)
 
   if (any(needs_api_lookup)) {
@@ -347,93 +353,224 @@ harmonize_units <- function(values, units, unit_map,
     }
   }
 
-  # Molarity with valid MW -> convert to mg/L
-  mol_with_mw <- molarity_mask & !is.na(mw_vec) & mw_vec > 0
-  if (any(mol_with_mw)) {
-    mol_scales <- vapply(
-      normalized[mol_with_mw],
-      get_molarity_scale,
-      numeric(1)
-    )
-    harmonized_value[mol_with_mw] <- values[mol_with_mw] * mw_vec[mol_with_mw] * mol_scales
-    harmonized_unit[mol_with_mw] <- "mg/L"
-    conversion_factor[mol_with_mw] <- mw_vec[mol_with_mw] * mol_scales
-    unit_flag[mol_with_mw] <- ""
-  }
+  # ---- Phase 37: Unit-key dedup optimization (D-07) ----
+  # Compute conversion factor once per distinct unit combination, then broadcast.
+  # Key construction: unit string only for standard, paste(unit, media) for ppx,
+  # paste(unit, mw) for molarity. Numeric values excluded from key (multiply is O(1)).
 
-  # Molarity without MW -> pass through with flag
-  mol_no_mw <- molarity_mask & (is.na(mw_vec) | mw_vec <= 0)
-  if (any(mol_no_mw)) {
-    unit_flag[mol_no_mw] <- "needs_mw"
-  }
+  # Build dedup keys per classification
+  dedup_keys <- character(n)
+  dedup_keys[standard_mask] <- normalized[standard_mask]
+  dedup_keys[ppx_mask] <- paste0(normalized[ppx_mask], "||", media_vec[ppx_mask])
+  dedup_keys[molarity_mask] <- paste0(normalized[molarity_mask], "||", mw_vec[molarity_mask])
 
-  # ---- Handle ppb/ppm rows (vectorized) ----
+  unique_keys <- unique(dedup_keys)
+  n_unique <- length(unique_keys)
 
-  if (any(ppx_mask)) {
-    # Pre-compute indices ONCE to avoid O(k²) which() calls (Codex fix)
-    ppx_idx <- which(ppx_mask)
-    ppx_units <- normalized[ppx_idx]
-    ppx_media <- media_vec[ppx_idx]
+  # Only apply dedup optimization if worthwhile (more than 2x duplication)
+  if (n_unique < n / 2) {
+    # Map each unique key to its first occurrence index
+    first_idx <- match(unique_keys, dedup_keys)
 
-    # Vectorized ppx conversion factors
-    ppx_factors <- vapply(ppx_units, get_ppx_conversion_factor, numeric(1))
+    # Prepare unique-subset vectors for the three conversion paths
+    unique_normalized <- normalized[first_idx]
+    unique_media_vec <- media_vec[first_idx]
+    unique_mw_vec <- mw_vec[first_idx]
+    unique_values_dummy <- rep(1.0, n_unique) # dummy values; factors computed separately
 
-    # Vectorized media target lookup (now O(k), not O(k²))
-    ppx_targets <- vapply(seq_along(ppx_idx), function(i) {
-      get_media_target(ppx_units[i], ppx_media[i]) %||% "mg/L"
-    }, character(1))
+    unique_molarity_mask <- molarity_mask[first_idx]
+    unique_ppx_mask <- ppx_mask[first_idx]
+    unique_standard_mask <- standard_mask[first_idx]
 
-    harmonized_value[ppx_idx] <- values[ppx_idx] * ppx_factors
-    harmonized_unit[ppx_idx] <- ppx_targets
-    conversion_factor[ppx_idx] <- ppx_factors
+    # Initialize per-unique result vectors
+    u_harmonized_unit <- orig_unit[first_idx]
+    u_conversion_factor <- rep(1.0, n_unique)
+    u_unit_flag <- rep("", n_unique)
 
-    # Flag as media_inferred if media was NULL/NA
-    ppx_media_na <- is.na(ppx_media) | ppx_media == ""
-    unit_flag[ppx_idx] <- ""
-    unit_flag[ppx_idx[ppx_media_na]] <- "media_inferred"
-  }
-
-  # ---- Handle standard table lookup (vectorized with hash) ----
-
-  if (any(standard_mask)) {
-    # Build hash maps once: from_unit -> row index (O(m), not O(n*m))
-    lookup_hash <- stats::setNames(seq_len(nrow(unit_map)), unit_map$from_unit)
-    lookup_hash_ci <- stats::setNames(
-      seq_len(nrow(unit_map)),
-      tolower(unit_map$from_unit)
-    )
-
-    # Extract units for standard rows
-    std_units <- normalized[standard_mask]
-    std_indices <- which(standard_mask)
-
-    # Vectorized case-sensitive lookup (O(n))
-    lookup_idx <- lookup_hash[std_units]
-
-    # Case-insensitive fallback for unmatched
-    unmatched_local <- is.na(lookup_idx)
-    if (any(unmatched_local)) {
-      ci_lookup <- lookup_hash_ci[tolower(std_units[unmatched_local])]
-      lookup_idx[unmatched_local] <- ci_lookup
-      # Mark case fallbacks
-      case_fallback_local <- unmatched_local & !is.na(lookup_idx)
-      unit_flag[std_indices[case_fallback_local]] <- "case_fallback"
+    # ---- Unique-subset: molarity conversion ----
+    mol_with_mw_u <- unique_molarity_mask & !is.na(unique_mw_vec) & unique_mw_vec > 0
+    if (any(mol_with_mw_u)) {
+      mol_scales_u <- vapply(
+        unique_normalized[mol_with_mw_u],
+        get_molarity_scale,
+        numeric(1)
+      )
+      u_harmonized_unit[mol_with_mw_u] <- "mg/L"
+      u_conversion_factor[mol_with_mw_u] <- unique_mw_vec[mol_with_mw_u] * mol_scales_u
+      u_unit_flag[mol_with_mw_u] <- ""
     }
 
-    # Apply matched lookups (vectorized assignment)
-    matched_local <- !is.na(lookup_idx)
-    matched_global <- std_indices[matched_local]
-    map_rows <- lookup_idx[matched_local]
+    mol_no_mw_u <- unique_molarity_mask & (is.na(unique_mw_vec) | unique_mw_vec <= 0)
+    if (any(mol_no_mw_u)) {
+      u_unit_flag[mol_no_mw_u] <- "needs_mw"
+    }
 
-    harmonized_unit[matched_global] <- unit_map$to_unit[map_rows]
-    conversion_factor[matched_global] <- unit_map$multiplier[map_rows]
-    harmonized_value[matched_global] <- values[matched_global] * conversion_factor[matched_global]
+    # ---- Unique-subset: ppb/ppm conversion ----
+    if (any(unique_ppx_mask)) {
+      u_ppx_idx <- which(unique_ppx_mask)
+      u_ppx_units <- unique_normalized[u_ppx_idx]
+      u_ppx_media <- unique_media_vec[u_ppx_idx]
 
-    # Handle truly unmatched (pass through with flag)
-    still_unmatched_local <- is.na(lookup_idx)
-    still_unmatched_global <- std_indices[still_unmatched_local]
-    unit_flag[still_unmatched_global] <- "unmatched"
-  }
+      u_ppx_factors <- vapply(u_ppx_units, get_ppx_conversion_factor, numeric(1))
+
+      u_ppx_targets <- vapply(
+        seq_along(u_ppx_idx),
+        function(i) {
+          get_media_target(u_ppx_units[i], u_ppx_media[i]) %||% "mg/L"
+        },
+        character(1)
+      )
+
+      u_harmonized_unit[u_ppx_idx] <- u_ppx_targets
+      u_conversion_factor[u_ppx_idx] <- u_ppx_factors
+
+      u_ppx_media_na <- is.na(u_ppx_media) | u_ppx_media == ""
+      u_unit_flag[u_ppx_idx] <- ""
+      u_unit_flag[u_ppx_idx[u_ppx_media_na]] <- "media_inferred"
+    }
+
+    # ---- Unique-subset: standard table lookup ----
+    if (any(unique_standard_mask)) {
+      u_lookup_hash <- stats::setNames(seq_len(nrow(unit_map)), unit_map$from_unit)
+      u_lookup_hash_ci <- stats::setNames(
+        seq_len(nrow(unit_map)),
+        tolower(unit_map$from_unit)
+      )
+
+      u_std_units <- unique_normalized[unique_standard_mask]
+      u_std_indices <- which(unique_standard_mask)
+
+      u_lookup_idx <- u_lookup_hash[u_std_units]
+
+      u_unmatched_local <- is.na(u_lookup_idx)
+      if (any(u_unmatched_local)) {
+        u_ci_lookup <- u_lookup_hash_ci[tolower(u_std_units[u_unmatched_local])]
+        u_lookup_idx[u_unmatched_local] <- u_ci_lookup
+        u_case_fallback_local <- u_unmatched_local & !is.na(u_lookup_idx)
+        u_unit_flag[u_std_indices[u_case_fallback_local]] <- "case_fallback"
+      }
+
+      u_matched_local <- !is.na(u_lookup_idx)
+      u_matched_global <- u_std_indices[u_matched_local]
+      u_map_rows <- u_lookup_idx[u_matched_local]
+
+      u_harmonized_unit[u_matched_global] <- unit_map$to_unit[u_map_rows]
+      u_conversion_factor[u_matched_global] <- unit_map$multiplier[u_map_rows]
+
+      u_still_unmatched_local <- is.na(u_lookup_idx)
+      u_still_unmatched_global <- u_std_indices[u_still_unmatched_local]
+      u_unit_flag[u_still_unmatched_global] <- "unmatched"
+    }
+
+    # Broadcast unique results back to all rows
+    key_to_unique <- match(dedup_keys, unique_keys)
+    stopifnot(!anyNA(key_to_unique)) # T-37-12: match is guaranteed (unique_keys derived from dedup_keys)
+    harmonized_unit <- u_harmonized_unit[key_to_unique]
+    conversion_factor <- u_conversion_factor[key_to_unique]
+    unit_flag <- u_unit_flag[key_to_unique]
+
+    # Compute harmonized_value via vectorized multiply (O(n), already optimal)
+    harmonized_value <- values * conversion_factor
+
+    # needs_mw rows must preserve original value (no conversion applied)
+    harmonized_value[unit_flag == "needs_mw"] <- values[unit_flag == "needs_mw"]
+  } else {
+    # Not enough duplication -- run existing logic directly
+
+    # ---- Handle molarity rows (vectorized where possible) ----
+
+    # Molarity with valid MW -> convert to mg/L
+    mol_with_mw <- molarity_mask & !is.na(mw_vec) & mw_vec > 0
+    if (any(mol_with_mw)) {
+      mol_scales <- vapply(
+        normalized[mol_with_mw],
+        get_molarity_scale,
+        numeric(1)
+      )
+      harmonized_value[mol_with_mw] <- values[mol_with_mw] * mw_vec[mol_with_mw] * mol_scales
+      harmonized_unit[mol_with_mw] <- "mg/L"
+      conversion_factor[mol_with_mw] <- mw_vec[mol_with_mw] * mol_scales
+      unit_flag[mol_with_mw] <- ""
+    }
+
+    # Molarity without MW -> pass through with flag
+    mol_no_mw <- molarity_mask & (is.na(mw_vec) | mw_vec <= 0)
+    if (any(mol_no_mw)) {
+      unit_flag[mol_no_mw] <- "needs_mw"
+    }
+
+    # ---- Handle ppb/ppm rows (vectorized) ----
+
+    if (any(ppx_mask)) {
+      # Pre-compute indices ONCE to avoid O(k²) which() calls (Codex fix)
+      ppx_idx <- which(ppx_mask)
+      ppx_units <- normalized[ppx_idx]
+      ppx_media <- media_vec[ppx_idx]
+
+      # Vectorized ppx conversion factors
+      ppx_factors <- vapply(ppx_units, get_ppx_conversion_factor, numeric(1))
+
+      # Vectorized media target lookup (now O(k), not O(k²))
+      ppx_targets <- vapply(
+        seq_along(ppx_idx),
+        function(i) {
+          get_media_target(ppx_units[i], ppx_media[i]) %||% "mg/L"
+        },
+        character(1)
+      )
+
+      harmonized_value[ppx_idx] <- values[ppx_idx] * ppx_factors
+      harmonized_unit[ppx_idx] <- ppx_targets
+      conversion_factor[ppx_idx] <- ppx_factors
+
+      # Flag as media_inferred if media was NULL/NA
+      ppx_media_na <- is.na(ppx_media) | ppx_media == ""
+      unit_flag[ppx_idx] <- ""
+      unit_flag[ppx_idx[ppx_media_na]] <- "media_inferred"
+    }
+
+    # ---- Handle standard table lookup (vectorized with hash) ----
+
+    if (any(standard_mask)) {
+      # Build hash maps once: from_unit -> row index (O(m), not O(n*m))
+      lookup_hash <- stats::setNames(seq_len(nrow(unit_map)), unit_map$from_unit)
+      lookup_hash_ci <- stats::setNames(
+        seq_len(nrow(unit_map)),
+        tolower(unit_map$from_unit)
+      )
+
+      # Extract units for standard rows
+      std_units <- normalized[standard_mask]
+      std_indices <- which(standard_mask)
+
+      # Vectorized case-sensitive lookup (O(n))
+      lookup_idx <- lookup_hash[std_units]
+
+      # Case-insensitive fallback for unmatched
+      unmatched_local <- is.na(lookup_idx)
+      if (any(unmatched_local)) {
+        ci_lookup <- lookup_hash_ci[tolower(std_units[unmatched_local])]
+        lookup_idx[unmatched_local] <- ci_lookup
+        # Mark case fallbacks
+        case_fallback_local <- unmatched_local & !is.na(lookup_idx)
+        unit_flag[std_indices[case_fallback_local]] <- "case_fallback"
+      }
+
+      # Apply matched lookups (vectorized assignment)
+      matched_local <- !is.na(lookup_idx)
+      matched_global <- std_indices[matched_local]
+      map_rows <- lookup_idx[matched_local]
+
+      harmonized_unit[matched_global] <- unit_map$to_unit[map_rows]
+      conversion_factor[matched_global] <- unit_map$multiplier[map_rows]
+      harmonized_value[matched_global] <- values[matched_global] * conversion_factor[matched_global]
+
+      # Handle truly unmatched (pass through with flag)
+      still_unmatched_local <- is.na(lookup_idx)
+      still_unmatched_global <- std_indices[still_unmatched_local]
+      unit_flag[still_unmatched_global] <- "unmatched"
+    }
+  } # end dedup if/else
 
   # Build output tibble with columns in exact order (per D-07)
   tibble::tibble(
