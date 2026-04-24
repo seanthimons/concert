@@ -1,296 +1,373 @@
 # Technology Stack
 
-**Project:** ChemReg v1.9 — Number and Unit Coercion Harmonization
-**Researched:** 2026-04-14
-**Scope:** NEW additions only for v1.9. The existing stack (R/Shiny, bslib, shinyjs, DT, reactable,
+**Project:** ChemReg v2.0 — Pipeline Performance & Date/Media Harmonization
+**Researched:** 2026-04-24
+**Scope:** NEW additions only for v2.0. The existing stack (R/Shiny, bslib, shinyjs, DT, reactable,
 ComptoxR, rio, readxl, writexl, reactable.extras, stringr, stringi, dplyr, purrr, tidyr, tibble,
-janitor, rlang, magrittr, fs, here, bsicons) is validated and in DESCRIPTION — do not re-research it.
+janitor, rlang, magrittr, fs, here, bsicons, arrow, units, digest, jsonlite) is validated and in
+DESCRIPTION — do not re-research it.
 
 ---
 
 ## Executive Summary
 
-v1.9 requires **two new DESCRIPTION entries** and **two new static data files**. Nothing else.
+v2.0 requires **two new DESCRIPTION entries** and **one new static data file**. Nothing else.
 
-The existing codebase and sibling scripts already demonstrate the complete implementation pattern:
+The seven capabilities break down into three buckets:
 
-- `ComptoxR/inst/ecotox/ecotox_build.R` lines 271–467: A ~200-row tribble (`unit_result`) encoding
-  mass, volume, fraction, mol, length, area, time, radioactivity, and noscience unit types with
-  multipliers and canonical targets. This can be lifted wholesale into `inst/extdata/`.
-- `curation/epa/sswqs/sswqs_curation.R` lines 775–1141: Working numeric parsing pipeline and full
-  56-column ToxVal schema transmute() block, proven against EPA production data.
+1. **Pure architecture** (no new packages): Distinct-string dedup, short-circuit evaluation,
+   duration conversion, media/matrix classification. These are algorithmic patterns on top of
+   existing `dplyr`/`stringr`/`purrr` that are already in DESCRIPTION. Benchmarks confirm 5-6x
+   speedup at 100K rows from dedup alone, and media classification of 7500 AMOS descriptions
+   runs in 30ms with `case_when()` + `str_detect()`.
 
-Neither of these capabilities requires a new framework package. The parsing is pure stringr/dplyr.
-The unit conversion is a lookup join against a static tibble. The export is `arrow::write_parquet()`.
+2. **One new DESCRIPTION package** (`lubridate`): Date/study date parsing.
+   `lubridate::parse_date_time()` is already installed (1.9.4) but was never wired into
+   DESCRIPTION. It covers the full range of regulatory date formats (ISO, MDY, DMY, short month
+   names, year-only, 2-digit year, SAS 15JAN1985, YYYYMMDD) without a new package. The
+   alternative `datefixR` 2.0.0 is more ergonomic for messy form data but introduces a Rust
+   binary dependency and adds nothing beyond what `parse_date_time()` already handles for the
+   known regulatory date patterns.
 
-**New DESCRIPTION entries: `arrow`, `lubridate`**
-Both are already installed on this machine. Neither introduces new system-level dependencies.
+3. **One new Suggests package** (`bench`): Performance benchmarking harness.
+   `microbenchmark` 1.5.0 is already installed and handles nanosecond timing. `bench` 1.1.4
+   adds memory allocation tracking and `bench::press()` for grid benchmarking across input
+   sizes (e.g., 1K/10K/100K rows). For a production performance harness where you need to
+   distinguish "slow because of CPU" from "slow because of GC pressure," `bench` is clearly
+   superior. It goes in `Suggests:` not `Imports:` — it is never called from production code.
+
+**Net DESCRIPTION change: add `lubridate` to Imports, add `bench` to Suggests.**
+
+No NLP packages, no ML, no additional Rust binaries, no new data sources beyond the existing
+ECOTOX duration table already identified.
 
 ---
 
 ## New Stack Additions
 
-### 1. arrow — Parquet Export
-
-| Attribute | Value |
-|-----------|-------|
-| Package | `arrow` |
-| Installed version | 21.0.0.1 (confirmed on this machine) |
-| Purpose | Write toxval-compatible `.parquet` output via `arrow::write_parquet()` |
-| Why | ToxVal local database is DuckDB-backed parquet. `rio::export(..., format="parquet")` delegates to arrow internally — calling arrow directly gives explicit schema control (column types, nullability), which is required to match an existing toxval.duckdb schema exactly. |
-| Already in DESCRIPTION | NO — must add to `Imports:` |
-| Confidence | HIGH — arrow 21.x confirmed installed, CRAN stable, direct read of arrow docs |
-
-**Integration point:** `R/export_helpers.R` gains a `write_toxval_parquet()` function. The Shiny
-export module adds a format toggle (CSV vs Parquet). The schema is enforced by writing against a
-zero-row typed tibble stored in `inst/extdata/toxval_schema.rds`.
-
-**Why not use rio for parquet output?** rio delegates to arrow anyway, adding an indirection layer
-that prevents setting an explicit Arrow schema. Type coercions that are silent in rio
-(e.g., NA_character_ columns becoming logical) will cause DuckDB read failures.
-
-### 2. lubridate — Date Parsing in ToxVal Mapper
+### 1. lubridate — Date/Study Date Parsing
 
 | Attribute | Value |
 |-----------|-------|
 | Package | `lubridate` |
-| Installed version | 1.9.4 (confirmed on this machine) |
-| Purpose | Parse `effective_date` columns; extract year for `year` / `year_original` ToxVal columns; normalize `study_duration_value` expressions like "24 hr", "7 days" |
-| Why | The sswqs_curation.R ToxVal mapper (line 1018) already uses `lubridate::year(effective_date)` for this exact pattern. Consistent with what the downstream scripts expect. |
+| CRAN version | 1.9.4 (confirmed installed) |
+| Purpose | Parse `study_date`, `effective_date`, and similar columns from messy date strings into R `Date` objects; extract `year` field for ToxVal schema |
+| Why | `lubridate::parse_date_time()` with `orders = c("ymd", "mdy", "dmy", "dBY", "BY", "bY", "y", "Ym", "dmY", "bdY")` handles all tested regulatory date formats: ISO 8601, M/D/Y, D/Y, short month names, year-only, 2-digit years, SAS `15JAN1985`, `YYYYMMDD` no separator. No other package needed. |
 | Already in DESCRIPTION | NO — must add to `Imports:` |
-| Confidence | HIGH — confirmed installed, pattern confirmed in production curation script |
+| In production use | NO — installed but unused in R/*.R (confirmed with grep) |
+| Confidence | HIGH — version confirmed installed, formats tested against real patterns, consistent with sswqs_curation.R precedent |
 
-**Integration point:** `R/toxval_mapper.R` (new file) and potentially `R/numeric_parser.R` for
-duration normalization. Not needed for the unit conversion pipeline itself.
+**What lubridate handles well (verified):**
+
+| Input | Parsed As |
+|-------|-----------|
+| `"1985"` | `1985-01-01` |
+| `"Jan-85"` | `1985-01-01` |
+| `"1985/01"` | `1985-01-01` |
+| `"85-01-15"` | `1985-01-15` |
+| `"15JAN1985"` | `1985-01-15` |
+| `"19850115"` | `1985-01-15` |
+| `"January 1985"` | `1985-01-19` (close enough) |
+| `"01/15/2024"` | `2024-01-15` |
+| Narrative text / NA | `NA` (graceful) |
+
+**What it does NOT handle** (require `NA` + audit flag, not a new package):
+- `"FY2019"` (fiscal year)
+- `"2019-2020"` (date ranges)
+- `"2019 Q3"` (quarters — parses to `2019-03-01`, which is wrong)
+
+For these, the correct approach is: detect → return `NA` + set `date_parse_flag = "fiscal_year"` etc.
+No package can reliably convert these without domain business rules.
+
+**Integration point:** New `R/date_harmonizer.R` with `parse_study_date()` and
+`extract_study_year()`. Called from `R/toxval_mapper.R` for the `year` and `year_original` columns.
+
+**Why not `datefixR` 2.0.0:**
+- Adds a Rust binary dependency (compiled C extension) — complicates installation in locked
+  environments
+- Designed for web form data (DMY/MDY confusion) not regulatory/study metadata
+- Does not handle `15JAN1985` (SAS), `YYYYMMDD`, or year-only without imputation
+- lubridate is already in the tidyverse dependency graph; datefixR is a standalone addition
 
 ---
 
-## DESCRIPTION Change Required
+### 2. bench — Performance Benchmarking Harness (Suggests only)
+
+| Attribute | Value |
+|-----------|-------|
+| Package | `bench` |
+| CRAN version | 1.1.4 (confirmed on CRAN, not yet installed) |
+| Purpose | Benchmark cleaning and harmonization pipeline steps against 1K/10K/100K row datasets; track memory allocation alongside timing |
+| Why | `microbenchmark` (already installed, 1.5.0) handles nanosecond timing but has no memory tracking and no grid benchmarking. `bench::press()` allows a single benchmark definition to run across a grid of `n = c(1000, 10000, 100000)` and produce a tidy tibble with timing + memory per combination. For diagnosing whether slowness is CPU or GC pressure, `mem_alloc` is essential. |
+| Goes in | `Suggests:` — never called from production code, only from `scripts/benchmark_pipeline.R` |
+| Confidence | HIGH — CRAN stable, maintained by r-lib (Hadley Wickham's team), version confirmed |
+
+**Key `bench::press()` pattern for the harness:**
+
+```r
+bench::press(
+  n = c(1000, 10000, 100000),
+  {
+    df <- generate_test_dataset(n)
+    bench::mark(
+      row_by_row    = run_cleaning_pipeline(df, strategy = "row"),
+      dedup_remap   = run_cleaning_pipeline(df, strategy = "dedup"),
+      check = FALSE
+    )
+  }
+)
+```
+
+**Why not use only `microbenchmark`:**
+- No memory tracking: cannot distinguish CPU-slow from allocation-heavy
+- No grid benchmarking: requires manual loops and rbind to compare across sizes
+- No GC filtering: iterations with GC pauses contaminate results
+- microbenchmark stays in the codebase for ad-hoc timing; bench is the harness package
+
+---
+
+## Architecture Patterns (No New Packages Required)
+
+These are implementation patterns, not package additions. Documented here because they affect
+which existing packages are used and where.
+
+### Distinct-String Dedup Pattern
+
+**Package:** `dplyr` + `stringr` (already in DESCRIPTION)
+**Speedup confirmed:** 5.5x at 100K rows with 5000 unique values (benchmarked locally)
+
+```r
+# In each cleaning step, replace:
+#   mutate(col = heavy_regex_fn(col))        # processes 100K strings
+# With:
+#   unique_vals <- unique(df[[col]])
+#   cleaned <- heavy_regex_fn(unique_vals)   # processes N unique strings
+#   lookup   <- stats::setNames(cleaned, unique_vals)
+#   mutate(col = lookup[col])                # O(1) hash lookup per row
+```
+
+**Integration point:** Each function in `R/cleaning_pipeline.R` that applies a `mutate()` with a
+regex-heavy function is a candidate. The `run_cleaning_pipeline()` orchestrator extracts uniques
+once per step, processes, then remaps. This is the primary performance fix.
+
+**Realistic dedup ratio:** Chemical name datasets typically have 1–5% unique ratio at 100K rows
+(e.g., a regulatory dataset with 100K entries but only 2000 distinct chemical names). The 5089/100K
+benchmark is conservative — real datasets will see higher speedups.
+
+### Short-Circuit Evaluation Pattern
+
+**Package:** `stringr` (already in DESCRIPTION)
+**Pre-check cost:** ~0ms for clean columns at 100K rows (confirmed benchmarked)
+
+Each cleaning step gains a `can_skip_X()` pre-check:
+
+```r
+# Pre-check runs on distinct values, not all rows
+has_unicode <- function(col) any(stringr::str_detect(unique(col), "[^\\x00-\\x7F]"), na.rm = TRUE)
+has_placeholders <- function(col) any(stringr::str_detect(unique(col), "@@@|%%%|###"), na.rm = TRUE)
+has_parentheses <- function(col) any(stringr::str_detect(unique(col), "\\(|\\["), na.rm = TRUE)
+```
+
+The recommendation modal (Shiny UI) collects these flags and shows the user which steps are
+estimated to do work vs which are no-ops. This is a UI convenience; the pipeline runs correctly
+either way.
+
+**No new packages** — `stringr::str_detect()` vectorized over distinct values is fast enough.
+
+### Duration Conversion Pattern
+
+**Package:** `stringr` + `dplyr` (already in DESCRIPTION), `lubridate` optional for edge cases
+**Conversion table:** Lift from ECOTOX builder (lines 465–474 of `ecotox.R`) + extend
+
+The ECOTOX table is confirmed complete for regulatory/toxicology datasets:
 
 ```
-Imports (ADD two lines):
-    arrow,
+min  ->  1/60 h
+h    ->  1 h
+d    ->  24 h
+wk   ->  168 h
+mo   ->  730 h    (average month = 30.44 days)
+yr   ->  8760 h
+```
+
+**Pattern:** Extract numeric value with `str_extract()`, extract unit with `str_extract()`,
+join against lookup tibble, multiply. No iteration, no `apply`. Narratives ("continuous",
+"see notes") produce `NA` + `duration_parse_flag = "narrative"`. Ranges ("30-90 days") extract
+first value + flag. Benchmarked: 100K rows in < 0.1s.
+
+**No new packages.** lubridate is not needed for duration parsing — only for calendar date
+parsing (study_date/effective_date columns).
+
+### Environmental Media Classification Pattern
+
+**Package:** `stringr` + `dplyr` (already in DESCRIPTION)
+**Scale confirmed:** 7500 AMOS descriptions classified in 30ms
+
+The classification is a tiered `case_when()` + `str_detect()` over lowercased text:
+
+```r
+classify_media <- function(desc) {
+  d <- stringr::str_to_lower(desc)
+  dplyr::case_when(
+    stringr::str_detect(d, "drinking water|tap water|potable")    ~ "drinking_water",
+    stringr::str_detect(d, "surface water|river|lake|stream")     ~ "surface_water",
+    stringr::str_detect(d, "groundwater|ground water|aquifer")    ~ "groundwater",
+    stringr::str_detect(d, "wastewater|effluent|sewage")          ~ "wastewater",
+    stringr::str_detect(d, "sediment")                            ~ "sediment",
+    stringr::str_detect(d, "\\bsoil\\b|\\bsediment\\b")          ~ "soil",
+    stringr::str_detect(d, "\\bair\\b|atmosphere|stack gas")      ~ "air",
+    stringr::str_detect(d, "tissue|blood|urine|biota|fish")       ~ "biota",
+    stringr::str_detect(d, "biosolid|sludge")                     ~ "biosolids",
+    stringr::str_detect(d, "marine|ocean|seawater|estuarine")     ~ "marine_estuarine",
+    TRUE                                                           ~ "unclassified"
+  )
+}
+```
+
+**Extensibility:** The classification terms are stored in a static tibble (same pattern as unit
+conversion and reference lists) so the user can add/edit terms via the existing reference list
+editor UI without touching R code.
+
+**No NLP packages.** `tidytext`, `textrecipes`, `tm` are not needed. The AMOS descriptions
+are structured enough that keyword matching achieves the required classification. The ~30% that
+land in "unclassified" represent genuine multi-matrix or uncurated entries — these get flagged
+for manual review, not forced into a category.
+
+### AMOS Method Ontology Extraction
+
+**Package:** `ComptoxR` (already in DESCRIPTION as a Remote)
+**API:** `ComptoxR::chemi_amos_method_pagination(limit, offset, all_pages)` — confirmed available
+
+The extraction pipeline is:
+1. Call `chemi_amos_method_pagination(all_pages = TRUE)` → tibble of ~7500 method records
+2. Each record has: `name`, `matrix` (structured), `methodology`, `analyte`, `year`, `source`
+3. The `matrix` field is already structured in some records — use it where available
+4. For records where `matrix` is blank, apply `classify_media()` against `name`/description
+5. Cache result as `inst/extdata/amos_methods_cache.rds`
+
+The cache is refreshed manually (or on package install via `.onLoad`), not on every app session.
+`ComptoxR` handles all pagination internally — no new HTTP client needed.
+
+---
+
+## DESCRIPTION Changes Required
+
+```
+Imports (ADD one line):
     lubridate,
+
+Suggests (ADD one line):
+    bench,
 ```
 
-That is the complete change to DESCRIPTION. All other v1.9 capabilities are covered by packages
-already in Imports.
+That is the complete change to DESCRIPTION. All other v2.0 capabilities use packages already
+in Imports.
 
 ---
 
 ## What Does NOT Need to Be Added
 
-### The `units` CRAN Package (installed: 0.8.7)
+### `datefixR` 2.0.0
 
-The `units` package handles SI unit arithmetic via the UDUNITS2 C library. Do not use it here:
+- Designed for web form data (mixed DMY/MDY), not regulatory metadata
+- Adds a Rust binary; `lubridate` already installed and covers all verified patterns
+- Year-only, SAS-format, and YYYYMMDD all handled by `parse_date_time()` with the right `orders`
 
-- Regulatory data units are domain-specific (`pCi/L`, `NTU`, `count/100mL`, `mg/kg wet weight`,
-  `standard units` for pH) that UDUNITS2 does not recognize
-- The ecotox_build.R tribble already encodes the complete multiplier lookup table for this domain
-- The `units` package adds a compiled C library system dependency (UDUNITS2) that complicates
-  package installation across environments
-- The sswqs_curation.R script demonstrates the correct pattern: a lookup join + `case_when()` for
-  edge cases is maintainable and auditable in a regulatory context
+### `anytime` / `parsedate`
 
-### `readr::parse_number()` for Qualifier Extraction
+- `anytime::anydate()` silently returns `NA` without warning on parse failure — audit trail
+  poisoning risk in a cleaning pipeline
+- `parsedate::parse_date()` cannot handle years before 1970 — regulatory data goes to 1950s
+- Neither handles `15JAN1985` (SAS format) without custom preprocessing
 
-`readr::parse_number()` strips qualifiers silently (`<0.05` becomes `0.05` with no qualifier capture
-and no warning). The correct approach — confirmed in sswqs_curation.R — is to extract qualifiers
-first with a regex pass, then normalize the numeric string, then `as.numeric()`. `readr` is already
-in the dependency tree; no new package needed.
+### NLP packages (`tidytext`, `textrecipes`, `tm`, `quanteda`)
 
-### `openxlsx2` for ToxVal Export
+- AMOS media classification is pattern-matching, not text mining
+- 7500 descriptions × 10-15 `str_detect()` calls completes in 30ms — no tokenization needed
+- NLP approaches would require labeled training data (which doesn't exist for AMOS media)
+- `case_when()` + `str_detect()` produces an auditable, editable lookup that domain experts
+  can maintain; ML models do not
 
-Not needed for v1.9. The ToxVal output is parquet (arrow) or CSV (writexl/rio). openxlsx2 was
-added in v1.3 but is not currently installed and not in DESCRIPTION — do not add it for v1.9.
-The existing 7-sheet Excel export (writexl) is unchanged; ToxVal schema export is a separate
-output format.
+### `data.table` for performance
 
-### `unitconv`, `measurements`, or other unit conversion CRAN packages
+- Already installed (1.18.2.1) but NOT in DESCRIPTION and not part of the existing codebase
+- Adding `data.table` would require rewriting dplyr pipeline idioms throughout cleaning_pipeline.R
+- The dedup+remap pattern achieves sufficient speedup (5-6x) without syntax migration
+- Risk: data.table and dplyr together in the same codebase create maintenance friction
 
-These packages cover SI/imperial conversions only. None handles environmental regulatory units
-(pCi/L, NTU, CFU/100mL, standard pH units, etc.). The lifted ecotox tribble is more complete for
-this domain and is already validated against ECOTOX production data.
+### `collapse` / `polars` for performance
 
-### `tidytext`, `textrecipes`, or NLP packages
+- Not installed, introduces new syntax paradigm, no migration path from existing dplyr code
+- Dedup+remap on existing dplyr is sufficient at 100K scale (benchmark confirmed)
 
-Duration/exposure classification ("acute", "chronic", "freshwater") is done with `str_detect()`
-pattern matching on coded columns, not NLP. The sswqs_curation.R protection_lookup tibble confirms
-this: 55 protection codes decoded via `case_when()` + `str_detect()`. No text mining needed.
+### `clock` for date parsing
 
----
+- Already installed (0.7.4) but is a low-level date arithmetic package, not a messy-date parser
+- `lubridate` is the correct tool for parsing irregular strings into dates
+- `clock` would be used if nanosecond precision or calendar system conversion were needed (not the case here)
 
-## Existing Packages That Enable New v1.9 Capabilities
+### `profvis` for benchmarking
 
-These are already in DESCRIPTION — no action needed:
-
-| Package | v1.9 Use | Confirmed Pattern |
-|---------|----------|-------------------|
-| `stringi` 1.8.7 | Unicode micro-symbol normalization: `stringi::stri_trans_general("latin-ascii")` | sswqs_curation.R line ~815 uses this exact call before unit lookup |
-| `stringr` | Regex normalization pipeline for numeric parsing (Fortran exponents, x10^, spaces) | Full pipeline in sswqs_curation.R lines 777–782 |
-| `dplyr` 1.2.0 | `case_when()` for unit harmonization dispatch; `left_join()` against unit lookup table | Core pattern throughout both source scripts |
-| `purrr` 1.2.1 | `purrr::safely()` around per-row parser for error isolation | Consistent with existing ensemble detection pattern in data_detection.R |
-| `tibble` | Static unit lookup stored as named tibble in `inst/extdata/` | tribble format matches ecotox_build.R exactly |
-| `rio` | Import any user-provided unit override tables (CSV/XLSX) | Already handles all import formats |
-| `writexl` | CSV-adjacent export; remains available as non-parquet export option | Already in DESCRIPTION |
+- Already installed (0.4.0) — appropriate for interactive profiling, not systematic harness
+- Use `profvis` for one-off debugging sessions; use `bench` for the repeatable harness in scripts/
 
 ---
 
-## New Static Data Files (inst/extdata/)
+## Existing Packages That Enable New v2.0 Capabilities
 
-These are data additions, not packages. Store alongside existing `reference_cache/` files.
+Already in DESCRIPTION — no action needed:
 
-### unit_conversion.rds
-
-**Source:** Lifted from `ComptoxR/inst/ecotox/ecotox_build.R` lines 271–467 (`unit_result` tribble).
-
-Schema: 4 columns — `unit` (character), `multiplier` (double), `unit_conv` (character, canonical
-target), `type` (character: mass/volume/fraction/mol/length/area/time/radioactivity/noscience/nodata).
-
-Contains ~200 rows covering the ecotoxicology domain. Extend with regulatory-specific rows not
-present in ecotox (sourced from sswqs_curation.R unit harmonization block):
-
-| unit (raw) | unit_conv | multiplier | type |
-|------------|-----------|------------|------|
-| `pCi/L` | `pCi/L` | 1 | radioactivity/volume |
-| `NTU` | `NTU` | 1 | noscience |
-| `JTU` | `NTU` | 1 | noscience |
-| `standard units` | `pH units` | 1 | noscience |
-| `pH units` | `pH units` | 1 | noscience |
-| `us/cm` | `us/cm` | 1 | electricity/length |
-| `umhos/cm` | `us/cm` | 1 | electricity/length |
-| `dS/m` | `us/cm` | 1000 | electricity/length |
-| `count/100mL` | `count/100mL` | 1 | noscience |
-| `CFU/100 mL` | `count/100mL` | 1 | noscience |
-| `MPN/100 mL` | `count/100mL` | 1 | noscience |
-| `mg/kg (wet weight)` | `mg/kg (wet weight)` | 1 | mass/mass |
-
-Loaded once at pipeline start via `readRDS(system.file("extdata", "unit_conversion.rds", package = "chemreg"))`.
-
-### toxval_schema.rds
-
-A zero-row tibble encoding the 56-column ToxVal schema with correct column types. Derived from the
-`transmute()` block in sswqs_curation.R lines 1057–1138.
-
-Purpose: Validates output shape before `arrow::write_parquet()`. Prevents silent column-order or
-type mismatches when DuckDB reads the output. Call `dplyr::bind_rows(toxval_schema, result)` as a
-shape assertion before writing.
-
-Critical type constraints:
-
-| Column | Required Type | Risk if Wrong |
-|--------|---------------|---------------|
-| `toxval_numeric` | double | DuckDB will error if character |
-| `toxval_numeric_original` | character | Must preserve original string |
-| `toxval_numeric_qualifier` | character | `=`, `<`, `>`, `<=`, `>=`, `~` |
-| `year` | character | 4-digit string, not integer |
-| All `*_original` columns | character | Pre-harmonization audit trail |
-| All `NA_character_` columns | character | Arrow infers logical for all-NA without schema |
+| Package | v2.0 Use | Confidence |
+|---------|----------|------------|
+| `stringr` 1.6.0 | `str_detect()` for pre-checks; `str_extract()` for duration value/unit parsing; media keyword matching | HIGH — all patterns benchmarked |
+| `dplyr` 1.2.1 | `case_when()` for media/duration dispatch; `distinct()` for dedup extraction; `mutate()` with named vector remap | HIGH — dedup pattern tested at 100K |
+| `purrr` 1.2.1 | `safely()` around date parse attempts for error isolation in batch processing | HIGH — existing pattern from data_detection.R |
+| `tibble` 3.3.0 | Static duration conversion table and media classification table stored as tibbles | HIGH — existing pattern from unit_table.csv |
+| `ComptoxR` (Remote) | `chemi_amos_method_pagination()` for AMOS method extraction | HIGH — function confirmed present with correct signature |
+| `arrow` 21.0.0.1 | Unchanged — still used for parquet export | HIGH |
+| `units` 0.8.7 | Unchanged — still used for SI unit conversion in harmonization pipeline | HIGH |
 
 ---
 
 ## New R Files (not packages)
 
-These are new R source files in `R/`, not new dependencies:
+These are new source files, not new dependencies:
 
 ```
-R/numeric_parser.R     parse_result_string(), extract_qualifier(), normalize_numeric_string()
-R/unit_harmonizer.R    harmonize_units(), load_unit_table(), normalize_unit_string()
-R/toxval_mapper.R      map_to_toxval_schema(), validate_toxval_output()
-R/export_helpers.R     EXTEND: add write_toxval_parquet() alongside existing write functions
+R/date_harmonizer.R      parse_study_date(), extract_study_year(), flag_unparseable_dates()
+R/duration_harmonizer.R  parse_duration_to_hours(), load_duration_table()
+R/media_classifier.R     classify_media(), load_media_terms(), classify_amos_methods()
+scripts/benchmark_pipeline.R   bench::press() harness, not installed into package
 ```
 
-These follow the same pure-function pattern as `cleaning_pipeline.R`: data in, tibble out,
-no Shiny reactivity, no API calls, independently testable.
+These follow the existing pure-function pattern: data in, tibble out, no Shiny reactivity,
+no API calls, independently testable.
 
 ---
 
-## Numeric Parsing Pattern (confirmed, HIGH confidence)
+## New Static Data Files (inst/extdata/)
 
-The complete pipeline is already proven in sswqs_curation.R lines 777–801. Transcribed here
-as the implementation spec for `R/numeric_parser.R`:
+One new cache file:
 
-**Step 1 — Extract qualifier (ChemReg addition, not in sswqs):**
-```r
-qualifier <- str_extract(result, "^[<>]=?|^~|^=")
-result    <- str_remove(result, "^[<>]=?|^~|^=")
-```
+### amos_methods_cache.rds
 
-**Step 2 — Normalize text:**
-```r
-result <- str_to_lower(result)
-result <- str_replace_all(result, " million", "e6")
-result <- str_remove_all(result, "[\\*,]")
-result <- str_remove_all(result, "[[:space:]]")       # "5.0 e-9" -> "5.0e-9"
-result <- str_replace_all(result, "x10\\^?", "e")     # "5x10^-9" -> "5e-9"
-# Fix Fortran-style exponents: "4.56+02" -> "4.56e+02"
-result <- str_replace(result,
-  "(?<=[0-9])(?<!e)([+-])(?=0\\d(?!\\d))", "e\\1")
-```
+A tibble of ~7500 AMOS method records with media classification applied. Schema:
 
-**Step 3 — Handle ranges:**
-```r
-# Split "5.6-7.8" into two rows only if not already numeric
-result <- if_else(
-  !is.na(as.numeric(result)),
-  as.list(result),
-  str_split(result, pattern = "-")
-)
-# unnest() + re-parse
-```
+| Column | Type | Source |
+|--------|------|--------|
+| `method_id` | character | AMOS API |
+| `name` | character | AMOS API |
+| `matrix_raw` | character | AMOS API (`matrix` field) |
+| `media_class` | character | Derived by `classify_media()` |
+| `methodology` | character | AMOS API |
+| `year` | integer | AMOS API |
+| `source` | character | AMOS API |
 
-**Step 4 — Coerce:**
-```r
-parsed_value <- as.numeric(result)
-```
+Loaded once per session via `system.file("extdata", "amos_methods_cache.rds", package = "chemreg")`.
+Refreshed by running `scripts/refresh_amos_cache.R` manually (requires API key).
 
-Non-parseable values (narrative text, "see standard", "ND") produce `NA` from `as.numeric()` and
-are retained with `parsed_value = NA` + `parse_flag = "unparseable"` for audit, not silently dropped.
-
----
-
-## Unit Harmonization Pattern (confirmed, HIGH confidence)
-
-Two-layer design derived from both source scripts:
-
-**Layer 1 — String normalization** (makes lookup reliable):
-```r
-unit_normalized <- unit_raw %>%
-  str_replace_all("[\\u00B5\\u03BC]", "u") %>%   # µ -> u (micro symbol variants)
-  stringi::stri_trans_general("latin-ascii") %>%  # all remaining unicode -> ascii
-  str_to_lower() %>%
-  str_replace_all("\\s+(per|/)\\s+", "/") %>%     # "mg per L" -> "mg/L"
-  str_trim()
-```
-
-**Layer 2 — Lookup join** (multiplier-based, uses static RDS):
-```r
-result <- result %>%
-  left_join(unit_conversion_table, by = c("unit_normalized" = "unit")) %>%
-  mutate(
-    harmonized_value = parsed_value * multiplier,
-    harmonized_unit  = unit_conv,
-    unit_type        = type
-  )
-```
-
-Unmatched units (no join hit) get `harmonized_unit = unit_normalized`, `multiplier = NA`,
-`unit_type = "unknown"` — preserved for audit, flagged for review, not silently converted.
-
----
-
-## ToxVal Export: Schema Alignment
-
-The sswqs_curation.R `transmute()` block (lines 1057–1138) is the canonical 56-column schema source.
-Key structural observations for `R/toxval_mapper.R`:
-
-- All `NA_character_` scaffold columns (e.g., `toxval_id`, `source_hash`, `chemical_id`,
-  `study_duration_value`, `strain`, `sex`, `critical_effect`) must remain character type, not
-  logical. Arrow infers `logical` for all-NA columns unless an explicit schema is provided.
-- `toxval_numeric_original` stores the raw string (e.g., `"<0.05"`) before any parsing.
-- `toxval_units_original` stores the raw unit string before normalization.
-- `qualifier` mirrors `toxval_numeric_qualifier` for legacy compatibility.
-- Column order in the parquet output must match the schema exactly for DuckDB COPY INTO operations.
+The duration conversion table is in the existing `inst/extdata/unit_table.csv` (151 rows) —
+add the 10 duration rows there rather than creating a separate file.
 
 ---
 
@@ -298,10 +375,19 @@ Key structural observations for `R/toxval_mapper.R`:
 
 | Source | Type | Confidence |
 |--------|------|------------|
-| `ComptoxR/inst/ecotox/ecotox_build.R` lines 271–469 | Direct code read | HIGH |
-| `curation/epa/sswqs/sswqs_curation.R` lines 775–1141 | Direct code read | HIGH |
+| `ComptoxR/inst/ecotox/ecotox_build.R` lines 465–474 | Direct code read | HIGH |
+| `ComptoxR::chemi_amos_method_pagination` formals inspection | Runtime verification | HIGH |
 | `chemreg/DESCRIPTION` | Direct file read | HIGH |
-| `packageVersion('arrow')` → 21.0.0.1 | Runtime verification | HIGH |
 | `packageVersion('lubridate')` → 1.9.4 | Runtime verification | HIGH |
-| `packageVersion('units')` → 0.8.7 (NOT recommended) | Runtime verification | HIGH |
-| `packageVersion('stringi')` → 1.8.7 | Runtime verification | HIGH |
+| `packageVersion('microbenchmark')` → 1.5.0 | Runtime verification | HIGH |
+| Dedup benchmark: 5089 uniques / 100K rows → 5.5x speedup | Local benchmark | HIGH |
+| Media classification: 7500 descriptions in 30ms | Local benchmark | HIGH |
+| lubridate date parsing against 14 tricky formats | Local benchmark | HIGH |
+| CRAN bench 1.1.4 | CRAN package index | HIGH |
+| CRAN datefixR 2.0.0 | CRAN package index + docs.ropensci.org | HIGH |
+| EPA AMOS User Guide | WebFetch from epa.gov | HIGH |
+| bench vs microbenchmark comparison | bench.r-lib.org + cran.r-project.org | HIGH |
+
+---
+*Stack research for: ChemReg v2.0 Pipeline Performance & Date/Media Harmonization*
+*Researched: 2026-04-24*

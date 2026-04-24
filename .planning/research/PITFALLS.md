@@ -641,3 +641,311 @@ The numeric parsing and unit harmonization features touch none of the existing `
 - `C:/Users/sxthi/Documents/curation/epa/sswqs/sswqs_curation.R` — EPA production benchmark curation script; direct evidence for P1, P2, P4, P6, P7, P8, P10 (HIGH confidence — production code)
 - `C:/Users/sxthi/Documents/ComptoxR/inst/ecotox/ecotox_build.R` — Unit conversion table and duration dictionary; direct evidence for P3, P4, P12 (HIGH confidence — production code)
 - `C:/Users/sxthi/Documents/chemreg/.planning/PROJECT.md` — Architecture constraints and key decisions log; evidence for INT-1 through INT-4 and P9 (HIGH confidence — authoritative project document)
+
+---
+
+# v2.0 Pitfalls: Dedup-Remap Architecture, Short-Circuit Evaluation, Date/Duration Parsing, Media Harmonization
+
+**Domain:** Adding performance optimization + date/duration parsing + media harmonization to existing ChemReg R package
+**Milestone:** v2.0 Pipeline Performance & Date/Media Harmonization
+**Researched:** 2026-04-24
+**Confidence:** HIGH (codebase read + authoritative sources)
+
+---
+
+## Critical Pitfalls (v2.0)
+
+### v2.0 Pitfall 1: Dedup-Remap Row ID Mismatch Corrupts Audit Trail
+
+**What goes wrong:**
+The distinct-string dedup pattern extracts unique strings, processes them, then joins results back to the parent dataset. When `build_audit_trail()` is called on the unique-string work table, it records `which(original_vals != cleaned_vals)` as `row_id` — those are positions 1..N in the work table, not positions in the parent 100k-row dataset. The audit trail reports "row 42 changed" but the actual parent row is 42,089. The export looks correct; only a source-vs-audit cross-check reveals the corruption.
+
+**Why it happens:**
+`build_audit_trail(df_original, df_cleaned, ...)` was designed for whole-dataframe transforms. Its `changed_idx <- which(...)` is always relative to whatever dataframe is passed in. When a developer runs a step on the 5,000-unique-string slice and passes that slice to `build_audit_trail`, the function behaves correctly for the slice — it has no knowledge of parent row positions.
+
+**How to avoid:**
+- Extract uniques with their origin row positions: `split(seq_along(all_vals), all_vals)` gives a list mapping each unique string to all parent rows that contain it.
+- After processing the unique slice, define `remap_audit_to_parent(unique_audit, origin_map)` that expands each unique-slice row ID into all parent row IDs before appending to `audit_combined`.
+- The `remap_audit_to_parent` function must be written and tested before any step is migrated to the dedup path.
+- CI assertion: for any dedup step, `max(audit$row_id) <= nrow(parent_df)` must hold.
+
+**Warning signs:**
+- Audit trail has far fewer entries than the parent-dataset changed-value count.
+- Audit row IDs cluster in a small range (e.g., 1-5,000) on a 100k-row dataset.
+- Re-running the pipeline on the same data produces a different audit trail (non-determinism in unique-string ordering).
+
+**Phase to address:** Dedup architecture phase — first phase of this milestone. `remap_audit_to_parent` must exist before any step is migrated.
+
+---
+
+### v2.0 Pitfall 2: Short-Circuit False Negative — Pre-Check Uses Simpler Condition Than the Step
+
+**What goes wrong:**
+A step pre-check returns "nothing to do" so the step is skipped. But the pre-check tests a necessary condition, not a sufficient one. Example: a date-parsing pre-check calls `all(is.na(col))` and skips when all values are NA. But the step also converts sentinel strings (`"N/A"`, `"none"`, `"--"`, `"unknown"`) to proper `NA`. Those strings pass `!is.na()` so the pre-check returns "clean", the step is skipped, and sentinels survive into curated output as character values.
+
+**Why it happens:**
+Pre-checks are written to be fast and simple. The developer models "is there anything to process?" but encodes a weaker test. Any case the pre-check does not enumerate becomes a silent false skip.
+
+**How to avoid:**
+- For each pre-check, write a companion test that constructs a vector the pre-check would pass (return "skip") but the step would transform. If such a vector exists, the pre-check is unsafe.
+- Default to "run" on uncertainty. Pre-checks are performance optimizations, not gatekeepers. A false negative (skipping a needed step) is worse than a false positive (running an unneeded step).
+- After wiring in the short-circuit layer, add a pipeline integration test: feed a dataset containing at least one transformable value per step, verify the audit trail captures it even when pre-check conditions are borderline.
+
+**Warning signs:**
+- Sentinel strings like `"N/A"`, `"--"`, `"none"` appear in curated output.
+- A step reports "0 changes" on a dataset that visually contains dirty values.
+- Pre-check pass rate > 90% on real messy regulatory data.
+
+**Phase to address:** Short-circuit evaluation phase. Pre-check definitions must be reviewed against full step logic before enabling skip behavior.
+
+---
+
+### v2.0 Pitfall 3: Ambiguous Date Format — Silent Wrong-Month or Wrong-Year Parsing
+
+**What goes wrong:**
+`lubridate::mdy("01/02/2024")` and `lubridate::dmy("01/02/2024")` both succeed silently and return different dates. AMOS and ECOTOX study records mix US-format and European-format dates from multi-lab contributors. Choosing the wrong parse order produces plausible-looking but wrong dates. As of lubridate 1.3.0 the format used is no longer printed by default — ambiguous parses are invisible unless `options(lubridate.verbose = TRUE)` is set.
+
+**Why it happens:**
+Most EPA datasets are US-format, so the developer hardcodes `mdy()`. European-format dates with day <= 12 parse without error under either order — both interpretations are numerically valid. Only day values 13-31 expose the wrong choice, and those are a minority of dates.
+
+**How to avoid:**
+- Never rely on automatic format detection. Inspect a sample of date values and confirm order before choosing a parse function.
+- Use `lubridate::parse_date_time(x, orders = c("mdy", "dmy", "ymd"))` with per-row logging of which format was inferred.
+- Flag rows where day <= 12 AND month <= 12 as "format ambiguous" in the audit trail.
+- Validate parsed dates against known study year ranges: a study date of 1924 on a modern regulatory record is a canary for wrong format.
+- Set `options(lubridate.verbose = TRUE)` during development.
+
+**Warning signs:**
+- Date distribution histogram shows no dates with day > 12 — wrong-format rows silently became NA.
+- Parsed dates where swapping day and month still produces a valid calendar date (no detection signal).
+- NA rate in the parsed date column higher than raw data inspection would suggest.
+
+**Phase to address:** Date/duration parsing phase. Format detection strategy must be locked before any date column is processed.
+
+---
+
+### v2.0 Pitfall 4: Duration Parsing — Compound and Fractional Inputs Break Simple Regex
+
+**What goes wrong:**
+A duration field contains `"2d 4h"`, `"0.5 days"`, `"96 hrs"`, `"2 weeks"`, or `"48"` (unit-free). A regex designed for the common case (`(\d+)\s*(h|d)`) misses compound expressions entirely, silently drops them to NA, or converts `"2 weeks"` as 2 hours because the unit synonym map omits "weeks". Fractional values like `"0.5"` paired with `"d"` convert correctly only if the fractional is handled before the unit factor is applied — casting to integer first produces 0.
+
+**Why it happens:**
+ECOTOX duration fields were designed for single-value database entry. When source data is free-text, contributors write compound strings that look numeric but are not. The parser handles the common case and ignores everything else.
+
+**How to avoid:**
+- Parse in two passes: first attempt to split on whitespace into `(value, unit)` pairs; if more than one pair is found, convert each to hours and sum.
+- Build an explicit unit synonym map: `h/hr/hrs/hour/hours -> 1`, `d/day/days -> 24`, `wk/week/weeks -> 168`, `min/minute/minutes -> 1/60`, `s/sec/second/seconds -> 1/3600`.
+- Do NOT use `lubridate::duration()` for ECOTOX free-text fields: the `"m"` abbreviation means months in lubridate (not minutes) unless an ISO 8601 `"P"` prefix is present. `"10 min"` will parse as 10 months.
+- Required test cases: `"96h"`, `"4 days"`, `"2d 4h"`, `"0.5 hr"`, `"2 weeks"`, `"48"` (unit-free), NA, `""`, `"N/A"`.
+
+**Warning signs:**
+- Duration NA rate > 5% on clean-looking data.
+- `"24h"` and `"1d"` do not compare equal after conversion.
+- Very large hour values suggesting a unit was applied at the wrong scale (weeks treated as days).
+
+**Phase to address:** Date/duration parsing phase. Must include compound, fractional, and abbreviation-ambiguity test cases before the phase is considered complete.
+
+---
+
+### v2.0 Pitfall 5: Media Classification — Overlapping Categories Produce Silent Single-Pick
+
+**What goes wrong:**
+Many media descriptions match multiple categories: `"freshwater sediment"` matches both `"aqueous"` and `"sediment"`; `"soil pore water"` matches both `"soil"` and `"aqueous"`. A rule-based classifier picks the first-matching rule without flagging the ambiguity. Downstream ppb/ppm unit routing in `unit_harmonizer.R` then uses the wrong conversion factor for those rows silently, with no audit entry.
+
+**Why it happens:**
+Rule lists are built with single-match assumptions. "Most specific first" ordering is implicit and undocumented. When two rules fire, tie-breaking is rule order rather than domain logic.
+
+**How to avoid:**
+- Count how many rules match each input string. If count > 1, assign `media_ambiguous = TRUE` and expose in the UI.
+- Pre-enumerate known compound categories as first-class values: `"freshwater_sediment"`, `"marine_sediment"`, `"soil_porewater"`. These are explicit entries, not joins of two rules.
+- Test that every new media category correctly threads through the existing ppb/ppm routing branch in `harmonize_units()` or triggers an explicit fallback.
+
+**Warning signs:**
+- Media output contains only the most-common categories with no compound or ambiguous values — silently collapsed.
+- ppb values for sediment-type records are converting using the aqueous factor (factor-of-1000 error vs mg/kg dry weight).
+- High `media = NA` rate on records that have visible media descriptions.
+
+**Phase to address:** Media harmonization phase. Define compound category vocabulary before writing classifier rules.
+
+---
+
+### v2.0 Pitfall 6: AMOS Ontology Extraction — Overfitting to High-Frequency Descriptions
+
+**What goes wrong:**
+The ~7,500 AMOS method descriptions are skewed: `"freshwater"` and `"estuarine"` appear hundreds of times; `"hypersaline"` and `"interstitial water"` appear once or twice. A classifier built from 50-100 sampled examples is calibrated on common types and misses the long tail. Rare types fall through to NA, which looks like a data quality issue rather than a classifier failure.
+
+**Why it happens:**
+Developers sample visible, common examples to write rules. The long tail only becomes visible when running on the full 7,500-row corpus. NeurIPS 2024 OLLM research confirms this pattern: high-frequency concepts are memorized; low-frequency ones underfit.
+
+**How to avoid:**
+- Before writing any rules, tabulate all unique descriptions sorted by frequency. Explicitly identify the long tail (fewer than 5 occurrences).
+- Define `"unclassified"` as a valid output value distinct from `NA`. `NA` means no answer attempted; `"unclassified"` means the classifier ran but could not map. Both are acceptable, but they have different downstream implications.
+- Build iteratively: rules for top-20 types first, run on full corpus, inspect all unclassified rows, add rules for the next tier.
+- Never ship a classifier where a non-empty input produces `NA` without a warning. All unclassified outputs go to a review queue.
+- Budget explicitly for manual curation of the long tail (~100-200 descriptions).
+
+**Warning signs:**
+- Unclassified rate > 15% on the full AMOS corpus.
+- All unclassified rows cluster around specific method types — systematic miss, not random noise.
+- Classifier was tested only on the same examples used to write the rules (no held-out validation set).
+
+**Phase to address:** AMOS ontology pipeline phase. Requires full corpus exploration before classifier design.
+
+---
+
+### v2.0 Pitfall 7: Dedup Layer Passes Slice Row IDs to `build_audit_trail` Without Remap
+
+**What goes wrong:**
+`build_audit_trail(df_original, df_cleaned, ...)` records `which(original_vals != cleaned_vals)` as `row_id`. When called on a 5,000-unique-string slice, it records IDs 1-5,000. These positions are meaningless in the parent 100k-row dataframe. The step appears to have audited correctly but the audit trail is useless for tracing changes back to source rows.
+
+**How to avoid:**
+- Do not change `build_audit_trail`'s signature. Define `remap_audit_to_parent(audit_tbl, origin_map)` separately.
+- The dedup coordinator calls `build_audit_trail` on the slice, then immediately calls `remap_audit_to_parent` before appending to `audit_combined`.
+- CI assertion: for any step using the dedup path, `nrow(audit_for_this_step) >= parent_changed_count`.
+
+**Warning signs:**
+- Audit entry count for a dedup step is roughly `length(unique(values))` instead of `sum(values_changed_in_parent)`.
+- Step reports "42 strings changed" but the parent data has 4,200 rows containing those strings.
+
+**Phase to address:** Dedup architecture phase — same phase as Pitfall 1.
+
+---
+
+## Moderate Pitfalls (v2.0)
+
+### v2.0 Pitfall 8: Benchmark Measures Warm-Cache Dedup Cost, Misses Real-Workload Profile
+
+**What goes wrong:**
+A `bench::mark()` comparison of "full pipeline" vs "dedup pipeline" on a warm in-memory session shows 3x improvement. Real production runs show 1.4x, because the benchmark excluded: cold-start regex compilation, RDS cache load for reference lists, the remap step cost, and GC pressure from intermediate allocations.
+
+**How to avoid:**
+- Use `profvis::profvis({run_cleaning_pipeline(...)})` first to identify actual hotspots. Then benchmark only those hotspots.
+- Include the reference list load from disk in the benchmark. Reset the cache between bench iterations.
+- Test on real data with a measured string uniqueness rate. Synthetic data with 100% unique strings overstates dedup benefit.
+- Include the remap step in the measurement.
+- Report median, not mean (R benchmark distributions are right-skewed).
+
+**Warning signs:**
+- Benchmark dataset has > 50% unique strings.
+- Benchmark was run without a fresh R session.
+- Measured improvement exceeds 5x on a non-trivial pipeline.
+
+**Phase to address:** Performance benchmark harness phase. Methodology must be documented before measuring results.
+
+---
+
+### v2.0 Pitfall 9: `lubridate` `"m"` Abbreviation Means Months, Not Minutes
+
+**What goes wrong:**
+`lubridate::duration("10 min")` parses correctly, but `lubridate::duration("10 m")` is 10 months. ECOTOX duration fields frequently use `"m"` as a unit abbreviation for minutes. A duration parser that calls `lubridate::duration()` on raw field values will silently produce month-scale durations for minute-scale exposures.
+
+**How to avoid:**
+- Do not use `lubridate::duration()` for ECOTOX or regulatory free-text duration fields. Use the custom unit synonym map (Pitfall 4).
+- If lubridate is used anywhere in the duration path, add an explicit assertion: `parse_duration("10 m")` must equal 1/6 hours (not 10 months).
+
+**Phase to address:** Date/duration parsing phase.
+
+---
+
+### v2.0 Pitfall 10: AMOS Cache Not Invalidated When Corpus Updates
+
+**What goes wrong:**
+The AMOS corpus is fetched via `ComptoxR::chemi_amos_method_pagination()` and cached as RDS. When the corpus updates upstream, the classifier runs against stale data with no visible signal.
+
+**How to avoid:**
+- Implement the same cache-age check used by other reference list loaders: store fetch timestamp in cache metadata; surface a prompt when cache is older than a configurable TTL (30 days is appropriate for AMOS).
+- Export `refresh_amos_cache()` for explicit manual refresh.
+
+**Phase to address:** AMOS ontology pipeline phase.
+
+---
+
+## Integration Pitfalls (v2.0 into Existing v1.9 ChemReg)
+
+### v2.0 INT-1: Short-Circuit Layer Must Not Skip `inject_row_lineage`
+
+`inject_row_lineage()` adds `original_row_id` as the first column. It must run before any pre-check fires. If a pre-check short-circuits the pipeline before lineage injection, downstream audit row IDs have no anchor. Guard: `inject_row_lineage` runs unconditionally as the first operation in `run_cleaning_pipeline`; all pre-checks operate on the lineage-injected dataframe.
+
+### v2.0 INT-2: New Step Parameters Must Be Plumbed Through `curate_headless()`
+
+Date format order, duration base unit, media category source path — all are new configurable parameters. `curate_headless()` is the public scripting API. Any parameter settable in the Shiny UI must also be settable headlessly. Missing parameters in `curate_headless()` means headless users cannot reproduce a Shiny run.
+
+### v2.0 INT-3: Dedup Map Must Not Use `original_row_id` as the Dedup Key
+
+`original_row_id` is the row identity key injected by `inject_row_lineage()`. It is unique per row. Deduplicating on `original_row_id` produces a "unique" set identical to the full dataset — no benefit, added overhead. The dedup key is always the string content being processed.
+
+### v2.0 INT-4: ppb/ppm Routing Must Accept New Media Values Without Crashing
+
+The existing routing branches on `media == "aqueous"`. When media harmonization adds new valid values (`"sediment"`, `"soil"`, `"air"`, compound types), the routing must handle them explicitly. Unhandled media values that previously did not exist will silently produce NA conversion factors for rows that previously harmonized correctly.
+
+### v2.0 INT-5: Migrate Steps One at a Time — Run Full Test Suite After Each Migration
+
+Each step migrated to the dedup path is a potential regression. Do not batch-migrate all steps and then debug a cascade of failures. After migrating any single step, run all 953 tests before proceeding.
+
+---
+
+## Performance Traps (v2.0)
+
+| Trap | Symptoms | Prevention | When It Breaks |
+|------|----------|------------|----------------|
+| `unique()` called per-column inside dedup loop | Runtime grows with column count despite identical data | Pre-extract all unique strings across target columns once | Any dataset > 10k rows |
+| Remap join via `dplyr::left_join` on full parent | Doubles memory; triggers copy-on-modify for wide table | Use `match()` with direct vector assignment | > 50k rows, > 30 columns |
+| Loading AMOS corpus on every pipeline run | 7,500+ API calls per run | Cache as RDS with timestamp TTL | Every run without cache |
+| Profiling on synthetic data with 100% unique strings | Dedup benefit overstated; benchmark misleading | Measure uniqueness rate on real data first | Always |
+| Regex compilation inside dedup loop per unique string | Compilation overhead negates matching benefit | Pre-compile all patterns before the loop | > 1,000 unique strings |
+
+---
+
+## "Looks Done But Isn't" Checklist (v2.0)
+
+- [ ] **Dedup-remap:** Every audit `row_id` is within `[1, nrow(parent_df)]` — assert `all(audit$row_id <= nrow(parent_df))`
+- [ ] **Dedup-remap:** Identical input strings in N parent rows produce N audit entries, not 1
+- [ ] **Short-circuit:** Every pre-check has a companion test with a value that passes the pre-check but would be transformed by the step
+- [ ] **Date parsing:** Test suite covers dates where day and month are both <= 12; format choice is documented per dataset
+- [ ] **Duration:** Test suite covers: integer+unit, fractional+unit, compound two-unit, unit-only, number-only, NA, empty string, `"N/A"`, `"unknown"`
+- [ ] **Duration:** `"10 m"` does not parse as 10 months — confirm lubridate is not used in the free-text duration path
+- [ ] **Media classification:** Compound-media inputs produce compound category or `media_ambiguous = TRUE` — never silently single-pick
+- [ ] **Media/ppb routing:** All new media values pass through `harmonize_units()` ppb/ppm branch correctly or trigger explicit fallback
+- [ ] **AMOS classifier:** Held-out validation set exists; unclassified rate is measured and documented
+- [ ] **`curate_headless()`:** Date format, duration base unit, and media config parameters are plumbed through; 953 existing tests still pass
+- [ ] **Benchmark:** Profile run on real data with measured uniqueness rate; cold-start time included; methodology documented before results
+
+---
+
+## Pitfall-to-Phase Mapping (v2.0)
+
+| Pitfall | Prevention Phase | Verification |
+|---------|------------------|--------------|
+| Dedup row ID mismatch (P1, P7) | Dedup architecture phase | `remap_audit_to_parent` tested; `max(audit$row_id) <= nrow(parent)` assertion passes |
+| Short-circuit false negative (P2) | Short-circuit evaluation phase | Companion test per pre-check; integration test on dirty data captures all changes |
+| Ambiguous date format (P3) | Date/duration parsing phase | Format documented per dataset; ambiguous-zone dates flagged in audit |
+| Compound/fractional duration (P4) | Date/duration parsing phase | Full test vector passes including compound, fractional, `"10 min"` |
+| `lubridate` "m" collision (P9) | Date/duration parsing phase | `parse_duration("10 m")` == 1/6 hours assertion present in test suite |
+| Media category overlap (P5) | Media harmonization phase | Overlapping inputs produce compound category or ambiguity flag |
+| ppb routing with new media (INT-4) | Media harmonization phase | `harmonize_units()` tests extended to all new media values |
+| AMOS ontology overfitting (P6) | AMOS ontology pipeline phase | Held-out validation; unclassified rate acceptable and documented |
+| AMOS cache staleness (P10) | AMOS ontology pipeline phase | Cache TTL and refresh mechanism implemented |
+| Benchmark measures wrong thing (P8) | Performance benchmark phase | Methodology documented; real data; cold-start included |
+| `inject_row_lineage` skipped (INT-1) | Dedup + short-circuit phases | Lineage column present in all outputs regardless of pre-check result |
+| `curate_headless` missing new params (INT-2) | Each new feature phase | Headless integration test covers new parameters |
+| Regression from dedup migration (INT-5) | Each migration phase | Full test suite passes after each individual step migration |
+
+---
+
+## Sources (v2.0)
+
+- ChemReg codebase `R/cleaning_pipeline.R` — `build_audit_trail`, `run_cleaning_pipeline`, `inject_row_lineage` implementation (HIGH confidence — read directly)
+- ChemReg codebase `R/unit_harmonizer.R` — ppb/ppm media routing, `harmonize_units` API (HIGH confidence — read directly)
+- [lubridate duration reference](https://lubridate.tidyverse.org/reference/duration.html) — "m" = months vs minutes, fractional support, ISO 8601 parsing
+- [lubridate parse dates reference](https://lubridate.tidyverse.org/reference/ymd.html) — silent format inference, `lubridate.verbose` option
+- [datefixR documentation](https://docs.ropensci.org/datefixR/) — DMY default assumption, error reporting for ambiguous inputs
+- [Advanced R: Measuring performance](https://adv-r.hadley.nz/perf-measure.html) — microbenchmarks mislead for real workloads
+- [bench package guide](https://rguides.dev/guides/r-bench-microbenchmark/) — median vs mean, warm-cache pitfalls
+- [dplyr distinct dedup guide](https://thelinuxcode.com/r-dplyr-distinct-function-a-deep-practical-guide-to-reliable-deduplication/) — key definition bugs, non-deterministic tie-breaking
+- [5 Data Pipeline Mistakes (Medium, 2025)](https://medium.com/@kalluripradeep99/5-data-pipeline-mistakes-that-cost-me-weeks-of-debugging-a565c746ed8b) — row mismatch from schema changes
+- [ECOTOXr CRAN PDF](https://cran.r-project.org/web/packages/ECOTOXr/ECOTOXr.pdf) — `as_unit_ecotox`, `mixed_to_single_unit`, duration conversion functions
+- [Washington State Deduplication Report 2025](https://doh.wa.gov/sites/default/files/2025-05/RecordDeduplicationReport1.pdf) — R dedup pipeline correctness pitfalls
+- [NeurIPS 2024 OLLM](https://neurips.cc/virtual/2024/poster/94942) — overfitting on high-frequency concepts; low-frequency ontology terms underfit
+
+---
+*v2.0 pitfalls appended: 2026-04-24*

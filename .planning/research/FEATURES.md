@@ -1,206 +1,317 @@
-# Feature Landscape
+# Feature Research
 
-**Domain:** Numeric result parsing, unit harmonization, and toxval schema output for regulatory/benchmark data curation
-**Milestone:** v1.9 Number and Unit Coercion Harmonization
-**Researched:** 2026-04-14
-**Supersedes:** Previous FEATURES.md (v1.3 chemical inventory cleaning milestone)
+**Domain:** ETL pipeline performance optimization, date/duration parsing, and environmental media harmonization for chemical regulatory data curation
+**Milestone:** v2.0 Pipeline Performance & Date/Media Harmonization
+**Researched:** 2026-04-24
+**Supersedes:** Previous FEATURES.md (v1.9 Number and Unit Coercion Harmonization milestone)
+**Confidence:** HIGH (features grounded in existing codebase and verified ecosystem patterns)
 
 ---
 
 ## Executive Summary
 
-The v1.9 milestone converts ChemReg from a compound-identification tool into a full regulatory/benchmark data curation pipeline. The core loop is: parse messy numeric result strings → harmonize units to a standard target → classify exposure context → map everything to the 56-column ToxVal schema → export to parquet/CSV for database integration.
+v2.0 has two distinct concerns that must be sequenced correctly: (1) architectural performance work that applies globally to all pipeline steps, and (2) three new domain features (date parsing, duration normalization, media classification). The architectural work must land first — adding new pipeline steps to a slow pipeline makes performance worse, not better.
 
-A working reference implementation already exists in `curation/epa/sswqs/sswqs_curation.R`. That script demonstrates the entire feature set end-to-end: narrative filter, result string normalization (Fortran exponents, scientific notation, space removal), range splitting with mid-row generation, unit harmonization via `case_when` lookup table, protection code decoding, and ToxVal schema transmutation. ChemReg v1.9 is the Shiny-wrapped, audit-trailed, user-facing version of this pattern.
-
-The key complexity gap between sswqs_curation.R and ChemReg v1.9 is that sswqs_curation.R is dataset-specific (hardcoded column names, hardcoded unit tables, hardcoded protection code lookup). ChemReg v1.9 must generalize these to work on any regulatory/benchmark file a user uploads.
+The distinct-string dedup pattern is a well-established split-apply-combine optimization: extract unique strings, process the unique set, join results back by key. At 100K rows with ~2K unique chemical names, this is a 50x reduction in string operations. The ECOTOX codebase (`curation/ecotox/ecotox.R`) already demonstrates the duration conversion table pattern (hours as canonical, conversion factors as numeric multipliers). AMOS media categorization is the most technically open-ended feature — 7,500 method descriptions require text mining, not lookup tables.
 
 ---
 
-## Table Stakes
+## Feature Landscape
 
-Features that must exist for v1.9 to function. Missing any of these = the pipeline cannot produce a valid ToxVal output.
+### Table Stakes (Users Expect These)
 
-| Feature | Why Required | Complexity | Existing Dependency | Notes |
-|---------|--------------|------------|---------------------|-------|
-| **Narrative result filter** | Non-parsable text values (e.g., "see table", "within X") must be excluded before numeric parsing or `as.numeric()` produces NA silently | Low | stringr (existing) | Filter on regex patterns: `\bsee\b`, `\bwithin\b`, `/`, `\bnot\b`, etc. Must preserve a `removed_reason` audit column — don't silently drop |
-| **Result string normalization** | Messy inputs: commas in numbers ("1,000"), spaces before exponents ("5.0 e-9"), Fortran-style exponents ("4.56+02"), x10^ notation ("5x10^-9"), "million" as text | Low-Medium | stringr (existing) | All patterns demonstrated in sswqs_curation.R lines 779-784. One-off corrections (e.g., `6.90E+0.1 → 6.90E+01`) are real and must be supported via a user-editable one-off corrections table |
-| **Qualifier extraction** | Values like "<0.005", ">10", "~3.2" must split qualifier from numeric value; qualifier stored separately as `=`, `<`, `>`, `~` | Low-Medium | stringr str_match (existing) | Named capture group pattern: `^([<>=~]?)\s*([\d.]+(?:[eE][+-]?\d+)?)$`. sswqs uses `result_bin` (as_is/low/high/mid) for range qualifiers; explicit qualifier symbols need the same treatment |
-| **Range splitting** | Values like "5.6-7.8" must become two rows (low=5.6, high=7.8) plus an optional midpoint row | Medium | tidyr unnest (existing) | sswqs_curation.R lines 787-801 demonstrate the `str_split` + `unnest` pattern. Ambiguity: "-" is both range separator and negative sign — must parse numeric first, then re-attempt range split on non-numeric |
-| **Unit string normalization** | Raw unit strings have micro symbols (µ vs u), mixed case, spaces around "/", latin vs ASCII variants | Low | stringi (existing) | sswqs_curation.R line 813-818: `str_replace_all("[\\u00B5\\u03BC]", "u")`, `stri_trans_general("latin-ascii")`, `str_to_lower()`, normalize " per " → "/" |
-| **Unit harmonization lookup** | Map variant unit spellings to canonical targets (ug/l, mg/l, ppm → ug/l; mpn/100ml → count/100ml, etc.) | Medium | dplyr case_when (existing) | sswqs_curation.R lines 820-858 is the reference lookup table. ChemReg lifts ComptoxR unit tables and extends. Must support user-editable additions via reference list pattern (same as v1.3 stop words) |
-| **Unit conversion arithmetic** | Convert parsed numeric values using factor (mg/L × 1000 → ug/L) or formula (°F = (°F-32)*5/9 → °C) | Low | dplyr mutate (existing) | sswqs_curation.R lines 861-891. Must store `conversion_factor` alongside result for audit trail |
-| **Extended column tagging** | User must be able to tag columns as: Result, Unit, Duration, Qualifier, Application (human health/aquatic life), Location (freshwater/saltwater), Exposure route, Study type | Medium | mod_tag_columns (existing) | Extends existing 3-option dropdown (Chemical Name / CASRN / Other) to ~10 tag types. Same table-per-column UI pattern. Must preserve backward compat with existing curation tag types |
-| **ToxVal schema transmutation** | Output must match the 56-column ToxVal schema exactly: toxval_id, dtxsid, source, toxval_type, toxval_numeric, toxval_units, toxval_numeric_qualifier, study_type, study_duration_class, species, exposure_route, media, etc. | High | dplyr transmute (existing) | sswqs_curation.R lines 925-1139 is the complete reference transmutation. `*_original` audit columns required for every harmonized field. NA_character_ for columns not mappable from source |
-| **Export to parquet/CSV** | toxval.duckdb integration requires parquet or matching CSV schema | Low | rio (existing) | `rio::export(file = "output.parquet")` uses arrow backend. Verify arrow package available in project |
+Features the v2.0 milestone must deliver. Missing any of these means the milestone goal is not met.
 
----
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| **Distinct-string dedup for cleaning pipeline** | 100K-row datasets are currently unusable — the cleaning pipeline processes each row individually even when 95%+ of strings are duplicates of a small unique set | HIGH | Core architectural change. Pattern: `unique_strings <- distinct(df, val)` → apply all cleaning steps to `unique_strings` → `left_join(df, unique_strings, by = "val")`. Must preserve audit trail (row_id remapping required). Applies to unicode cleaning, stop-word matching, isotope expansion, synonym splitting |
+| **Distinct-string dedup for harmonization pipeline** | Same problem: unit harmonization calls `normalize_unit_string()` and the lookup table for every row, but most datasets have <50 unique unit strings across 100K rows | MEDIUM | Simpler than cleaning dedup because harmonization produces scalar outputs (harmonized_unit, conversion_factor). Pattern: `unit_map <- harmonize_units(distinct_units)` → `left_join(df, unit_map, by = "orig_unit")`. No audit trail remapping needed |
+| **Short-circuit step evaluation** | Users should not wait for all 15 cleaning steps when a dataset is already clean for most steps. Per-step "does this step need to run?" check prevents wasted work | MEDIUM | Each step needs a cheap "any candidates?" pre-check. E.g., unicode step: `any(stringr::str_detect(vals, "[^\x00-\x7F]"))`. If FALSE, skip step entirely. Steps that modify row count (synonym splitting) cannot be safely short-circuited without downstream row-count reconciliation |
+| **Recommendation modal before pipeline execution** | User uploads a dataset and clicks "Run Cleaning." App should inspect data characteristics and recommend which steps are likely to fire vs. safe to skip, with a preview count for each | MEDIUM | Inspection is cheap (run each pre-check on full dataset before pipeline starts). Modal shows table: Step | Estimated Changes | Recommended. User can override. Prevents surprise long runs for datasets that are already mostly clean |
+| **Date/study date parsing** | ToxVal `study_date` and similar fields are commonly populated in regulatory source data. Users need these parsed and normalized — right now they pass through as raw strings | MEDIUM | `datefixR` (v2.0.0, rOpenSci) handles the messy/partial date problem better than lubridate alone. Supports mixed formats, imputes missing day/month, Rust backend for performance. API: `fix_date_char(x)` → standard R `Date`. Falls back to `lubridate::parse_date_time()` with multi-format orders for cleaner data |
+| **Duration normalization** | Exposure duration fields ("96h", "21 days", "4 wk") are useless until normalized to a canonical unit. ToxVal uses hours. ECOTOX already has this conversion table | LOW-MEDIUM | The ECOTOX builder (`curation/ecotox/ecotox.R` lines 643-677) is the reference. Conversion factors: seconds=1/3600, minutes=1/60, hours=1, days=24, weeks=168, months=730.49 (24×30.43685). Pattern: regex parse value+unit → apply factor. Ambiguous inputs (bare "96" with no unit) need a default-unit fallback |
+| **Environmental media/matrix classification** | ToxVal `media` field requires a controlled vocabulary (freshwater, saltwater, soil, sediment, air, etc.). Users tag a media column, but raw values are messy and need mapping to the canonical list | MEDIUM | Lookup table pattern (same as unit harmonization). Core ontology: freshwater, saltwater/marine, brackish, soil, sediment, air/atmosphere, groundwater, effluent, biota, food/diet, NR (not reported). Source values need many-to-one mapping with user-editable override table |
+| **AMOS media ontology extraction** | ComptoxR provides `chemi_amos_method_pagination()` returning ~7,500 method records. Each has a `matrix` field describing sample media in free text. Extracting structured media categories from this requires text mining, not just lookup | HIGH | The AMOS database uses "harmonized media category" from EPA's MMDB. Matrix field is messy free text. Pattern: keyword-matching dictionary (freshwater/marine/soil keywords) → majority-vote classification per method. Not an LLM problem — a `quanteda` dictionary approach with ~50 rules covers 80%+ of cases |
 
-## Differentiators
+### Differentiators (Competitive Advantage)
 
-Features that elevate ChemReg from a script wrapper to a real curation tool for this domain.
+Features that make v2.0 more than just a performance patch.
 
-| Feature | Value Proposition | Complexity | Existing Dependency | Notes |
-|---------|-------------------|------------|---------------------|-------|
-| **User-editable unit harmonization table** | Curators encounter new unit variants in each new dataset; static lookup tables become stale. Editable table (same pattern as v1.3 reference list editors) lets users add mappings without touching code | High | mod_clean_data reference list pattern (existing) | Store as RDS in `inst/extdata/reference_cache/` alongside existing reference lists. Re-run harmonization cascade on save, same as v1.3 stop word edits |
-| **Narrative filter review UI** | Rows excluded by narrative filter represent real data (regulatory decisions often expressed in prose). Show curator excluded rows with reason, allow manual override to keep a row and enter manual value | Medium | DT + reactiveValues (existing) | Reduces false exclusions. Pattern: show excluded rows in separate DT tab within harmonization UI; "Keep this row" button with manual value entry |
-| **One-off corrections table** | Edge cases like `6.90E+0.1 → 6.90E+01` are real (seen in sswqs data). Curators need to log and apply source-specific fixes | Low | Reference list pattern (existing) | Store as editable `(pattern, replacement)` tibble. Applied as `str_replace` chain before normalization |
-| **Range midpoint toggle** | sswqs generates low/high/mid rows from ranges. For toxval integration, mid rows are optional (some sources want only bounds). Let user choose: expand ranges to low/high/mid, low/high only, or midpoint only | Low | Reactive config (existing) | Checkbox in harmonization config panel |
-| **Protection code / exposure classification decoder** | Source files encode exposure context as codes (H, Aa, AFc, etc.) that map to application/location/subtype. sswqs has 55+ codes. General solution: user uploads or edits a code→label lookup table | High | Reference list pattern (existing) | This is the general form of the 55-row `protection_lookup` in sswqs_curation.R. High value for regulatory datasets that use similar shorthand |
-| **Harmonization audit trail** | For each row: what was `orig_result`, what normalization steps ran, what `cleaned_unit` was, what `harmonized_unit` it became, what conversion factor was applied | Medium | append_comment() pattern (existing v1.3) | Extends existing audit trail infrastructure. Adds columns: `harmonization_audit`, `unit_audit`, `qualifier_audit` |
-| **Pre-export schema validation** | Before export, verify required ToxVal columns are not all-NA, dtxsid has been populated (via curation), numeric values are in range | Low | dplyr + notifications (existing) | Show a QC dashboard (value boxes) like existing post-curation QC in v1.3 Phase 15. Advisory only — don't gate export |
-| **headless harmonization support** | `curate_headless()` already exists. Extend it to accept unit harmonization config and run the full v1.9 pipeline without UI | Medium | curate_headless.R (existing) | Critical for scripted batch processing of multiple benchmark sources. Preserves existing headless contract |
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| **Performance benchmark harness** | Proves the optimization actually worked. Without benchmarks, "100K rows is fast now" is a claim, not a fact. Benchmark harness also catches performance regressions in future phases | LOW | `bench::mark()` or `system.time()` on synthetic 100K dataset generated from real data patterns. Target: full cleaning pipeline <30 seconds on 100K rows. Benchmark script in `scripts/` |
+| **Step-level timing in pipeline progress UI** | Today the pipeline progress bar advances per step but shows no timing. Adding wall-clock seconds per step surfaces which steps are bottlenecks, helping users understand what the recommendation modal is saving them | LOW | `proc.time()` or `system.time()` per step. Store timing in pipeline result metadata. Display in value boxes (Step X: 0.3s) |
+| **Date range parsing** | Regulatory data often contains date ranges ("1990-1995", "Jan-Mar 2020"). Parsing start/end dates from ranges enables temporal filtering in downstream analysis | MEDIUM | Pattern: detect " - " or "/" as range separator → apply `fix_date_char()` to each component → return start_date + end_date columns. `datefixR` does not handle ranges natively; custom pre-processing layer needed |
+| **Duration range support** | ECOTOX has records like "96-120 hours". Supporting duration ranges produces `duration_min_h` and `duration_max_h` alongside `duration_h` | LOW | Same range-splitting pattern as numeric result ranges (already built). Apply after duration normalization |
+| **User-editable media classification table** | Curators encounter dataset-specific media descriptions that don't match the core ontology. Same reference list editor pattern as stop words and unit synonyms | MEDIUM | RDS in `inst/extdata/reference_cache/`. UI in Harmonize tab. Re-run cascade on save |
+| **AMOS method → media lookup cache** | Building the AMOS media classifications at runtime each time is expensive and makes the Shiny app API-dependent. Cache the 7,500 classified methods as an RDS file at build time. App loads cache; falls back to API pagination only for new methods | MEDIUM | Build script in `data-raw/` or `scripts/`. Cache checked into `inst/extdata/`. TTL of 90 days (same checkpoint pattern as `curation/ecotox/ecotox.R`) |
 
----
+### Anti-Features (Commonly Requested, Often Problematic)
 
-## Anti-Features
-
-| Anti-Feature | Why Avoid | What to Do Instead |
-|--------------|-----------|-------------------|
-| **Automatic unit inference from column name** | Column names like "conc_ugl" or "result_ppm" are tempting to parse, but source files are inconsistent — "result" could be ug/L or mg/L. Silent inference produces wrong conversions with no audit trail | Require user to tag a Unit column explicitly, or provide a default unit input if no Unit column exists |
-| **UCUM / `units` package for harmonization** | The `units` package is elegant for SI physics but does not know `count/100ml`, `pcu`, `ntu`, `pci/l` or regulatory-specific units. Using it forces mapping regulatory units to UCUM first, adding an extra translation layer with no benefit | Use the existing `case_when` lookup table pattern (proven in sswqs_curation.R). Extend iteratively with new unit variants as they appear |
-| **Bidirectional unit conversion** | Converting ug/L to mg/L and back introduces floating point drift; some conversions (°F→°C) are not reversible without original value. No downstream use case requires bidirectional conversion | Always convert to canonical target unit once; preserve original in `*_original` column |
-| **Auto-split ranges on any dash** | Dashes appear in: negative numbers (-0.5), date strings, CASRN-like strings, compound names. Auto-splitting on "-" without numeric pre-check produces garbage rows | Parse numeric first; only attempt range split if `as.numeric()` returns NA and the string matches `^\d[\d.]*-\d[\d.]*$` |
-| **Wizard-style value entry for narrative rows** | Giving curators a form to manually enter numeric values for narrative rows (e.g., "see page 42") opens the door to untracked manual data entry. Audit trail becomes unreliable | Mark narrative rows as `excluded_narrative` in audit column; allow curator to note reason but not silently inject numbers |
-| **Full ToxVal schema enforcement at column-tag time** | Requiring all 56 ToxVal columns to be mapped before proceeding creates an impossible gating condition for sparse sources | Map what you can; leave unmappable columns as NA_character_; validate at export time (advisory only) |
+| Anti-Feature | Why Requested | Why Problematic | Alternative |
+|--------------|---------------|-----------------|-------------|
+| **Parallel step execution in cleaning pipeline** | "Run all steps simultaneously for max speed" sounds appealing | Steps are data-dependent: synonym splitting changes row count, which breaks subsequent steps that use row_id for audit trail. Parallelizing across columns is feasible but adds complexity for minimal gain vs. the dedup optimization | Apply distinct-string dedup first (50x speedup), then evaluate if parallelism is still needed — it likely won't be |
+| **LLM-based media classification for AMOS** | 7,500 descriptions is a lot — why not use an LLM? | Opaque audit trail, API key dependency, rate limits, cost, non-reproducibility. AMOS media categories are a finite domain (~15 values). A dictionary with 50 keyword rules gives 80%+ coverage with full transparency | `quanteda` dictionary classifier with unmatched records flagged for manual review |
+| **Auto-detecting date columns by content inspection** | Convenient — app scans all columns and auto-tags anything that looks like a date | Date-like strings appear in chemical names, CAS numbers, batch numbers, and regulatory text. Silent auto-tagging produces false positives in chemical name columns | Require user to tag date columns explicitly in the extended column tagging UI. Pre-check can show "3 columns look like they might contain dates" as a hint, but not auto-tag |
+| **Universal duration parser that handles all ambiguous inputs** | "Just figure it out" from bare numbers like "96" or "14" | Without a unit, "96" is ambiguous (96 hours is acute; 96 days would be chronic). Silent assumption of hours is wrong for mammalian chronic data. Produces incorrect ToxVal `study_duration_value` | Require a default unit configuration if the duration column lacks explicit unit tokens. Show a warning for bare-number entries |
+| **Rolling window or time-series features for date sequences** | Once you have dates, analyze trends | This is analytical work, not curation work. ChemReg's job is to clean and export to ToxVal — downstream analysis belongs in dedicated tools | Export clean dates to ToxVal; time-series work happens in the database layer |
+| **Full ECOTOX duration dictionary integration** | ECOTOX has ~100 duration_unit_codes with fractional codes (0.5h, 0.125d) | Full integration adds 100-row lookup dependency and edge cases (fractional days) for minimal real-world benefit. The vast majority of duration values in user uploads follow simple text patterns | Use the 7-row conversion factor table (seconds, minutes, hours, days, weeks, months) with regex parsing. Handle fractional inputs numerically |
 
 ---
 
 ## Feature Dependencies
 
 ```
-Extended Column Tagging (Result, Unit, Duration, Qualifier, Application, Location)
-    ↓
-Narrative Result Filter
-    ↓
-Result String Normalization (comma removal, space removal, Fortran exponents, x10^ notation)
-    ↓
-One-off Corrections (user-editable patch table)
-    ↓
-Qualifier Extraction (<, >, ~, =)
-    ↓
-Numeric Parsing (as.numeric → parsed_value)
-    ↓
-Range Splitting (str_split on "-" → unnest → low/high/mid rows)
-    ↓
-Unit String Normalization (micro symbol, latin-ascii, lowercase, per→/)
-    ↓
-Unit Harmonization Lookup (case_when → harmonized_unit + conversion_factor)
-    ↓
-Unit Conversion Arithmetic (parsed_value × factor, or formula for °F)
-    ↓
-Harmonization Audit Trail (orig_result, cleaned_unit, harmonized_unit, conversion_factor)
-    ↓
-ToxVal Schema Transmutation (56-column output with *_original columns)
-    ↓
-Pre-export Schema Validation (QC value boxes)
-    ↓
-Export (parquet / CSV)
+[Distinct-string dedup architecture]
+    |
+    ├──required by──> [Cleaning pipeline performance]
+    |                     └──feeds──> [Recommendation modal]
+    |
+    └──required by──> [Harmonization pipeline performance]
+
+[Short-circuit step evaluation]
+    └──requires──> [Per-step pre-check functions]
+                       └──reused by──> [Recommendation modal]
+
+[Extended column tagging: Date, Duration, Media]   <-- already built (v1.9)
+    |
+    ├──enables──> [Date/study date parsing]
+    |                 └──enhances──> [Date range parsing]
+    |
+    ├──enables──> [Duration normalization]
+    |                 └──enhances──> [Duration range support]
+    |
+    └──enables──> [Media/matrix classification]
+                      └──enhanced by──> [AMOS media ontology extraction]
+                      └──enhanced by──> [User-editable media table]
+
+[AMOS media ontology extraction]
+    └──requires──> [ComptoxR::chemi_amos_method_pagination()]
+    └──produces──> [AMOS method media cache RDS]
+                       └──used by──> [Media classification lookup]
+
+[Performance benchmark harness]
+    └──requires──> [Distinct-string dedup] (must be built before benchmarking)
 ```
 
-**Critical path:** Qualifier extraction must happen BEFORE range splitting (a qualifier "<5.6-7.8" is ambiguous — decide if the qualifier applies to the whole range or just the lower bound).
+### Dependency Notes
 
-**Dependencies on existing features:**
-- Extended column tagging sits inside mod_tag_columns; existing Name/CASRN/Other tags must remain intact and functional alongside new tags
-- Harmonization audit trail extends `append_comment()` from v1.3 cleaning pipeline
-- headless support extends `curate_headless()` from v1.8
-- Reference list editors reuse pattern from v1.3 `cleaning_reference.R` + `mod_clean_data.R`
-- Export extends existing 7-sheet openxlsx2 export; adds ToxVal sheet + harmonization audit sheet
+- **Distinct-string dedup requires audit trail remapping:** The current audit trail records `row_id` from the full dataset. When processing on unique strings, the pipeline must track which original row_ids map to each unique value, then expand the audit entries back. This is the hardest implementation detail of the dedup architecture.
+
+- **Short-circuit evaluation conflicts with full audit trail:** If a step is skipped, the audit trail must still record "step X was skipped (0 candidates)" rather than having a gap. Gaps in audit trail make re-import/re-run detection unreliable.
+
+- **AMOS ontology extraction depends on ComptoxR API availability:** The `chemi_amos_method_pagination()` call requires the `ctx_api_key` environment variable. Build-time cache generation is the correct pattern — Shiny app should never call paginated APIs at runtime.
+
+- **Date parsing depends on datefixR (new dependency):** `datefixR` v2.0.0 is on CRAN (rOpenSci). Rust backend, no system dependencies. Add to DESCRIPTION. Alternative: pure lubridate with `parse_date_time()` multi-format orders, but partial date imputation is weaker.
+
+- **Duration normalization is standalone:** Does not depend on any other v2.0 feature. Could be implemented first as a warmup.
 
 ---
 
-## MVP Recommendation
+## MVP Definition
 
-Build in 3 increments. Each increment ships a usable capability.
+The v2.0 milestone has two natural release checkpoints.
 
-### Increment 1: Core Numeric Pipeline (headless-first)
-Build and validate as a standalone R function before wiring into Shiny.
+### Phase A: Performance Architecture (must ship first)
 
-1. `parse_result_string(x)` — normalization + qualifier extraction + numeric parse. Returns `list(qualifier, parsed_value, parse_success, parse_notes)`.
-2. `split_ranges(df, result_col)` — range detection + row expansion (low/high/mid). Returns expanded df.
-3. `normalize_unit_string(x)` — micro symbol + latin-ascii + lowercase + spacing. Returns cleaned string.
-4. `harmonize_units(df, unit_col)` — lookup table → harmonized_unit + conversion_factor + converted_value. Returns df with audit columns.
-5. Test all four functions with sswqs data as ground truth.
+- [ ] **Distinct-string dedup for cleaning pipeline** — without this, the benchmark harness cannot show a meaningful speedup and every new feature added makes things worse
+- [ ] **Short-circuit step evaluation with per-step pre-checks** — enables the recommendation modal and visible step timing
+- [ ] **Recommendation modal** — user-visible payoff of the architectural work; makes speed improvement tangible
+- [ ] **Performance benchmark harness** — proves the work, catches regressions
 
-Defer: UI, ToxVal mapping, export.
+### Phase B: New Domain Features (after Phase A lands)
 
-### Increment 2: Extended Tagging + Harmonization UI
-1. Extend `mod_tag_columns` with new tag types (Result, Unit, Duration, Qualifier, Application, Location, Exposure).
-2. Add "Harmonize" tab (new top-level tab) that shows: narrative filter results, normalization preview, unit harmonization summary, range expansion preview.
-3. Wire Increment 1 functions into reactive pipeline under the new tab.
-4. User-editable unit harmonization table (reference list pattern).
+- [ ] **Duration normalization** — lowest complexity new feature; validates the "new column type in harmonization pipeline" pattern before tackling dates and media
+- [ ] **Date/study date parsing** — `datefixR` + lubridate fallback; requires new column tag type (already present in v1.9 extended tagging)
+- [ ] **Media/matrix classification** — lookup table pattern; requires user-editable table UI
+- [ ] **AMOS media ontology pipeline** — most complex; can ship as a background build script with cached output rather than blocking the Shiny app
 
-### Increment 3: ToxVal Mapping + Export
-1. `map_to_toxval(df, tag_map, source_metadata)` — transmute to 56-column schema. Returns toxval-schema df.
-2. Add ToxVal mapping configuration UI (source name, subsource, toxval_type default, media, exposure_route defaults).
-3. Pre-export QC dashboard (value boxes for: rows with numeric value, rows with harmonized unit, rows with dtxsid, rows with NA toxval_numeric).
-4. Export to parquet/CSV.
-5. Extend `curate_headless()` to accept harmonization config.
+### Future Consideration (v2.x or v3.0)
+
+- [ ] **Date range parsing** — needs real-world data to validate range separator detection; defer until a dataset requires it
+- [ ] **Duration range support** — same rationale as date range parsing
+- [ ] **Step-level timing display** — nice UX enhancement but not blocking any curation workflow
+
+---
+
+## Feature Prioritization Matrix
+
+| Feature | User Value | Implementation Cost | Priority |
+|---------|------------|---------------------|----------|
+| Distinct-string dedup (cleaning) | HIGH | HIGH | P1 |
+| Short-circuit evaluation | HIGH | MEDIUM | P1 |
+| Recommendation modal | HIGH | MEDIUM | P1 |
+| Performance benchmark harness | MEDIUM | LOW | P1 |
+| Duration normalization | HIGH | LOW | P1 |
+| Date/study date parsing | HIGH | MEDIUM | P1 |
+| Media/matrix classification | HIGH | MEDIUM | P1 |
+| Distinct-string dedup (harmonization) | MEDIUM | LOW | P2 |
+| AMOS media ontology pipeline | HIGH | HIGH | P2 |
+| User-editable media classification table | MEDIUM | MEDIUM | P2 |
+| Date range parsing | MEDIUM | MEDIUM | P3 |
+| Duration range support | LOW | LOW | P3 |
+| Step-level timing display | LOW | LOW | P3 |
+
+**Priority key:**
+- P1: Required for v2.0 milestone to be considered complete
+- P2: Should ship in v2.0 but can slip to v2.1 without blocking downstream work
+- P3: Nice to have; add only after P1+P2 are solid
+
+---
+
+## Implementation Pattern References
+
+### Pattern 1: Distinct-String Dedup (the core architecture change)
+
+The split-apply-combine pattern for string processing at scale:
+
+```r
+# Extract unique strings
+unique_vals <- tibble::tibble(
+  orig_val = unique(df[[col_name]])
+)
+
+# Process only the unique set
+cleaned_unique <- apply_cleaning_step(unique_vals$orig_val)
+unique_map <- tibble::tibble(orig_val = unique_vals$orig_val, cleaned_val = cleaned_unique)
+
+# Remap to full dataset
+df <- dplyr::left_join(df, unique_map, by = setNames("orig_val", col_name))
+```
+
+For audit trail, the remapping step must expand unique-level audit records back to all matching rows:
+```r
+# unique_audit has one row per unique string that changed
+# expand to all original rows
+full_audit <- dplyr::left_join(
+  tibble::tibble(row_id = seq_len(nrow(df)), orig_val = df[[col_name]]),
+  unique_audit,
+  by = "orig_val"
+) %>% dplyr::filter(!is.na(cleaned_val))
+```
+
+### Pattern 2: Short-Circuit Pre-Check
+
+```r
+# Cheap vectorized scan — runs before the step
+needs_unicode_cleaning <- function(vals) {
+  any(stringr::str_detect(vals, "[^\x00-\x7F]"), na.rm = TRUE)
+}
+
+# In pipeline orchestrator
+if (!needs_unicode_cleaning(df[[col_name]])) {
+  # Record as skipped in step metadata, skip processing
+  step_result <- list(cleaned_data = df, audit_trail = empty_audit(), skipped = TRUE)
+} else {
+  step_result <- run_unicode_step(df, col_name)
+}
+```
+
+### Pattern 3: Duration Normalization (from `curation/ecotox/ecotox.R`)
+
+```r
+# Conversion factors (hours as canonical base unit)
+DURATION_TO_HOURS <- c(
+  second = 1 / 3600,
+  minute = 1 / 60,
+  hour = 1,
+  day = 24,
+  week = 24 * 7,
+  month = 24 * 30.43685  # average month
+)
+
+# Parse "96h", "21 days", "4 wk" pattern
+parse_duration_hours <- function(x) {
+  num <- as.numeric(stringr::str_extract(x, "[0-9.]+"))
+  unit_raw <- tolower(stringr::str_extract(x, "[a-zA-Z]+"))
+  unit_key <- dplyr::case_when(
+    stringr::str_detect(unit_raw, "^sec") ~ "second",
+    stringr::str_detect(unit_raw, "^min") ~ "minute",
+    stringr::str_detect(unit_raw, "^h") ~ "hour",
+    stringr::str_detect(unit_raw, "^d") ~ "day",
+    stringr::str_detect(unit_raw, "^w") ~ "week",
+    stringr::str_detect(unit_raw, "^mo") ~ "month",
+    .default = NA_character_
+  )
+  num * DURATION_TO_HOURS[unit_key]
+}
+```
+
+### Pattern 4: Date Parsing Strategy (datefixR + lubridate fallback)
+
+```r
+# Primary: datefixR for messy/partial dates
+# fix_date_char() handles: mixed formats, partial dates (year-only, month-year),
+# two-digit years, named months in 6 languages, Excel serial numbers
+clean_dates <- datefixR::fix_date_char(raw_dates, day.impute = 1L, month.impute = 7L)
+
+# Fallback: lubridate::parse_date_time() with multiple format orders
+# for datasets where dates are mostly clean but have format heterogeneity
+clean_dates_fallback <- lubridate::parse_date_time(
+  raw_dates,
+  orders = c("ymd", "mdy", "dmy", "y", "ym", "my"),
+  quiet = TRUE
+)
+```
+
+### Pattern 5: Media Classification (quanteda dictionary approach)
+
+```r
+# Build domain dictionary
+media_dict <- quanteda::dictionary(list(
+  freshwater = c("fresh*", "river*", "lake*", "stream*", "pond*", "surface water"),
+  saltwater  = c("salt*", "marine*", "ocean*", "sea*", "coastal*", "estuari*"),
+  sediment   = c("sediment*", "benthic*", "bed material*"),
+  soil       = c("soil*", "terrestrial*", "land*"),
+  air        = c("air*", "atmospher*", "vapor*", "aerosol*"),
+  groundwater = c("ground*water*", "well*", "aquifer*"),
+  effluent   = c("effluent*", "wastewater*", "sewage*")
+))
+
+# Apply to corpus of method descriptions
+corpus <- quanteda::corpus(methods_df, text_field = "matrix_description")
+dfm <- quanteda::dfm(quanteda::tokens(corpus))
+scores <- quanteda::dfm_lookup(dfm, dictionary = media_dict)
+# Assign media category = highest-scoring dictionary term
+```
 
 ---
 
 ## Complexity Assessment
 
-| Feature | LOC Estimate | Risk | Notes |
-|---------|--------------|------|-------|
-| `parse_result_string()` | 80 | Medium | Fortran exponent regex is tricky; sswqs_curation.R line 782 is the reference |
-| `split_ranges()` | 60 | Medium | Dash ambiguity (negative vs range) is the main edge case |
-| `normalize_unit_string()` | 40 | Low | Mechanical string transforms; well-tested pattern |
-| `harmonize_units()` lookup table | 150 | Low | case_when lookup; ComptoxR tables as starting point |
-| Unit harmonization arithmetic | 60 | Low | Straightforward multiply/formula; °F→°C special-cased |
-| Extended column tagging UI | 100 | Low | Extend existing dropdown list; same table layout |
-| Harmonize tab UI | 250 | Medium | New tab, 4 preview sub-sections, reactive wiring |
-| User-editable unit table | 200 | Medium | Same pattern as v1.3 reference list editors |
-| One-off corrections table | 100 | Low | Simple editable (pattern, replacement) tibble |
-| Protection code decoder | 150 | High | Generalizing sswqs-specific 55-row lookup to user-uploadable table |
-| Harmonization audit trail | 80 | Low | Extends existing append_comment() infrastructure |
-| `map_to_toxval()` | 200 | High | 56-column schema with *_original columns; source-specific logic |
-| ToxVal config UI | 150 | Medium | Source metadata form + defaults |
-| Pre-export QC dashboard | 80 | Low | Value boxes + DT; same pattern as v1.3 post-curation QC |
-| Parquet/CSV export | 40 | Low | `rio::export()` with arrow backend |
-| `curate_headless()` extension | 80 | Low | Additive; existing contract unchanged |
+| Feature | Estimated LOC | Key Risk | Notes |
+|---------|--------------|----------|-------|
+| Distinct-string dedup (cleaning) | 200 | MEDIUM — audit trail row_id expansion | The `unique_map` join is trivial; the audit expansion is the tricky part |
+| Distinct-string dedup (harmonization) | 80 | LOW | Harmonization outputs are scalar; no audit expansion needed |
+| Short-circuit pre-checks | 120 | LOW | One function per step; pure vectorized detection |
+| Recommendation modal | 150 | LOW | Shiny modal with DT table; existing modal pattern |
+| Performance benchmark harness | 60 | LOW | `bench::mark()` + synthetic data generator |
+| Duration normalization | 100 | LOW | Regex + lookup; ECOTOX reference already exists |
+| Date parsing (datefixR integration) | 120 | LOW | New dependency; API is simple |
+| Media classification (lookup table) | 150 | LOW | Same pattern as unit harmonization |
+| Media editor UI | 180 | MEDIUM | Reference list editor pattern from v1.3 |
+| AMOS media ontology pipeline | 300 | HIGH | Pagination + text mining + cache management |
+| Date range detection | 100 | MEDIUM | Range separator heuristic is tricky |
 
-**Total estimate:** ~1,820 LOC for full feature set. MVP Increment 1 ≈ 400 LOC (pure functions, no UI).
-
----
-
-## Key Patterns from Reference Implementation
-
-The sswqs_curation.R script establishes these patterns that ChemReg v1.9 should follow:
-
-### Pattern 1: Preserve `orig_result` Before Any Mutation
-```r
-rename(orig_result = result) %>%
-mutate(result = str_to_lower(orig_result), ...)
-```
-Never overwrite the original. Rename first, then work on the renamed copy.
-
-### Pattern 2: `.id` Column for Range Group Identity
-```r
-mutate(.id = 1:n()) %>%
-... unnest(result) %>%
-group_by(.id) %>%
-mutate(result_bin = case_when(n() == 1 ~ "as_is", ...))
-```
-Row-level identity survives the unnest explosion. Required for correct range midpoint calculation.
-
-### Pattern 3: Two-Step Unit Harmonization
-Step 1: `cleaned_unit` (normalize string). Step 2: `harmonized_unit` + `conversion_factor_str` (lookup + formula). Step 3: apply conversion to produce final `parsed_value`. Never skip the intermediate `cleaned_unit` — it is what the lookup table keys on.
-
-### Pattern 4: Qualifier from Range Context vs Explicit Symbol
-sswqs derives qualifier from `result_bin` (as_is/low/high/mid). Explicit qualifier symbols (`<`, `>`) require separate extraction before range splitting. Both must map to ToxVal's `toxval_numeric_qualifier` field (`=`, `<`, `>`, `~`).
-
-### Pattern 5: NA_character_ for Unmappable ToxVal Fields
-sswqs transmutation sets `toxval_id = NA_character_`, `source_hash = NA_character_`, etc. for fields that require database-side assignment. ChemReg should follow this — never fabricate IDs.
+**Total estimate for P1 features:** ~830 LOC  
+**Total estimate for P1+P2 features:** ~1,310 LOC
 
 ---
 
 ## Sources
 
-- `curation/epa/sswqs/sswqs_curation.R` — PRIMARY reference implementation (lines 713-1142 cover full parsing + harmonization + ToxVal mapping pipeline)
-- [ToxValDB v9.7.0 on EPA Figshare](https://epa.figshare.com/articles/dataset/ToxValDB_v9_1/20394501) — Schema reference and version history
-- [USEPA/toxvaldbstage GitHub](https://github.com/USEPA/toxvaldbstage) — R package for ToxVal staging (code transparency; full reproduction not supported)
-- [Development of ToxValDB (Wall et al. 2025, ScienceDirect)](https://www.sciencedirect.com/article/abs/pii/S2468111325000258) — Schema design rationale, two-phase curation + standardization model
-- [baytrends: Processing Censored Water Quality Data (CRAN)](https://cran.r-project.org/web/packages/baytrends/vignettes/Processing_Censored_Data.html) — Censored data conventions (_lo/_hi suffix, upper >= lower validation)
-- [units package (CRAN)](https://cran.r-project.org/package=units) — Evaluated and rejected for this domain (see Anti-Features)
-- [R for Data Science 2e — Regular Expressions](https://r4ds.hadley.nz/regexps.html) — Named capture group patterns for qualifier extraction
+- `curation/ecotox/ecotox.R` lines 643-677 — ECOTOX duration conversion table (hours as canonical, DURATION_TO_HOURS pattern)
+- `R/cleaning_pipeline.R` — existing 15-step pipeline structure with audit trail; dedup must preserve this contract
+- `R/unit_harmonizer.R` — existing unit harmonization architecture; dedup pattern applies here too
+- `R/numeric_parser.R` — existing numeric parsing patterns (qualifier extraction, Fortran exponents)
+- [datefixR v2.0.0 (rOpenSci/CRAN)](https://docs.ropensci.org/datefixR/) — Rust-backed date standardization; handles partial dates and mixed formats better than lubridate alone for messy regulatory data
+- [lubridate::parse_date_time() reference](https://lubridate.tidyverse.org/reference/parse_date_time.html) — multi-format order parsing; fallback for cleaner date data
+- [EPA AMOS Database User Guide](https://www.epa.gov/comptox-tools/analytical-methods-and-open-spectral-amos-database-user-guide) — AMOS matrix field description; media category from MMDB
+- [ECOTOXr package (CRAN, September 2025)](https://cran.r-project.org/web/packages/ECOTOXr/ECOTOXr.pdf) — `as_unit_ecotox()`, `process_ecotox_dates()` functions confirm hours-canonical pattern
+- [quanteda: Quantitative Text Analysis](http://quanteda.io/) — dictionary classifier for AMOS media ontology extraction
+- [Dagster ETL Pipeline Best Practices](https://dagster.io/guides/etl-pipelines-5-key-components-and-5-critical-best-practices) — conditional step execution patterns from production ETL tooling
+
+---
+
+*Feature research for: v2.0 Pipeline Performance & Date/Media Harmonization*
+*Researched: 2026-04-24*
