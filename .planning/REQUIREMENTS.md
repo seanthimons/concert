@@ -1,122 +1,114 @@
-# Requirements: ChemReg v1.9
+# Requirements: ChemReg v2.0
 
-**Defined:** 2026-04-14
+**Defined:** 2026-04-24
 **Core Value:** Users can go from messy regulatory/benchmark data files to validated, harmonized, toxval-compatible datasets in one workflow.
 
-## v1.9 Requirements
+## v2.0 Requirements
 
-Requirements for Number and Unit Coercion Harmonization milestone. Each maps to roadmap phases.
+Requirements for Pipeline Performance & Date/Media Harmonization milestone.
 
-### Static Data Foundations
+### Performance — Distinct-String Dedup
 
-- [x] **DATA-01**: Unit conversion table (`inst/extdata/unit_conversion.rds`) with ECOTOX tribble (~200 rows) + regulatory extensions from SSWQS
-- [x] **DATA-02**: ToxVal schema manifest (`inst/extdata/toxval_schema.rds`) — zero-row typed tibble for 56-column validation
-- [x] **DATA-03**: `load_unit_map()` loader function in `cleaning_reference.R` following existing RDS caching pattern
-- [x] **DATA-04**: User-editable unit table UI following v1.3 reference list editor pattern with re-run cascade
+- [ ] **PERF-01**: Cleaning pipeline extracts distinct strings per dedup-eligible step, processes only uniques, remaps results to parent dataset via `dedup_step()` wrapper
+- [ ] **PERF-02**: Audit trail integrity preserved through dedup — `remap_audit_to_parent()` expands slice row IDs to all parent rows; `max(audit$row_id) <= nrow(parent)` assertion enforced
+- [ ] **PERF-03**: Harmonization pipeline applies dedup pattern to unit/duration/media lookups (scalar outputs, simpler remap)
+- [ ] **PERF-04**: Dedup-eligible steps identified and migrated one at a time with full test suite verification after each migration
 
-### Numeric Parsing
+### Performance — Short-Circuit Evaluation
 
-- [x] **PARS-01**: Normalization chain — whitespace removal, `x10^` → `e`, Fortran exponents (`4.56+02`), comma stripping
-- [x] **PARS-02**: Qualifier extraction (`<`, `>`, `<=`, `>=`, `~`) before any range splitting
-- [x] **PARS-03**: Range splitting with stable `.id` column — `"5-10"` → low/mid/high rows, numeric pre-guard to protect negatives and exponents
-- [x] **PARS-04**: Parse result tibble structure: `numeric_value`, `qualifier`, `range_bin` (as_is/low/mid/high), `parse_flag`
-- [x] **PARS-05**: `orig_result` capture as absolute first step before any transformation for audit trail
-- [x] **PARS-06**: One-off corrections table — user-editable `(pattern, replacement)` for source-specific malformed values
+- [ ] **SKIP-01**: Per-step pre-check predicate functions that return FALSE when step can be safely skipped (e.g., no non-ASCII characters → skip unicode cleaning)
+- [ ] **SKIP-02**: Skipped steps produce empty typed audit trail entries (not NULL or gaps)
+- [ ] **SKIP-03**: Companion tests for each pre-check: vectors that pass the pre-check but would be transformed by the step (false-negative detection)
 
-### Unit Harmonization
+### Performance — Recommendation Modal
 
-- [x] **UNIT-01**: Case-safe unit lookup — case-sensitive match first, case-insensitive fallback flagged LOW confidence
-- [x] **UNIT-02**: Unit string normalization — micro-symbol variants (`µ`/`\u03BC` → `u`), latin-ascii, spacing around "per" → "/"
-- [x] **UNIT-03**: Compound unit decomposition — handle `mg/kg bw/day`, `mg/kg wet weight`, etc. via explicit enumeration
-- [x] **UNIT-04**: Unit conversion arithmetic — `parsed_value * multiplier`, store `conversion_factor` in audit trail
-- [x] **UNIT-05**: Harmonization result tibble: `harmonized_value`, `harmonized_unit`, `orig_unit`, `conversion_factor`, `unit_flag`
-- [x] **UNIT-06**: Unmatched-unit review UI — show unmatched units, allow inline add to unit table, re-run harmonization
+- [ ] **RECO-01**: Pre-flight modal shown before cleaning/harmonization pipeline runs, displaying which steps will fire vs. skip with estimated change counts
+- [ ] **RECO-02**: User can confirm full run or subset run based on pre-check results
 
-### ToxVal Schema & Export
+### Performance — Benchmark Harness
 
-- [x] **SCHM-01**: ToxVal 56-column schema transmutation with `*_original` audit columns for all harmonized fields
-- [x] **SCHM-02**: Typed NA (`NA_character_`, `NA_real_`) throughout — never bare `NA` to prevent parquet type mismatch
-- [x] **SCHM-03**: Parquet export via `arrow::write_parquet()` with explicit schema assertion; read-back validation test
-- [x] **SCHM-04**: CSV export fallback when arrow unavailable -- superseded by D-02 (arrow as hard dep). CSV available as format choice via `format="csv"` in `curate_headless()`, not as a fallback.
-- [x] **SCHM-05**: `curate_headless()` extension with `harmonize=TRUE` param (default FALSE for backward compat)
+- [ ] **BENCH-01**: `scripts/benchmark_pipeline.R` using `bench::press()` across grid of n = c(1K, 10K, 100K) rows with memory allocation tracking
+- [ ] **BENCH-02**: Benchmark includes cold-start cost, real data uniqueness rate measurement, and remap overhead — reports median not mean
+- [ ] **BENCH-03**: Before/after comparison documented with measured speedup factor
 
-### UI Integration
+### Date Parsing
 
-- [x] **UITG-01**: Extended column tagging — add Result, Unit, Qualifier, Duration, DurationUnit, Species, ExposureRoute to selectInput choices
-- [x] **UITG-02**: Tag type dispatch — numeric pipeline receives only Result/Unit/Qualifier/Duration tags; chemical cleaning pipeline never receives them
-- [x] **UITG-03**: Cascade reset extension — null `harmonize_results`, `harmonize_audit`, `toxval_output` on re-upload, tag change, or re-run curation
-- [x] **UITG-04**: Harmonize tab module following `mod_run_curation.R` pattern — button-triggered pipeline, `withProgress()`, write to data_store
-- [x] **UITG-05**: Pre-export QC dashboard — value boxes: rows parsed, rows harmonized, rows with dtxsid, rows with NA toxval_numeric
-- [x] **UITG-06**: Sheet 8 "ToxVal Output" in existing Excel export (separate sheet, not merged with data)
+- [ ] **DATE-01**: `parse_dates()` in `R/date_parser.R` handles ISO, MDY, DMY, SAS (15JAN1985), YYYYMMDD, year-only, 2-digit year formats via `lubridate::parse_date_time()` with multi-format orders
+- [ ] **DATE-02**: Returns tibble with `orig_row_id`, `raw_date`, `parsed_date` (ISO-8601), `date_year` (integer), `date_flag` ("" | "inferred_format" | "partial" | "unparseable" | "ambiguous")
+- [ ] **DATE-03**: Dates where day <= 12 AND month <= 12 flagged as `"ambiguous"` in audit trail
+- [ ] **DATE-04**: `StudyDate` tag type added to `classify_tags()` numeric_types; Harmonize tab routes StudyDate-tagged columns through `parse_dates()`
+- [ ] **DATE-05**: `curate_headless()` harmonize block gains Stage 3c conditional call for StudyDate-tagged columns
+- [ ] **DATE-06**: `map_to_toxval_schema()` populates `original_year` from `date_year` output
 
-## v2+ Requirements
+### Duration Conversion
 
-Deferred to future release. Tracked but not in current roadmap.
+- [ ] **DUR-01**: Evaluate ECOTOX `duration_unit_codes` table (ComptoxR ecotox.R section 12) for gaps and extend with missing abbreviations, compound durations, and edge cases
+- [ ] **DUR-02**: Duration conversion rows added to `unit_table.csv` with hours as base unit — covers seconds through years plus common abbreviations (h/hr/hrs/hour, d/day/days, wk/week, mo/month, yr/year, min/minute, s/sec/second)
+- [ ] **DUR-03**: `DurationUnit`-tagged columns routed through existing `harmonize_units()` in mod_harmonize.R and curate_headless.R
+- [ ] **DUR-04**: Duration output wired to `study_duration_value` and `study_duration_units` in `map_to_toxval_schema()`
+- [ ] **DUR-05**: Custom duration synonym map used (NOT `lubridate::duration()`) to avoid "m" = months pitfall
 
-### Exposure Classification
+### Media/Matrix Harmonization
 
-- **EXPR-01**: Protection code decoder (generalize SSWQS 55-row lookup to user-uploadable table)
-- **EXPR-02**: Duration classification lookup (acute/subacute/subchronic/chronic/developmental/reproductive)
-- **EXPR-03**: Habitat/media classification with controlled vocabulary
+- [ ] **MEDIA-01**: `R/media_harmonizer.R` with `harmonize_media(values, media_map)` returning tibble with `orig_row_id`, `raw_media`, `canonical_media`, `media_flag`
+- [ ] **MEDIA-02**: Media vocabulary derived from ENVO ontology (ENVO_00010483 root) — canonical terms are formal ENVO categories
+- [ ] **MEDIA-03**: Compound media types (e.g., "freshwater sediment") are first-class entries, not silent single-picks; ambiguity flag for multi-match inputs
+- [ ] **MEDIA-04**: `Media` tag type added to `classify_tags()` metadata_types; Harmonize tab recognizes Media-tagged columns
+- [ ] **MEDIA-05**: Canonical media values feed back into `harmonize_units()` as `media` parameter — closes ppb/ppm routing loop with `get_media_target()`
+- [ ] **MEDIA-06**: `curate_headless()` harmonize block gains Stage 3d conditional call for Media-tagged columns
 
-### Advanced Harmonization
+### Media — AMOS Pipeline
 
-- **ADVH-01**: Narrative filter review UI — show excluded rows with reason, allow curator confirmation
-- **ADVH-02**: Range midpoint toggle — user choice: low/high/mid vs low/high only vs midpoint only
-- **ADVH-03**: Automatic unit class inference from column name patterns
+- [ ] **AMOS-01**: `scripts/build_amos_media.R` calls `ComptoxR::chemi_amos_method_pagination()`, extracts media/matrix terms from ~7,500 method descriptions, maps against ENVO vocabulary
+- [ ] **AMOS-02**: Results cached as `inst/extdata/reference_cache/amos_media.rds` — committed to package, never called at runtime
+- [ ] **AMOS-03**: Cache includes fetch timestamp; `refresh_amos_cache()` function for explicit manual refresh with staleness warning
+
+### Media — Editor UI
+
+- [ ] **MEDIT-01**: User-editable media classification table in Harmonize tab following reference list editor pattern (term, canonical, source, active)
+- [ ] **MEDIT-02**: Unmatched media terms surfaced for user mapping; user additions persist via RDS and trigger re-run cascade
+- [ ] **MEDIT-03**: AMOS-derived terms supplement user-editable map as fallback — user map checked first
+
+## Future Requirements
+
+Deferred to future milestone. Tracked but not in current roadmap.
+
+### Date/Duration Extensions
+
+- **DFUT-01**: Date range parsing ("1990-1995", "Jan-Mar 2020") with start_date + end_date columns
+- **DFUT-02**: Duration range support ("96-120 hours") producing `duration_min_h` and `duration_max_h`
+- **DFUT-03**: Step-level timing display in pipeline progress UI (wall-clock seconds per step in value boxes)
+
+### WQX Parameter Mapping
+
+- **WFUT-01**: WQX parameter registry download, processing, and database storage pipeline
+- **WFUT-02**: WQ parameter standardization against WQX harmonized registry
+- **WFUT-03**: SSWQS dataset mapping via WQX parameters (reduces CTX API dependency)
 
 ## Out of Scope
 
-Explicitly excluded. Documented to prevent scope creep.
-
 | Feature | Reason |
 |---------|--------|
-| `units` CRAN package | Domain mismatch — does not know pCi/L, NTU, CFU/100mL, pH standard units |
-| Automatic unit inference from column names | Anti-feature per research; produces untracked wrong conversions |
-| Bidirectional unit conversion | No downstream use case; introduces floating-point drift |
-| Real-time parsing as-you-type | Confusing UX; explicit "Run Harmonization" button preferred (consistent with v1.3 cleaning) |
-| Cell-by-cell manual editing in harmonization | Doesn't scale; batch operations + one-off corrections table preferred |
+| Parallel step execution in cleaning pipeline | Steps are data-dependent (synonym splitting changes row count); dedup provides sufficient speedup |
+| LLM-based media classification | Opaque audit trail, API dependency, non-reproducible; ENVO keyword matching gives 80%+ coverage with transparency |
+| Auto-detecting date columns by content | Date-like strings appear in CAS numbers, batch numbers; require explicit user tagging |
+| Universal duration parser for bare numbers | "96" without unit is ambiguous (hours vs. days); require explicit unit context |
+| data.table migration for performance | Dedup pattern achieves sufficient speedup without rewriting dplyr idioms; maintenance friction risk |
+| datefixR dependency | Rust binary complicates installation; lubridate handles all verified regulatory date formats |
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
+Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-01 | Phase 29 | Complete |
-| DATA-02 | Phase 29 | Complete |
-| DATA-03 | Phase 29 | Complete |
-| DATA-04 | Phase 34 | Complete |
-| PARS-01 | Phase 30 | Complete |
-| PARS-02 | Phase 30 | Complete |
-| PARS-03 | Phase 30 | Complete |
-| PARS-04 | Phase 30 | Complete |
-| PARS-05 | Phase 30 | Complete |
-| PARS-06 | Phase 34 | Complete |
-| UNIT-01 | Phase 31 | Complete |
-| UNIT-02 | Phase 31 | Complete |
-| UNIT-03 | Phase 31 | Complete |
-| UNIT-04 | Phase 31 | Complete |
-| UNIT-05 | Phase 31 | Complete |
-| UNIT-06 | Phase 34 | Complete |
-| SCHM-01 | Phase 36 | Complete |
-| SCHM-02 | Phase 32 | Complete |
-| SCHM-03 | Phase 35 | Complete |
-| SCHM-04 | Phase 36 | Complete |
-| SCHM-05 | Phase 35 | Complete |
-| UITG-01 | Phase 33 | Complete |
-| UITG-02 | Phase 33 | Complete |
-| UITG-03 | Phase 33 | Complete |
-| UITG-04 | Phase 34 | Complete |
-| UITG-05 | Phase 34 | Complete |
-| UITG-06 | Phase 36 | Complete |
+| (populated by roadmapper) | | |
 
 **Coverage:**
-- v1.9 requirements: 27 total
-- Mapped to phases: 27
-- Complete: 27
-- Pending (Phase 36 gap closure): 0
+- v2.0 requirements: 33 total
+- Mapped to phases: 0 (pending roadmap)
+- Unmapped: 33
 
 ---
-*Requirements defined: 2026-04-14*
-*Last updated: 2026-04-21 — gap closure Phase 36 added, 9 stale checkboxes fixed*
+*Requirements defined: 2026-04-24*
+*Last updated: 2026-04-24 after initial definition*
