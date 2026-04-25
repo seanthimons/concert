@@ -232,7 +232,7 @@ if (!is.null(unit_map)) {
       set.seed(42)
       test_values <- runif(n, 0.001, 1000)
       test_units <- sample(sample_units, n, replace = TRUE)
-      test_media <- sample(c("aqueous", "soil", "air"), n, replace = TRUE)
+      test_media <- sample(c("aqueous", "solid", "air"), n, replace = TRUE)
       bench::mark(
         harmonize_units(test_values, test_units, unit_map, media = test_media, use_dedup = use_dedup),
         min_iterations = 3,
