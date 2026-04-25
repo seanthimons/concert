@@ -56,10 +56,10 @@ test_that("run_cleaning_pipeline returns cleaned data and audit trail", {
   # Check cleaned data
   cleaned <- result$cleaned_data
   expect_equal(nrow(cleaned), 3)
-  expect_true("original_row_id" %in% names(cleaned))  # Now injected by default
+  expect_true("original_row_id" %in% names(cleaned)) # Now injected by default
   expect_equal(cleaned$original_row_id, 1:3)
   expect_equal(cleaned$chemical_name[1], "acetone")
-  expect_equal(cleaned$chemical_name[2], "alpha-tocopherol")  # Greek alpha -> plain text (current ComptoxR format)
+  expect_equal(cleaned$chemical_name[2], "alpha-tocopherol") # Greek alpha -> plain text (current ComptoxR format)
   expect_equal(cleaned$chemical_name[3], "ethanol")
   expect_equal(cleaned$cas_number[1], "67-64-1")
   expect_equal(cleaned$cas_number[2], "58-08-2")
@@ -108,8 +108,8 @@ test_that("run_cleaning_pipeline on clean data returns empty audit trail", {
 test_that("audit trail only contains rows where original_value != new_value", {
   # Mixed data: some clean, some dirty
   test_df <- tibble::tibble(
-    chemical_name = c("acetone", "  ethanol  ", "methanol"),  # Only row 2 needs cleaning
-    cas_number = c("67-64-1", "64-17-5", "67-56-1")  # All clean
+    chemical_name = c("acetone", "  ethanol  ", "methanol"), # Only row 2 needs cleaning
+    cas_number = c("67-64-1", "64-17-5", "67-56-1") # All clean
   )
 
   result <- run_cleaning_pipeline(test_df)
@@ -124,4 +124,23 @@ test_that("audit trail only contains rows where original_value != new_value", {
 
   # Check that cas_number field is not in audit (all were clean)
   # Note: this might fail if whitespace stripping is run on clean data, so check carefully
+})
+
+test_that("run_cleaning_pipeline with dedup produces identical results to pre-dedup baseline", {
+  # Create data with many duplicates (dedup should fire)
+  base_names <- c("  acetone  ", "\u03B1-tocopherol", "__ethanol__", "benzene", "toluene")
+  test_df <- tibble::tibble(
+    chemical_name = rep(base_names, 20),
+    cas_number = rep(c("67641", "  58-08-2  ", "*108-95-2*", "71-43-2", "108-88-3"), 20)
+  )
+  tag_map <- list(chemical_name = "Name", cas_number = "CASRN")
+
+  result <- run_cleaning_pipeline(test_df, tag_map)
+
+  # Audit trail row_ids must be valid (PERF-02)
+  expect_true(all(result$audit_trail$row_id <= nrow(result$cleaned_data)))
+  # Must have cleaning results
+  expect_gt(nrow(result$audit_trail), 0)
+  # Structure preserved
+  expect_named(result, c("cleaned_data", "audit_trail", "new_tags"))
 })

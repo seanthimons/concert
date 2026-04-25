@@ -382,7 +382,7 @@ test_that("molarity detection: mmol/L is molarity", {
 test_that("molarity detection: mg/L is NOT molarity", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(1), c("mg/L"), unit_map)
-  expect_equal(result$unit_flag, "")  # Not needs_mw
+  expect_equal(result$unit_flag, "") # Not needs_mw
 })
 
 # ==============================================================================
@@ -392,7 +392,7 @@ test_that("molarity detection: mg/L is NOT molarity", {
 test_that("molarity MW: M with MW=100 -> mg/L = value * 100 * 1000", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(0.001), c("M"), unit_map, molecular_weight = 100)
-  expect_equal(result$harmonized_value, 100)  # 0.001 M * 100 g/mol * 1000 = 100 mg/L
+  expect_equal(result$harmonized_value, 100) # 0.001 M * 100 g/mol * 1000 = 100 mg/L
   expect_equal(result$harmonized_unit, "mg/L")
   expect_equal(result$unit_flag, "")
 })
@@ -400,44 +400,43 @@ test_that("molarity MW: M with MW=100 -> mg/L = value * 100 * 1000", {
 test_that("molarity MW: mM with MW=100 -> mg/L = value * 100", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(1), c("mM"), unit_map, molecular_weight = 100)
-  expect_equal(result$harmonized_value, 100)  # 1 mM * 100 g/mol = 100 mg/L
+  expect_equal(result$harmonized_value, 100) # 1 mM * 100 g/mol = 100 mg/L
   expect_equal(result$harmonized_unit, "mg/L")
 })
 
 test_that("molarity MW: uM with MW=100 -> mg/L = value * 100 * 0.001", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(1000), c("uM"), unit_map, molecular_weight = 100)
-  expect_equal(result$harmonized_value, 100)  # 1000 uM * 100 g/mol * 0.001 = 100 mg/L
+  expect_equal(result$harmonized_value, 100) # 1000 uM * 100 g/mol * 0.001 = 100 mg/L
   expect_equal(result$harmonized_unit, "mg/L")
 })
 
 test_that("molarity MW: nM with MW=100 -> mg/L = value * 100 * 1e-6", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(1e6), c("nM"), unit_map, molecular_weight = 100)
-  expect_equal(result$harmonized_value, 100)  # 1e6 nM * 100 * 1e-6 = 100 mg/L
+  expect_equal(result$harmonized_value, 100) # 1e6 nM * 100 * 1e-6 = 100 mg/L
   expect_equal(result$harmonized_unit, "mg/L")
 })
 
 test_that("molarity MW: pM with MW=100 conversion", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(1e9), c("pM"), unit_map, molecular_weight = 100)
-  expect_equal(result$harmonized_value, 100)  # 1e9 pM * 100 * 1e-9 = 100 mg/L
+  expect_equal(result$harmonized_value, 100) # 1e9 pM * 100 * 1e-9 = 100 mg/L
   expect_equal(result$harmonized_unit, "mg/L")
 })
 
 test_that("molarity MW: molecular_weight param overrides API lookup", {
   unit_map <- make_test_unit_map()
   # Even with dtxsid provided, mw param takes precedence
-  result <- harmonize_units(c(1), c("mM"), unit_map,
-                            dtxsid = "DTXSID7020182", molecular_weight = 200)
-  expect_equal(result$harmonized_value, 200)  # 1 mM * 200 = 200 mg/L
+  result <- harmonize_units(c(1), c("mM"), unit_map, dtxsid = "DTXSID7020182", molecular_weight = 200)
+  expect_equal(result$harmonized_value, 200) # 1 mM * 200 = 200 mg/L
 })
 
 test_that("molarity MW: no MW returns needs_mw flag", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(1), c("mM"), unit_map)
-  expect_equal(result$harmonized_value, 1)  # unchanged
-  expect_equal(result$harmonized_unit, "mM")  # preserved
+  expect_equal(result$harmonized_value, 1) # unchanged
+  expect_equal(result$harmonized_unit, "mM") # preserved
   expect_equal(result$unit_flag, "needs_mw")
 })
 
@@ -471,7 +470,7 @@ test_that("molarity MW: vector of different MWs", {
 test_that("ppb media: aqueous -> mg/L", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(1000), c("ppb"), unit_map, media = "aqueous")
-  expect_equal(result$harmonized_value, 1)  # 1000 ppb * 0.001 = 1 mg/L
+  expect_equal(result$harmonized_value, 1) # 1000 ppb * 0.001 = 1 mg/L
   expect_equal(result$harmonized_unit, "mg/L")
   expect_equal(result$unit_flag, "")
 })
@@ -495,7 +494,7 @@ test_that("ppb media: air -> mg/m3", {
 test_that("ppm media: aqueous -> mg/L", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(10), c("ppm"), unit_map, media = "aqueous")
-  expect_equal(result$harmonized_value, 10)  # 10 ppm * 1 = 10 mg/L
+  expect_equal(result$harmonized_value, 10) # 10 ppm * 1 = 10 mg/L
   expect_equal(result$harmonized_unit, "mg/L")
 })
 
@@ -583,7 +582,7 @@ test_that("synonym: ug/kg bw/day -> ug/kg/d -> mg/kg/d", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(1000), c("ug/kg bw/day"), unit_map)
   expect_equal(result$harmonized_unit, "mg/kg/d")
-  expect_equal(result$harmonized_value, 1)  # 1000 * 0.001 = 1
+  expect_equal(result$harmonized_value, 1) # 1000 * 0.001 = 1
 })
 
 test_that("synonym: mg/kg-day -> mg/kg/d", {
@@ -728,7 +727,7 @@ test_that("integration: SSWQS-style mixed input", {
   expect_equal(result$harmonized_value[1], 0.1)
   expect_equal(result$harmonized_value[2], 0.005)
   expect_equal(result$harmonized_value[3], 0.01)
-  expect_equal(result$harmonized_value[4], 0.3)  # 1 uM * 300 * 0.001
+  expect_equal(result$harmonized_value[4], 0.3) # 1 uM * 300 * 0.001
 })
 
 test_that("integration: all units in single call", {
@@ -750,7 +749,7 @@ test_that("integration: scalar media applies to all rows", {
     values = c(100, 200),
     units = c("ppb", "ppb"),
     unit_map = unit_map,
-    media = "solid"  # scalar, should apply to both
+    media = "solid" # scalar, should apply to both
   )
   expect_equal(result$harmonized_unit, c("mg/kg", "mg/kg"))
 })
@@ -763,8 +762,10 @@ test_that("edge: empty vector input", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(numeric(0), character(0), unit_map)
   expect_equal(nrow(result), 0)
-  expect_equal(names(result), c("orig_row_id", "orig_unit", "harmonized_value",
-                                "harmonized_unit", "conversion_factor", "unit_flag"))
+  expect_equal(
+    names(result),
+    c("orig_row_id", "orig_unit", "harmonized_value", "harmonized_unit", "conversion_factor", "unit_flag")
+  )
 })
 
 test_that("edge: single element vector", {
@@ -802,5 +803,91 @@ test_that("edge: very small values", {
 test_that("edge: scientific notation in molarity conversion", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(1e-3), c("M"), unit_map, molecular_weight = 1000)
-  expect_equal(result$harmonized_value, 1000)  # 1e-3 M * 1000 * 1000 = 1000 mg/L
+  expect_equal(result$harmonized_value, 1000) # 1e-3 M * 1000 * 1000 = 1000 mg/L
+})
+
+# ==============================================================================
+# Phase 37: Unit-key dedup tests (PERF-03)
+# ==============================================================================
+
+test_that("dedup: high duplication produces identical results to direct path", {
+  unit_map <- make_test_unit_map()
+  # 100 rows, only 5 unique units -> dedup should fire (n_unique=5 < 100/2=50)
+  values <- rep(c(1.0, 2.5, 0.1, 100, 50), 20)
+  units <- rep(c("mg/L", "ug/L", "ng/L", "mg/kg/d", "g/kg/d"), 20)
+
+  result <- harmonize_units(values, units, unit_map)
+
+  expect_equal(nrow(result), 100)
+  # All mg/L rows should have conversion_factor = 1
+  expect_true(all(result$conversion_factor[units == "mg/L"] == 1))
+  # All ug/L rows should have same conversion factor
+  ug_factors <- unique(result$conversion_factor[units == "ug/L"])
+  expect_length(ug_factors, 1)
+  # Output schema correct
+  expect_named(
+    result,
+    c(
+      "orig_row_id",
+      "orig_unit",
+      "harmonized_value",
+      "harmonized_unit",
+      "conversion_factor",
+      "unit_flag"
+    )
+  )
+})
+
+test_that("dedup: ppx with different media produces correct per-key results", {
+  unit_map <- make_test_unit_map()
+  # Same ppb unit but different media -> different keys
+  values <- c(10, 10, 10, 10)
+  units <- c("ppb", "ppb", "ppb", "ppb")
+  media <- c("aqueous", "aqueous", "solid", "solid")
+
+  result <- harmonize_units(values, units, unit_map, media = media)
+
+  # Same media -> same harmonized_unit
+  expect_equal(result$harmonized_unit[1], result$harmonized_unit[2])
+  expect_equal(result$harmonized_unit[3], result$harmonized_unit[4])
+  # aqueous ppb -> mg/L, solid ppb -> mg/kg
+  expect_equal(result$harmonized_unit[1], "mg/L")
+  expect_equal(result$harmonized_unit[3], "mg/kg")
+})
+
+test_that("dedup: all unique units bypasses dedup path", {
+  unit_map <- make_test_unit_map()
+  # Each unit is unique (3 rows, 3 unique) -> n_unique=3, n=3, 3 < 3/2=1.5 is FALSE -> bypass
+  values <- c(1.0, 2.0, 3.0)
+  units <- c("mg/L", "ug/L", "ng/L")
+
+  result <- harmonize_units(values, units, unit_map)
+
+  expect_equal(nrow(result), 3)
+  expect_named(
+    result,
+    c(
+      "orig_row_id",
+      "orig_unit",
+      "harmonized_value",
+      "harmonized_unit",
+      "conversion_factor",
+      "unit_flag"
+    )
+  )
+  # Correct conversions still applied in bypass path
+  expect_equal(result$harmonized_value[1], 1.0)
+  expect_equal(result$harmonized_value[2], 0.002)
+  expect_equal(result$harmonized_value[3], 3e-6)
+})
+
+test_that("dedup: preserves orig_row_id ordering", {
+  unit_map <- make_test_unit_map()
+  values <- rep(1.0, 50)
+  units <- rep(c("mg/L", "ug/L"), 25)
+
+  result <- harmonize_units(values, units, unit_map)
+
+  expect_equal(result$orig_row_id, 1:50)
+  expect_equal(result$orig_unit, units)
 })
