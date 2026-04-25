@@ -28,7 +28,8 @@ source(file.path(CHEMREG_ROOT, "R", "unit_harmonizer.R"))
 stopifnot(
   "bench package is required -- run: pak::pak('bench')" = requireNamespace("bench", quietly = TRUE),
   "dplyr package is required" = requireNamespace("dplyr", quietly = TRUE),
-  "readr package is required" = requireNamespace("readr", quietly = TRUE)
+  "readr package is required" = requireNamespace("readr", quietly = TRUE),
+  "readxl package is required for XLSX input -- run: pak::pak('readxl')" = requireNamespace("readxl", quietly = TRUE)
 )
 
 # ============================================================================
