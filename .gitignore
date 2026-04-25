@@ -44,3 +44,4 @@ playwright/
 log.txt
 test*.xlsx
 uncurated_sswqs.csv
+curation/
