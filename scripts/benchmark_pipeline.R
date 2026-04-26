@@ -359,7 +359,7 @@ md_lines <- c(
   "",
   "## Dataset",
   "",
-  sprintf("- **File:** `%s`", basename(bench_files[1])),
+  sprintf("- **File:** `%s`", basename(bench_file)),
   sprintf("- **Total rows:** %s", format(nrow(benchmark_df), big.mark = ",")),
   sprintf("- **Columns:** %d", ncol(benchmark_df)),
   "",
