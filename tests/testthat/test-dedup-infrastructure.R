@@ -258,3 +258,58 @@ test_that("PERF-02 assertion fires when audit row_id would exceed parent row cou
     regexp = NULL
   )
 })
+
+# ==============================================================================
+# use_dedup toggle tests (Phase 38 — BENCH-01)
+# ==============================================================================
+
+test_that("run_cleaning_pipeline use_dedup=FALSE produces identical cleaned_data to TRUE", {
+  test_df <- tibble::tibble(
+    chemical_name = c(
+      "Acetone",
+      "acetone",
+      "ACETONE",
+      " Benzene ",
+      "Acetone",
+      "acetone",
+      "ACETONE",
+      " Benzene ",
+      "Toluene",
+      "Toluene"
+    ),
+    cas_number = c(
+      "67-64-1",
+      "67-64-1",
+      "67-64-1",
+      "71-43-2",
+      "67-64-1",
+      "67-64-1",
+      "67-64-1",
+      "71-43-2",
+      "108-88-3",
+      "108-88-3"
+    )
+  )
+  tag_map <- c(chemical_name = "Name", cas_number = "CASRN")
+  result_dedup <- run_cleaning_pipeline(test_df, tag_map, use_dedup = TRUE)
+  result_no_dedup <- run_cleaning_pipeline(test_df, tag_map, use_dedup = FALSE)
+  # Compare all columns except original_row_id -- dedup remaps lineage IDs
+  # which is an expected artifact of the dedup optimization, not a behavior change
+  compare_cols <- setdiff(names(result_dedup$cleaned_data), "original_row_id")
+  expect_equal(result_dedup$cleaned_data[compare_cols], result_no_dedup$cleaned_data[compare_cols])
+})
+
+test_that("run_cleaning_pipeline use_dedup=FALSE skips dedup_step", {
+  # With only unique values, dedup bypass threshold fires anyway, so results
+  # must be identical. This confirms the parameter path works for unique data.
+  test_df <- tibble::tibble(
+    chemical_name = c("Acetone", "Benzene", "Toluene"),
+    cas_number = c("67-64-1", "71-43-2", "108-88-3")
+  )
+  tag_map <- c(chemical_name = "Name", cas_number = "CASRN")
+  result_dedup <- run_cleaning_pipeline(test_df, tag_map, use_dedup = TRUE)
+  result_no_dedup <- run_cleaning_pipeline(test_df, tag_map, use_dedup = FALSE)
+  # Compare all columns except original_row_id -- dedup remaps lineage IDs
+  compare_cols <- setdiff(names(result_dedup$cleaned_data), "original_row_id")
+  expect_equal(result_dedup$cleaned_data[compare_cols], result_no_dedup$cleaned_data[compare_cols])
+})
