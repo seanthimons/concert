@@ -62,28 +62,13 @@ stopifnot(
 # ============================================================================
 
 # Build tag_map -- benchmark needs realistic tags for dedup to exercise name-chain.
-# Auto-detect: columns with "cas" in name -> CASRN, columns with "name"/"chemical" -> Name.
-# Per D-06 (Pitfall 4): CASRN tag is excluded from benchmark tag_map to avoid network calls
-# in normalize_cas_fields. The benchmark covers cleaning and harmonization only (no API calls).
-col_names_lower <- tolower(names(benchmark_df))
-tag_map <- c()
-name_candidates <- grep("name|chemical|compound|substance", col_names_lower, value = TRUE)
-if (length(name_candidates) > 0) {
-  tag_map <- c(
-    tag_map,
-    setNames(
-      rep("Name", length(name_candidates)),
-      names(benchmark_df)[tolower(names(benchmark_df)) %in% name_candidates]
-    )
-  )
-}
-if (length(tag_map) == 0) {
-  # Fallback: tag first character column as Name
-  char_cols <- names(benchmark_df)[vapply(benchmark_df, is.character, logical(1))]
-  if (length(char_cols) > 0) {
-    tag_map <- c(tag_map, setNames("Name", char_cols[1]))
-  }
-}
+# Hardcoded tag map for detections.csv
+# Per D-06: CASRN excluded to avoid normalize_cas_fields network calls.
+tag_map <- c(
+  analyte = "Name",
+  units = "Unit",
+  concentration = "Result"
+)
 message(sprintf(
   "  Tag map: %d columns tagged (%s)",
   length(tag_map),
