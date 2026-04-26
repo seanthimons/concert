@@ -243,6 +243,9 @@ get_ppx_conversion_factor <- function(unit) {
 #' @param molecular_weight Optional numeric vector - MW override (skips API call)
 #' @param use_dedup Logical. When TRUE (default), applies unit-key dedup
 #'   optimization (Phase 37 D-07). Set to FALSE for benchmark baseline.
+#' @param category Character or NULL. When non-NULL, filters unit_map to rows
+#'   matching this category before conversion. Use "duration" for duration
+#'   harmonization. Default NULL uses all rows (backward compatible).
 #'
 #' @return A tibble with columns:
 #'   - orig_row_id: Integer linking back to input position
@@ -277,8 +280,14 @@ harmonize_units <- function(
   media = NULL,
   dtxsid = NULL,
   molecular_weight = NULL,
-  use_dedup = TRUE
+  use_dedup = TRUE,
+  category = NULL
 ) {
+  # Category filter (D-12): isolate conversion table to a single category
+  if (!is.null(category)) {
+    unit_map <- unit_map[unit_map$category == category, , drop = FALSE]
+  }
+
   # Step 0: Handle empty input
   n <- length(values)
   if (n == 0) {
@@ -587,6 +596,13 @@ harmonize_units <- function(
       unit_flag[still_unmatched_global] <- "unmatched"
     }
   } # end dedup if/else
+
+  # Flag ambiguous original units (D-01): "m" could be minutes or months
+  ambiguous_originals <- c("m")
+  ambiguous_mask <- trimws(tolower(orig_unit)) %in% ambiguous_originals
+  if (any(ambiguous_mask)) {
+    unit_flag[ambiguous_mask] <- "ambiguous_unit"
+  }
 
   # Build output tibble with columns in exact order (per D-07)
   tibble::tibble(
