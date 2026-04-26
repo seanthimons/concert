@@ -1956,7 +1956,11 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL, us
       list(cleaned_data = df_out, audit_trail = audit)
     }
     char_cols <- names(df_after_lineage)[vapply(df_after_lineage, is.character, logical(1))]
-    unicode_result <- dedup_step(unicode_step_fn, df_after_lineage, dedup_cols = char_cols)
+    unicode_result <- if (use_dedup) {
+      dedup_step(unicode_step_fn, df_after_lineage, dedup_cols = char_cols)
+    } else {
+      unicode_step_fn(df_after_lineage)
+    }
     df_after_unicode <- unicode_result$cleaned_data
     audit_unicode <- unicode_result$audit_trail
   }
@@ -1976,7 +1980,11 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL, us
       list(cleaned_data = df_out, audit_trail = audit)
     }
     char_cols_trim <- names(df_after_unicode)[vapply(df_after_unicode, is.character, logical(1))]
-    trim_result <- dedup_step(trim_step_fn, df_after_unicode, dedup_cols = char_cols_trim)
+    trim_result <- if (use_dedup) {
+      dedup_step(trim_step_fn, df_after_unicode, dedup_cols = char_cols_trim)
+    } else {
+      trim_step_fn(df_after_unicode)
+    }
     df_after_trim <- trim_result$cleaned_data
     audit_trim <- trim_result$audit_trail
   }
@@ -1996,7 +2004,11 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL, us
       audit_combined <- dplyr::bind_rows(audit_combined, build_skip_result(df_after_trim, "normalize_cas")$audit_trail)
     } else {
       cas_cols <- names(tag_map)[tag_map == "CASRN"]
-      cas_result <- dedup_step(normalize_cas_fields, df_after_trim, tag_map, dedup_cols = cas_cols)
+      cas_result <- if (use_dedup) {
+        dedup_step(normalize_cas_fields, df_after_trim, tag_map, dedup_cols = cas_cols)
+      } else {
+        normalize_cas_fields(df_after_trim, tag_map)
+      }
       df_after_cas <- cas_result$cleaned_data
       audit_combined <- dplyr::bind_rows(audit_combined, cas_result$audit_trail)
     }
@@ -2085,13 +2097,17 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL, us
           )
         }
 
-        pass1_result <- dedup_step(
-          name_chain_pass1,
-          df_after_multi_cas,
-          name_cols,
-          reference_lists,
-          dedup_cols = name_cols
-        )
+        pass1_result <- if (use_dedup) {
+          dedup_step(
+            name_chain_pass1,
+            df_after_multi_cas,
+            name_cols,
+            reference_lists,
+            dedup_cols = name_cols
+          )
+        } else {
+          name_chain_pass1(df_after_multi_cas, name_cols, reference_lists)
+        }
         df_after_enclosures2 <- pass1_result$cleaned_data
         audit_combined <- dplyr::bind_rows(audit_combined, pass1_result$audit_trail)
 
@@ -2160,13 +2176,17 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL, us
       chiral_check <- precheck_chiral_restore(df_final, name_cols)
 
       if (isotope_check$should_run || multi_check$should_run || chiral_check$should_run) {
-        pass2_result <- dedup_step(
-          name_chain_pass2,
-          df_final,
-          name_cols,
-          reference_lists$isotope_lookup,
-          dedup_cols = name_cols
-        )
+        pass2_result <- if (use_dedup) {
+          dedup_step(
+            name_chain_pass2,
+            df_final,
+            name_cols,
+            reference_lists$isotope_lookup,
+            dedup_cols = name_cols
+          )
+        } else {
+          name_chain_pass2(df_final, name_cols, reference_lists$isotope_lookup)
+        }
         df_final <- pass2_result$cleaned_data
         audit_combined <- dplyr::bind_rows(audit_combined, pass2_result$audit_trail)
       } else {
