@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Pipeline Performance & Date/Media Harmonization
-status: executing
-stopped_at: Phase 38 context gathered
-last_updated: "2026-04-26T00:36:11.035Z"
-last_activity: 2026-04-26 -- Phase 38 planning complete
+status: verifying
+stopped_at: Completed 38-01-PLAN.md
+last_updated: "2026-04-26T00:55:35.579Z"
+last_activity: 2026-04-26
 progress:
   total_phases: 6
   completed_phases: 2
@@ -18,7 +18,7 @@ progress:
 
 **Last Updated:** 2026-04-24
 **Milestone:** v2.0 Pipeline Performance & Date/Media Harmonization
-**Status:** Ready to execute
+**Status:** Phase complete — ready for verification
 
 ---
 
@@ -27,16 +27,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-24)
 
 **Core value:** Users can go from messy regulatory/benchmark data files to validated, harmonized, toxval-compatible datasets in one workflow.
-**Current focus:** Phase 37 — performance-architecture
+**Current focus:** Phase 38 — benchmark-harness
 
 ---
 
 ## Current Position
 
-Phase: 38
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-04-26 -- Phase 38 planning complete
+Phase: 38 (benchmark-harness) — EXECUTING
+Plan: 1 of 1
+Status: Phase complete — ready for verification
+Last activity: 2026-04-26
 
 Progress: ░░░░░░░░░░ 0% (v2.0 milestone)
 
@@ -74,6 +74,8 @@ v2.0 architecture decisions (from research 2026-04-24):
 - Duration uses custom synonym map — never `lubridate::duration()` ("m" = months pitfall)
 - AMOS extraction is build-time only; `amos_media.rds` committed, never called at runtime
 - `lubridate` → Imports; `bench` → Suggests only
+- [Phase 38]: Exclude original_row_id from dedup toggle comparison -- dedup remaps lineage IDs by design
+- [Phase 38]: use_dedup_path intermediate variable in harmonize_units() separates key construction from path execution
 
 ### Pending Todos
 
@@ -95,12 +97,13 @@ None.
 | WQX | WFUT-01/02/03: WQX parameter mapping | Future milestone | v2.0 |
 
 ---
+| Phase 38 P01 | 11min | 2 tasks | 4 files |
 
 ## Session Continuity
 
-Last session: 2026-04-24T20:49:59.420Z
-Stopped at: Phase 38 context gathered
-Resume file: .planning/phases/38-benchmark-harness/38-CONTEXT.md
+Last session: 2026-04-26T00:55:35.567Z
+Stopped at: Completed 38-01-PLAN.md
+Resume file: None
 
 ---
 
