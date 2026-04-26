@@ -3,7 +3,7 @@
 # No Shiny dependency -- runs in any R session with bench installed
 #
 # Prerequisites:
-#   1. Place a regulatory CSV or XLSX file in data/benchmark/
+#   1. Place detections.csv in data/benchmark/
 #   2. Install bench: pak::pak("bench")
 #   3. Source this file: source("scripts/benchmark_pipeline.R")
 #
@@ -39,21 +39,16 @@ stopifnot(
 bench_dir <- file.path(CHEMREG_ROOT, "data", "benchmark")
 dir.create(bench_dir, showWarnings = FALSE, recursive = TRUE)
 
-bench_files <- list.files(bench_dir, pattern = "\\.(csv|xlsx)$", full.names = TRUE)
+bench_file <- file.path(bench_dir, "detections.csv")
 stopifnot(
-  "No benchmark data found in data/benchmark/ -- place a CSV or XLSX file there" = length(bench_files) > 0
+  "data/benchmark/detections.csv not found" = file.exists(bench_file)
 )
 
 message("=== LOADING BENCHMARK DATA ===")
-file_ext <- tolower(tools::file_ext(bench_files[1]))
-benchmark_df <- if (file_ext == "csv") {
-  readr::read_csv(bench_files[1], show_col_types = FALSE)
-} else {
-  readxl::read_xlsx(bench_files[1])
-}
+benchmark_df <- readr::read_csv(bench_file, show_col_types = FALSE)
 message(sprintf(
   "  Loaded: %s (%d rows x %d cols)",
-  basename(bench_files[1]),
+  basename(bench_file),
   nrow(benchmark_df),
   ncol(benchmark_df)
 ))
