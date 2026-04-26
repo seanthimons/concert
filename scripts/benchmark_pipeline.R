@@ -63,9 +63,9 @@ stopifnot(
 
 # Build tag_map -- benchmark needs realistic tags for dedup to exercise name-chain.
 # Hardcoded tag map for detections.csv
-# Per D-06: CASRN excluded to avoid normalize_cas_fields network calls.
 tag_map <- c(
   analyte = "Name",
+  cas = "CASRN",
   units = "Unit",
   concentration = "Result"
 )
