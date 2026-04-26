@@ -182,7 +182,7 @@ Plans:
 | 35. Export Extension + Headless | v1.9 | 2/2 | Complete | 2026-04-17 |
 | 36. Wire ToxVal Schema in Shiny Path | v1.9 | 1/1 | Complete | 2026-04-21 |
 | 37. Performance Architecture | v2.0 | 4/4 | Complete | 2026-04-24 |
-| 38. Benchmark Harness | v2.0 | 2/1 | Complete   | 2026-04-26 |
+| 38. Benchmark Harness | v2.0 | 2/1 | Complete    | 2026-04-26 |
 | 39. Duration Conversion | v2.0 | 0/TBD | Not started | - |
 | 40. Date Parser | v2.0 | 0/TBD | Not started | - |
 | 41. Media Harmonizer & AMOS Pipeline | v2.0 | 0/TBD | Not started | - |
