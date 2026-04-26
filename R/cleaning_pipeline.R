@@ -390,13 +390,17 @@ precheck_name_cleaning <- function(df, name_cols) {
 #' @return list(should_run = logical, est_changes = integer).
 #' @keywords internal
 precheck_isotope_shortcodes <- function(df, name_cols, isotope_lookup) {
-  if (is.null(isotope_lookup) || nrow(isotope_lookup) == 0) {
+  if (is.null(isotope_lookup)) {
+    return(list(should_run = FALSE, est_changes = 0L))
+  }
+  lookup_df <- if (is.data.frame(isotope_lookup)) isotope_lookup else isotope_lookup$lookup
+  if (is.null(lookup_df) || nrow(lookup_df) == 0) {
     return(list(should_run = FALSE, est_changes = 0L))
   }
   if (length(name_cols) == 0) {
     return(list(should_run = FALSE, est_changes = 0L))
   }
-  shortcodes <- isotope_lookup$shortcode
+  shortcodes <- lookup_df$shortcode
   # Sort by length descending so longer prefixes match first (greedy)
   shortcodes <- shortcodes[order(nchar(shortcodes), decreasing = TRUE)]
   pattern <- paste0("\\b(", paste(stringr::str_escape(shortcodes), collapse = "|"), ")\\b")
