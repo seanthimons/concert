@@ -368,17 +368,23 @@ harmonize_units <- function(
   # Key construction: unit string only for standard, paste(unit, media) for ppx,
   # paste(unit, mw) for molarity. Numeric values excluded from key (multiply is O(1)).
 
-  # Build dedup keys per classification
-  dedup_keys <- character(n)
-  dedup_keys[standard_mask] <- normalized[standard_mask]
-  dedup_keys[ppx_mask] <- paste0(normalized[ppx_mask], "||", media_vec[ppx_mask])
-  dedup_keys[molarity_mask] <- paste0(normalized[molarity_mask], "||", mw_vec[molarity_mask])
+  # Phase 38: use_dedup toggle gates dedup key construction (BENCH-01)
+  use_dedup_path <- FALSE
+  if (use_dedup) {
+    # Build dedup keys per classification
+    dedup_keys <- character(n)
+    dedup_keys[standard_mask] <- normalized[standard_mask]
+    dedup_keys[ppx_mask] <- paste0(normalized[ppx_mask], "||", media_vec[ppx_mask])
+    dedup_keys[molarity_mask] <- paste0(normalized[molarity_mask], "||", mw_vec[molarity_mask])
 
-  unique_keys <- unique(dedup_keys)
-  n_unique <- length(unique_keys)
+    unique_keys <- unique(dedup_keys)
+    n_unique <- length(unique_keys)
 
-  # Only apply dedup optimization if worthwhile (more than 2x duplication)
-  if (n_unique < n / 2) {
+    # Only apply dedup optimization if worthwhile (more than 2x duplication)
+    use_dedup_path <- n_unique < n / 2
+  }
+
+  if (use_dedup_path) {
     # Map each unique key to its first occurrence index
     first_idx <- match(unique_keys, dedup_keys)
 

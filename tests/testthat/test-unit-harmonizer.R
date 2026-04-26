@@ -891,3 +891,39 @@ test_that("dedup: preserves orig_row_id ordering", {
   expect_equal(result$orig_row_id, 1:50)
   expect_equal(result$orig_unit, units)
 })
+
+# ==============================================================================
+# use_dedup toggle tests (Phase 38 — BENCH-02)
+# ==============================================================================
+
+test_that("harmonize_units use_dedup=FALSE produces identical output to TRUE", {
+  unit_map <- make_test_unit_map()
+  n <- 100L
+  set.seed(42)
+  test_values <- runif(n, 0.001, 1000)
+  test_units <- sample(c("mg/L", "ug/L", "ppb", "ppm", "mg/kg"), n, replace = TRUE)
+  test_media <- sample(c("aqueous", "solid"), n, replace = TRUE)
+
+  result_dedup <- harmonize_units(test_values, test_units, unit_map, media = test_media, use_dedup = TRUE)
+  result_no_dedup <- harmonize_units(test_values, test_units, unit_map, media = test_media, use_dedup = FALSE)
+
+  expect_equal(result_dedup$harmonized_value, result_no_dedup$harmonized_value)
+  expect_equal(result_dedup$harmonized_unit, result_no_dedup$harmonized_unit)
+  expect_equal(result_dedup$conversion_factor, result_no_dedup$conversion_factor)
+  expect_equal(result_dedup$unit_flag, result_no_dedup$unit_flag)
+})
+
+test_that("harmonize_units use_dedup=FALSE forces direct path even with high duplication", {
+  unit_map <- make_test_unit_map()
+  # 50 rows with only 2 unique units -- dedup would normally fire (n_unique < n/2)
+  test_values <- rep(c(1.0, 2.0), 25)
+  test_units <- rep(c("mg/L", "ug/L"), 25)
+
+  result_dedup <- harmonize_units(test_values, test_units, unit_map, use_dedup = TRUE)
+  result_no_dedup <- harmonize_units(test_values, test_units, unit_map, use_dedup = FALSE)
+
+  # Results must be identical -- dedup is performance-only, not behavioral
+  expect_equal(result_dedup$harmonized_value, result_no_dedup$harmonized_value)
+  expect_equal(result_dedup$harmonized_unit, result_no_dedup$harmonized_unit)
+  expect_equal(result_dedup$conversion_factor, result_no_dedup$conversion_factor)
+})
