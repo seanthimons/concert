@@ -1,25 +1,30 @@
 ---
 phase: 38-benchmark-harness
-verified: 2026-04-24T00:00:00Z
+verified: 2026-04-25T22:30:00Z
 status: human_needed
-score: 7/9 must-haves verified
+score: 6/7 must-haves verified
 overrides_applied: 0
-re_verification: false
+re_verification:
+  previous_status: human_needed
+  previous_score: 7/9
+  gaps_closed:
+    - "use_dedup toggle was a forward-compatible no-op -- now fully wired with conditional logic at all 5 dedup_step sites and harmonizer dedup-key block"
+    - "Phase 37 dependency resolved -- all 4 plans merged at 9e8c8cb"
+  gaps_remaining: []
+  regressions: []
+  notes: "Previous verification had 9 truths (7 passed, 2 human_needed). Re-verification consolidates to 7 truths aligned with roadmap SCs and PLAN must_haves after Plan 01 re-execution wired use_dedup toggle. Previous human_needed items about Phase 37 dependency are resolved. One human item remains: running benchmark with real data and committing populated results."
 human_verification:
-  - test: "Run scripts/benchmark_pipeline.R with real regulatory data (>= 100K rows in data/benchmark/) after Phase 37 plans 02-04 complete, then confirm docs/benchmark_results.md is updated with actual measured speedup numbers and committed"
-    expected: "docs/benchmark_results.md shows concrete timing values with a speedup factor > 1.0x at 100K rows, replacing all [auto-populated] placeholders"
-    why_human: "The benchmark script is a confirmed forward-compatible no-op — use_dedup=TRUE and use_dedup=FALSE produce identical output today because Phase 37 plans 02-04 (dedup wiring into run_cleaning_pipeline and harmonize_units) are not yet executed. BENCH-03 requires actual measured speedup numbers committed to the repository. This cannot be automated until the dedup wiring lands."
-  - test: "After running the benchmark, verify the Markdown output does not contain any [auto] or [auto-populated] placeholders"
-    expected: "All table cells contain real numeric values (times, memory, speedup factors)"
-    why_human: "Requires a human to run the script with real data and inspect the output file"
+  - test: "Run scripts/benchmark_pipeline.R with real regulatory data (>= 100K rows in data/benchmark/) and commit the populated docs/benchmark_results.md"
+    expected: "Script runs to completion. docs/benchmark_results.md is overwritten with real timing values -- all [auto-populated] placeholders replaced. Speedup factor at 100K rows should be > 1.0x. Commit the populated file to satisfy BENCH-03."
+    why_human: "Requires real regulatory data (>= 100K rows, gitignored). Output quality (is speedup meaningful?) requires human judgment. File must be manually committed after inspection."
 ---
 
 # Phase 38: Benchmark Harness Verification Report
 
 **Phase Goal:** Users (and developers) can run a documented benchmark script that proves the dedup architecture delivers measurable speedup at 100K rows, with before/after comparison committed to the repository.
-**Verified:** 2026-04-24
+**Verified:** 2026-04-25T22:30:00Z
 **Status:** human_needed
-**Re-verification:** No — initial verification
+**Re-verification:** Yes -- after Plan 01 re-execution wired use_dedup toggle bypass
 
 ## Goal Achievement
 
@@ -27,111 +32,124 @@ human_verification:
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | `run_cleaning_pipeline()` accepts `use_dedup` parameter defaulting to TRUE | VERIFIED | Line 1730 of R/cleaning_pipeline.R: `run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL, use_dedup = TRUE)`. Roxygen @param present at line 1713. |
-| 2 | `harmonize_units()` accepts `use_dedup` parameter defaulting to TRUE | VERIFIED | Line 273-280 of R/unit_harmonizer.R: `use_dedup = TRUE` in signature. Roxygen @param at line 244. |
-| 3 | All existing tests pass unchanged (default TRUE preserves current behavior) | VERIFIED | Summary confirms 3 pre-existing failures in test-cleaning-reference.R and test-reference-provenance.R; zero new failures introduced. use_dedup is a confirmed no-op in both function bodies (no conditional logic found). |
-| 4 | `data/benchmark/` is gitignored | VERIFIED | .gitignore line 20: `data/benchmark/` present and grouped with data/reference_cache/. |
-| 5 | `bench` package declared in Suggests | VERIFIED | DESCRIPTION line 44: `bench,` present in Suggests field, alphabetically before `testthat`. |
-| 6 | `scripts/benchmark_pipeline.R` runs to completion and measures cleaning + harmonization pipelines separately via `bench::press()` grid | VERIFIED | 466-line script exists. Contains 2 `bench::press()` calls (Sections 6, 7), 3 `bench::mark()` calls (cold-start + 2 inner), all with `check = FALSE`. n grid covers 1K/10K/100K, use_dedup = c(TRUE, FALSE). Sourcing confirmed: cleaning_pipeline.R, cleaning_reference.R, unit_harmonizer.R (no curation.R). |
-| 7 | Cold-start cost is measured separately from warm iterations | VERIFIED | Section 5 of benchmark_pipeline.R (lines 163-174): dedicated `bench::mark()` with `min_iterations = 1, max_iterations = 1, memory = TRUE, check = FALSE`. |
-| 8 | Uniqueness rate of benchmark data computed and reported per subset size | VERIFIED | `compute_uniqueness()` function at lines 132-142. Called for 1K, 10K, 100K subsets at lines 144-146. Reported in message() at lines 148-153 and written to docs/benchmark_results.md. |
-| 9 | Before/after speedup factor documented in committed docs/benchmark_results.md | HUMAN NEEDED | docs/benchmark_results.md is committed (commit 9371a20) and contains the correct structure, methodology, and speedup formula (`dedup_FALSE / dedup_TRUE`). However, all data cells contain `[auto-populated]` or `[auto]` placeholders — no real timing measurements exist. The benchmark script cannot produce a meaningful speedup difference until Phase 37 plans 02-04 wire `dedup_step()` into the pipeline body. Phase 37 currently shows 1/4 plans executed. |
+| 1 | run_cleaning_pipeline(use_dedup=FALSE) bypasses all dedup_step() calls and calls step functions directly | VERIFIED | R/cleaning_pipeline.R lines 1959, 1983, 2007, 2100, 2179: all 5 dedup_step() call sites gated with `if (use_dedup)` conditionals. Else branches call step functions directly with matching arguments. Commit f466a2a. |
+| 2 | harmonize_units(use_dedup=FALSE) skips dedup key construction and unique-subset path | VERIFIED | R/unit_harmonizer.R lines 371-387: `use_dedup_path` gating variable introduced. When `use_dedup=FALSE`, dedup key construction is skipped entirely and execution falls through to direct conversion path. Commit 5349c41. |
+| 3 | Both functions produce identical cleaned output regardless of use_dedup value | VERIFIED | tests/testthat/test-dedup-infrastructure.R lines 270-315: 2 tests comparing use_dedup=TRUE vs FALSE output (duplicated and unique data). tests/testthat/test-unit-harmonizer.R lines 899-929: 2 tests comparing mixed-unit and high-duplication scenarios. All 4 tests pass. Comparison excludes original_row_id (documented intentional deviation -- dedup remaps lineage IDs). |
+| 4 | scripts/benchmark_pipeline.R runs to completion against real data at n=1K, 10K, 100K with median timing and memory allocation (SC1) | VERIFIED | 467-line script with 2 bench::press() calls (lines 185, 229) across n=c(1000L, 10000L, 100000L) x use_dedup=c(TRUE, FALSE). 3 bench::mark() calls (lines 164, 195, 237) all with check=FALSE, memory=TRUE. Subsets pre-generated with set.seed(42) + dplyr::slice_sample(). bench uses median by default. |
+| 5 | Benchmark measures cold-start separately and reports uniqueness rate (SC2) | VERIFIED | Cold-start: Section 5 (lines 157-175) with min_iterations=1, max_iterations=1, dedicated bench::mark(). Uniqueness: compute_uniqueness() function (lines 132-142) called per subset (lines 145-147), reported via message() and written to docs/benchmark_results.md. |
+| 6 | Benchmark script produces different median timings for use_dedup TRUE vs FALSE at high-duplication datasets | VERIFIED (structural) | Script correctly passes `use_dedup = use_dedup` through bench::press grid (lines 196, 238). With toggle now wired (not a no-op), TRUE invokes dedup_step/dedup-key path while FALSE invokes direct path. Different code paths will produce different timings. Actual magnitude requires runtime execution (covered in human verification). |
+| 7 | Before/after speedup factor documented in committed docs/benchmark_results.md (SC3) | HUMAN NEEDED | docs/benchmark_results.md is committed (commit 9371a20) with correct structure: Speedup Summary table, methodology, formula (dedup_FALSE / dedup_TRUE). Script computes speedup via compute_speedup() (lines 293-302) and writes populated values. However, all data cells currently contain [auto-populated] or [auto] placeholders. Actual measured speedup requires running script with real data and committing the result. |
 
-**Score:** 7/9 truths verified (truth 9 requires human verification after Phase 37 completes)
+**Score:** 6/7 truths verified
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `R/cleaning_pipeline.R` | use_dedup parameter on run_cleaning_pipeline() | VERIFIED | `use_dedup = TRUE` in signature at line 1730; `@param use_dedup` roxygen at line 1713 |
-| `R/unit_harmonizer.R` | use_dedup parameter on harmonize_units() | VERIFIED | `use_dedup = TRUE` in signature at line 280; `@param use_dedup` roxygen at line 244 |
-| `DESCRIPTION` | bench in Suggests | VERIFIED | Line 44: `bench,` — alphabetically ordered before `testthat` |
+| `R/cleaning_pipeline.R` | use_dedup conditional gating on all 5 dedup_step() call sites | VERIFIED | Lines 1959, 1983, 2007, 2100, 2179: `if (use_dedup)` pattern with else branch at each site |
+| `R/unit_harmonizer.R` | use_dedup conditional gating on dedup key construction block | VERIFIED | Lines 371-387: `use_dedup_path` variable, dedup key construction wrapped in `if (use_dedup)` |
+| `tests/testthat/test-dedup-infrastructure.R` | Tests proving use_dedup=FALSE bypasses dedup and produces identical output | VERIFIED | Lines 270-315: 2 test_that blocks with `use_dedup = FALSE` |
+| `tests/testthat/test-unit-harmonizer.R` | Tests proving use_dedup=FALSE bypasses unit-key dedup | VERIFIED | Lines 899-929: 2 test_that blocks with `use_dedup = FALSE` |
+| `scripts/benchmark_pipeline.R` | Standalone benchmark script with bench::press grid | VERIFIED | 467 lines. 2 bench::press, 3 bench::mark, check=FALSE on all, set.seed(42), compute_uniqueness, speedup computation, Markdown output |
+| `docs/benchmark_results.md` | Committed results document with speedup table | VERIFIED (template) | Committed at 9371a20. Correct structure and methodology. Data cells are [auto-populated] placeholders -- script overwrites at runtime |
 | `.gitignore` | data/benchmark/ exclusion | VERIFIED | Line 20: `data/benchmark/` present |
-| `scripts/benchmark_pipeline.R` | Standalone benchmark script (>120 lines) | VERIFIED | 466 lines. All required patterns present: bench::press, bench::mark, check=FALSE, set.seed(42), slice_sample, min_iterations=3, use_dedup, compute_uniqueness, max_iterations=1, speedup formula, results.csv write, benchmark_results.md write |
-| `docs/benchmark_results.md` | Committed results document containing "Speedup" | VERIFIED (template only) | File committed at 9371a20. Contains "Speedup Summary" section with correct formula. All data cells are [auto-populated] placeholders — not yet populated with real benchmark data |
+| `DESCRIPTION` | bench in Suggests | VERIFIED | Line 44: `bench,` in Suggests field |
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
 |------|----|-----|--------|---------|
-| `scripts/benchmark_pipeline.R` | `R/cleaning_pipeline.R` | source() + run_cleaning_pipeline(use_dedup=) | WIRED | Lines 24, 164, 195 confirm source() and parameterized calls |
-| `scripts/benchmark_pipeline.R` | `R/unit_harmonizer.R` | source() + harmonize_units(use_dedup=) | WIRED | Lines 26, 237 confirm source() and parameterized calls |
-| `scripts/benchmark_pipeline.R` | `data/benchmark/` | list.files() input + write_csv output | WIRED | Lines 38-43 read input; line 278 writes results.csv |
-| `R/cleaning_pipeline.R` | `dedup_step()` | use_dedup conditional | FORWARD-COMPAT NO-OP | use_dedup accepted in signature but controls no conditional logic in function body — confirmed by grep finding zero uses beyond signature and roxygen. Per plan intent: conditional logic lands in Phase 37 plans 02-04 |
-| `R/unit_harmonizer.R` | unit-key dedup block | use_dedup conditional | FORWARD-COMPAT NO-OP | Same as above — use_dedup accepted but not used in body. Per plan intent: unit-key dedup block lands in Phase 37 plan 04 |
+| R/cleaning_pipeline.R | dedup_step() | if (use_dedup) dedup_step(...) else fn(...) | WIRED | 5 conditional sites verified at lines 1959, 1983, 2007, 2100, 2179. Else branches call step functions with matching arguments. |
+| R/unit_harmonizer.R | dedup key construction block | if (use_dedup) gates key construction, use_dedup_path gates unique-subset path | WIRED | Lines 372-387: use_dedup_path=FALSE when use_dedup=FALSE, skipping key construction and forcing direct conversion else branch |
+| scripts/benchmark_pipeline.R | run_cleaning_pipeline() | use_dedup = use_dedup in bench::press grid | WIRED | Line 196: `run_cleaning_pipeline(df_sub, tag_map, ref_lists, use_dedup = use_dedup)` |
+| scripts/benchmark_pipeline.R | harmonize_units() | use_dedup = use_dedup in bench::press grid | WIRED | Line 238: `harmonize_units(test_values, test_units, unit_map, media = test_media, use_dedup = use_dedup)` |
+| scripts/benchmark_pipeline.R | docs/benchmark_results.md | writeLines() output | WIRED | Lines 436-456: Markdown content built and written to docs/benchmark_results.md |
 
 ### Data-Flow Trace (Level 4)
 
-Not applicable — no Shiny UI components or reactive state in this phase. The benchmark script is a standalone R script, not a component that renders dynamic data. The key data flow (benchmark input → timing results → markdown output) is structural and requires actual execution with real data, covered in Human Verification.
+Not applicable -- no Shiny UI components or reactive state in this phase. The benchmark script is a standalone R script producing file output. The data flow (CSV input -> bench::press timing -> Markdown output) is structural and verified through key links above.
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-| bench::press calls present | `grep -c "bench::press" scripts/benchmark_pipeline.R` | 4 (2 function defs + 2 calls) | PASS |
-| bench::mark calls present | `grep -c "bench::mark" scripts/benchmark_pipeline.R` | 4 (3 actual + 1 in comment count) | PASS |
-| check = FALSE on all bench calls | `grep -c "check = FALSE" scripts/benchmark_pipeline.R` | 4 | PASS |
-| min_iterations = 3 present | `grep -c "min_iterations = 3" scripts/benchmark_pipeline.R` | 4 | PASS |
-| No curation.R sourced | `grep -c "curation" scripts/benchmark_pipeline.R` | 0 | PASS (D-06 compliant) |
-| Speedup formula correct | `grep "speedup = dedup_FALSE / dedup_TRUE"` | Found at line 300 | PASS |
-| Script line count | `wc -l scripts/benchmark_pipeline.R` | 466 (> 120 minimum) | PASS |
-| use_dedup no-op in pipeline body | `grep -n "use_dedup" R/cleaning_pipeline.R \| grep -v "@param\|NOTE\|= TRUE\|= FALSE"` | No matches | PASS (expected no-op) |
+| 5 use_dedup conditionals in pipeline | grep -c "if (use_dedup)" R/cleaning_pipeline.R | 5 | PASS |
+| use_dedup references in harmonizer | grep -c "use_dedup" R/unit_harmonizer.R | 7 (signature + roxygen + conditional refs) | PASS |
+| Toggle tests in dedup test file | grep -c "use_dedup = FALSE" tests/testthat/test-dedup-infrastructure.R | 2 | PASS |
+| Toggle tests in harmonizer test file | grep -c "use_dedup = FALSE" tests/testthat/test-unit-harmonizer.R | 2 | PASS |
+| bench::press calls in script | grep -c "bench::press" scripts/benchmark_pipeline.R | 4 (2 function defs + 2 calls) | PASS |
+| check=FALSE on all bench calls | grep -c "check = FALSE" scripts/benchmark_pipeline.R | 4 | PASS |
+| No curation.R sourced (D-06) | grep -c "curation" scripts/benchmark_pipeline.R | 0 | PASS |
+| Speedup formula present | grep "speedup = dedup_FALSE / dedup_TRUE" scripts/benchmark_pipeline.R | Found at line 301 | PASS |
+| All 4 commits verified | git log --oneline f466a2a, 5349c41, 455cf66, 9371a20 | All found | PASS |
 
 ### Requirements Coverage
 
 | Requirement | Source Plan | Description | Status | Evidence |
 |-------------|------------|-------------|--------|---------|
-| BENCH-01 | 38-01, 38-02 | benchmark_pipeline.R using bench::press() across n = c(1K, 10K, 100K) with memory tracking | SATISFIED | bench::press() at lines 184-201 and 228-243; memory=TRUE on all bench calls; n grid covers 1K/10K/100K |
-| BENCH-02 | 38-02 | Cold-start cost, real data uniqueness rate, median not mean | SATISFIED (partial run-time gap) | Cold-start: Section 5 with min/max_iterations=1. Uniqueness: compute_uniqueness() in Section 4. bench uses median by default. Note: these are only measurable with real data. |
-| BENCH-03 | 38-01 (prep), 38-02 (delivery) | Before/after comparison documented with measured speedup factor | PARTIALLY SATISFIED | Script exists and computes speedup correctly (dedup_FALSE / dedup_TRUE). docs/benchmark_results.md committed with structure. BLOCKED on Phase 37 plans 02-04: use_dedup is currently a no-op so no actual speedup can be measured. Committed doc contains only [auto] placeholders. |
+| BENCH-01 | 38-01, 38-02 | benchmark_pipeline.R using bench::press() across n=c(1K, 10K, 100K) with memory tracking | SATISFIED | bench::press() at lines 185, 229; memory=TRUE on all bench calls; n grid covers 1K/10K/100K |
+| BENCH-02 | 38-01, 38-02 | Cold-start cost, real data uniqueness rate, median not mean | SATISFIED | Cold-start: Section 5 with min/max_iterations=1. Uniqueness: compute_uniqueness() in Section 4. bench uses median by default. |
+| BENCH-03 | 38-01, 38-02 | Before/after comparison documented with measured speedup factor | PARTIALLY SATISFIED | Script computes speedup correctly (dedup_FALSE / dedup_TRUE). use_dedup toggle is now fully functional (not a no-op). docs/benchmark_results.md committed with correct structure. Remaining: developer must run script with real data and commit populated results. |
 
-**Orphaned requirements:** None. REQUIREMENTS.md maps BENCH-01, BENCH-02, BENCH-03 all to Phase 38.
+**Orphaned requirements:** None. REQUIREMENTS.md maps BENCH-01, BENCH-02, BENCH-03 all to Phase 38. All 3 are claimed by the plans.
 
 ### Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 |------|------|---------|----------|--------|
-| `docs/benchmark_results.md` | 4-61 | [auto-populated] and [auto] placeholders throughout all data cells | Warning | Intentional template behavior — the benchmark script overwrites this file at runtime. Not a stub in the failure sense; the structure and methodology are correct. Real data cannot be populated until Phase 37 dedup wiring is complete. |
-| `R/cleaning_pipeline.R` | 1730 | use_dedup parameter accepted but never used in function body | Info | Forward-compatible no-op per plan design. Not a bug — Phase 37 plans 02-04 will add the conditional logic. |
-| `R/unit_harmonizer.R` | 280 | use_dedup parameter accepted but never used in function body | Info | Same as above — forward-compatible no-op. |
+| docs/benchmark_results.md | 4-61 | [auto-populated] and [auto] placeholders throughout data cells | Warning | Intentional template -- script overwrites at runtime. Not a code stub. |
 
-No TODO/FIXME/PLACEHOLDER comments in benchmark_pipeline.R. No empty implementations. No console.log-only stubs.
+No TODO/FIXME/PLACEHOLDER stubs found in R/cleaning_pipeline.R, R/unit_harmonizer.R, or scripts/benchmark_pipeline.R. Grep matches in cleaning_pipeline.R are domain-level CAS placeholder detection, not code stubs.
 
 ### Human Verification Required
 
-#### 1. Populate docs/benchmark_results.md with Real Benchmark Data
+#### 1. Run Benchmark Script and Commit Populated Results
 
-**Prerequisite:** Phase 37 plans 02-04 must be executed first (dedup wiring into run_cleaning_pipeline and harmonize_units). Without dedup wiring, use_dedup=TRUE and use_dedup=FALSE produce identical output and the speedup will be 1.0x.
+**Prerequisite:** Place a regulatory CSV/XLSX with >= 100K rows in `data/benchmark/`.
 
-**Test:** After Phase 37 completes, place a regulatory CSV/XLSX with >= 100K rows in `data/benchmark/`, then:
+**Test:** Run the benchmark:
 ```r
 source("scripts/benchmark_pipeline.R")
 ```
 
-**Expected:** The script runs to completion. `docs/benchmark_results.md` is overwritten with real timing values — all [auto-populated] and [auto] cells replaced with actual numbers. The cleaning speedup at 100K rows should be measurably > 1.0x (the speedup is the point of the dedup architecture). Commit the updated `docs/benchmark_results.md` to satisfy BENCH-03 and roadmap SC3.
+**Expected:** Script runs to completion. `docs/benchmark_results.md` is overwritten with real timing values. All [auto-populated] and [auto] cells are replaced with actual numbers. Cleaning speedup at 100K rows should be > 1.0x. Commit the updated `docs/benchmark_results.md`.
 
-**Why human:** Requires real regulatory data (>= 100K rows) that cannot be committed (gitignored). Requires Phase 37 to be complete before meaningful comparison is possible. Output quality (is the speedup meaningful?) requires human judgment.
-
-#### 2. Confirm No [auto] Placeholders Remain After Running
-
-**Test:** After the script completes, run:
+**Verification after running:**
 ```bash
 grep "\[auto" docs/benchmark_results.md
 ```
-**Expected:** No matches — all placeholder text replaced with real values.
-**Why human:** Verifying real numeric output requires executing with actual data.
+Expected: No matches.
+
+**Why human:** Requires real regulatory data (>= 100K rows, gitignored). Output quality (whether speedup is meaningful) requires human judgment. File must be manually committed after inspection.
+
+### Confirmation Bias Counter Findings
+
+1. **Partially met:** BENCH-03 requires "measured speedup factor" -- the infrastructure to measure exists and is fully wired, but the actual measurement has not been performed. The committed doc contains only placeholders.
+
+2. **Test limitation:** The use_dedup toggle tests exclude `original_row_id` from comparison. This is documented and intentional (dedup remaps lineage row IDs by design). The tests verify functional equivalence of cleaned data content, which is the correct scope for a "performance optimization, not behavior change" toggle.
+
+3. **Uncovered edge case:** No input validation on `use_dedup` parameter -- passing a non-logical value (e.g., `use_dedup = "yes"`) would produce undefined behavior. This is minor (R convention does not typically validate logical parameters) and not a blocker.
 
 ### Gaps Summary
 
-No blocking gaps were found in the benchmark infrastructure itself — the script, parameters, and configuration are correctly implemented per plan. The only unresolved item is BENCH-03's "comparison committed to the repository" requirement, which depends on:
+No implementation gaps exist. All code infrastructure is complete and fully wired:
 
-1. Phase 37 plans 02-04 completing (dedup wiring into the pipeline body)
-2. A developer running the benchmark script with real data
-3. Committing the updated `docs/benchmark_results.md` with actual numbers
+- The use_dedup toggle (previously a forward-compatible no-op) now actively gates dedup behavior at all 5 pipeline call sites and the harmonizer dedup-key block (commits f466a2a, 5349c41).
+- 4 new tests prove toggle correctness (2 per function).
+- The benchmark script is structurally complete with correct bench::press grid, speedup computation, and Markdown output.
+- Phase 37 dependency is resolved (merged at 9e8c8cb).
 
-This is a sequencing dependency, not an implementation gap. The phase successfully built everything needed for the benchmark to produce results — it just cannot produce the final committed speedup numbers until dedup is fully wired.
+The single remaining item is operational: a developer must run `source("scripts/benchmark_pipeline.R")` with real data in `data/benchmark/` and commit the populated `docs/benchmark_results.md`. This is human_needed, not a code gap.
+
+### Re-Verification Changes
+
+| Previous Item | Previous Status | Current Status | Change |
+|---------------|----------------|----------------|--------|
+| use_dedup toggle was forward-compatible no-op | Info (anti-pattern) | RESOLVED | Toggle now wired at all 5 pipeline sites + harmonizer dedup-key block |
+| Phase 37 plans 02-04 not yet executed | Blocking dependency | RESOLVED | Phase 37 fully merged (commit 9e8c8cb) |
+| Run benchmark with real data | HUMAN NEEDED | HUMAN NEEDED | Still requires developer action; infrastructure is now complete |
 
 ---
 
-_Verified: 2026-04-24_
+_Verified: 2026-04-25T22:30:00Z_
 _Verifier: Claude (gsd-verifier)_
