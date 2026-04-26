@@ -1,118 +1,89 @@
 ---
 phase: 38-benchmark-harness
-reviewed: 2026-04-24T00:00:00Z
+reviewed: 2026-04-26T01:01:24Z
 depth: standard
-files_reviewed: 6
+files_reviewed: 4
 files_reviewed_list:
   - R/cleaning_pipeline.R
   - R/unit_harmonizer.R
-  - scripts/benchmark_pipeline.R
-  - docs/benchmark_results.md
-  - DESCRIPTION
-  - .gitignore
+  - tests/testthat/test-dedup-infrastructure.R
+  - tests/testthat/test-unit-harmonizer.R
 findings:
   critical: 0
-  warning: 2
-  info: 2
+  warning: 1
+  info: 3
   total: 4
 status: issues_found
 ---
 
-# Phase 38: Code Review Report
+# Phase 38: Code Review Report (Re-review)
 
-**Reviewed:** 2026-04-24T00:00:00Z
+**Reviewed:** 2026-04-26T01:01:24Z
 **Depth:** standard
-**Files Reviewed:** 6
+**Files Reviewed:** 4
 **Status:** issues_found
 
 ## Summary
 
-Phase 38 introduced the benchmark harness (`scripts/benchmark_pipeline.R`), added `use_dedup` as a forward-compatible no-op parameter to `run_cleaning_pipeline()` and `harmonize_units()`, added `bench` to DESCRIPTION Suggests, and added `data/benchmark/` to `.gitignore`. The `use_dedup` no-op is intentional pending Phase 37 plans 02-04 and is excluded from findings per review instructions.
+Reviewed the Phase 38 `use_dedup` toggle bypass logic across two source files and two test files. The review focused specifically on the 5 `dedup_step` gating sites in `run_cleaning_pipeline()` (lines 1959, 1983, 2007, 2100, 2179) and the `use_dedup_path` variable in `harmonize_units()` (lines 372-385).
 
-The benchmark script is methodologically sound: `set.seed(42)` ensures reproducible subsets, cold-start is isolated from the warm grid, `bench::press()` crosses the full n × dedup grid, and raw data is correctly gitignored. Two warnings were found — a media string mismatch causing a silent wrong-path execution in the harmonization benchmark, and an unguarded `readxl` call inconsistent with the explicit package checks for `dplyr`, `bench`, and `readr`. Two info items flag a placeholder-as-committed-result concern and a minor documentation gap.
+**Structural assessment:** All 5 gating sites in `run_cleaning_pipeline()` correctly branch on `use_dedup`, passing the right arguments in both the `dedup_step()` and direct-call branches. Pre-check predicates remain independent of the toggle (correct design -- they gate whether a step runs at all, not how it runs). The `harmonize_units()` toggle correctly gates dedup key construction and falls through to the existing direct path when `use_dedup=FALSE`.
+
+**Test coverage:** Phase 38 adds 4 new toggle tests: 2 in `test-dedup-infrastructure.R` (BENCH-01) and 2 in `test-unit-harmonizer.R` (BENCH-02). The tests compare `cleaned_data` and harmonized output columns between the two paths. One behavioral edge case is not covered (see WR-01).
+
+One warning-level behavioral inconsistency was found in the `harmonize_units()` dedup path for unmatched units with differing pre-normalization forms. Three info-level items were found (dead code, misleading `isTRUE` usage, and a test coverage gap).
 
 ## Warnings
 
-### WR-01: `"soil"` passed to `harmonize_units()` but the API only recognises `"solid"`
+### WR-01: Dedup path returns wrong harmonized_unit for unmatched units with different pre-normalization forms
 
-**File:** `scripts/benchmark_pipeline.R:235`
+**File:** `R/unit_harmonizer.R:402`
+**Issue:** In the dedup path, `u_harmonized_unit` is initialized from `orig_unit[first_idx]` (line 402). For **unmatched** standard units, this value is never overwritten -- matched units get overwritten at line 473, ppx at line 440, molarity at line 414. When the broadcast on line 484 maps `u_harmonized_unit` back to all rows sharing a dedup key, rows that had different `orig_unit` values but normalized to the same key will all receive the first occurrence's `orig_unit` as their `harmonized_unit`.
 
-**Issue:** The harmonization benchmark samples test media from `c("aqueous", "soil", "air")`. The `get_media_target()` function in `R/unit_harmonizer.R:199` uses a `switch()` that only matches `"aqueous"`, `"air"`, and `"solid"`. Any benchmark row with `media = "soil"` falls through to the default `"mg/L"` fallback instead of routing to `"mg/kg"`, and those rows also receive `unit_flag = "media_inferred"` (the no-media-context path) rather than `unit_flag = ""` (the clean conversion path). The benchmark will not crash, but roughly one-third of ppb/ppm rows silently exercise the wrong branch, meaning the harmonization timing results do not accurately represent the production use-case. This also means the benchmark cannot faithfully compare `use_dedup = TRUE` vs `use_dedup = FALSE` for the solid-media ppb/ppm path once Phase 37 wires the dedup step in.
+Example: if row 1 has `orig_unit = "  XYZ  "` and row 5 has `orig_unit = "XYZ"`, both normalize to key `"XYZ"`. In the dedup path, row 5's `harmonized_unit` would be `"  XYZ  "` (from the first occurrence), while in the non-dedup path (line 312 initializes `harmonized_unit <- orig_unit`), row 5 would correctly get `"XYZ"`. This is a behavioral difference between the two paths.
 
-**Fix:**
+In practice, this only affects unmatched units with whitespace or micro-symbol differences that normalize to the same string. The existing tests do not trigger this path because all test units are either exact matches, ppx, or molarity (never unmatched with variant whitespace). But the test on line 925 explicitly states dedup is "performance-only, not behavioral," so this violates that contract.
+
+**Fix:** After broadcasting, restore per-row `orig_unit` for unmatched rows:
 ```r
-# scripts/benchmark_pipeline.R line 235
-# Change:
-test_media <- sample(c("aqueous", "soil", "air"), n, replace = TRUE)
-# To:
-test_media <- sample(c("aqueous", "solid", "air"), n, replace = TRUE)
+# After line 486 (unit_flag broadcast), add:
+unmatched_rows <- unit_flag == "unmatched"
+harmonized_unit[unmatched_rows] <- orig_unit[unmatched_rows]
 ```
-
----
-
-### WR-02: `readxl::read_xlsx()` called without a `requireNamespace()` guard in standalone context
-
-**File:** `scripts/benchmark_pipeline.R:51`
-
-**Issue:** The script is explicitly documented as a standalone file sourced outside the package. In that context DESCRIPTION Imports are not enforced — only `dplyr`, `bench`, and `readr` are loaded via `library()` at lines 18-20. If someone places an XLSX file in `data/benchmark/` and `readxl` is not installed, R emits an obscure `Error in loadNamespace("readxl")` at line 51, not a diagnostic `stopifnot()` message consistent with the other package checks at lines 28-32. Given that `readxl` is in DESCRIPTION Imports it will always be present in a properly installed package environment, but standalone sourcing does not guarantee that.
-
-**Fix:** Add a `readxl` guard consistent with the existing style, either unconditionally at startup or conditionally at the point of use:
-
-```r
-# Option A: add to the stopifnot() block at lines 28-32
-stopifnot(
-  "bench package is required -- run: pak::pak('bench')" = requireNamespace("bench", quietly = TRUE),
-  "dplyr package is required" = requireNamespace("dplyr", quietly = TRUE),
-  "readr package is required" = requireNamespace("readr", quietly = TRUE),
-  "readxl package is required for XLSX input -- run: pak::pak('readxl')" = requireNamespace("readxl", quietly = TRUE)
-)
-
-# Option B: guard only when an XLSX file is actually detected
-if (file_ext == "xlsx") {
-  stopifnot(
-    "readxl required for XLSX input -- run: pak::pak('readxl')" =
-      requireNamespace("readxl", quietly = TRUE)
-  )
-}
-```
-
----
 
 ## Info
 
-### IN-01: `docs/benchmark_results.md` committed as a placeholder is potentially misleading
+### IN-01: Dead code -- unused variable `unique_values_dummy`
 
-**File:** `docs/benchmark_results.md`
+**File:** `R/unit_harmonizer.R:395`
+**Issue:** `unique_values_dummy <- rep(1.0, n_unique)` is assigned but never referenced anywhere in the function. The comment says "dummy values; factors computed separately" confirming the variable was superseded by the factor-only approach but the allocation was left behind.
+**Fix:** Remove line 395 entirely.
 
-**Issue:** `docs/benchmark_results.md` is committed to source control with `[auto-populated]` placeholder text in every data field. The script at line 451 overwrites this file with real numbers each time a benchmark is run. Committing the placeholder under a path that reads as a results artifact means a future reviewer reading the git log could interpret the presence of the file as evidence that a real benchmark was executed. This is low risk now (while Phase 37 is pending and no benchmark can yet produce meaningful dedup speedup numbers), but it will become misleading once real results are expected.
+### IN-02: Misleading isTRUE() on vector in apply_synonyms (pre-existing)
 
-**Fix (two options):** Add a prominent status note at the top of the placeholder file, or move the file to `.gitignore` until real results exist:
-
-```markdown
-<!-- Status: PLACEHOLDER — benchmark has not yet been run with real data.
-     Run source("scripts/benchmark_pipeline.R") with a >= 100K row dataset
-     to populate real values. -->
-```
-
----
-
-### IN-02: `tidyr` is used via `::` but not mentioned in the prerequisites comment
-
-**File:** `scripts/benchmark_pipeline.R:294`
-
-**Issue:** `tidyr::pivot_wider()` is called at line 294 inside `compute_speedup()`. The top-of-file prerequisites comment (lines 4-12) and the `stopifnot()` guards (lines 28-32) say nothing about `tidyr`. The `::` operator handles the namespace lookup without `library(tidyr)`, and `tidyr` is in DESCRIPTION Imports so it will always be installed alongside the package. However, someone following the standalone prerequisites comment to set up a bare R environment would not know to install `tidyr`, and there is no runtime error until the script reaches line 294 (after the 5-15 minute benchmarks at sections 6 and 7 have already run).
-
-**Fix:** Add `tidyr` to the prerequisites comment:
-
+**File:** `R/unit_harmonizer.R:66`
+**Issue:** `isTRUE(synonyms$is_regex)` always returns `FALSE` when `synonyms` has more than 1 row, because `isTRUE()` requires `length(x) == 1L`. The left side of the `|` operator is effectively dead code. The behavior is still correct because the right side (`synonyms$is_regex %in% c(TRUE, "TRUE", "true", 1)`) covers all intended cases. This is a pre-existing issue, not introduced in Phase 38.
+**Fix:** Remove the `isTRUE()` call:
 ```r
-# Prerequisites:
-#   1. Place a regulatory CSV or XLSX file in data/benchmark/
-#   2. Install required packages: pak::pak(c("bench", "dplyr", "readr", "tidyr"))
-#   3. Source this file: source("scripts/benchmark_pipeline.R")
+is_regex <- if ("is_regex" %in% names(synonyms)) {
+  synonyms$is_regex %in% c(TRUE, "TRUE", "true", 1)
+} else {
+  rep(FALSE, nrow(synonyms))
+}
+```
+
+### IN-03: Phase 38 toggle tests do not compare audit_trail between dedup and non-dedup paths
+
+**File:** `tests/testthat/test-dedup-infrastructure.R:266-315`
+**Issue:** Both `use_dedup=FALSE` tests (BENCH-01) compare `cleaned_data` columns but skip audit trail comparison entirely. The comment explains that `original_row_id` differs due to dedup remapping, but the audit trail (which tracks row-level change lineage) is not validated at all. If a future change breaks audit trail generation in one path but not the other, these tests would not catch it. The `harmonize_units` toggle tests (BENCH-02) similarly compare only output columns, not the full tibble.
+**Fix:** Add audit trail row-count comparison as a basic consistency check:
+```r
+# After the cleaned_data comparison in each test:
+expect_equal(nrow(result_dedup$audit_trail), nrow(result_no_dedup$audit_trail))
 ```
 
 ---
 
-_Reviewed: 2026-04-24T00:00:00Z_
+_Reviewed: 2026-04-26T01:01:24Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
