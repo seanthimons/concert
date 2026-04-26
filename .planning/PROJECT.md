@@ -106,12 +106,14 @@ ChemReg is a proper R package with full compound curation + numeric/unit harmoni
 - Unit harmonization via `units` package with domain registrations, molarity/ppb context routing
 - ToxVal 56-column schema mapper with 19 audit columns and source_hash
 - Parquet/CSV export alongside 8-sheet Excel export
-- `devtools::test()` passes with 953+ tests
+- `devtools::test()` passes with 1643+ tests
+- `use_dedup` toggle on `run_cleaning_pipeline()` and `harmonize_units()` for benchmark comparison
 
 **Known tech debt:**
 - `^tests$` in `.Rbuildignore` blocks R CMD check from running tests (critical — devtools::test() works but devtools::check() runs 0 tests)
 - `R/archive/prototype_pipeline.R` has bare library() calls and is not excluded from build
 - Pipeline performance degrades at 100K+ rows — cleaning and harmonization both affected
+- Benchmark results template (`docs/benchmark_results.md`) contains placeholders — needs real data run to populate
 
 ## Current Milestone: v2.0 Pipeline Performance & Date/Media Harmonization
 
@@ -237,4 +239,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-24 — v2.0 Pipeline Performance & Date/Media Harmonization milestone started*
+*Last updated: 2026-04-25 — Phase 38 Benchmark Harness complete (use_dedup toggle wired)*
