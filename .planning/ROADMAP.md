@@ -92,12 +92,12 @@
   3. A cleaning step whose pre-check returns FALSE (e.g., no non-ASCII characters present) is skipped entirely and produces an empty-but-typed audit trail row, not NULL
   4. Companion tests exist for each pre-check that prove a vector passing the pre-check but requiring transformation would still be caught (false-negative detection)
   5. Dedup-eligible steps are migrated one at a time with the 953+ test suite green after each migration
-**Plans:** 1/4 plans executed
+**Plans:** 4/4 plans executed
 Plans:
 - [x] 37-01-PLAN.md -- Dedup infrastructure: dedup_step() and remap_audit_to_parent()
-- [ ] 37-02-PLAN.md -- Pre-check predicates and SKIP-03 false-negative companion tests
-- [ ] 37-03-PLAN.md -- Wire dedup and pre-checks into run_cleaning_pipeline()
-- [ ] 37-04-PLAN.md -- Unit-key dedup in harmonize_units()
+- [x] 37-02-PLAN.md -- Pre-check predicates and SKIP-03 false-negative companion tests
+- [x] 37-03-PLAN.md -- Wire dedup and pre-checks into run_cleaning_pipeline()
+- [x] 37-04-PLAN.md -- Unit-key dedup in harmonize_units()
 
 ### Phase 38: Benchmark Harness
 **Goal**: Users (and developers) can run a documented benchmark script that proves the dedup architecture delivers measurable speedup at 100K rows, with before/after comparison committed to the repository.
@@ -107,10 +107,9 @@ Plans:
   1. `scripts/benchmark_pipeline.R` runs to completion against real data at n = 1K, 10K, and 100K rows and produces a results table with median timing and memory allocation per level
   2. The benchmark measures cold-start cost separately from steady-state cost and reports the actual uniqueness rate of the test data
   3. A before/after speedup factor is documented showing the measured improvement from the dedup architecture
-**Plans:** 2 plans
+**Plans:** 1 plan
 Plans:
-- [ ] 38-01-PLAN.md -- Add use_dedup toggle to pipeline functions and package config
-- [ ] 38-02-PLAN.md -- Create benchmark script and results summary
+- [ ] 38-01-PLAN.md -- Wire use_dedup toggle bypass in pipeline functions and add toggle tests
 
 ### Phase 39: Duration Conversion
 **Goal**: Users can tag columns as DurationUnit and have the harmonization pipeline convert duration values to hours as a common base unit, with the result wired into the ToxVal schema study_duration fields.
@@ -183,7 +182,7 @@ Plans:
 | 35. Export Extension + Headless | v1.9 | 2/2 | Complete | 2026-04-17 |
 | 36. Wire ToxVal Schema in Shiny Path | v1.9 | 1/1 | Complete | 2026-04-21 |
 | 37. Performance Architecture | v2.0 | 4/4 | Complete | 2026-04-24 |
-| 38. Benchmark Harness | v2.0 | 0/2 | Not started | - |
+| 38. Benchmark Harness | v2.0 | 0/1 | Not started | - |
 | 39. Duration Conversion | v2.0 | 0/TBD | Not started | - |
 | 40. Date Parser | v2.0 | 0/TBD | Not started | - |
 | 41. Media Harmonizer & AMOS Pipeline | v2.0 | 0/TBD | Not started | - |
