@@ -120,9 +120,9 @@ Plans:
   2. The unit table contains explicit entries for all common duration abbreviations (h/hr/hrs/hour, d/day/days, wk/week, mo/month, yr/year, min/minute, s/sec/second) with hours as the base unit
   3. A column tagged DurationUnit in the Harmonize tab routes through duration harmonization and its output appears in `study_duration_value` and `study_duration_units` in the ToxVal export
   4. The ambiguous "m" abbreviation is never silently treated as months -- the custom synonym map resolves it explicitly and the pitfall is covered by a test
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 39-01-PLAN.md -- Duration data rows, harmonize_units() category parameter, and duration tests
+- [x] 39-01-PLAN.md -- Duration data rows, harmonize_units() category parameter, and duration tests
 - [ ] 39-02-PLAN.md -- Pipeline wiring in mod_harmonize.R and curate_headless.R for ToxVal schema
 
 ### Phase 40: Date Parser
@@ -186,7 +186,7 @@ Plans:
 | 36. Wire ToxVal Schema in Shiny Path | v1.9 | 1/1 | Complete | 2026-04-21 |
 | 37. Performance Architecture | v2.0 | 4/4 | Complete | 2026-04-24 |
 | 38. Benchmark Harness | v2.0 | 2/1 | Complete    | 2026-04-26 |
-| 39. Duration Conversion | v2.0 | 0/2 | Planning | - |
+| 39. Duration Conversion | v2.0 | 1/2 | In Progress|  |
 | 40. Date Parser | v2.0 | 0/TBD | Not started | - |
 | 41. Media Harmonizer & AMOS Pipeline | v2.0 | 0/TBD | Not started | - |
 | 42. Integration & Shiny Polish | v2.0 | 0/TBD | Not started | - |
