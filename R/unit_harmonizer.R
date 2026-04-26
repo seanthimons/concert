@@ -104,11 +104,21 @@ apply_synonyms <- function(unit_strings, synonyms) {
 
 #' Check if a unit is a molarity unit
 #'
-#' @param unit Character vector of unit strings (normalized)
+#' Case-sensitive for standalone "m"/"M": uppercase "M" is Molar; lowercase "m"
+#' is ambiguous (minutes) and handled by the synonym table.  All other molarity
+#' units (mm, um, nm, pm and their mol/L forms) are matched case-insensitively.
+#'
+#' @param unit Character vector of unit strings (normalized, pre-synonym)
 #' @return Logical vector
 #' @keywords internal
 is_molarity_unit <- function(unit) {
-  tolower(unit) %in% c("m", "mm", "um", "nm", "pm", "mol/l", "mmol/l", "umol/l", "nmol/l", "pmol/l")
+  # Case-sensitive check for standalone M (Molar) vs m (minutes/ambiguous).
+  # !is.na() guard prevents NA propagation when unit contains NA strings —
+  # NA input should be FALSE (not molarity), consistent with %in% behavior.
+  standalone_M <- !is.na(unit) & unit == "M"
+  # Case-insensitive check for all other molarity units (%in% is already NA-safe)
+  other_molarity <- tolower(unit) %in% c("mm", "um", "nm", "pm", "mol/l", "mmol/l", "umol/l", "nmol/l", "pmol/l")
+  standalone_M | other_molarity
 }
 
 #' Get molarity scale factor for conversion to mg/L
@@ -313,7 +323,17 @@ harmonize_units <- function(
   # Normalize unit strings (trim, micro symbols, spaces)
   normalized <- normalize_unit_string(units)
 
-  # Step 4: Apply synonym normalization
+  # ---- Plan 34-04: Vectorized classification masks ----
+  # Compute molarity mask BEFORE synonym application.  is_molarity_unit() is now
+  # case-sensitive for standalone "M" vs "m" so that uppercase "M" (Molar) is
+  # classified as molarity while lowercase "m" (ambiguous: minutes) is left for
+  # the synonym table to map to "min".  We also keep a pre-synonym copy of
+  # normalized so the molarity conversion path can look up the correct scale factor
+  # (e.g. "M" -> 1000, "mM" -> 1) rather than the post-synonym string "min".
+  normalized_pre_synonym <- normalized
+  molarity_mask <- is_molarity_unit(normalized_pre_synonym)
+
+  # Step 4: Apply synonym normalization (after molarity detection)
   normalized <- apply_synonyms(normalized, synonyms)
 
   # Initialize output vectors with default pass-through values
@@ -349,10 +369,8 @@ harmonize_units <- function(
     mw_vec <- molecular_weight
   }
 
-  # ---- Plan 34-04: Vectorized classification masks ----
-  # Pre-compute which category each row falls into (O(n), not O(n*m))
-
-  molarity_mask <- is_molarity_unit(normalized)
+  # Pre-compute remaining classification masks (after synonym application)
+  # molarity_mask already computed above (pre-synonym)
   ppx_units <- c("ppb", "ppm", "ppt", "ppq")
   ppx_mask <- tolower(normalized) %in% ppx_units
   standard_mask <- !molarity_mask & !ppx_mask
@@ -399,6 +417,7 @@ harmonize_units <- function(
 
     # Prepare unique-subset vectors for the three conversion paths
     unique_normalized <- normalized[first_idx]
+    unique_normalized_pre_synonym <- normalized_pre_synonym[first_idx]
     unique_media_vec <- media_vec[first_idx]
     unique_mw_vec <- mw_vec[first_idx]
     unique_values_dummy <- rep(1.0, n_unique) # dummy values; factors computed separately
@@ -416,7 +435,7 @@ harmonize_units <- function(
     mol_with_mw_u <- unique_molarity_mask & !is.na(unique_mw_vec) & unique_mw_vec > 0
     if (any(mol_with_mw_u)) {
       mol_scales_u <- vapply(
-        unique_normalized[mol_with_mw_u],
+        unique_normalized_pre_synonym[mol_with_mw_u],
         get_molarity_scale,
         numeric(1)
       )
@@ -508,7 +527,7 @@ harmonize_units <- function(
     mol_with_mw <- molarity_mask & !is.na(mw_vec) & mw_vec > 0
     if (any(mol_with_mw)) {
       mol_scales <- vapply(
-        normalized[mol_with_mw],
+        normalized_pre_synonym[mol_with_mw],
         get_molarity_scale,
         numeric(1)
       )
@@ -597,9 +616,11 @@ harmonize_units <- function(
     }
   } # end dedup if/else
 
-  # Flag ambiguous original units (D-01): "m" could be minutes or months
+  # Flag ambiguous original units (D-01): "m" could be minutes or months.
+  # Only flag rows that went through the standard table path (not molarity or ppb/ppm),
+  # so that "M" (molarity) does not get incorrectly overwritten.
   ambiguous_originals <- c("m")
-  ambiguous_mask <- trimws(tolower(orig_unit)) %in% ambiguous_originals
+  ambiguous_mask <- trimws(tolower(orig_unit)) %in% ambiguous_originals & !molarity_mask & !ppx_mask
   if (any(ambiguous_mask)) {
     unit_flag[ambiguous_mask] <- "ambiguous_unit"
   }

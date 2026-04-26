@@ -28,6 +28,50 @@ make_extended_unit_map <- function() {
   )
 }
 
+# Duration unit map for sections 16-19
+make_duration_unit_map <- function() {
+  tibble::tibble(
+    from_unit = c(
+      "hr",
+      "h",
+      "day",
+      "d",
+      "wk",
+      "week",
+      "mo",
+      "month",
+      "yr",
+      "year",
+      "min",
+      "minute",
+      "s",
+      "sec",
+      "second"
+    ),
+    to_unit = rep("hr", 15),
+    multiplier = c(
+      1,
+      1,
+      24,
+      24,
+      168,
+      168,
+      730.5,
+      730.5,
+      8766,
+      8766,
+      1 / 60,
+      1 / 60,
+      1 / 3600,
+      1 / 3600,
+      1 / 3600
+    ),
+    category = rep("duration", 15),
+    confidence = rep("HIGH", 15),
+    source = rep("test", 15)
+  )
+}
+
 # ==============================================================================
 # SECTION 1: Normalization (UNIT-02)
 # ==============================================================================
@@ -926,4 +970,129 @@ test_that("harmonize_units use_dedup=FALSE forces direct path even with high dup
   expect_equal(result_dedup$harmonized_value, result_no_dedup$harmonized_value)
   expect_equal(result_dedup$harmonized_unit, result_no_dedup$harmonized_unit)
   expect_equal(result_dedup$conversion_factor, result_no_dedup$conversion_factor)
+})
+
+# ==============================================================================
+# SECTION 16: Duration category filter (D-12)
+# ==============================================================================
+
+test_that("duration category: category=NULL uses all rows (backward compat)", {
+  unit_map <- make_duration_unit_map()
+  result <- harmonize_units(c(24), c("day"), unit_map, category = NULL)
+  expect_equal(result$harmonized_unit, "hr")
+  expect_equal(result$harmonized_value, 576) # 24 * 24
+})
+
+test_that("duration category: category='duration' filters to hr-base rows", {
+  # Combined map: time rows (to=day) + duration rows (to=hr)
+  time_rows <- tibble::tibble(
+    from_unit = "day",
+    to_unit = "day",
+    multiplier = 1,
+    category = "time",
+    confidence = "HIGH",
+    source = "test"
+  )
+  dur_rows <- tibble::tibble(
+    from_unit = "day",
+    to_unit = "hr",
+    multiplier = 24,
+    category = "duration",
+    confidence = "HIGH",
+    source = "test"
+  )
+  combined_map <- dplyr::bind_rows(time_rows, dur_rows)
+
+  result <- harmonize_units(c(1), c("day"), combined_map, category = "duration")
+  expect_equal(result$harmonized_unit, "hr")
+  expect_equal(result$harmonized_value, 24)
+})
+
+test_that("duration category: unrecognized unit passes through with 'unmatched' flag (D-06)", {
+  unit_map <- make_duration_unit_map()
+  result <- harmonize_units(c(5), c("dph"), unit_map, category = "duration")
+  expect_equal(result$harmonized_value, 5)
+  expect_equal(result$harmonized_unit, "dph")
+  expect_equal(result$unit_flag, "unmatched")
+})
+
+# ==============================================================================
+# SECTION 17: Duration conversion arithmetic (DUR-02)
+# ==============================================================================
+
+test_that("duration: hr -> hr (identity)", {
+  unit_map <- make_duration_unit_map()
+  result <- harmonize_units(c(96), c("hr"), unit_map, category = "duration")
+  expect_equal(result$harmonized_value, 96)
+  expect_equal(result$harmonized_unit, "hr")
+})
+
+test_that("duration: day -> hr (* 24)", {
+  unit_map <- make_duration_unit_map()
+  result <- harmonize_units(c(14), c("day"), unit_map, category = "duration")
+  expect_equal(result$harmonized_value, 336)
+  expect_equal(result$harmonized_unit, "hr")
+})
+
+test_that("duration: min -> hr (* 1/60)", {
+  unit_map <- make_duration_unit_map()
+  result <- harmonize_units(c(120), c("min"), unit_map, category = "duration")
+  expect_equal(result$harmonized_value, 2, tolerance = 1e-10)
+  expect_equal(result$harmonized_unit, "hr")
+})
+
+test_that("duration: wk -> hr (* 168)", {
+  unit_map <- make_duration_unit_map()
+  result <- harmonize_units(c(2), c("wk"), unit_map, category = "duration")
+  expect_equal(result$harmonized_value, 336)
+})
+
+test_that("duration: yr -> hr (* 8766)", {
+  unit_map <- make_duration_unit_map()
+  result <- harmonize_units(c(1), c("yr"), unit_map, category = "duration")
+  expect_equal(result$harmonized_value, 8766)
+})
+
+test_that("duration: decimal fraction '1.5 days' -> 36 hr (D-03)", {
+  unit_map <- make_duration_unit_map()
+  result <- harmonize_units(c(1.5), c("day"), unit_map, category = "duration")
+  expect_equal(result$harmonized_value, 36)
+})
+
+# ==============================================================================
+# SECTION 18: Duration synonym normalization (DUR-05)
+# ==============================================================================
+# Note: These tests rely on the package-installed unit_synonyms.rds.
+# Synonyms are loaded via get_unit_synonyms() -> system.file().
+
+test_that("duration synonym: 'hrs' -> normalized to 'hr'", {
+  unit_map <- make_duration_unit_map()
+  result <- harmonize_units(c(48), c("hrs"), unit_map, category = "duration")
+  expect_equal(result$harmonized_unit, "hr")
+  expect_equal(result$harmonized_value, 48)
+})
+
+test_that("duration synonym: 'Days' -> normalized to 'day'", {
+  unit_map <- make_duration_unit_map()
+  result <- harmonize_units(c(7), c("Days"), unit_map, category = "duration")
+  expect_equal(result$harmonized_value, 168) # 7 * 24
+})
+
+# ==============================================================================
+# SECTION 19: "m" ambiguity flag (D-01, DUR-05)
+# ==============================================================================
+
+test_that("ambiguous_unit: 'm' maps to minutes and sets ambiguous_unit flag", {
+  unit_map <- make_duration_unit_map()
+  # "m" synonym -> "min" via unit_synonyms.rds, converted to hr, then flagged ambiguous
+  result <- harmonize_units(c(60), c("m"), unit_map, category = "duration")
+  expect_equal(result$harmonized_unit, "hr")
+  expect_equal(result$harmonized_value, 1, tolerance = 1e-10) # 60 min -> 1 hr
+  expect_equal(result$unit_flag, "ambiguous_unit")
+})
+
+test_that("ambiguous_unit: non-ambiguous 'min' does NOT get ambiguous flag", {
+  unit_map <- make_duration_unit_map()
+  result <- harmonize_units(c(60), c("min"), unit_map, category = "duration")
+  expect_equal(result$unit_flag, "")
 })
