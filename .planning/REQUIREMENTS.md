@@ -27,9 +27,9 @@ Requirements for Pipeline Performance & Date/Media Harmonization milestone.
 
 ### Performance — Benchmark Harness
 
-- [ ] **BENCH-01**: `scripts/benchmark_pipeline.R` using `bench::press()` across grid of n = c(1K, 10K, 100K) rows with memory allocation tracking
-- [ ] **BENCH-02**: Benchmark includes cold-start cost, real data uniqueness rate measurement, and remap overhead — reports median not mean
-- [ ] **BENCH-03**: Before/after comparison documented with measured speedup factor
+- [x] **BENCH-01**: `scripts/benchmark_pipeline.R` using `bench::press()` across grid of n = c(1K, 10K, 100K) rows with memory allocation tracking
+- [x] **BENCH-02**: Benchmark includes cold-start cost, real data uniqueness rate measurement, and remap overhead — reports median not mean
+- [x] **BENCH-03**: Before/after comparison documented with measured speedup factor
 
 ### Date Parsing
 
@@ -107,9 +107,9 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | SKIP-01 | Phase 37 | Pending |
 | SKIP-02 | Phase 37 | Pending |
 | SKIP-03 | Phase 37 | Pending |
-| BENCH-01 | Phase 38 | Pending |
-| BENCH-02 | Phase 38 | Pending |
-| BENCH-03 | Phase 38 | Pending |
+| BENCH-01 | Phase 38 | Complete |
+| BENCH-02 | Phase 38 | Complete |
+| BENCH-03 | Phase 38 | Complete |
 | DUR-01 | Phase 39 | Pending |
 | DUR-02 | Phase 39 | Pending |
 | DUR-03 | Phase 39 | Pending |
