@@ -203,30 +203,34 @@ curate_headless <- function(
       result_cols <- names(tag_map)[tag_map == "Result"]
       unit_cols <- names(tag_map)[tag_map == "Unit"]
 
-      if (length(result_cols) == 0) {
-        stop("curate_headless: harmonize=TRUE requires at least one column tagged as 'Result' in tag_map.")
+      has_study <- any(tag_map == "StudyDate")
+
+      if (length(result_cols) == 0 && !has_study) {
+        stop("curate_headless: harmonize=TRUE requires at least one column tagged as 'Result' or 'StudyDate' in tag_map.")
       }
 
       # Use resolution_state as input (same as mod_harmonize.R pattern)
       input_df <- resolution_state
-      result_values <- as.character(input_df[[result_cols[1]]])
 
-      # Stage 1: Apply one-off corrections
-      message("[headless] Stage 1: Applying corrections...")
-      apply_corrections_headless <- function(values, corrections_tbl) {
-        if (is.null(corrections_tbl) || nrow(corrections_tbl) == 0) {
-          return(values)
+      if (length(result_cols) > 0) {
+        result_values <- as.character(input_df[[result_cols[1]]])
+
+        # Stage 1: Apply one-off corrections
+        message("[headless] Stage 1: Applying corrections...")
+        apply_corrections_headless <- function(values, corrections_tbl) {
+          if (is.null(corrections_tbl) || nrow(corrections_tbl) == 0) {
+            return(values)
+          }
+          result <- values
+          for (i in seq_len(nrow(corrections_tbl))) {
+            tryCatch(
+              result <- gsub(corrections_tbl$pattern[i], corrections_tbl$replacement[i], result),
+              error = function(e) NULL
+            )
+          }
+          result
         }
-        result <- values
-        for (i in seq_len(nrow(corrections_tbl))) {
-          tryCatch(
-            result <- gsub(corrections_tbl$pattern[i], corrections_tbl$replacement[i], result),
-            error = function(e) NULL
-          )
-        }
-        result
-      }
-      corrected_values <- apply_corrections_headless(result_values, corrections)
+        corrected_values <- apply_corrections_headless(result_values, corrections)
 
       # Stage 2: Parse numeric results
       message("[headless] Stage 2: Parsing numeric results...")
@@ -260,17 +264,31 @@ curate_headless <- function(
         )
       }
 
-      # Build harmonize audit (same as mod_harmonize.R pattern)
-      harmonize_audit_tibble <- dplyr::bind_cols(
-        parse_tibble,
-        harmonize_tibble[, c(
-          "orig_unit",
-          "harmonized_value",
-          "harmonized_unit",
-          "conversion_factor",
-          "unit_flag"
-        )]
-      )
+        # Build harmonize audit (same as mod_harmonize.R pattern)
+        harmonize_audit_tibble <- dplyr::bind_cols(
+          parse_tibble,
+          harmonize_tibble[, c(
+            "orig_unit",
+            "harmonized_value",
+            "harmonized_unit",
+            "conversion_factor",
+            "unit_flag"
+          )]
+        )
+      } else {
+        # StudyDate-only path: identity harmonize tibble
+        message("[headless] No Result column — skipping numeric stages.")
+        n <- nrow(input_df)
+        harmonize_tibble <- tibble::tibble(
+          orig_row_id = seq_len(n),
+          orig_unit = rep(NA_character_, n),
+          harmonized_value = rep(NA_real_, n),
+          harmonized_unit = rep(NA_character_, n),
+          conversion_factor = rep(1, n),
+          unit_flag = rep("", n)
+        )
+        harmonize_audit_tibble <- NULL
+      }
 
       # Stage 3.5: Duration harmonization (D-13, DUR-03)
       message("[headless] Stage 3.5: Harmonizing durations...")
