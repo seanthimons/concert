@@ -154,10 +154,10 @@ harmonize_media <- function(raw_media, orig_row_id = seq_along(raw_media)) {
   # Build O(1) hash map: normalized term -> row index
   lookup_hash <- stats::setNames(seq_len(nrow(media_tbl)), media_tbl$term)
 
-  # Exact match (vectorized)
-  match_idx <- lookup_hash[normalized]
-  # lookup_hash[NA] returns NA with a warning; suppress safely
-  match_idx[is.na(normalized)] <- NA_integer_
+  # Exact match (vectorized, NA-safe)
+  non_na_mask <- !is.na(normalized)
+  match_idx <- rep(NA_integer_, n)
+  match_idx[non_na_mask] <- lookup_hash[normalized[non_na_mask]]
 
   # Pre-allocate output vectors
   canonical_out <- rep(NA_character_, n)

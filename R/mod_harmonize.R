@@ -346,10 +346,9 @@ mod_harmonize_server <- function(id, data_store) {
 
               if (length(media_cols_pre) > 0) {
                 media_tibble <- tryCatch(
-                  dedup_step(
-                    harmonize_media,
-                    input_df,
-                    dedup_cols = media_cols_pre[1]
+                  harmonize_media(
+                    raw_media = as.character(input_df[[media_cols_pre[1]]]),
+                    orig_row_id = seq_len(nrow(input_df))
                   ),
                   error = function(e) {
                     showNotification(

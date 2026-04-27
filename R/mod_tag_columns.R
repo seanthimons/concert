@@ -135,6 +135,9 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
 
       # Validate Result/Unit pairing per D-12/D-13
       warning_msg <- validate_tag_pairing(col_tag_map)
+      if (!is.null(warning_msg)) {
+        showNotification(warning_msg, type = "warning", duration = 6)
+      }
 
       # Check for required chemical tags (Name AND CASRN)
       has_req <- has_required_chemical_tags(classified$chemical_tags)
