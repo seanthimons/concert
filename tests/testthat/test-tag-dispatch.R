@@ -6,7 +6,7 @@ test_that("classify_tags partitions chemical tags correctly", {
   result <- classify_tags(tags)
 
   expect_type(result, "list")
-  expect_named(result, c("chemical_tags", "numeric_tags", "metadata_tags"))
+  expect_named(result, c("chemical_tags", "numeric_tags", "metadata_tags", "study_type_tags"))
   expect_equal(result$chemical_tags, list(col1 = "Name", col2 = "CASRN", col3 = "Other"))
   expect_equal(result$numeric_tags, list())
   expect_equal(result$metadata_tags, list())
@@ -50,7 +50,7 @@ test_that("classify_tags handles empty input", {
   result <- classify_tags(list())
 
   expect_type(result, "list")
-  expect_named(result, c("chemical_tags", "numeric_tags", "metadata_tags"))
+  expect_named(result, c("chemical_tags", "numeric_tags", "metadata_tags", "study_type_tags"))
   expect_equal(result$chemical_tags, list())
   expect_equal(result$numeric_tags, list())
   expect_equal(result$metadata_tags, list())
@@ -161,4 +161,23 @@ test_that("classify_tags handles all 10 tag types correctly", {
   # Metadata: 2 types
   expect_equal(length(result$metadata_tags), 2)
   expect_equal(unlist(result$metadata_tags, use.names = FALSE), c("Species", "ExposureRoute"))
+})
+
+test_that("classify_tags partitions study_type tags correctly", {
+  tags <- list(col1 = "StudyDate")
+  result <- classify_tags(tags)
+  expect_named(result, c("chemical_tags", "numeric_tags", "metadata_tags", "study_type_tags"))
+  expect_equal(result$study_type_tags, list(col1 = "StudyDate"))
+  expect_equal(result$chemical_tags, list())
+  expect_equal(result$numeric_tags, list())
+  expect_equal(result$metadata_tags, list())
+})
+
+test_that("classify_tags handles mixed tags including StudyDate", {
+  tags <- list(col1 = "Name", col2 = "Result", col3 = "StudyDate", col4 = "Species")
+  result <- classify_tags(tags)
+  expect_equal(result$chemical_tags, list(col1 = "Name"))
+  expect_equal(result$numeric_tags, list(col2 = "Result"))
+  expect_equal(result$study_type_tags, list(col3 = "StudyDate"))
+  expect_equal(result$metadata_tags, list(col4 = "Species"))
 })
