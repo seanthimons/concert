@@ -76,7 +76,7 @@
 - [ ] **Phase 37: Performance Architecture** -- PERF-01, PERF-02, PERF-03, PERF-04, SKIP-01, SKIP-02, SKIP-03
 - [x] **Phase 38: Benchmark Harness** -- BENCH-01, BENCH-02, BENCH-03 (completed 2026-04-26)
 - [x] **Phase 39: Duration Conversion** -- DUR-01, DUR-02, DUR-03, DUR-04, DUR-05 (completed 2026-04-27)
-- [ ] **Phase 40: Date Parser** -- DATE-01, DATE-02, DATE-03, DATE-04, DATE-05, DATE-06
+- [x] **Phase 40: Date Parser** -- DATE-01, DATE-02, DATE-03, DATE-04, DATE-05, DATE-06 (completed 2026-04-27)
 - [ ] **Phase 41: Media Harmonizer & AMOS Pipeline** -- MEDIA-01, MEDIA-02, MEDIA-03, MEDIA-04, MEDIA-05, MEDIA-06, AMOS-01, AMOS-02, AMOS-03
 - [ ] **Phase 42: Integration & Shiny Polish** -- RECO-01, RECO-02, MEDIT-01, MEDIT-02, MEDIT-03
 
@@ -134,11 +134,11 @@ Plans:
   2. Dates where both the day and month are <= 12 are flagged as "ambiguous" in the audit trail rather than silently assigned a format
   3. A column tagged StudyDate in the Harmonize tab routes through `parse_dates()` in Stage 3c and its `date_year` output populates `original_year` in the ToxVal schema
   4. `curate_headless()` with `harmonize=TRUE` processes StudyDate-tagged columns and produces identical output to the Shiny interactive path
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 Plans:
 - [x] 40-01-PLAN.md -- Core parse_dates() function, tests, and lubridate DESCRIPTION update
 - [x] 40-02-PLAN.md -- Tag system extension: classify_tags() study_types group and mod_tag_columns.R optgroup
-- [ ] 40-03-PLAN.md -- Pipeline wiring in mod_harmonize.R and curate_headless.R with QC dashboard
+- [x] 40-03-PLAN.md -- Pipeline wiring in mod_harmonize.R and curate_headless.R with QC dashboard
 
 ### Phase 41: Media Harmonizer & AMOS Pipeline
 **Goal**: Users can tag columns as Media and have the harmonization pipeline classify environmental media strings against the ENVO ontology, with AMOS-derived terms supplementing the vocabulary and canonical media values feeding back into ppb/ppm unit routing.
@@ -190,6 +190,6 @@ Plans:
 | 37. Performance Architecture | v2.0 | 4/4 | Complete | 2026-04-24 |
 | 38. Benchmark Harness | v2.0 | 2/1 | Complete    | 2026-04-26 |
 | 39. Duration Conversion | v2.0 | 2/2 | Complete    | 2026-04-27 |
-| 40. Date Parser | v2.0 | 2/3 | In Progress|  |
+| 40. Date Parser | v2.0 | 3/3 | Complete    | 2026-04-27 |
 | 41. Media Harmonizer & AMOS Pipeline | v2.0 | 0/TBD | Not started | - |
 | 42. Integration & Shiny Polish | v2.0 | 0/TBD | Not started | - |
