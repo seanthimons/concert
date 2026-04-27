@@ -150,7 +150,11 @@ Plans:
   3. `scripts/build_amos_media.R` completes successfully, producing `inst/extdata/reference_cache/amos_media.rds` with a fetch timestamp; the RDS is committed and never called at runtime
   4. A column tagged Media in the Harmonize tab routes through Stage 3d; the resulting canonical media value is passed as the `media` parameter to `harmonize_units()` in Stage 3, closing the ppb/ppm routing loop
   5. `curate_headless()` with `harmonize=TRUE` processes Media-tagged columns and produces the same canonical media classification as the Shiny interactive path
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 41-01-PLAN.md -- Core harmonize_media() function, ENVO subset, and TDD tests
+- [ ] 41-02-PLAN.md -- AMOS build script with extraction, expansion, and cache enrichment
+- [ ] 41-03-PLAN.md -- Tag system + pipeline wiring in mod_harmonize.R and curate_headless.R
 
 ### Phase 42: Integration & Shiny Polish
 **Goal**: Users see a pre-flight recommendation modal before running the cleaning or harmonization pipeline that shows which steps will fire versus skip, and can edit the media classification table directly in the Harmonize tab with unmatched terms surfaced for user mapping.
@@ -191,5 +195,5 @@ Plans:
 | 38. Benchmark Harness | v2.0 | 2/1 | Complete    | 2026-04-26 |
 | 39. Duration Conversion | v2.0 | 2/2 | Complete    | 2026-04-27 |
 | 40. Date Parser | v2.0 | 3/3 | Complete    | 2026-04-27 |
-| 41. Media Harmonizer & AMOS Pipeline | v2.0 | 0/TBD | Not started | - |
+| 41. Media Harmonizer & AMOS Pipeline | v2.0 | 0/3 | Planning | - |
 | 42. Integration & Shiny Polish | v2.0 | 0/TBD | Not started | - |
