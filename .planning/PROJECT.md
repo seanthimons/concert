@@ -91,10 +91,15 @@ Users can go from messy regulatory/benchmark data files to validated, harmonized
 - ✓ Harmonize tab module with pipeline execution, QC dashboard, and editor UIs — v1.9 Phase 34
 - ✓ Parquet/CSV export, Sheet 8 ToxVal Output, curate_headless(harmonize=TRUE) — v1.9 Phase 35
 - ✓ ToxVal schema wired into Shiny interactive path — v1.9 Phase 36
+- ✓ Duration conversion via harmonize_units(category="duration") with hours as base unit — v2.0 Phase 39
+- ✓ Duration data rows (23 conversion + 34 synonyms) in unit_conversion.rds/unit_synonyms.rds — v2.0 Phase 39
+- ✓ "m" ambiguity flagging (minutes vs months) with audit trail — v2.0 Phase 39
+- ✓ Pipeline wiring: Duration/DurationUnit tags → study_duration_value/units in ToxVal export — v2.0 Phase 39
 
 ## Current State
 
 **Shipped:** v1.9 Number and Unit Coercion Harmonization (2026-04-17)
+**Latest:** Phase 39 Duration Conversion complete (2026-04-27)
 
 ChemReg is a proper R package with full compound curation + numeric/unit harmonization + ToxVal schema output. Installed via `devtools::install()`, used interactively via `chemreg::run_app()` or headlessly via `chemreg::curate_headless()`.
 
@@ -106,7 +111,7 @@ ChemReg is a proper R package with full compound curation + numeric/unit harmoni
 - Unit harmonization via `units` package with domain registrations, molarity/ppb context routing
 - ToxVal 56-column schema mapper with 19 audit columns and source_hash
 - Parquet/CSV export alongside 8-sheet Excel export
-- `devtools::test()` passes with 1643+ tests
+- `devtools::test()` passes with 1666+ tests
 - `use_dedup` toggle on `run_cleaning_pipeline()` and `harmonize_units()` for benchmark comparison
 
 **Known tech debt:**
