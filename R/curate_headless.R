@@ -293,6 +293,21 @@ curate_headless <- function(
         ]
       }
 
+      # Stage 3c: Date parsing (DATE-05, DATE-06)
+      message("[headless] Stage 3c: Parsing dates...")
+      date_cols <- names(tag_map)[tag_map == "StudyDate"]
+
+      if (length(date_cols) > 0) {
+        date_tibble <- parse_dates(
+          raw_dates = as.character(input_df[[date_cols[1]]]),
+          orig_row_id = seq_len(nrow(input_df))
+        )
+        # Join by position via match() -- same pattern as duration (lines 288-293)
+        input_df$year <- date_tibble$date_year[
+          match(seq_len(nrow(input_df)), date_tibble$orig_row_id)
+        ]
+      }
+
       # Stage 4: Map to ToxVal schema
       message("[headless] Stage 4: Mapping to ToxVal schema...")
       toxval_tibble <- map_to_toxval_schema(
