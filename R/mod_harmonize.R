@@ -154,18 +154,15 @@ mod_harmonize_server <- function(id, data_store) {
     # --- Empty-state gate -----------------------------------------------------
 
     output$has_numeric_tags <- reactive({
-      has_numeric <- !is.null(data_store$numeric_tags) && length(data_store$numeric_tags) > 0
-      has_study <- !is.null(data_store$study_type_tags) && length(data_store$study_type_tags) > 0
-      has_numeric || has_study
+      !is.null(data_store$numeric_tags) && length(data_store$numeric_tags) > 0
     })
     outputOptions(output, "has_numeric_tags", suspendWhenHidden = FALSE)
 
     # --- Button enable/disable based on numeric_tags --------------------------
 
     observe({
-      has_numeric <- !is.null(data_store$numeric_tags) && length(data_store$numeric_tags) > 0
-      has_study <- !is.null(data_store$study_type_tags) && length(data_store$study_type_tags) > 0
-      if (has_numeric || has_study) {
+      has_tags <- !is.null(data_store$numeric_tags) && length(data_store$numeric_tags) > 0
+      if (has_tags) {
         shinyjs::enable("run_harmonization")
       } else {
         shinyjs::disable("run_harmonization")
@@ -202,13 +199,7 @@ mod_harmonize_server <- function(id, data_store) {
     # --- Pipeline execution ---------------------------------------------------
 
     observeEvent(input$run_harmonization, {
-      req(data_store$clean)
-      # Allow run when either numeric or study-type tags are present
-      has_numeric <- !is.null(data_store$numeric_tags) && length(data_store$numeric_tags) > 0
-      has_study <- !is.null(data_store$study_type_tags) && length(data_store$study_type_tags) > 0
-      if (!has_numeric && !has_study) {
-        return()
-      }
+      req(data_store$clean, data_store$numeric_tags)
 
       # Capture changed_units before clearing (for incremental mode)
       pending_changes <- data_store$changed_units
@@ -217,13 +208,11 @@ mod_harmonize_server <- function(id, data_store) {
       data_store$harmonize_results_stale <- FALSE
       data_store$changed_units <- character(0)
 
+      # Guard: require at least one Result-tagged column (Pitfall 5)
       numeric_tags_vec <- unlist(data_store$numeric_tags, use.names = TRUE)
       result_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Result"]
-      unit_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Unit"]
 
-      # Guard: require Result column when numeric tags are present (Pitfall 5)
-      # StudyDate-only runs skip numeric stages and proceed to date stage.
-      if (has_numeric && length(result_cols) == 0) {
+      if (length(result_cols) == 0) {
         showNotification(
           "No Result column tagged. Tag a Result column before running harmonization.",
           type = "warning",
@@ -231,6 +220,8 @@ mod_harmonize_server <- function(id, data_store) {
         )
         return()
       }
+
+      unit_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Unit"]
 
       # Determine if incremental mode is possible:
       # - Have existing results
@@ -333,90 +324,65 @@ mod_harmonize_server <- function(id, data_store) {
                 data_store$clean
               }
 
-              if (has_numeric) {
-                # Extract Result column (first Result-tagged column if multiple)
-                result_values <- as.character(input_df[[result_cols[1]]])
+              # Extract Result column (first Result-tagged column if multiple)
+              result_values <- as.character(input_df[[result_cols[1]]])
 
-                # Stage 1: Apply one-off corrections (PARS-06)
-                incProgress(0.15, detail = "Applying corrections...")
-                corrected_values <- apply_corrections(
-                  result_values,
-                  data_store$corrections_working
-                )
+              # Stage 1: Apply one-off corrections (PARS-06)
+              incProgress(0.15, detail = "Applying corrections...")
+              corrected_values <- apply_corrections(
+                result_values,
+                data_store$corrections_working
+              )
 
-                # Stage 2: Parse numeric results
-                incProgress(0.30, detail = "Parsing numeric results...")
-                parse_tibble <- parse_numeric_results(corrected_values)
+              # Stage 2: Parse numeric results
+              incProgress(0.30, detail = "Parsing numeric results...")
+              parse_tibble <- parse_numeric_results(corrected_values)
 
-                # Stage 3: Harmonize units (if a Unit column is tagged)
-                incProgress(0.20, detail = "Harmonizing units...")
-                if (length(unit_cols) > 0) {
-                  unit_values <- as.character(input_df[[unit_cols[1]]])
-                  # Ranges expand rows -- re-broadcast unit via orig_row_id
-                  if (nrow(parse_tibble) > length(unit_values)) {
-                    unit_values_expanded <- unit_values[parse_tibble$orig_row_id]
-                  } else {
-                    unit_values_expanded <- unit_values
-                  }
-                  harmonize_tibble <- harmonize_units(
-                    values = parse_tibble$numeric_value,
-                    units = unit_values_expanded,
-                    unit_map = data_store$unit_map_working
-                  )
+              # Stage 3: Harmonize units (if a Unit column is tagged)
+              incProgress(0.25, detail = "Harmonizing units...")
+              if (length(unit_cols) > 0) {
+                unit_values <- as.character(input_df[[unit_cols[1]]])
+                # Ranges expand rows -- re-broadcast unit via orig_row_id
+                if (nrow(parse_tibble) > length(unit_values)) {
+                  unit_values_expanded <- unit_values[parse_tibble$orig_row_id]
                 } else {
-                  # No Unit column -- placeholder harmonize output with NA units
-                  harmonize_tibble <- tibble::tibble(
-                    orig_row_id = parse_tibble$orig_row_id,
-                    orig_unit = rep(NA_character_, nrow(parse_tibble)),
-                    harmonized_value = parse_tibble$numeric_value,
-                    harmonized_unit = rep(NA_character_, nrow(parse_tibble)),
-                    conversion_factor = rep(1, nrow(parse_tibble)),
-                    unit_flag = rep("", nrow(parse_tibble))
-                  )
+                  unit_values_expanded <- unit_values
                 }
-
-                # Stage 4: Store results
-                incProgress(0.15, detail = "Finalizing...")
-                data_store$harmonize_results <- list(
-                  parsed = parse_tibble,
-                  harmonized = harmonize_tibble,
-                  input_data = input_df
-                )
-                # Audit trail: joined tibble for export
-                data_store$harmonize_audit <- dplyr::bind_cols(
-                  parse_tibble,
-                  harmonize_tibble[, c(
-                    "orig_unit",
-                    "harmonized_value",
-                    "harmonized_unit",
-                    "conversion_factor",
-                    "unit_flag"
-                  )]
+                harmonize_tibble <- harmonize_units(
+                  values = parse_tibble$numeric_value,
+                  units = unit_values_expanded,
+                  unit_map = data_store$unit_map_working
                 )
               } else {
-                # StudyDate-only: build identity harmonize_tibble (1:1 rows, no parse/harmonize)
-                incProgress(0.60, detail = "Preparing date pipeline...")
-                n_rows <- nrow(input_df)
+                # No Unit column -- placeholder harmonize output with NA units
                 harmonize_tibble <- tibble::tibble(
-                  orig_row_id = seq_len(n_rows),
-                  orig_unit = rep(NA_character_, n_rows),
-                  harmonized_value = rep(NA_real_, n_rows),
-                  harmonized_unit = rep(NA_character_, n_rows),
-                  conversion_factor = rep(1, n_rows),
-                  unit_flag = rep("", n_rows)
-                )
-                parse_tibble <- tibble::tibble(
-                  orig_row_id = seq_len(n_rows),
-                  raw_value = rep(NA_character_, n_rows),
-                  numeric_value = rep(NA_real_, n_rows),
-                  value_flag = rep("", n_rows)
-                )
-                data_store$harmonize_results <- list(
-                  parsed = parse_tibble,
-                  harmonized = harmonize_tibble,
-                  input_data = input_df
+                  orig_row_id = parse_tibble$orig_row_id,
+                  orig_unit = rep(NA_character_, nrow(parse_tibble)),
+                  harmonized_value = parse_tibble$numeric_value,
+                  harmonized_unit = rep(NA_character_, nrow(parse_tibble)),
+                  conversion_factor = rep(1, nrow(parse_tibble)),
+                  unit_flag = rep("", nrow(parse_tibble))
                 )
               }
+
+              # Stage 4: Store results
+              incProgress(0.15, detail = "Finalizing...")
+              data_store$harmonize_results <- list(
+                parsed = parse_tibble,
+                harmonized = harmonize_tibble,
+                input_data = input_df
+              )
+              # Audit trail: joined tibble for export
+              data_store$harmonize_audit <- dplyr::bind_cols(
+                parse_tibble,
+                harmonize_tibble[, c(
+                  "orig_unit",
+                  "harmonized_value",
+                  "harmonized_unit",
+                  "conversion_factor",
+                  "unit_flag"
+                )]
+              )
 
               # Stage 4.5: Duration harmonization (D-13, DUR-03)
               incProgress(0.05, detail = "Harmonizing durations...")
@@ -437,67 +403,6 @@ mod_harmonize_server <- function(id, data_store) {
                   study_duration_units = dur_tibble$harmonized_unit,
                   duration_unit_flag = dur_tibble$unit_flag
                 )
-              }
-
-              # Stage 4.6: Date parsing (DATE-01, DATE-05)
-              incProgress(0.05, detail = "Parsing dates...")
-              study_type_tags_vec <- unlist(data_store$study_type_tags)
-              date_cols <- if (!is.null(study_type_tags_vec)) {
-                names(study_type_tags_vec)[study_type_tags_vec == "StudyDate"]
-              } else {
-                character(0)
-              }
-              data_store$date_results <- NULL
-
-              if (length(date_cols) > 0) {
-                date_tibble <- tryCatch(
-                  parse_dates(
-                    raw_dates = as.character(input_df[[date_cols[1]]]),
-                    orig_row_id = seq_len(nrow(input_df))
-                  ),
-                  error = function(e) {
-                    showNotification(
-                      paste0(
-                        "Date parsing failed for column '",
-                        date_cols[1],
-                        "': ",
-                        conditionMessage(e),
-                        ". Column skipped."
-                      ),
-                      type = "error",
-                      duration = 10
-                    )
-                    NULL
-                  }
-                )
-
-                if (!is.null(date_tibble)) {
-                  data_store$date_results <- date_tibble
-
-                  n_parsed <- sum(date_tibble$date_flag != "unparseable", na.rm = TRUE)
-                  n_ambiguous <- sum(date_tibble$date_flag == "ambiguous", na.rm = TRUE)
-
-                  if (n_parsed > 0) {
-                    showNotification(
-                      sprintf(
-                        "Date parsing complete. %d dates parsed, %d flagged as ambiguous.",
-                        n_parsed,
-                        n_ambiguous
-                      ),
-                      type = "message",
-                      duration = 5
-                    )
-                  } else {
-                    showNotification(
-                      sprintf(
-                        "Date parsing: no valid dates found in column '%s'. All rows unparseable.",
-                        date_cols[1]
-                      ),
-                      type = "warning",
-                      duration = 8
-                    )
-                  }
-                }
               }
 
               # Stage 5: Map to ToxVal schema (SCHM-01, UITG-06)
@@ -522,12 +427,6 @@ mod_harmonize_server <- function(id, data_store) {
                 dur_units_expanded <- dur_for_merge$study_duration_units[harmonize_tibble$orig_row_id]
                 expanded_curated$study_duration_value <- dur_values_expanded
                 expanded_curated$study_duration_units <- dur_units_expanded
-              }
-
-              # Merge date_year into expanded_curated for original_year ToxVal mapping (DATE-06, D-16)
-              if (!is.null(data_store$date_results)) {
-                year_expanded <- data_store$date_results$date_year[harmonize_tibble$orig_row_id]
-                expanded_curated$year <- year_expanded
               }
 
               toxval_tibble <- tryCatch(
@@ -588,44 +487,6 @@ mod_harmonize_server <- function(id, data_store) {
         ""
       }
 
-      # Date parsing QC boxes (conditional -- only when date results exist)
-      date_qc_row <- NULL
-      if (!is.null(data_store$date_results)) {
-        dr <- data_store$date_results
-        n_date_parsed <- sum(dr$date_flag != "unparseable", na.rm = TRUE)
-        n_partial <- sum(dr$date_flag == "partial", na.rm = TRUE)
-        n_ambiguous <- sum(dr$date_flag == "ambiguous", na.rm = TRUE)
-        n_unparseable <- sum(dr$date_flag == "unparseable", na.rm = TRUE)
-
-        date_qc_row <- bslib::layout_columns(
-          col_widths = c(3, 3, 3, 3),
-          bslib::value_box(
-            title = "Dates Parsed",
-            value = n_date_parsed,
-            showcase = bsicons::bs_icon("check-circle"),
-            theme = "success"
-          ),
-          bslib::value_box(
-            title = "Partial Dates",
-            value = n_partial,
-            showcase = bsicons::bs_icon("calendar"),
-            theme = "info"
-          ),
-          bslib::value_box(
-            title = "Ambiguous Dates",
-            value = n_ambiguous,
-            showcase = bsicons::bs_icon("question-circle"),
-            theme = "warning"
-          ),
-          bslib::value_box(
-            title = "Unparseable Dates",
-            value = n_unparseable,
-            showcase = bsicons::bs_icon("exclamation-triangle"),
-            theme = "danger"
-          )
-        )
-      }
-
       div(
         class = stale_class,
         bslib::layout_columns(
@@ -654,8 +515,7 @@ mod_harmonize_server <- function(id, data_store) {
             showcase = bsicons::bs_icon("exclamation-triangle"),
             theme = "warning"
           )
-        ),
-        date_qc_row
+        )
       )
     })
 
