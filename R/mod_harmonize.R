@@ -90,14 +90,14 @@ mod_harmonize_ui <- function(id) {
       uiOutput(ns("editors_panel"))
     ),
 
-    # Empty state when no numeric tags
+    # Empty state when no taggable columns
     conditionalPanel(
       condition = paste0("!output['", ns("has_numeric_tags"), "']"),
       div(
         class = "text-center text-muted py-5",
         bsicons::bs_icon("sliders", size = "3em"),
-        h4("No numeric columns tagged"),
-        p("Tag your Result and Unit columns first, then run harmonization.")
+        h4("No columns tagged for harmonization"),
+        p("Tag your columns (Result, Unit, Study Date, etc.) first, then run harmonization.")
       )
     )
   )
@@ -154,15 +154,18 @@ mod_harmonize_server <- function(id, data_store) {
     # --- Empty-state gate -----------------------------------------------------
 
     output$has_numeric_tags <- reactive({
-      !is.null(data_store$numeric_tags) && length(data_store$numeric_tags) > 0
+      has_numeric <- !is.null(data_store$numeric_tags) && length(data_store$numeric_tags) > 0
+      has_study <- !is.null(data_store$study_type_tags) && length(data_store$study_type_tags) > 0
+      has_numeric || has_study
     })
     outputOptions(output, "has_numeric_tags", suspendWhenHidden = FALSE)
 
     # --- Button enable/disable based on numeric_tags --------------------------
 
     observe({
-      has_tags <- !is.null(data_store$numeric_tags) && length(data_store$numeric_tags) > 0
-      if (has_tags) {
+      has_numeric <- !is.null(data_store$numeric_tags) && length(data_store$numeric_tags) > 0
+      has_study <- !is.null(data_store$study_type_tags) && length(data_store$study_type_tags) > 0
+      if (has_numeric || has_study) {
         shinyjs::enable("run_harmonization")
       } else {
         shinyjs::disable("run_harmonization")
