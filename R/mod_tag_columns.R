@@ -53,7 +53,6 @@ mod_tag_columns_ui <- function(id) {
 #' @export
 mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
   moduleServer(id, function(input, output, session) {
-
     # Dynamic UI for column tagging — table-based layout
     output$column_tagging_ui <- renderUI({
       req(data_store$selected_columns)
@@ -85,9 +84,12 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
                     "Select type..." = c("Select type..." = ""),
                     "Chemical" = c("Chemical Name" = "Name", "CASRN" = "CASRN", "Other" = "Other"),
                     "Numeric" = c("Result Value" = "Result", "Unit" = "Unit", "Qualifier" = "Qualifier"),
-                    "Study" = c(
-                      "Duration" = "Duration", "Duration Unit" = "DurationUnit",
-                      "Species" = "Species", "Exposure Route" = "ExposureRoute"
+                    "Study / Contextual" = c(
+                      "Duration" = "Duration",
+                      "Duration Unit" = "DurationUnit",
+                      "Species" = "Species",
+                      "Exposure Route" = "ExposureRoute",
+                      "Study Date" = "StudyDate"
                     )
                   ),
                   selected = "",
@@ -138,8 +140,12 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
       if (!has_req) {
         tag_values <- unlist(classified$chemical_tags, use.names = FALSE)
         missing <- c()
-        if (!"Name" %in% tag_values) missing <- c(missing, "Chemical Name")
-        if (!"CASRN" %in% tag_values) missing <- c(missing, "CASRN")
+        if (!"Name" %in% tag_values) {
+          missing <- c(missing, "Chemical Name")
+        }
+        if (!"CASRN" %in% tag_values) {
+          missing <- c(missing, "CASRN")
+        }
         showNotification(
           paste("Clean Data requires both Name and CASRN columns. Missing:", paste(missing, collapse = ", ")),
           type = "warning",
@@ -152,6 +158,7 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
       data_store$column_tags <- classified$chemical_tags
       data_store$numeric_tags <- classified$numeric_tags
       data_store$metadata_tags <- classified$metadata_tags
+      data_store$study_type_tags <- classified$study_type_tags
 
       # Generate dedup preview immediately (uses chemical tags only)
       # Skip for large datasets (>10k rows) - deduplicate_tagged_columns is O(n²)
