@@ -21,6 +21,7 @@ Imports:
     here,
     janitor,
     jsonlite,
+    lubridate,
     magrittr,
     purrr,
     reactable,
