@@ -95,11 +95,15 @@ Users can go from messy regulatory/benchmark data files to validated, harmonized
 - ✓ Duration data rows (23 conversion + 34 synonyms) in unit_conversion.rds/unit_synonyms.rds — v2.0 Phase 39
 - ✓ "m" ambiguity flagging (minutes vs months) with audit trail — v2.0 Phase 39
 - ✓ Pipeline wiring: Duration/DurationUnit tags → study_duration_value/units in ToxVal export — v2.0 Phase 39
+- ✓ Multi-format date parser (parse_dates) with ISO/MDY/DMY/SAS/year-only/month-year support — v2.0 Phase 40
+- ✓ StudyDate tag type with 4-element classify_tags() and "Study / Contextual" optgroup — v2.0 Phase 40
+- ✓ Date pipeline wiring: StudyDate tags → parse_dates() → expanded_curated$year → ToxVal original_year — v2.0 Phase 40
+- ✓ Date QC dashboard value boxes (Dates Parsed, Partial, Ambiguous, Unparseable) — v2.0 Phase 40
 
 ## Current State
 
 **Shipped:** v1.9 Number and Unit Coercion Harmonization (2026-04-17)
-**Latest:** Phase 39 Duration Conversion complete (2026-04-27)
+**Latest:** Phase 40 Date Parser complete (2026-04-27)
 
 ChemReg is a proper R package with full compound curation + numeric/unit harmonization + ToxVal schema output. Installed via `devtools::install()`, used interactively via `chemreg::run_app()` or headlessly via `chemreg::curate_headless()`.
 
@@ -244,4 +248,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-25 — Phase 38 Benchmark Harness complete (use_dedup toggle wired)*
+*Last updated: 2026-04-27 — Phase 40 Date Parser complete (multi-format parsing, StudyDate tag, pipeline wiring)*
