@@ -38,7 +38,7 @@ classify_tags <- function(tags) {
   chemical_types <- c("Name", "CASRN", "Other")
   numeric_types <- c("Result", "Unit", "Qualifier", "Duration", "DurationUnit")
   metadata_types <- c("Species", "ExposureRoute")
-  study_types <- c("StudyDate")
+  study_types <- c("StudyDate", "Media")
 
   # Handle empty input
 
