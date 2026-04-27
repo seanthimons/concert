@@ -59,7 +59,8 @@ Bootstrap 5 / Flatly bootswatch — no custom font declarations. All sizes are i
 | Body | `p()`, `div()` | 16px | 400 (regular) | 1.5 |
 | Label | `h6()`, `.small`, `helpText()` | 12-13px | 400 (regular) | 1.4 |
 | Heading | `h4()` | 20px | 600 (semibold) | 1.2 |
-| Value box value | bslib `value_box()` value slot | 28px | 700 (bold) | 1.0 |
+
+Note: `value_box()` renders its value slot in bold by default as a bslib component behavior — this is not a project-level typography declaration and requires no override.
 
 Source: Flatly bootswatch Bootstrap 5 type defaults; `h4()` usage in `mod_tag_columns.R` line 33 and `mod_harmonize.R` line 99.
 
