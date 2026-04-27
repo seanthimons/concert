@@ -272,6 +272,27 @@ curate_headless <- function(
         )]
       )
 
+      # Stage 3.5: Duration harmonization (D-13, DUR-03)
+      message("[headless] Stage 3.5: Harmonizing durations...")
+      duration_cols <- names(tag_map)[tag_map == "Duration"]
+      duration_unit_cols <- names(tag_map)[tag_map == "DurationUnit"]
+
+      if (length(duration_cols) > 0 && length(duration_unit_cols) > 0) {
+        dur_tibble <- harmonize_units(
+          values = as.numeric(input_df[[duration_cols[1]]]),
+          units = as.character(input_df[[duration_unit_cols[1]]]),
+          unit_map = unit_map,
+          category = "duration"
+        )
+        # Join by position: dur_tibble$orig_row_id is 1:nrow(input_df)
+        input_df$study_duration_value <- dur_tibble$harmonized_value[
+          match(seq_len(nrow(input_df)), dur_tibble$orig_row_id)
+        ]
+        input_df$study_duration_units <- dur_tibble$harmonized_unit[
+          match(seq_len(nrow(input_df)), dur_tibble$orig_row_id)
+        ]
+      }
+
       # Stage 4: Map to ToxVal schema
       message("[headless] Stage 4: Mapping to ToxVal schema...")
       toxval_tibble <- map_to_toxval_schema(
