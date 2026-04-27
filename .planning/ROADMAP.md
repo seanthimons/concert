@@ -134,8 +134,11 @@ Plans:
   2. Dates where both the day and month are <= 12 are flagged as "ambiguous" in the audit trail rather than silently assigned a format
   3. A column tagged StudyDate in the Harmonize tab routes through `parse_dates()` in Stage 3c and its `date_year` output populates `original_year` in the ToxVal schema
   4. `curate_headless()` with `harmonize=TRUE` processes StudyDate-tagged columns and produces identical output to the Shiny interactive path
-**Plans**: TBD
-**UI hint**: yes
+**Plans:** 3 plans
+Plans:
+- [ ] 40-01-PLAN.md -- Core parse_dates() function, tests, and lubridate DESCRIPTION update
+- [ ] 40-02-PLAN.md -- Tag system extension: classify_tags() study_types group and mod_tag_columns.R optgroup
+- [ ] 40-03-PLAN.md -- Pipeline wiring in mod_harmonize.R and curate_headless.R with QC dashboard
 
 ### Phase 41: Media Harmonizer & AMOS Pipeline
 **Goal**: Users can tag columns as Media and have the harmonization pipeline classify environmental media strings against the ENVO ontology, with AMOS-derived terms supplementing the vocabulary and canonical media values feeding back into ppb/ppm unit routing.
@@ -187,6 +190,6 @@ Plans:
 | 37. Performance Architecture | v2.0 | 4/4 | Complete | 2026-04-24 |
 | 38. Benchmark Harness | v2.0 | 2/1 | Complete    | 2026-04-26 |
 | 39. Duration Conversion | v2.0 | 2/2 | Complete    | 2026-04-27 |
-| 40. Date Parser | v2.0 | 0/TBD | Not started | - |
+| 40. Date Parser | v2.0 | 0/3 | Planned | - |
 | 41. Media Harmonizer & AMOS Pipeline | v2.0 | 0/TBD | Not started | - |
 | 42. Integration & Shiny Polish | v2.0 | 0/TBD | Not started | - |
