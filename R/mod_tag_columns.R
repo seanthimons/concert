@@ -89,7 +89,8 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
                       "Duration Unit" = "DurationUnit",
                       "Species" = "Species",
                       "Exposure Route" = "ExposureRoute",
-                      "Study Date" = "StudyDate"
+                      "Study Date" = "StudyDate",
+                      "Media" = "Media"
                     )
                   ),
                   selected = "",
