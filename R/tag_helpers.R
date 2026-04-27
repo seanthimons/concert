@@ -11,11 +11,12 @@
 #' @param tags Named list where names are column names and values are tag types
 #'   (e.g., list(col1 = "Name", col2 = "Result"))
 #'
-#' @return Named list with three elements:
+#' @return Named list with four elements:
 #'   \describe{
 #'     \item{chemical_tags}{Named list of chemical-related tags (Name, CASRN, Other)}
 #'     \item{numeric_tags}{Named list of numeric/measurement tags (Result, Unit, Qualifier, Duration, DurationUnit)}
 #'     \item{metadata_tags}{Named list of study metadata tags (Species, ExposureRoute)}
+#'     \item{study_type_tags}{Named list of study/contextual tags (StudyDate)}
 #'   }
 #'
 #' @details
@@ -37,6 +38,7 @@ classify_tags <- function(tags) {
   chemical_types <- c("Name", "CASRN", "Other")
   numeric_types <- c("Result", "Unit", "Qualifier", "Duration", "DurationUnit")
   metadata_types <- c("Species", "ExposureRoute")
+  study_types <- c("StudyDate")
 
   # Handle empty input
 
@@ -44,7 +46,8 @@ classify_tags <- function(tags) {
     return(list(
       chemical_tags = list(),
       numeric_tags = list(),
-      metadata_tags = list()
+      metadata_tags = list(),
+      study_type_tags = list()
     ))
   }
 
@@ -55,6 +58,7 @@ classify_tags <- function(tags) {
   chemical_idx <- which(tag_values %in% chemical_types)
   numeric_idx <- which(tag_values %in% numeric_types)
   metadata_idx <- which(tag_values %in% metadata_types)
+  study_type_idx <- which(tag_values %in% study_types)
 
   # Build output lists preserving names
   chemical_tags <- if (length(chemical_idx) > 0) {
@@ -75,10 +79,17 @@ classify_tags <- function(tags) {
     list()
   }
 
+  study_type_tags <- if (length(study_type_idx) > 0) {
+    stats::setNames(as.list(tag_values[study_type_idx]), tag_names[study_type_idx])
+  } else {
+    list()
+  }
+
   list(
     chemical_tags = chemical_tags,
     numeric_tags = numeric_tags,
-    metadata_tags = metadata_tags
+    metadata_tags = metadata_tags,
+    study_type_tags = study_type_tags
   )
 }
 
@@ -129,7 +140,6 @@ validate_tag_pairing <- function(tags) {
   if (has_unit && !has_result) {
     return("Unit tagged without Result - harmonization may be incomplete")
   }
-
 
   NULL
 }
@@ -195,7 +205,6 @@ has_required_chemical_tags <- function(chemical_tags) {
   tag_values <- unlist(chemical_tags, use.names = FALSE)
   has_name <- "Name" %in% tag_values
   has_casrn <- "CASRN" %in% tag_values
-
 
   has_name && has_casrn
 }
