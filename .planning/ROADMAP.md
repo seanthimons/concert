@@ -75,7 +75,7 @@
 
 - [ ] **Phase 37: Performance Architecture** -- PERF-01, PERF-02, PERF-03, PERF-04, SKIP-01, SKIP-02, SKIP-03
 - [x] **Phase 38: Benchmark Harness** -- BENCH-01, BENCH-02, BENCH-03 (completed 2026-04-26)
-- [ ] **Phase 39: Duration Conversion** -- DUR-01, DUR-02, DUR-03, DUR-04, DUR-05
+- [x] **Phase 39: Duration Conversion** -- DUR-01, DUR-02, DUR-03, DUR-04, DUR-05 (completed 2026-04-27)
 - [ ] **Phase 40: Date Parser** -- DATE-01, DATE-02, DATE-03, DATE-04, DATE-05, DATE-06
 - [ ] **Phase 41: Media Harmonizer & AMOS Pipeline** -- MEDIA-01, MEDIA-02, MEDIA-03, MEDIA-04, MEDIA-05, MEDIA-06, AMOS-01, AMOS-02, AMOS-03
 - [ ] **Phase 42: Integration & Shiny Polish** -- RECO-01, RECO-02, MEDIT-01, MEDIT-02, MEDIT-03
@@ -120,10 +120,10 @@ Plans:
   2. The unit table contains explicit entries for all common duration abbreviations (h/hr/hrs/hour, d/day/days, wk/week, mo/month, yr/year, min/minute, s/sec/second) with hours as the base unit
   3. A column tagged DurationUnit in the Harmonize tab routes through duration harmonization and its output appears in `study_duration_value` and `study_duration_units` in the ToxVal export
   4. The ambiguous "m" abbreviation is never silently treated as months -- the custom synonym map resolves it explicitly and the pitfall is covered by a test
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 39-01-PLAN.md -- Duration data rows, harmonize_units() category parameter, and duration tests
-- [ ] 39-02-PLAN.md -- Pipeline wiring in mod_harmonize.R and curate_headless.R for ToxVal schema
+- [x] 39-02-PLAN.md -- Pipeline wiring in mod_harmonize.R and curate_headless.R for ToxVal schema
 
 ### Phase 40: Date Parser
 **Goal**: Users can tag columns as StudyDate and have the harmonization pipeline parse mixed-format date strings into ISO-8601 structured output with ambiguity flagging, wired to the ToxVal `original_year` field.
@@ -186,7 +186,7 @@ Plans:
 | 36. Wire ToxVal Schema in Shiny Path | v1.9 | 1/1 | Complete | 2026-04-21 |
 | 37. Performance Architecture | v2.0 | 4/4 | Complete | 2026-04-24 |
 | 38. Benchmark Harness | v2.0 | 2/1 | Complete    | 2026-04-26 |
-| 39. Duration Conversion | v2.0 | 1/2 | In Progress|  |
+| 39. Duration Conversion | v2.0 | 2/2 | Complete   | 2026-04-27 |
 | 40. Date Parser | v2.0 | 0/TBD | Not started | - |
 | 41. Media Harmonizer & AMOS Pipeline | v2.0 | 0/TBD | Not started | - |
 | 42. Integration & Shiny Polish | v2.0 | 0/TBD | Not started | - |
