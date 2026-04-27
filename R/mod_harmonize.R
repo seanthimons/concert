@@ -339,7 +339,7 @@ mod_harmonize_server <- function(id, data_store) {
               parse_tibble <- parse_numeric_results(corrected_values)
 
               # Stage 3: Harmonize units (if a Unit column is tagged)
-              incProgress(0.30, detail = "Harmonizing units...")
+              incProgress(0.25, detail = "Harmonizing units...")
               if (length(unit_cols) > 0) {
                 unit_values <- as.character(input_df[[unit_cols[1]]])
                 # Ranges expand rows -- re-broadcast unit via orig_row_id
@@ -384,12 +384,51 @@ mod_harmonize_server <- function(id, data_store) {
                 )]
               )
 
+              # Stage 4.5: Duration harmonization (D-13, DUR-03)
+              incProgress(0.05, detail = "Harmonizing durations...")
+              duration_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Duration"]
+              duration_unit_cols <- names(numeric_tags_vec)[numeric_tags_vec == "DurationUnit"]
+              data_store$duration_results <- NULL
+
+              if (length(duration_cols) > 0 && length(duration_unit_cols) > 0) {
+                dur_tibble <- harmonize_units(
+                  values = as.numeric(input_df[[duration_cols[1]]]),
+                  units = as.character(input_df[[duration_unit_cols[1]]]),
+                  unit_map = data_store$unit_map_working,
+                  category = "duration"
+                )
+                data_store$duration_results <- tibble::tibble(
+                  orig_row_id = dur_tibble$orig_row_id,
+                  study_duration_value = dur_tibble$harmonized_value,
+                  study_duration_units = dur_tibble$harmonized_unit,
+                  duration_unit_flag = dur_tibble$unit_flag
+                )
+              }
+
               # Stage 5: Map to ToxVal schema (SCHM-01, UITG-06)
               incProgress(0.10, detail = "Mapping to ToxVal schema...")
               # Expand curated_data rows to match harmonized rows via orig_row_id.
               # parse_numeric_results() expands range values (1 row -> 3 rows),
               # so harmonize_tibble may have more rows than resolution_state.
               expanded_curated <- data_store$resolution_state[harmonize_tibble$orig_row_id, ]
+
+              # Merge duration columns if present (D-10)
+              if (!is.null(data_store$duration_results)) {
+                dur_for_merge <- data_store$duration_results[, c(
+                  "orig_row_id",
+                  "study_duration_value",
+                  "study_duration_units"
+                )]
+                # Duration orig_row_id maps to input_df rows (pre-range-expansion).
+                # expanded_curated rows correspond to harmonize_tibble$orig_row_id
+                # which may include range-expanded rows. Map duration values through
+                # the same orig_row_id that produced expanded_curated.
+                dur_values_expanded <- dur_for_merge$study_duration_value[harmonize_tibble$orig_row_id]
+                dur_units_expanded <- dur_for_merge$study_duration_units[harmonize_tibble$orig_row_id]
+                expanded_curated$study_duration_value <- dur_values_expanded
+                expanded_curated$study_duration_units <- dur_units_expanded
+              }
+
               toxval_tibble <- tryCatch(
                 map_to_toxval_schema(
                   curated_data = expanded_curated,
