@@ -333,6 +333,54 @@ mod_harmonize_server <- function(id, data_store) {
                 data_store$clean
               }
 
+              # Pre-stage: Media harmonization for ppb/ppm routing (MEDIA-05, D-12)
+              incProgress(0.05, detail = "Harmonizing media...")
+              media_cols_pre <- if (!is.null(data_store$study_type_tags)) {
+                local_stv <- unlist(data_store$study_type_tags)
+                names(local_stv)[local_stv == "Media"]
+              } else {
+                character(0)
+              }
+              data_store$media_results <- NULL
+              media_for_harmonize <- NULL
+
+              if (length(media_cols_pre) > 0) {
+                media_tibble <- tryCatch(
+                  dedup_step(
+                    harmonize_media,
+                    input_df,
+                    dedup_cols = media_cols_pre[1]
+                  ),
+                  error = function(e) {
+                    showNotification(
+                      paste0(
+                        "Media harmonization failed for column '",
+                        media_cols_pre[1],
+                        "': ",
+                        conditionMessage(e),
+                        ". Column skipped."
+                      ),
+                      type = "error",
+                      duration = 10
+                    )
+                    NULL
+                  }
+                )
+                if (!is.null(media_tibble)) {
+                  data_store$media_results <- media_tibble
+                  # Per-row media_category for ppb/ppm routing (D-12 tier 1)
+                  media_for_harmonize <- media_tibble$media_category
+
+                  n_matched <- sum(media_tibble$media_flag != "media_unmatched", na.rm = TRUE)
+                  n_unmatched <- sum(media_tibble$media_flag == "media_unmatched", na.rm = TRUE)
+                  showNotification(
+                    sprintf("Media harmonized: %d matched, %d unmatched", n_matched, n_unmatched),
+                    type = if (n_unmatched > 0) "warning" else "message",
+                    duration = 6
+                  )
+                }
+              }
+
               if (has_numeric) {
                 # Extract Result column (first Result-tagged column if multiple)
                 result_values <- as.character(input_df[[result_cols[1]]])
@@ -349,7 +397,7 @@ mod_harmonize_server <- function(id, data_store) {
                 parse_tibble <- parse_numeric_results(corrected_values)
 
                 # Stage 3: Harmonize units (if a Unit column is tagged)
-                incProgress(0.20, detail = "Harmonizing units...")
+                incProgress(0.15, detail = "Harmonizing units...")
                 if (length(unit_cols) > 0) {
                   unit_values <- as.character(input_df[[unit_cols[1]]])
                   # Ranges expand rows -- re-broadcast unit via orig_row_id
@@ -358,10 +406,12 @@ mod_harmonize_server <- function(id, data_store) {
                   } else {
                     unit_values_expanded <- unit_values
                   }
+                  # media_for_harmonize: per-row from Media tag (D-12 tier 1), or NULL (tier 3 aqueous default)
                   harmonize_tibble <- harmonize_units(
                     values = parse_tibble$numeric_value,
                     units = unit_values_expanded,
-                    unit_map = data_store$unit_map_working
+                    unit_map = data_store$unit_map_working,
+                    media = media_for_harmonize
                   )
                 } else {
                   # No Unit column -- placeholder harmonize output with NA units
@@ -394,8 +444,8 @@ mod_harmonize_server <- function(id, data_store) {
                   )]
                 )
               } else {
-                # StudyDate-only: build identity harmonize_tibble (1:1 rows, no parse/harmonize)
-                incProgress(0.60, detail = "Preparing date pipeline...")
+                # StudyDate/Media-only: build identity harmonize_tibble (1:1 rows, no parse/harmonize)
+                incProgress(0.55, detail = "Preparing date/media pipeline...")
                 n_rows <- nrow(input_df)
                 harmonize_tibble <- tibble::tibble(
                   orig_row_id = seq_len(n_rows),
@@ -528,6 +578,12 @@ mod_harmonize_server <- function(id, data_store) {
               if (!is.null(data_store$date_results)) {
                 year_expanded <- data_store$date_results$date_year[harmonize_tibble$orig_row_id]
                 expanded_curated$year <- year_expanded
+              }
+
+              # Merge media_category into expanded_curated for ToxVal mapping (D-16, MEDIA-05)
+              if (!is.null(data_store$media_results)) {
+                media_expanded <- data_store$media_results$media_category[harmonize_tibble$orig_row_id]
+                expanded_curated$media <- media_expanded
               }
 
               toxval_tibble <- tryCatch(

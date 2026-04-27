@@ -206,7 +206,9 @@ curate_headless <- function(
       has_study <- any(tag_map == "StudyDate")
 
       if (length(result_cols) == 0 && !has_study) {
-        stop("curate_headless: harmonize=TRUE requires at least one column tagged as 'Result' or 'StudyDate' in tag_map.")
+        stop(
+          "curate_headless: harmonize=TRUE requires at least one column tagged as 'Result' or 'StudyDate' in tag_map."
+        )
       }
 
       # Use resolution_state as input (same as mod_harmonize.R pattern)
@@ -232,37 +234,43 @@ curate_headless <- function(
         }
         corrected_values <- apply_corrections_headless(result_values, corrections)
 
-      # Stage 2: Parse numeric results
-      message("[headless] Stage 2: Parsing numeric results...")
-      parse_tibble <- parse_numeric_results(corrected_values)
+        # Stage 2: Parse numeric results
+        message("[headless] Stage 2: Parsing numeric results...")
+        parse_tibble <- parse_numeric_results(corrected_values)
 
-      # Stage 3: Harmonize units
-      message("[headless] Stage 3: Harmonizing units...")
-      if (length(unit_cols) > 0) {
-        unit_values <- as.character(input_df[[unit_cols[1]]])
-        # Ranges expand rows -- re-broadcast unit via orig_row_id (mod_harmonize.R pattern)
-        if (nrow(parse_tibble) > length(unit_values)) {
-          unit_values_expanded <- unit_values[parse_tibble$orig_row_id]
+        # Stage 3: Harmonize units
+        message("[headless] Stage 3: Harmonizing units...")
+        if (length(unit_cols) > 0) {
+          unit_values <- as.character(input_df[[unit_cols[1]]])
+          # Ranges expand rows -- re-broadcast unit via orig_row_id (mod_harmonize.R pattern)
+          if (nrow(parse_tibble) > length(unit_values)) {
+            unit_values_expanded <- unit_values[parse_tibble$orig_row_id]
+          } else {
+            unit_values_expanded <- unit_values
+          }
+          # Three-tier cascade (D-12): tagged column > manual param > NULL (aqueous default)
+          media_for_harmonize <- if ("media" %in% names(input_df)) {
+            input_df$media[parse_tibble$orig_row_id] # per-row from tagged column
+          } else {
+            media # dataset-wide fallback
+          }
+          harmonize_tibble <- harmonize_units(
+            values = parse_tibble$numeric_value,
+            units = unit_values_expanded,
+            unit_map = unit_map,
+            media = media_for_harmonize
+          )
         } else {
-          unit_values_expanded <- unit_values
+          # No Unit column -- placeholder harmonize output with NA units
+          harmonize_tibble <- tibble::tibble(
+            orig_row_id = parse_tibble$orig_row_id,
+            orig_unit = rep(NA_character_, nrow(parse_tibble)),
+            harmonized_value = parse_tibble$numeric_value,
+            harmonized_unit = rep(NA_character_, nrow(parse_tibble)),
+            conversion_factor = rep(1, nrow(parse_tibble)),
+            unit_flag = rep("", nrow(parse_tibble))
+          )
         }
-        harmonize_tibble <- harmonize_units(
-          values = parse_tibble$numeric_value,
-          units = unit_values_expanded,
-          unit_map = unit_map,
-          media = media
-        )
-      } else {
-        # No Unit column -- placeholder harmonize output with NA units
-        harmonize_tibble <- tibble::tibble(
-          orig_row_id = parse_tibble$orig_row_id,
-          orig_unit = rep(NA_character_, nrow(parse_tibble)),
-          harmonized_value = parse_tibble$numeric_value,
-          harmonized_unit = rep(NA_character_, nrow(parse_tibble)),
-          conversion_factor = rep(1, nrow(parse_tibble)),
-          unit_flag = rep("", nrow(parse_tibble))
-        )
-      }
 
         # Build harmonize audit (same as mod_harmonize.R pattern)
         harmonize_audit_tibble <- dplyr::bind_cols(
@@ -324,6 +332,29 @@ curate_headless <- function(
         input_df$year <- date_tibble$date_year[
           match(seq_len(nrow(input_df)), date_tibble$orig_row_id)
         ]
+      }
+
+      # Stage 3d: Media harmonization (MEDIA-05, MEDIA-06, D-12)
+      message("[headless] Stage 3d: Harmonizing media...")
+      media_cols_pre <- names(tag_map)[tag_map == "Media"]
+
+      if (length(media_cols_pre) > 0) {
+        media_tibble_pre <- dedup_step(
+          harmonize_media,
+          input_df,
+          dedup_cols = media_cols_pre[1]
+        )
+        input_df$media <- media_tibble_pre$media_category[
+          match(seq_len(nrow(input_df)), media_tibble_pre$orig_row_id)
+        ]
+        message(sprintf(
+          "[headless] Media harmonized: %d matched, %d unmatched",
+          sum(media_tibble_pre$media_flag != "media_unmatched", na.rm = TRUE),
+          sum(media_tibble_pre$media_flag == "media_unmatched", na.rm = TRUE)
+        ))
+      } else if (!is.null(media)) {
+        # D-13 fallback: dataset-wide media parameter populates column
+        input_df$media <- media
       }
 
       # Stage 4: Map to ToxVal schema
