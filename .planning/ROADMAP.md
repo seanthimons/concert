@@ -166,10 +166,10 @@ Plans:
   2. The user can choose to run only the steps that will fire (subset run) or all steps (full run) from the pre-flight modal
   3. The Harmonize tab contains an editable media classification table with term, canonical, source, and active columns; user edits persist across sessions via RDS and trigger a pipeline re-run cascade
   4. Media strings that did not match any canonical term are surfaced in the editor as unmatched rows, allowing the user to assign canonical values that are immediately available for the next run
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 Plans:
 - [x] 42-01-PLAN.md -- Backend infrastructure: harmonization pre-checks, media map persistence, harmonize_media() API extension
-- [ ] 42-02-PLAN.md -- Media classification editor UI in Harmonize tab with DT table, modals, RDS persistence
+- [x] 42-02-PLAN.md -- Media classification editor UI in Harmonize tab with DT table, modals, RDS persistence
 - [ ] 42-03-PLAN.md -- Pre-flight modal with unified Run Pipeline button and step-mask execution
 
 ## Progress
@@ -200,4 +200,4 @@ Plans:
 | 39. Duration Conversion | v2.0 | 2/2 | Complete    | 2026-04-27 |
 | 40. Date Parser | v2.0 | 3/3 | Complete    | 2026-04-27 |
 | 41. Media Harmonizer & AMOS Pipeline | v2.0 | 4/4 | Complete   | 2026-04-27 |
-| 42. Integration & Shiny Polish | v2.0 | 1/3 | In Progress|  |
+| 42. Integration & Shiny Polish | v2.0 | 2/3 | In Progress|  |
