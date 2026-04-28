@@ -14,6 +14,158 @@ recalc_consensus_summary <- function(df) {
   )
 }
 
+# Vectorized match_type derivation (replaces row-by-row sapply)
+derive_match_type <- function(df) {
+  tier_cols <- grep("^source_tier_", names(df), value = TRUE)
+  if (length(tier_cols) == 0) {
+    return(rep("Unknown", nrow(df)))
+  }
+
+  tier_label_map <- c(
+    "exact" = "Exact Match",
+    "cas" = "CAS Lookup",
+    "starts_with" = "Starts-With"
+  )
+
+  result <- rep("No Match", nrow(df))
+
+  for (tc in tier_cols) {
+    tier_val <- df[[tc]]
+    is_known <- !is.na(tier_val) & tier_val %in% names(tier_label_map)
+    update_mask <- is_known & result == "No Match"
+    if (any(update_mask)) {
+      result[update_mask] <- tier_label_map[tier_val[update_mask]]
+    }
+  }
+
+  result
+}
+
+# Vectorized Resolution column builder (replaces row-by-row sapply)
+derive_resolution_html <- function(df, row_indices) {
+  n <- nrow(df)
+  result <- character(n)
+  status <- as.character(df$consensus_status)
+  dtxsid <- df$consensus_dtxsid
+  pinned <- if (".pinned" %in% names(df)) df$.pinned else rep(FALSE, n)
+  pinned[is.na(pinned)] <- FALSE
+
+  pref_cols <- grep("^preferredName_", names(df), value = TRUE)
+  manual_pref <- if ("manual_preferredName" %in% names(df)) df$manual_preferredName else rep(NA_character_, n)
+
+  pref_name <- rep(NA_character_, n)
+  for (pc in pref_cols) {
+    needs_fill <- is.na(pref_name)
+    if (!any(needs_fill)) {
+      break
+    }
+    pref_name[needs_fill] <- df[[pc]][needs_fill]
+  }
+
+  # agree / agree_caveat / single
+  resolved <- status %in% c("agree", "agree_caveat", "single") & !is.na(dtxsid)
+  has_pref <- resolved & !is.na(pref_name)
+  result[has_pref] <- paste0(
+    "\u2705 ",
+    htmltools::htmlEscape(dtxsid[has_pref]),
+    " \u2014 ",
+    htmltools::htmlEscape(pref_name[has_pref])
+  )
+  result[resolved & !has_pref] <- paste0("\u2705 ", htmltools::htmlEscape(dtxsid[resolved & !has_pref]))
+
+  # manual
+  manual_mask <- status == "manual" & !is.na(dtxsid)
+  mpref <- manual_pref
+  mpref[is.na(mpref)] <- pref_name[is.na(mpref)]
+  manual_badge <- '<span class="badge bg-info ms-1" style="font-size:0.7em;">manual</span>'
+  has_mp <- manual_mask & !is.na(mpref)
+  result[has_mp] <- paste0(
+    "\u2705 ",
+    htmltools::htmlEscape(dtxsid[has_mp]),
+    " \u2014 ",
+    htmltools::htmlEscape(mpref[has_mp]),
+    " ",
+    manual_badge
+  )
+  result[manual_mask & !has_mp] <- paste0(
+    "\u2705 ",
+    htmltools::htmlEscape(dtxsid[manual_mask & !has_mp]),
+    " ",
+    manual_badge
+  )
+
+  # disagree + pinned
+  dp <- status == "disagree" & pinned
+  dp_dtx <- dp & !is.na(dtxsid)
+  dp_pref <- dp_dtx & !is.na(pref_name)
+  change_link <- function(idx) {
+    paste0(
+      ' <a href="#" class="change-resolution-link small text-primary" data-row="',
+      idx,
+      '" style="text-decoration:underline;cursor:pointer;">Change</a>'
+    )
+  }
+  result[dp_pref] <- paste0(
+    "\U0001F4CC ",
+    htmltools::htmlEscape(dtxsid[dp_pref]),
+    " \u2014 ",
+    htmltools::htmlEscape(pref_name[dp_pref]),
+    change_link(row_indices[dp_pref])
+  )
+  result[dp_dtx & !dp_pref] <- paste0(
+    "\U0001F4CC ",
+    htmltools::htmlEscape(dtxsid[dp_dtx & !dp_pref]),
+    change_link(row_indices[dp_dtx & !dp_pref])
+  )
+  result[dp & is.na(dtxsid)] <- paste0(
+    "\U0001F4CC (None selected)",
+    change_link(row_indices[dp & is.na(dtxsid)])
+  )
+
+  # disagree + not pinned
+  compare_mask <- status == "disagree" & !pinned
+  search_icon <- as.character(shiny::icon("search"))
+  result[compare_mask] <- paste0(
+    '<button class="compare-btn btn btn-sm btn-outline-primary" data-row="',
+    row_indices[compare_mask],
+    '">',
+    search_icon,
+    ' Compare</button>'
+  )
+
+  # unresolvable
+  result[status == "unresolvable"] <- "\u26A0\uFE0F Auto-curation failed"
+
+  result
+}
+
+# Build reverse lookup: original_idx -> group index (O(n) build, O(1) lookup)
+build_group_reverse_map <- function(dedup_group_map) {
+  if (is.null(dedup_group_map)) {
+    return(NULL)
+  }
+  reverse <- integer()
+  for (i in seq_along(dedup_group_map)) {
+    for (idx in dedup_group_map[[i]]) {
+      reverse[idx] <- i
+    }
+  }
+  reverse
+}
+
+# Look up all original row indices belonging to the same dedup group as `original_idx`
+get_group_rows <- function(original_idx, dedup_group_map) {
+  if (is.null(dedup_group_map)) {
+    return(original_idx)
+  }
+  reverse <- build_group_reverse_map(dedup_group_map)
+  grp_idx <- reverse[original_idx]
+  if (is.na(grp_idx)) {
+    return(original_idx)
+  }
+  dedup_group_map[[grp_idx]]
+}
+
 #' Review Results Module - UI
 #'
 #' @param id Module namespace ID
@@ -457,213 +609,124 @@ mod_review_results_server <- function(id, data_store) {
       }
     )
 
-    # Curation results table
+    # Curation results table (vectorized + deduplicated)
     output$curation_table <- reactable::renderReactable({
       req(data_store$resolution_state, data_store$dtxsid_cols)
 
       df <- data_store$resolution_state
       dtxsid_cols <- data_store$dtxsid_cols
-
-      # Ensure consensus_status is character for comparisons
       df$consensus_status <- as.character(df$consensus_status)
 
-      # Derive Match Type from source_tier columns
-      tier_label_map <- c(
-        "exact" = "Exact Match",
-        "cas" = "CAS Lookup",
-        "starts_with" = "Starts-With",
-        "miss" = "No Match",
-        "cas_no_match" = "No Match",
-        "cas_invalid" = "No Match"
-      )
-
-      df$match_type <- sapply(seq_len(nrow(df)), function(i) {
-        tier_cols <- grep("^source_tier_", names(df), value = TRUE)
-        if (length(tier_cols) == 0) {
-          return("Unknown")
-        }
-
-        if (!is.na(df$consensus_dtxsid[i])) {
-          for (tc in tier_cols) {
-            tier_val <- df[[tc]][i]
-            if (!is.na(tier_val) && tier_val %in% c("exact", "cas", "starts_with")) {
-              label <- tier_label_map[tier_val]
-              if (!is.na(label)) return(label)
-            }
-          }
-        }
-
-        all_tiers <- sapply(tier_cols, function(tc) df[[tc]][i])
-        all_tiers <- all_tiers[!is.na(all_tiers)]
-        if (length(all_tiers) == 0) {
-          return("No Match")
-        }
-
-        for (tv in all_tiers) {
-          if (tv %in% c("exact", "cas", "starts_with")) {
-            return(tier_label_map[tv])
-          }
-        }
-        return("No Match")
-      })
-
-      # Position match_type after consensus columns
+      # Vectorized match_type (replaces O(n*m) sapply)
+      df$match_type <- derive_match_type(df)
       df <- dplyr::relocate(df, match_type, .after = consensus_status)
 
-      # Add QC flag column if QC results are available
+      # QC flag column
       if (!is.null(data_store$qc_results) && length(data_store$qc_results$row_indices) > 0) {
         df$qc_flag <- NA_character_
         df$qc_flag[data_store$qc_results$row_indices] <- "WARN: non-ASCII"
         df <- dplyr::relocate(df, qc_flag, .after = match_type)
       }
 
-      # Build Resolution column with enhanced context
-      df$Resolution <- sapply(seq_len(nrow(df)), function(i) {
-        status <- df$consensus_status[i]
-
-        if (status %in% c("agree", "agree_caveat", "single")) {
-          dtxsid <- df$consensus_dtxsid[i]
-          if (!is.na(dtxsid)) {
-            pref_cols <- grep("^preferredName_", names(df), value = TRUE)
-            pref_name <- NA_character_
-            for (pc in pref_cols) {
-              if (!is.na(df[[pc]][i])) {
-                pref_name <- df[[pc]][i]
-                break
-              }
-            }
-            if (!is.na(pref_name)) {
-              paste0("\u2705 ", htmltools::htmlEscape(dtxsid), " \u2014 ", htmltools::htmlEscape(pref_name))
-            } else {
-              paste0("\u2705 ", htmltools::htmlEscape(dtxsid))
-            }
-          } else {
-            ""
-          }
-        } else if (status == "disagree") {
-          if (isTRUE(df$.pinned[i])) {
-            dtxsid <- df$consensus_dtxsid[i]
-            base_display <- if (!is.na(dtxsid)) {
-              pref_cols <- grep("^preferredName_", names(df), value = TRUE)
-              pref_name <- NA_character_
-              for (pc in pref_cols) {
-                if (!is.na(df[[pc]][i])) {
-                  pref_name <- df[[pc]][i]
-                  break
-                }
-              }
-              if (!is.na(pref_name)) {
-                paste0("\U0001F4CC ", htmltools::htmlEscape(dtxsid), " \u2014 ", htmltools::htmlEscape(pref_name))
-              } else {
-                paste0("\U0001F4CC ", htmltools::htmlEscape(dtxsid))
-              }
-            } else {
-              paste0("\U0001F4CC (None selected)")
-            }
-            paste0(
-              base_display,
-              ' <a href="#" class="change-resolution-link small text-primary" data-row="',
-              i,
-              '" style="text-decoration:underline;cursor:pointer;">Change</a>'
-            )
-          } else {
-            search_icon <- as.character(shiny::icon("search"))
-            paste0(
-              '<button class="compare-btn btn btn-sm btn-outline-primary" data-row="',
-              i,
-              '">',
-              search_icon,
-              ' Compare',
-              '</button>'
-            )
-          }
-        } else if (status == "manual") {
-          dtxsid <- df$consensus_dtxsid[i]
-          pref_name <- if ("manual_preferredName" %in% names(df)) df$manual_preferredName[i] else NA_character_
-          if (is.na(pref_name)) {
-            pref_cols <- grep("^preferredName_", names(df), value = TRUE)
-            for (pc in pref_cols) {
-              if (!is.na(df[[pc]][i])) {
-                pref_name <- df[[pc]][i]
-                break
-              }
-            }
-          }
-          manual_badge <- '<span class="badge bg-info ms-1" style="font-size:0.7em;">manual</span>'
-          if (!is.na(dtxsid) && !is.na(pref_name)) {
-            paste0(
-              "\u2705 ",
-              htmltools::htmlEscape(dtxsid),
-              " \u2014 ",
-              htmltools::htmlEscape(pref_name),
-              " ",
-              manual_badge
-            )
-          } else if (!is.na(dtxsid)) {
-            paste0("\u2705 ", htmltools::htmlEscape(dtxsid), " ", manual_badge)
-          } else {
-            ""
-          }
-        } else if (status == "unresolvable") {
-          "\u26A0\uFE0F Auto-curation failed"
-        } else {
-          ""
-        }
-      })
-
-      # Apply error filter if active
-      display_indices <- seq_len(nrow(df))
+      # Error filter
       if (isTRUE(data_store$error_filter_active)) {
-        display_indices <- which(df$consensus_status %in% c("error", "unresolvable"))
-        df_display <- df[display_indices, , drop = FALSE]
+        filter_mask <- df$consensus_status %in% c("error", "unresolvable")
+        df <- df[filter_mask, , drop = FALSE]
+        original_indices <- which(filter_mask)
       } else {
-        df_display <- df
+        original_indices <- seq_len(nrow(df))
       }
-      data_store$display_row_map <- display_indices
 
-      # --- Three-tier column visibility ---
+      # --- Deduplication ---
+      name_cols <- names(data_store$column_tags)[data_store$column_tags == "Name"]
+      cas_cols <- names(data_store$column_tags)[data_store$column_tags == "CASRN"]
+      group_cols <- intersect(
+        c(name_cols, cas_cols, "consensus_dtxsid", "consensus_status", "match_type"),
+        names(df)
+      )
 
-      # Tier 1: Always hidden
+      if (length(group_cols) > 0 && nrow(df) > 0) {
+        group_key <- do.call(
+          paste,
+          c(
+            lapply(group_cols, function(col) {
+              v <- df[[col]]
+              ifelse(is.na(v), "\x02NA\x02", as.character(v))
+            }),
+            sep = "\x1F"
+          )
+        )
+
+        first_idx <- which(!duplicated(group_key))
+        dedup_keys <- group_key[first_idx]
+        key_counts <- tabulate(match(group_key, dedup_keys))
+
+        group_split <- split(original_indices, match(group_key, dedup_keys))
+        data_store$dedup_group_map <- group_split
+        rep_indices <- original_indices[first_idx]
+        data_store$display_row_map <- rep_indices
+
+        df_display <- df[first_idx, , drop = FALSE]
+        df_display$n_rows <- key_counts
+      } else {
+        data_store$dedup_group_map <- as.list(original_indices)
+        data_store$display_row_map <- original_indices
+        rep_indices <- original_indices
+        df_display <- df
+        df_display$n_rows <- rep(1L, nrow(df))
+      }
+
+      # Vectorized Resolution column
+      df_display$Resolution <- derive_resolution_html(df_display, rep_indices)
+
+      # --- Column visibility ---
       always_hidden <- c(
         dtxsid_cols,
-        grep("^preferredName_", names(df), value = TRUE),
-        grep("^searchName_", names(df), value = TRUE),
-        grep("^rank_", names(df), value = TRUE),
-        grep("^source_tier_", names(df), value = TRUE),
+        grep("^preferredName_", names(df_display), value = TRUE),
+        grep("^searchName_", names(df_display), value = TRUE),
+        grep("^rank_", names(df_display), value = TRUE),
+        grep("^source_tier_", names(df_display), value = TRUE),
         ".pinned",
         ".manual_entry",
         "manual_preferredName"
       )
+      always_hidden_set <- unique(always_hidden)
 
-      # Tier 2: Untagged original columns (toggleable)
       tagged_col_names <- names(data_store$column_tags)
       all_original_cols <- names(data_store$clean)
       untagged_cols <- setdiff(
-        all_original_cols[all_original_cols %in% names(df)],
+        all_original_cols[all_original_cols %in% names(df_display)],
         tagged_col_names
       )
-
-      # Get currently visible extra columns from checkbox
       visible_extra <- input$visible_cols
 
-      # Build column definitions
       col_defs <- list()
-
       for (col_name in names(df_display)) {
-        # Tier 1: Always hidden
-        if (col_name %in% always_hidden) {
+        if (col_name %in% always_hidden_set) {
           col_defs[[col_name]] <- reactable::colDef(show = FALSE)
-          next
-        }
-
-        # Tier 2: Untagged - hidden unless toggled on
-        if (col_name %in% untagged_cols && !(col_name %in% visible_extra)) {
+        } else if (col_name %in% untagged_cols && !(col_name %in% visible_extra)) {
           col_defs[[col_name]] <- reactable::colDef(show = FALSE)
-          next
         }
       }
 
-      # Helper: build a select dropdown filter for a categorical column
+      # Count badge column
+      col_defs[["n_rows"]] <- reactable::colDef(
+        name = "Rows",
+        minWidth = 60,
+        cell = function(value, index) {
+          if (value == 1L) {
+            htmltools::span(as.character(value))
+          } else {
+            htmltools::span(
+              class = "badge bg-secondary",
+              style = "font-size:0.85em;",
+              paste0("\u00D7", value)
+            )
+          }
+        }
+      )
+
+      # Dropdown filter helper
       table_id <- session$ns("curation_table")
       make_select_filter <- function(choices, col_name) {
         function(values, name) {
@@ -760,7 +823,7 @@ mod_review_results_server <- function(id, data_store) {
         )
       }
 
-      # Dropdown filter: qc_flag (if present)
+      # Dropdown filter: qc_flag
       if ("qc_flag" %in% names(df_display)) {
         qc_levels <- na.omit(unique(df_display$qc_flag))
         if (length(qc_levels) > 0) {
@@ -793,19 +856,14 @@ mod_review_results_server <- function(id, data_store) {
       }
 
       # Resolution: HTML content
-      if ("Resolution" %in% names(df_display)) {
-        col_defs[["Resolution"]] <- reactable::colDef(
-          html = TRUE,
-          minWidth = 250
-        )
-      }
+      col_defs[["Resolution"]] <- reactable::colDef(html = TRUE, minWidth = 250)
 
       # consensus_dtxsid: inline editable for error/unresolvable rows
       if ("consensus_dtxsid" %in% names(df_display)) {
         col_defs[["consensus_dtxsid"]] <- reactable::colDef(
           cell = function(value, index) {
             status <- as.character(df_display$consensus_status[index])
-            original_idx <- display_indices[index]
+            original_idx <- rep_indices[index]
             if (status %in% c("error", "unresolvable")) {
               htmltools::tags$input(
                 type = "text",
@@ -822,9 +880,8 @@ mod_review_results_server <- function(id, data_store) {
         )
       }
 
-      # Row style function (consensus_status colors + QC flag highlighting)
+      # Row style
       has_qc_flag <- "qc_flag" %in% names(df_display)
-
       row_bg_colors <- c(
         "agree" = "rgba(40, 167, 69, 0.08)",
         "agree_caveat" = "rgba(40, 167, 69, 0.05)",
@@ -836,7 +893,6 @@ mod_review_results_server <- function(id, data_store) {
       )
 
       row_style_fn <- function(index) {
-        # QC flag takes precedence
         if (has_qc_flag) {
           qc_val <- df_display$qc_flag[index]
           if (!is.na(qc_val) && qc_val == "WARN: non-ASCII") {
@@ -845,16 +901,10 @@ mod_review_results_server <- function(id, data_store) {
         }
         status <- as.character(df_display$consensus_status[index])
         bg <- row_bg_colors[status]
-        if (!is.null(bg) && !is.na(bg)) {
-          list(backgroundColor = bg)
-        } else {
-          NULL
-        }
+        if (!is.null(bg) && !is.na(bg)) list(backgroundColor = bg) else NULL
       }
 
-      # Selection mode
       selection_mode <- if (isTRUE(data_store$error_filter_active)) "multiple" else NULL
-
       page_size <- as.integer(input$page_size %||% 25)
 
       reactable::reactable(
@@ -958,22 +1008,19 @@ mod_review_results_server <- function(id, data_store) {
     # Handle inline cell editing for manual DTXSID entry
     observeEvent(input$dtxsid_manual_edit, {
       info <- input$dtxsid_manual_edit
-      row_idx <- info$row # Already mapped to original index via data-row attribute
+      row_idx <- info$row
       new_value <- trimws(as.character(info$value))
 
-      # Ignore empty values
       if (new_value == "") {
         return()
       }
 
-      # Only allow edits on error/unresolvable rows
       current_status <- as.character(isolate(data_store$resolution_state)$consensus_status[row_idx])
       if (!current_status %in% c("error", "unresolvable")) {
         showNotification("Only error/unresolvable rows can be manually edited", type = "warning")
         return()
       }
 
-      # Basic DTXSID format validation
       if (!grepl("^DTXSID\\d+$", new_value, ignore.case = TRUE)) {
         showNotification(
           paste0("Invalid format: ", new_value, ". Expected: DTXSIDxxxxxxx"),
@@ -983,11 +1030,18 @@ mod_review_results_server <- function(id, data_store) {
         return()
       }
 
-      # Queue for bulk validation only.
-      # resolution_state gets updated when "Validate All" is clicked.
-      data_store$manual_queue[[as.character(row_idx)]] <- new_value
+      group_rows <- get_group_rows(row_idx, isolate(data_store$dedup_group_map))
+      for (r in group_rows) {
+        data_store$manual_queue[[as.character(r)]] <- new_value
+      }
 
-      showNotification(paste0("Row ", row_idx, " queued for validation"), type = "message", duration = 2)
+      n_grp <- length(group_rows)
+      msg <- if (n_grp > 1) {
+        sprintf("%d rows queued for validation", n_grp)
+      } else {
+        paste0("Row ", row_idx, " queued for validation")
+      }
+      showNotification(msg, type = "message", duration = 2)
     })
 
     # Toggle Validate All button visibility based on queue length
@@ -1007,48 +1061,41 @@ mod_review_results_server <- function(id, data_store) {
       choice <- input$resolve_row_choice
       row_idx <- choice$row
       chosen_column <- choice$column
+      group_rows <- get_group_rows(row_idx, isolate(data_store$dedup_group_map))
 
       tryCatch(
         {
           if (chosen_column == "__none__") {
-            # "None" selected: pin the row without setting a DTXSID
             updated_df <- data_store$resolution_state
             updated_df <- init_resolution_state(updated_df)
-            updated_df$.pinned[row_idx] <- TRUE
-            # Leave consensus_dtxsid as-is (NA)
+            updated_df$.pinned[group_rows] <- TRUE
             data_store$resolution_state <- updated_df
 
             showNotification(
-              paste0("Row ", row_idx, " marked as skipped (None)"),
+              sprintf("%d row(s) marked as skipped (None)", length(group_rows)),
               type = "message"
             )
           } else {
-            # Normal resolution: call resolve_row function
-            updated_df <- resolve_row(
-              data_store$resolution_state,
-              row_idx,
-              chosen_column,
-              data_store$dtxsid_cols
-            )
-
-            # Update state
+            updated_df <- data_store$resolution_state
+            for (r in group_rows) {
+              updated_df <- resolve_row(updated_df, r, chosen_column, data_store$dtxsid_cols)
+            }
             data_store$resolution_state <- updated_df
 
             showNotification(
-              paste0("Row ", row_idx, " resolved using ", sub("^dtxsid_", "", chosen_column)),
+              sprintf(
+                "%d row(s) resolved using %s",
+                length(group_rows),
+                sub("^dtxsid_", "", chosen_column)
+              ),
               type = "message"
             )
           }
 
-          # Recalculate consensus summary
-          updated_df <- data_store$resolution_state
-          data_store$consensus_summary <- recalc_consensus_summary(updated_df)
+          data_store$consensus_summary <- recalc_consensus_summary(data_store$resolution_state)
         },
         error = function(e) {
-          showNotification(
-            paste0("Error resolving row: ", e$message),
-            type = "error"
-          )
+          showNotification(paste0("Error resolving row: ", e$message), type = "error")
         }
       )
     })
@@ -1058,14 +1105,6 @@ mod_review_results_server <- function(id, data_store) {
       req(data_store$resolution_state, data_store$dtxsid_cols)
 
       row_idx <- input$compare_row_click$row
-
-      # Map display row to original row if error filter is active
-      if (isTRUE(data_store$error_filter_active)) {
-        row_map <- data_store$display_row_map
-        if (!is.null(row_map) && row_idx <= length(row_map)) {
-          row_idx <- row_map[row_idx]
-        }
-      }
 
       # Get resolution options with enrichment metadata
       options <- get_resolution_options(
@@ -1197,7 +1236,6 @@ mod_review_results_server <- function(id, data_store) {
         return()
       }
 
-      # Get options to find preferredName for notification
       options <- get_resolution_options(
         data_store$resolution_state,
         row_idx,
@@ -1205,31 +1243,24 @@ mod_review_results_server <- function(id, data_store) {
         enrichment_cache = data_store$enrichment_cache
       )
 
-      # Resolve the row
-      updated_df <- resolve_row(
-        data_store$resolution_state,
-        row_idx,
-        chosen_column,
-        data_store$dtxsid_cols
-      )
-
+      group_rows <- get_group_rows(row_idx, isolate(data_store$dedup_group_map))
+      updated_df <- data_store$resolution_state
+      for (r in group_rows) {
+        updated_df <- resolve_row(updated_df, r, chosen_column, data_store$dtxsid_cols)
+      }
       data_store$resolution_state <- updated_df
-
-      # Recalculate consensus summary
       data_store$consensus_summary <- recalc_consensus_summary(updated_df)
 
-      # Build notification with DTXSID and preferredName
       opt <- options[[chosen_column]]
       notification_msg <- if (!is.na(opt$preferredName)) {
-        paste0("Resolved: ", opt$dtxsid, " - ", opt$preferredName)
+        sprintf("Resolved %d row(s): %s - %s", length(group_rows), opt$dtxsid, opt$preferredName)
       } else {
-        paste0("Resolved: ", opt$dtxsid)
+        sprintf("Resolved %d row(s): %s", length(group_rows), opt$dtxsid)
       }
 
       removeModal()
       showNotification(notification_msg, type = "message")
 
-      # Clear modal state
       data_store$modal_row_idx <- NULL
       data_store$modal_selected_column <- NULL
     })
@@ -1237,24 +1268,23 @@ mod_review_results_server <- function(id, data_store) {
     # Handle modal skip
     observeEvent(input$modal_skip, {
       row_idx <- data_store$modal_row_idx
-
       if (is.null(row_idx)) {
         return()
       }
 
-      # Pin without DTXSID (same as "__none__" logic)
+      group_rows <- get_group_rows(row_idx, isolate(data_store$dedup_group_map))
       updated_df <- data_store$resolution_state
       updated_df <- init_resolution_state(updated_df)
-      updated_df$.pinned[row_idx] <- TRUE
+      updated_df$.pinned[group_rows] <- TRUE
       data_store$resolution_state <- updated_df
-
-      # Recalculate consensus summary
       data_store$consensus_summary <- recalc_consensus_summary(updated_df)
 
       removeModal()
-      showNotification(paste0("Row ", row_idx, " marked as skipped"), type = "message")
+      showNotification(
+        sprintf("%d row(s) marked as skipped", length(group_rows)),
+        type = "message"
+      )
 
-      # Clear modal state
       data_store$modal_row_idx <- NULL
       data_store$modal_selected_column <- NULL
     })
@@ -1489,8 +1519,10 @@ mod_review_results_server <- function(id, data_store) {
     observe({
       selected <- reactable::getReactableState("curation_table", "selected")
       if (!is.null(selected) && length(selected) > 0 && isTRUE(data_store$error_filter_active)) {
-        # Map filtered indices back to original indices
-        data_store$selected_error_rows <- data_store$display_row_map[selected]
+        rep_rows <- data_store$display_row_map[selected]
+        grp_map <- data_store$dedup_group_map
+        all_rows <- unique(unlist(lapply(rep_rows, get_group_rows, dedup_group_map = grp_map)))
+        data_store$selected_error_rows <- all_rows
         shinyjs::show("retag_selected")
       } else {
         data_store$selected_error_rows <- NULL
