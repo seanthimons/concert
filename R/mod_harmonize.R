@@ -71,15 +71,6 @@ mod_harmonize_ui <- function(id) {
     conditionalPanel(
       condition = paste0("output['", ns("has_numeric_tags"), "']"),
 
-      shinyjs::disabled(
-        actionButton(
-          ns("run_harmonization"),
-          "Run Harmonization",
-          class = "btn-success btn-lg mt-3 mb-3",
-          icon = icon("play")
-        )
-      ),
-
       # QC value boxes render after pipeline completes
       uiOutput(ns("qc_dashboard")),
 
@@ -160,18 +151,6 @@ mod_harmonize_server <- function(id, data_store) {
     })
     outputOptions(output, "has_numeric_tags", suspendWhenHidden = FALSE)
 
-    # --- Button enable/disable based on numeric_tags --------------------------
-
-    observe({
-      has_numeric <- !is.null(data_store$numeric_tags) && length(data_store$numeric_tags) > 0
-      has_study <- !is.null(data_store$study_type_tags) && length(data_store$study_type_tags) > 0
-      if (has_numeric || has_study) {
-        shinyjs::enable("run_harmonization")
-      } else {
-        shinyjs::disable("run_harmonization")
-      }
-    })
-
     # --- Working-copy initialization (one-shot) -------------------------------
     # unit_map_working and corrections_working are session-local editable copies.
     # Initialized from data_store$reference_lists on first observation when they
@@ -214,6 +193,12 @@ mod_harmonize_server <- function(id, data_store) {
 
     observeEvent(input$run_harmonization, {
       req(data_store$clean)
+      # Read step mask from pre-flight modal (set by mod_clean_data.R run_all/run_checked)
+      h_mask <- data_store$harmonize_step_mask
+      if (is.null(h_mask)) {
+        h_mask <- list(units = TRUE, duration = TRUE, dates = TRUE, media = TRUE)
+      }
+
       # Allow run when either numeric or study-type tags are present
       has_numeric <- !is.null(data_store$numeric_tags) && length(data_store$numeric_tags) > 0
       has_study <- !is.null(data_store$study_type_tags) && length(data_store$study_type_tags) > 0
@@ -355,7 +340,7 @@ mod_harmonize_server <- function(id, data_store) {
               data_store$media_results <- NULL
               media_for_harmonize <- NULL
 
-              if (length(media_cols_pre) > 0) {
+              if (h_mask$media && length(media_cols_pre) > 0) {
                 media_tibble <- tryCatch(
                   harmonize_media(
                     raw_media = as.character(input_df[[media_cols_pre[1]]]),
@@ -407,9 +392,9 @@ mod_harmonize_server <- function(id, data_store) {
                 incProgress(0.30, detail = "Parsing numeric results...")
                 parse_tibble <- parse_numeric_results(corrected_values)
 
-                # Stage 3: Harmonize units (if a Unit column is tagged)
+                # Stage 3: Harmonize units (if a Unit column is tagged and mask allows)
                 incProgress(0.15, detail = "Harmonizing units...")
-                if (length(unit_cols) > 0) {
+                if (h_mask$units && length(unit_cols) > 0) {
                   unit_values <- as.character(input_df[[unit_cols[1]]])
                   # Ranges expand rows -- re-broadcast unit via orig_row_id
                   if (nrow(parse_tibble) > length(unit_values)) {
@@ -485,7 +470,7 @@ mod_harmonize_server <- function(id, data_store) {
               duration_unit_cols <- names(numeric_tags_vec)[numeric_tags_vec == "DurationUnit"]
               data_store$duration_results <- NULL
 
-              if (length(duration_cols) > 0 && length(duration_unit_cols) > 0) {
+              if (h_mask$duration && length(duration_cols) > 0 && length(duration_unit_cols) > 0) {
                 dur_tibble <- harmonize_units(
                   values = as.numeric(input_df[[duration_cols[1]]]),
                   units = as.character(input_df[[duration_unit_cols[1]]]),
@@ -510,7 +495,7 @@ mod_harmonize_server <- function(id, data_store) {
               }
               data_store$date_results <- NULL
 
-              if (length(date_cols) > 0) {
+              if (h_mask$dates && length(date_cols) > 0) {
                 date_tibble <- tryCatch(
                   parse_dates(
                     raw_dates = as.character(input_df[[date_cols[1]]]),
