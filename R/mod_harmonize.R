@@ -1338,7 +1338,7 @@ mod_harmonize_server <- function(id, data_store) {
                  var classes = %s;
                  if (classes[index]) $(row).addClass(classes[index]);
                }",
-              jsonlite::toJSON(row_classes)
+              jsonlite::toJSON(unname(row_classes))
             ))
           ),
           callback = DT::JS(sprintf(
@@ -1587,7 +1587,7 @@ mod_harmonize_server <- function(id, data_store) {
               onclick = sprintf(
                 "Shiny.setInputValue('%s', {unit: %s, ts: Date.now()});",
                 ns("add_unmatched_mapping"),
-                jsonlite::toJSON(u$orig_unit, auto_unbox = TRUE)
+                jsonlite::toJSON(unname(u$orig_unit), auto_unbox = TRUE)
               )
             )
           )
