@@ -78,7 +78,7 @@
 - [x] **Phase 39: Duration Conversion** -- DUR-01, DUR-02, DUR-03, DUR-04, DUR-05 (completed 2026-04-27)
 - [x] **Phase 40: Date Parser** -- DATE-01, DATE-02, DATE-03, DATE-04, DATE-05, DATE-06 (completed 2026-04-27)
 - [x] **Phase 41: Media Harmonizer & AMOS Pipeline** -- MEDIA-01, MEDIA-02, MEDIA-03, MEDIA-04, MEDIA-05, MEDIA-06, AMOS-01, AMOS-02, AMOS-03 (gap closure) (completed 2026-04-27)
-- [x] **Phase 42: Integration & Shiny Polish** -- RECO-01, RECO-02, MEDIT-01, MEDIT-02, MEDIT-03 (completed 2026-04-28)
+- [ ] **Phase 42: Integration & Shiny Polish** -- RECO-01, RECO-02, MEDIT-01, MEDIT-02, MEDIT-03 (gap closure)
 
 ## Phase Details
 
@@ -166,11 +166,13 @@ Plans:
   2. The user can choose to run only the steps that will fire (subset run) or all steps (full run) from the pre-flight modal
   3. The Harmonize tab contains an editable media classification table with term, canonical, source, and active columns; user edits persist across sessions via RDS and trigger a pipeline re-run cascade
   4. Media strings that did not match any canonical term are surfaced in the editor as unmatched rows, allowing the user to assign canonical values that are immediately available for the next run
-**Plans:** 3/3 plans complete
+**Plans:** 5 plans (3 complete + 2 gap closure)
 Plans:
 - [x] 42-01-PLAN.md -- Backend infrastructure: harmonization pre-checks, media map persistence, harmonize_media() API extension
 - [x] 42-02-PLAN.md -- Media classification editor UI in Harmonize tab with DT table, modals, RDS persistence
 - [x] 42-03-PLAN.md -- Pre-flight modal with unified Run Pipeline button and step-mask execution
+- [ ] 42-04-PLAN.md -- Gap closure: fix DT row click, add-mapping button, unmatched guidance, stale wording, hidden harmonize button
+- [ ] 42-05-PLAN.md -- Gap closure: pre-flight progress indicator and post-pipeline completion summary
 
 ## Progress
 
@@ -200,4 +202,4 @@ Plans:
 | 39. Duration Conversion | v2.0 | 2/2 | Complete    | 2026-04-27 |
 | 40. Date Parser | v2.0 | 3/3 | Complete    | 2026-04-27 |
 | 41. Media Harmonizer & AMOS Pipeline | v2.0 | 4/4 | Complete   | 2026-04-27 |
-| 42. Integration & Shiny Polish | v2.0 | 3/3 | Complete   | 2026-04-28 |
+| 42. Integration & Shiny Polish | v2.0 | 3/5 | Gap closure | 2026-04-28 |
