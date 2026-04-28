@@ -106,6 +106,12 @@ walk_parent <- function(norm_term, media_tbl) {
 #' @param orig_row_id Integer vector of row IDs corresponding to each element
 #'   of \code{raw_media}.  Defaults to \code{seq_along(raw_media)} for direct
 #'   column processing.
+#' @param media_map Optional tibble with columns term, canonical_term, envo_id,
+#'   media_category. When NULL (default), falls back to the bundled AMOS table
+#'   via get_media_table(). Pass a merged user+AMOS map from load_media_map()
+#'   to enable user-defined mappings (MEDIT-03, D-14). If the tibble uses
+#'   \code{canonical} instead of \code{canonical_term} (display schema),
+#'   the column is translated internally before lookup.
 #' @return A tibble with 6 columns:
 #'   \describe{
 #'     \item{orig_row_id}{Integer row position for join-by-position merge.}
@@ -121,7 +127,7 @@ walk_parent <- function(norm_term, media_tbl) {
 #'   }
 #' @importFrom tibble tibble
 #' @export
-harmonize_media <- function(raw_media, orig_row_id = seq_along(raw_media)) {
+harmonize_media <- function(raw_media, orig_row_id = seq_along(raw_media), media_map = NULL) {
   # Empty-input guard: return typed 0-row tibble (T-41-02 DoS mitigation)
   n <- length(raw_media)
   if (n == 0L) {
@@ -135,8 +141,36 @@ harmonize_media <- function(raw_media, orig_row_id = seq_along(raw_media)) {
     ))
   }
 
-  # Load vocabulary table; degrade to all-unmatched if unavailable
-  media_tbl <- get_media_table()
+  # Use passed-in map or fall back to bundled AMOS table (D-14 priority order)
+  media_tbl <- if (!is.null(media_map) && nrow(media_map) > 0) {
+    # Validate required column: term must be present
+    if (!"term" %in% names(media_map)) {
+      get_media_table()
+    } else if ("canonical_term" %in% names(media_map)) {
+      # Internal schema already present — use as-is
+      media_map
+    } else if ("canonical" %in% names(media_map)) {
+      # Translate display schema to internal schema (T-42-02 column validation)
+      mm <- media_map
+      mm$canonical_term <- mm$canonical
+      if (!"envo_id" %in% names(mm)) {
+        mm$envo_id <- NA_character_
+      }
+      if (!"media_category" %in% names(mm)) {
+        mm$media_category <- NA_character_
+      }
+      # walk_parent() requires a parent column; add NA-filled column if absent
+      if (!"parent" %in% names(mm)) {
+        mm$parent <- NA_character_
+      }
+      mm
+    } else {
+      get_media_table()
+    }
+  } else {
+    get_media_table()
+  }
+
   if (is.null(media_tbl) || nrow(media_tbl) == 0L) {
     return(tibble::tibble(
       orig_row_id = as.integer(orig_row_id),

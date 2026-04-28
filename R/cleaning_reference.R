@@ -58,9 +58,21 @@ load_stop_words <- function(cache_dir) {
   fetch_fn <- function() {
     tibble::tibble(
       term = c(
-        "test", "sample", "unknown", "blank", "standard", "control",
-        "reference", "placeholder", "tbd", "tba", "na", "n/a",
-        "none", "not available", "not applicable"
+        "test",
+        "sample",
+        "unknown",
+        "blank",
+        "standard",
+        "control",
+        "reference",
+        "placeholder",
+        "tbd",
+        "tba",
+        "na",
+        "n/a",
+        "none",
+        "not available",
+        "not applicable"
       ),
       source = "app_default",
       active = TRUE
@@ -92,13 +104,13 @@ load_block_patterns <- function(cache_dir) {
   fetch_fn <- function() {
     tibble::tibble(
       term = c(
-        "^\\s*$",             # Empty or whitespace-only
-        "^-+$",               # Only dashes
-        "^[.]+$",             # Only dots
-        "^proprietary",       # Proprietary (case-insensitive via grep flags)
-        "^confidential",      # Confidential
-        "^trade\\s*secret",   # Trade secret
-        "^not\\s+disclosed"   # Not disclosed
+        "^\\s*$", # Empty or whitespace-only
+        "^-+$", # Only dashes
+        "^[.]+$", # Only dots
+        "^proprietary", # Proprietary (case-insensitive via grep flags)
+        "^confidential", # Confidential
+        "^trade\\s*secret", # Trade secret
+        "^not\\s+disclosed" # Not disclosed
       ),
       source = "app_default",
       active = TRUE
@@ -189,8 +201,13 @@ load_strip_terms <- function(cache_dir) {
   fetch_fn <- function() {
     tibble::tibble(
       term = c(
-        "pure", "purified", "technical", "grade", "chemical",
-        "and its salts", "and its \\w+ salts",
+        "pure",
+        "purified",
+        "technical",
+        "grade",
+        "chemical",
+        "and its salts",
+        "and its \\w+ salts",
         "unspecified"
       ),
       source = "app_default",
@@ -243,8 +260,12 @@ load_isotope_lookup <- function(cache_dir) {
       warning("ComptoxR not available - isotope lookup will be empty")
       return(list(
         lookup = tibble::tibble(
-          symbol = character(), mass = character(), element_name = character(),
-          shortcode = character(), canonical = character(), dtxsid = character()
+          symbol = character(),
+          mass = character(),
+          element_name = character(),
+          shortcode = character(),
+          canonical = character(),
+          dtxsid = character()
         ),
         elem_alt_names = character()
       ))
@@ -391,13 +412,78 @@ load_toxval_schema <- function(cache_dir) {
   load_or_fetch_reference(cache_path, fetch_fn, "ToxVal schema")
 }
 
+#' Load merged media harmonization map (user edits + AMOS fallback)
+#'
+#' User rows (user_media_map.rds) take precedence for the same term.
+#' Falls back to amos_media.rds via get_media_table() for all other terms.
+#' Returns a display-schema tibble with columns for the media editor DT
+#' plus the additional columns harmonize_media() needs internally
+#' (canonical_term, envo_id, media_category) when passed as media_map parameter.
+#'
+#' On first run, if user_media_map.rds does not exist, the function returns
+#' the full AMOS table normalised to the merged schema. If get_media_table()
+#' also returns NULL (e.g., amos_media.rds not yet built), the function
+#' returns an empty tibble with the correct column types.
+#'
+#' @param cache_dir Directory for cache files (e.g., "inst/extdata/reference_cache")
+#' @return Tibble with columns: term, canonical, canonical_term, envo_id,
+#'   media_category, source, active
+#' @export
+load_media_map <- function(cache_dir) {
+  user_path <- file.path(cache_dir, "user_media_map.rds")
+  user_map <- if (file.exists(user_path)) readRDS(user_path) else NULL
+
+  amos_raw <- get_media_table()
+
+  amos_map <- if (!is.null(amos_raw) && nrow(amos_raw) > 0) {
+    tibble::tibble(
+      term = amos_raw$term,
+      canonical = amos_raw$canonical_term,
+      canonical_term = amos_raw$canonical_term,
+      envo_id = amos_raw$envo_id,
+      media_category = amos_raw$media_category,
+      source = "amos",
+      active = TRUE
+    )
+  } else {
+    tibble::tibble(
+      term = character(),
+      canonical = character(),
+      canonical_term = character(),
+      envo_id = character(),
+      media_category = character(),
+      source = character(),
+      active = logical()
+    )
+  }
+
+  if (!is.null(user_map) && nrow(user_map) > 0) {
+    # Backfill internal columns if user_map was saved with 4-col display schema
+    if (!"canonical_term" %in% names(user_map)) {
+      user_map$canonical_term <- user_map$canonical
+    }
+    if (!"envo_id" %in% names(user_map)) {
+      user_map$envo_id <- NA_character_
+    }
+    if (!"media_category" %in% names(user_map)) {
+      user_map$media_category <- NA_character_
+    }
+    amos_fallback <- amos_map[!amos_map$term %in% user_map$term, ]
+    dplyr::bind_rows(user_map, amos_fallback)
+  } else {
+    amos_map
+  }
+}
+
 #' Load all reference lists
 #'
 #' Convenience wrapper that loads stop words, block patterns, and functional
 #' categories in one call. Returns a named list.
 #'
 #' @param cache_dir Directory for cache files (e.g., "data/reference_cache")
-#' @return List with keys: stop_words, block_patterns, functional_categories, strip_terms, corrections, isotope_lookup, unit_map, unit_synonyms, toxval_schema
+#' @return List with keys: stop_words, block_patterns, functional_categories,
+#'   strip_terms, corrections, isotope_lookup, unit_map, unit_synonyms,
+#'   toxval_schema, media_map
 #'
 #' @examples
 #' refs <- load_all_reference_lists("data/reference_cache")
@@ -410,6 +496,7 @@ load_toxval_schema <- function(cache_dir) {
 #' refs$unit_map
 #' refs$unit_synonyms
 #' refs$toxval_schema
+#' refs$media_map
 #' @export
 load_all_reference_lists <- function(cache_dir) {
   list(
@@ -421,6 +508,7 @@ load_all_reference_lists <- function(cache_dir) {
     isotope_lookup = load_isotope_lookup(cache_dir),
     unit_map = load_unit_map(cache_dir),
     unit_synonyms = load_unit_synonyms(cache_dir),
-    toxval_schema = load_toxval_schema(cache_dir)
+    toxval_schema = load_toxval_schema(cache_dir),
+    media_map = load_media_map(cache_dir) # Phase 42: merged user + AMOS media map
   )
 }
