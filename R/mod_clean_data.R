@@ -12,16 +12,19 @@ mod_clean_data_ui <- function(id) {
 
   tagList(
     # Chip editor CSS
-    tags$style(HTML(sprintf("
+    tags$style(HTML(sprintf(
+      "
       .ref-chip { cursor: pointer; margin: 2px; display: inline-block; }
       .ref-chip:hover { opacity: 0.8; }
       .ref-chip-remove { cursor: pointer; margin-left: 4px; font-weight: bold; }
       .ref-chip-remove:hover { color: red; }
       .ref-chip-container { max-height: 200px; overflow-y: auto; padding: 6px; border: 1px solid #dee2e6; border-radius: 4px; background: #f8f9fa; }
       .ref-term-input { margin-top: 6px; }
-    "))),
+    "
+    ))),
     # Chip editor JS — delegated events
-    tags$script(HTML(sprintf("
+    tags$script(HTML(sprintf(
+      "
       $(document).on('click', '.ref-chip-body[data-ns=\"%s\"]', function() {
         var $chip = $(this);
         Shiny.setInputValue('%s', {
@@ -54,17 +57,26 @@ mod_clean_data_ui <- function(id) {
           }
         }
       });
-    ", ns(""), ns("chip_toggle"), ns(""), ns("chip_remove"), ns(""), ns("chip_add")))),
+    ",
+      ns(""),
+      ns("chip_toggle"),
+      ns(""),
+      ns("chip_remove"),
+      ns(""),
+      ns("chip_add")
+    ))),
 
     # Content when data is loaded
     conditionalPanel(
       condition = paste0("output['", ns("has_data"), "']"),
 
-      actionButton(
-        ns("run_cleaning"),
-        "Run Cleaning",
-        class = "btn-success btn-lg",
-        icon = icon("magic")
+      shinyjs::disabled(
+        actionButton(
+          ns("run_pipeline"),
+          "Run Pipeline",
+          class = "btn-success btn-lg mt-3 mb-3",
+          icon = icon("play")
+        )
       ),
 
       uiOutput(ns("cleaning_summary")),
@@ -108,7 +120,6 @@ mod_clean_data_ui <- function(id) {
 #' @export
 mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
   moduleServer(id, function(input, output, session) {
-
     # Initialize reference lists if not yet loaded
     observe({
       if (is.null(data_store$reference_lists)) {
@@ -126,17 +137,175 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
     })
     outputOptions(output, "has_data", suspendWhenHidden = FALSE)
 
-    # Run cleaning button
-    observeEvent(input$run_cleaning, {
+    # Enable/disable Run Pipeline button based on column tags
+    observe({
+      has_tags <- !is.null(data_store$column_tags) && has_required_chemical_tags(data_store$column_tags)
+      if (has_tags) shinyjs::enable("run_pipeline") else shinyjs::disable("run_pipeline")
+    })
+
+    # Pre-flight check state (shared between run_pipeline and open_preflight_anyway)
+    preflight_checks <- reactiveVal(NULL)
+
+    # Run Pipeline button -- collect pre-checks and show modal (or zero-change notification)
+    observeEvent(input$run_pipeline, {
       req(data_store$clean)
 
-      # Disable button during execution
-      shinyjs::disable("run_cleaning")
+      df <- data_store$clean
+      tag_map <- data_store$column_tags
+      name_cols <- names(tag_map)[tag_map == "Name"]
+      unit_cols <- names(tag_map)[tag_map == "Unit"]
 
-      # Run cleaning with progress tracking and error handling
+      # Extract study-type tags (NULL-safe)
+      if (!is.null(data_store$study_type_tags)) {
+        stv <- unlist(data_store$study_type_tags)
+        date_cols <- names(stv)[stv == "StudyDate"]
+        dur_cols <- names(stv)[stv == "Duration"]
+        dur_unit_cols <- names(stv)[stv == "DurationUnit"]
+        media_cols <- names(stv)[stv == "Media"]
+      } else {
+        date_cols <- character(0)
+        dur_cols <- character(0)
+        dur_unit_cols <- character(0)
+        media_cols <- character(0)
+      }
+
+      unit_map_ref <- data_store$unit_map_working %||% data_store$reference_lists$unit_map
+
+      checks <- list(
+        unicode = precheck_unicode_to_ascii(df),
+        whitespace = precheck_trim_whitespace(df),
+        cas = precheck_normalize_cas(df, tag_map),
+        names = precheck_name_cleaning(df, name_cols),
+        isotopes = precheck_isotope_shortcodes(df, name_cols, data_store$reference_lists$isotope_lookup),
+        multi = precheck_multi_analyte(df, name_cols),
+        chiral = precheck_chiral_restore(df, name_cols),
+        units = precheck_harmonize_units(df, unit_cols, unit_map_ref),
+        duration = precheck_harmonize_duration(df, dur_cols, dur_unit_cols, unit_map_ref),
+        dates = precheck_harmonize_dates(df, date_cols),
+        media = precheck_harmonize_media(df, media_cols, data_store$media_map_working)
+      )
+
+      preflight_checks(checks)
+
+      total_changes <- sum(vapply(checks, function(x) x$est_changes, integer(1)))
+
+      if (total_changes == 0L) {
+        showNotification(
+          tagList(
+            "Pre-flight: no steps have changes to apply.",
+            actionLink(session$ns("open_preflight_anyway"), "Open pre-flight modal", class = "alert-link ms-2")
+          ),
+          type = "message",
+          duration = 0
+        )
+        return()
+      }
+
+      showModal(modalDialog(
+        title = "Pre-flight Check",
+        size = "m",
+        easyClose = FALSE,
+        uiOutput(session$ns("preflight_checklist")),
+        footer = tagList(
+          modalButton("Cancel"),
+          actionButton(session$ns("run_all"), "Run All Steps", class = "btn-outline-secondary"),
+          actionButton(session$ns("run_checked"), "Run Checked Steps", class = "btn-primary")
+        )
+      ))
+    })
+
+    # "Open pre-flight modal" link from zero-change notification
+    observeEvent(input$open_preflight_anyway, {
+      checks <- preflight_checks()
+      req(checks)
+      showModal(modalDialog(
+        title = "Pre-flight Check",
+        size = "m",
+        easyClose = FALSE,
+        uiOutput(session$ns("preflight_checklist")),
+        footer = tagList(
+          modalButton("Cancel"),
+          actionButton(session$ns("run_all"), "Run All Steps", class = "btn-outline-secondary"),
+          actionButton(session$ns("run_checked"), "Run Checked Steps", class = "btn-primary")
+        )
+      ))
+    })
+
+    # Checklist renderUI
+    output$preflight_checklist <- renderUI({
+      checks <- preflight_checks()
+      req(checks)
+
+      make_row <- function(key, label, check) {
+        badge <- if (check$should_run && check$est_changes > 0) {
+          tags$span(class = "badge bg-secondary ms-2", sprintf("~%d changes", check$est_changes))
+        } else {
+          tags$span(class = "badge bg-light text-muted ms-2", "skip")
+        }
+        div(
+          class = "d-flex align-items-center py-2",
+          checkboxInput(
+            session$ns(paste0("step_", key)),
+            label = NULL,
+            value = check$should_run && check$est_changes > 0,
+            width = "auto"
+          ),
+          tags$span(class = "ms-2 flex-grow-1", label),
+          badge
+        )
+      }
+
+      cleaning_rows <- tagList(
+        make_row("unicode", "Unicode to ASCII", checks$unicode),
+        make_row("whitespace", "Trim Whitespace", checks$whitespace),
+        make_row("cas", "Normalize CAS", checks$cas),
+        make_row("names", "Name Cleaning", checks$names),
+        make_row("isotopes", "Isotope Shortcodes", checks$isotopes),
+        make_row("multi", "Multi-Analyte Detection", checks$multi),
+        make_row("chiral", "Chiral Restoration", checks$chiral)
+      )
+
+      harmonize_rows <- tagList(
+        make_row("units", "Unit Harmonization", checks$units),
+        make_row("duration", "Duration Conversion", checks$duration),
+        make_row("dates", "Date Parsing", checks$dates),
+        make_row("media", "Media Classification", checks$media)
+      )
+
+      bslib::accordion(
+        id = session$ns("preflight_accordion"),
+        open = TRUE,
+        multiple = TRUE,
+        bslib::accordion_panel(title = "Cleaning Steps", value = "cleaning", cleaning_rows),
+        bslib::accordion_panel(title = "Harmonization Steps", value = "harmonization", harmonize_rows)
+      )
+    })
+
+    # Helper: build step mask from checkboxes
+    build_mask_from_inputs <- function() {
+      list(
+        unicode = isTRUE(input$step_unicode),
+        whitespace = isTRUE(input$step_whitespace),
+        cas = isTRUE(input$step_cas),
+        names = isTRUE(input$step_names),
+        isotopes = isTRUE(input$step_isotopes),
+        multi = isTRUE(input$step_multi),
+        chiral = isTRUE(input$step_chiral),
+        units = isTRUE(input$step_units),
+        duration = isTRUE(input$step_duration),
+        dates = isTRUE(input$step_dates),
+        media = isTRUE(input$step_media)
+      )
+    }
+
+    # Shared pipeline execution function (called by run_all and run_checked)
+    execute_pipeline <- function(mask) {
+      removeModal()
+      shinyjs::disable("run_pipeline")
+
       tryCatch(
         {
-          withProgress(message = "Cleaning data...", value = 0, {
+          withProgress(message = "Running pipeline...", value = 0, {
             df <- data_store$clean
             tag_map <- data_store$column_tags
             all_audits <- list()
@@ -144,22 +313,44 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
             incProgress(0.04, detail = "Adding row lineage...")
             df <- inject_row_lineage(df)
 
-            incProgress(0.08, detail = "Converting unicode to ASCII...")
-            df_before <- df
-            df <- dplyr::mutate(df, dplyr::across(where(is.character), ComptoxR::clean_unicode))
-            all_audits[[length(all_audits) + 1]] <- build_audit_trail(df_before, df, "unicode_to_ascii", function(f) paste0("Unicode to ASCII in ", f))
+            # Unicode to ASCII
+            if (mask$unicode) {
+              incProgress(0.08, detail = "Converting unicode to ASCII...")
+              df_before <- df
+              df <- dplyr::mutate(df, dplyr::across(where(is.character), ComptoxR::clean_unicode))
+              all_audits[[length(all_audits) + 1]] <- build_audit_trail(df_before, df, "unicode_to_ascii", function(f) {
+                paste0("Unicode to ASCII in ", f)
+              })
+            } else {
+              incProgress(0.08)
+            }
 
-            incProgress(0.08, detail = "Trimming whitespace...")
-            df_before <- df
-            df <- dplyr::mutate(df, dplyr::across(where(is.character), clean_text_field))
-            all_audits[[length(all_audits) + 1]] <- build_audit_trail(df_before, df, "trim_whitespace_punctuation", function(f) paste0("Trim in ", f))
+            # Trim whitespace
+            if (mask$whitespace) {
+              incProgress(0.08, detail = "Trimming whitespace...")
+              df_before <- df
+              df <- dplyr::mutate(df, dplyr::across(where(is.character), clean_text_field))
+              all_audits[[length(all_audits) + 1]] <- build_audit_trail(
+                df_before,
+                df,
+                "trim_whitespace_punctuation",
+                function(f) paste0("Trim in ", f)
+              )
+            } else {
+              incProgress(0.08)
+            }
 
             new_tags <- list()
             if (!is.null(tag_map) && length(tag_map) > 0) {
-              incProgress(0.12, detail = "Normalizing CAS-RNs...")
-              cas_result <- normalize_cas_fields(df, tag_map)
-              df <- cas_result$cleaned_data
-              all_audits[[length(all_audits) + 1]] <- cas_result$audit_trail
+              # Normalize CAS
+              if (mask$cas) {
+                incProgress(0.12, detail = "Normalizing CAS-RNs...")
+                cas_result <- normalize_cas_fields(df, tag_map)
+                df <- cas_result$cleaned_data
+                all_audits[[length(all_audits) + 1]] <- cas_result$audit_trail
+              } else {
+                incProgress(0.12)
+              }
 
               incProgress(0.12, detail = "Rescuing CAS from names...")
               rescue_result <- rescue_cas_from_text(df, tag_map)
@@ -171,10 +362,10 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
               updated_tag_map <- c(tag_map, new_tags)
               df <- detect_multi_cas(df, updated_tag_map)
 
-              # Name cleaning steps (if Name columns present)
+              # Name cleaning steps
               name_cols <- names(tag_map)[tag_map == "Name"]
 
-              if (length(name_cols) > 0) {
+              if (length(name_cols) > 0 && mask$names) {
                 incProgress(0.04, detail = "Protecting chiral designations...")
                 chiral_result <- protect_chiral_designations(df, name_cols)
                 df <- chiral_result$cleaned_data
@@ -213,14 +404,17 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
 
                 # Cleanup before second enclosure stripping
                 df <- df %>%
-                  dplyr::mutate(dplyr::across(dplyr::all_of(name_cols), ~ {
-                    .x %>%
-                      stringr::str_squish() %>%
-                      stringr::str_remove("\\(\\s*\\)\\s*$") %>%
-                      stringr::str_trim() %>%
-                      stringr::str_remove("[,;-]+$") %>%
-                      stringr::str_trim()
-                  }))
+                  dplyr::mutate(dplyr::across(
+                    dplyr::all_of(name_cols),
+                    ~ {
+                      .x %>%
+                        stringr::str_squish() %>%
+                        stringr::str_remove("\\(\\s*\\)\\s*$") %>%
+                        stringr::str_trim() %>%
+                        stringr::str_remove("[,;-]+$") %>%
+                        stringr::str_trim()
+                    }
+                  ))
 
                 # Second pass enclosure stripping
                 enclosure_result2 <- strip_terminal_enclosures(df, name_cols)
@@ -234,12 +428,15 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
 
                 # Final cleanup
                 df <- df %>%
-                  dplyr::mutate(dplyr::across(dplyr::all_of(name_cols), ~ {
-                    .x %>%
-                      stringr::str_squish() %>%
-                      stringr::str_remove_all("\\(\\s*\\)") %>%
-                      stringr::str_trim()
-                  }))
+                  dplyr::mutate(dplyr::across(
+                    dplyr::all_of(name_cols),
+                    ~ {
+                      .x %>%
+                        stringr::str_squish() %>%
+                        stringr::str_remove_all("\\(\\s*\\)") %>%
+                        stringr::str_trim()
+                    }
+                  ))
 
                 # Remove rows where all name columns are empty or NA
                 name_check <- df[, name_cols, drop = FALSE]
@@ -247,33 +444,51 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
                   all(is.na(row) | row == "")
                 })
                 df <- df[!all_empty, ]
+              } else if (length(name_cols) > 0) {
+                incProgress(0.42)
+              }
 
+              # Isotope shortcodes
+              if (length(name_cols) > 0 && mask$isotopes) {
                 incProgress(0.04, detail = "Expanding isotope shortcodes...")
                 isotope_result <- expand_isotope_shortcodes(df, name_cols, data_store$reference_lists$isotope_lookup)
                 df <- isotope_result$cleaned_data
                 all_audits[[length(all_audits) + 1]] <- isotope_result$audit_trail
+              } else {
+                incProgress(0.04)
+              }
 
+              # Multi-analyte flagging
+              if (length(name_cols) > 0 && mask$multi) {
                 incProgress(0.04, detail = "Flagging multi-analyte expressions...")
                 multi_result <- flag_multi_analyte(df, name_cols)
                 df <- multi_result$cleaned_data
                 all_audits[[length(all_audits) + 1]] <- multi_result$audit_trail
+              } else {
+                incProgress(0.04)
+              }
 
+              # Chiral restoration
+              if (length(name_cols) > 0 && mask$chiral) {
                 incProgress(0.02, detail = "Restoring chiral designations...")
                 chiral_restore_result <- restore_chiral_designations(df, name_cols)
                 df <- chiral_restore_result$cleaned_data
                 all_audits[[length(all_audits) + 1]] <- chiral_restore_result$audit_trail
+              } else {
+                incProgress(0.02)
+              }
 
-                # Phase 13: Bare formula detection (after all name cleaning)
+              if (length(name_cols) > 0 && mask$names) {
+                # Bare formula detection (after all name cleaning)
                 incProgress(0.05, detail = "Detecting bare formulas...")
                 formula_result <- detect_bare_formulas(df, name_cols)
                 df <- formula_result$cleaned_data
                 all_audits[[length(all_audits) + 1]] <- formula_result$audit_trail
 
-                # Phase 13: Reference list flagging
+                # Reference list flagging
                 if (!is.null(data_store$reference_lists)) {
                   incProgress(0.05, detail = "Flagging reference list matches...")
 
-                  # Flag functional categories (warning)
                   func_cats <- data_store$reference_lists$functional_categories
                   if (nrow(func_cats) > 0) {
                     func_result <- flag_reference_matches(df, name_cols, func_cats, "warning", "functional category")
@@ -281,7 +496,6 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
                     all_audits[[length(all_audits) + 1]] <- func_result$audit_trail
                   }
 
-                  # Flag stop words (warning)
                   stop_words <- data_store$reference_lists$stop_words
                   if (nrow(stop_words) > 0) {
                     stop_result <- flag_reference_matches(df, name_cols, stop_words, "warning", "stop word")
@@ -289,7 +503,6 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
                     all_audits[[length(all_audits) + 1]] <- stop_result$audit_trail
                   }
 
-                  # Flag block patterns (blocking)
                   block_pats <- data_store$reference_lists$block_patterns
                   if (nrow(block_pats) > 0) {
                     block_result <- flag_reference_matches(df, name_cols, block_pats, "blocking", "block pattern")
@@ -300,7 +513,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
               }
             }
 
-            incProgress(0.04, detail = "Finalizing...")
+            incProgress(0.04, detail = "Finalizing cleaning...")
             audit_combined <- dplyr::bind_rows(all_audits)
             data_store$cleaned_data <- df
             data_store$cleaning_audit <- audit_combined
@@ -312,7 +525,6 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
             data_store$curation_results <- NULL
             data_store$resolved_data <- NULL
 
-            # Show success notification
             n_changes <- nrow(audit_combined)
             showNotification(
               sprintf("Cleaning complete: %d transformations applied", n_changes),
@@ -324,20 +536,55 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
             if (!is.null(on_cleaning_complete)) {
               on_cleaning_complete()
             }
+
+            # Trigger harmonization if any harmonization steps are checked
+            any_harmonize <- mask$units || mask$duration || mask$dates || mask$media
+            if (any_harmonize) {
+              data_store$harmonize_step_mask <- list(
+                units = mask$units,
+                duration = mask$duration,
+                dates = mask$dates,
+                media = mask$media
+              )
+              shinyjs::click("run_harmonization")
+            }
           })
         },
         error = function(e) {
           showNotification(
-            paste("Cleaning failed:", e$message),
+            paste("Pipeline failed:", e$message),
             type = "error",
             duration = NULL
           )
         },
         finally = {
-          # Re-enable button
-          shinyjs::enable("run_cleaning")
+          shinyjs::enable("run_pipeline")
         }
       )
+    }
+
+    # Run All Steps observer
+    observeEvent(input$run_all, {
+      mask <- list(
+        unicode = TRUE,
+        whitespace = TRUE,
+        cas = TRUE,
+        names = TRUE,
+        isotopes = TRUE,
+        multi = TRUE,
+        chiral = TRUE,
+        units = TRUE,
+        duration = TRUE,
+        dates = TRUE,
+        media = TRUE
+      )
+      execute_pipeline(mask)
+    })
+
+    # Run Checked Steps observer
+    observeEvent(input$run_checked, {
+      mask <- build_mask_from_inputs()
+      execute_pipeline(mask)
     })
 
     # Cleaning summary display
@@ -375,7 +622,9 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       # Count name cleaning steps
       n_parentheticals <- sum(audit$step == "strip_terminal_enclosures")
       n_synonyms <- sum(audit$step == "split_synonyms")
-      n_adjectives <- sum(audit$step %in% c("strip_quality_adjectives", "strip_salt_references", "strip_terminal_unspecified"))
+      n_adjectives <- sum(
+        audit$step %in% c("strip_quality_adjectives", "strip_salt_references", "strip_terminal_unspecified")
+      )
 
       # Check if name cleaning occurred
       has_name_cleaning <- n_parentheticals > 0 || n_synonyms > 0 || n_adjectives > 0
@@ -454,7 +703,9 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
 
       # Flag statistics row (always visible)
       n_formulas_blocked <- sum(audit$step == "detect_bare_formula")
-      n_categories_flagged <- sum(audit$step == "flag_warning" & grepl("functional category", audit$reason, ignore.case = TRUE))
+      n_categories_flagged <- sum(
+        audit$step == "flag_warning" & grepl("functional category", audit$reason, ignore.case = TRUE)
+      )
       n_stop_words_matched <- sum(audit$step == "flag_warning" & grepl("stop word", audit$reason, ignore.case = TRUE))
 
       row4 <- bslib::layout_columns(
@@ -536,7 +787,8 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
 
         # Badge class based on source and active status
         if (is_active) {
-          badge_class <- switch(row$source,
+          badge_class <- switch(
+            row$source,
             app_default = "badge bg-success ref-chip",
             user = "badge bg-primary ref-chip",
             imported = "badge bg-info ref-chip",
