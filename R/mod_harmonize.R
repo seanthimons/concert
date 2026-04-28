@@ -199,6 +199,17 @@ mod_harmonize_server <- function(id, data_store) {
       }
     })
 
+    media_map_ready <- reactiveVal(FALSE)
+    observe({
+      if (
+        is.null(data_store$media_map_working) &&
+          !is.null(data_store$reference_lists$media_map)
+      ) {
+        data_store$media_map_working <- data_store$reference_lists$media_map
+        if (!media_map_ready()) media_map_ready(TRUE)
+      }
+    })
+
     # --- Pipeline execution ---------------------------------------------------
 
     observeEvent(input$run_harmonization, {
@@ -348,7 +359,8 @@ mod_harmonize_server <- function(id, data_store) {
                 media_tibble <- tryCatch(
                   harmonize_media(
                     raw_media = as.character(input_df[[media_cols_pre[1]]]),
-                    orig_row_id = seq_len(nrow(input_df))
+                    orig_row_id = seq_len(nrow(input_df)),
+                    media_map = data_store$media_map_working
                   ),
                   error = function(e) {
                     showNotification(
@@ -804,6 +816,21 @@ mod_harmonize_server <- function(id, data_store) {
           value = "unmatched_units",
           icon = bsicons::bs_icon("question-circle"),
           uiOutput(session$ns("unmatched_panel"))
+        ),
+        bslib::accordion_panel(
+          title = uiOutput(session$ns("media_editor_title")),
+          value = "media_editor",
+          icon = bsicons::bs_icon("globe"),
+          DT::DTOutput(session$ns("media_table")),
+          div(
+            class = "mt-2",
+            actionButton(
+              session$ns("add_media_mapping"),
+              "Add Media Mapping",
+              class = "btn-outline-primary btn-sm",
+              icon = icon("plus")
+            )
+          )
         )
       )
     })
@@ -837,6 +864,23 @@ mod_harmonize_server <- function(id, data_store) {
         harmonized$orig_unit[harmonized$unit_flag == "unmatched"]
       ))
       sprintf("Unmatched Units (%d)", n_unique)
+    })
+
+    output$media_editor_title <- renderUI({
+      n <- if (!is.null(data_store$media_map_working)) {
+        nrow(data_store$media_map_working)
+      } else {
+        0
+      }
+      n_unmatched <- 0
+      if (!is.null(data_store$media_results)) {
+        n_unmatched <- sum(data_store$media_results$media_flag == "media_unmatched", na.rm = TRUE)
+      }
+      if (n_unmatched > 0) {
+        sprintf("Media Classification (%d mappings, %d unmatched)", n, n_unmatched)
+      } else {
+        sprintf("Media Classification (%d mappings)", n)
+      }
     })
 
     # --- Unit table chip editor (DATA-04) -------------------------------------
@@ -1216,6 +1260,255 @@ mod_harmonize_server <- function(id, data_store) {
 
       data_store$corrections_working <- dplyr::bind_rows(tbl, new_row)
       removeModal()
+    })
+
+    # --- Media classification DT table (MEDIT-01, D-07, D-08, D-12) ----------
+
+    output$media_table <- DT::renderDT(
+      {
+        req(media_map_ready())
+        tbl <- data_store$media_map_working
+
+        if (is.null(tbl) || nrow(tbl) == 0) {
+          return(DT::datatable(
+            tibble::tibble(
+              term = character(),
+              canonical = character(),
+              source = character(),
+              active = character()
+            ),
+            escape = FALSE,
+            selection = "none",
+            rownames = FALSE,
+            options = list(
+              language = list(
+                emptyTable = "No media data. Run harmonization with a Media-tagged column to populate the classification table."
+              )
+            )
+          ))
+        }
+
+        # Determine unmatched status: rows where canonical is NA or empty
+        is_unmatched <- is.na(tbl$canonical) | !nzchar(as.character(ifelse(is.na(tbl$canonical), "", tbl$canonical)))
+
+        # Build display tibble (4 columns per D-08)
+        display_tbl <- tibble::tibble(
+          term = tbl$term,
+          canonical = dplyr::if_else(is_unmatched, "(unmatched)", tbl$canonical),
+          source = dplyr::case_when(
+            tbl$source == "user" ~ '<span class="badge bg-primary">user</span>',
+            TRUE ~ '<span class="badge bg-secondary">amos</span>'
+          ),
+          active = dplyr::if_else(tbl$active, "Yes", "No")
+        )
+
+        # Sort: unmatched first (D-07), then alphabetical within each group
+        sort_order <- order(!is_unmatched, tbl$term)
+        display_tbl <- display_tbl[sort_order, ]
+
+        # Track row classes for highlighting
+        row_classes <- ifelse(is_unmatched[sort_order], "table-warning", "")
+
+        DT::datatable(
+          display_tbl,
+          escape = FALSE,
+          selection = "single",
+          rownames = FALSE,
+          options = list(
+            pageLength = 25,
+            dom = "ftp",
+            rowCallback = DT::JS(sprintf(
+              "function(row, data, displayNum, index) {
+                 var classes = %s;
+                 if (classes[index]) $(row).addClass(classes[index]);
+               }",
+              jsonlite::toJSON(row_classes)
+            ))
+          ),
+          callback = DT::JS(sprintf(
+            "table.on('click', 'tr', function() {
+               var d = table.row(this).data();
+               if (d) Shiny.setInputValue('%s', {term: d[0], ts: Date.now()}, {priority: 'event'});
+             });",
+            session$ns("open_media_edit_modal")
+          ))
+        )
+      },
+      server = FALSE
+    )
+
+    # --- Media edit modal observer (D-06) -------------------------------------
+
+    observeEvent(input$open_media_edit_modal, {
+      msg <- input$open_media_edit_modal
+      req(msg$term)
+
+      tbl <- data_store$media_map_working
+
+      # Clean the "(unmatched)" display value back to the raw term
+      search_term <- trimws(tolower(msg$term))
+      # If the display value is "(unmatched)", we need to look up by position;
+      # since "(unmatched)" is just a display alias, search by the actual term value
+      actual_term <- if (search_term == "(unmatched)") search_term else search_term
+      row <- tbl[tolower(tbl$term) == actual_term, ]
+
+      # AMOS entries are read-only (D-12)
+      if (nrow(row) > 0 && row$source[1] == "amos") {
+        showNotification(
+          "AMOS entries are read-only. Add a user mapping for this term to override.",
+          type = "message",
+          duration = 5
+        )
+        return()
+      }
+
+      # Determine modal title: "Add" for unmatched, "Edit" for existing user row
+      is_new <- nrow(row) == 0 ||
+        is.na(row$canonical[1]) ||
+        !nzchar(as.character(ifelse(is.na(row$canonical[1]), "", row$canonical[1])))
+      modal_title <- if (is_new) "Add Media Mapping" else "Edit Media Mapping"
+
+      canonical_val <- if (!is_new) row$canonical[1] else ""
+      active_val <- if (!is_new) isTRUE(row$active[1]) else TRUE
+      orig_term <- if (nrow(row) > 0) row$term[1] else actual_term
+
+      showModal(modalDialog(
+        title = modal_title,
+        easyClose = FALSE,
+        textInput(session$ns("modal_media_term"), "Term", value = orig_term),
+        textInput(
+          session$ns("modal_media_canonical"),
+          "Canonical",
+          value = canonical_val,
+          placeholder = "e.g., freshwater"
+        ),
+        checkboxInput(session$ns("modal_media_active"), "Active", value = active_val),
+        tags$input(
+          type = "hidden",
+          id = session$ns("modal_media_orig_term"),
+          value = orig_term
+        ),
+        footer = tagList(
+          modalButton("Discard"),
+          actionButton(session$ns("save_media_mapping"), "Save Mapping", class = "btn-primary")
+        )
+      ))
+    })
+
+    # --- "Add Media Mapping" button observer -- blank modal -------------------
+
+    observeEvent(input$add_media_mapping, {
+      showModal(modalDialog(
+        title = "Add Media Mapping",
+        easyClose = FALSE,
+        textInput(session$ns("modal_media_term"), "Term", value = ""),
+        textInput(
+          session$ns("modal_media_canonical"),
+          "Canonical",
+          value = "",
+          placeholder = "e.g., freshwater"
+        ),
+        checkboxInput(session$ns("modal_media_active"), "Active", value = TRUE),
+        tags$input(
+          type = "hidden",
+          id = session$ns("modal_media_orig_term"),
+          value = ""
+        ),
+        footer = tagList(
+          modalButton("Discard"),
+          actionButton(session$ns("save_media_mapping"), "Save Mapping", class = "btn-primary")
+        )
+      ))
+    })
+
+    # --- Save media mapping with AMOS override confirmation (D-13, D-09, D-10) -
+
+    # Reactive value to stage pending save when AMOS override needed
+    media_pending_save <- reactiveVal(NULL)
+
+    observeEvent(input$save_media_mapping, {
+      req(input$modal_media_term, input$modal_media_canonical)
+
+      new_row <- tibble::tibble(
+        term = trimws(tolower(input$modal_media_term)),
+        canonical = trimws(input$modal_media_canonical),
+        canonical_term = trimws(input$modal_media_canonical),
+        envo_id = NA_character_,
+        media_category = NA_character_,
+        source = "user",
+        active = isTRUE(input$modal_media_active)
+      )
+
+      tbl <- data_store$media_map_working
+
+      # Check for AMOS conflict (D-13)
+      amos_conflict <- tbl$term == new_row$term & tbl$source == "amos"
+      orig_term <- input$modal_media_orig_term
+      is_new_term <- is.null(orig_term) || orig_term == "" || orig_term != new_row$term
+
+      if (is_new_term && any(amos_conflict)) {
+        existing_canonical <- tbl$canonical[which(amos_conflict)[1]]
+        media_pending_save(new_row)
+        showModal(modalDialog(
+          title = "Override AMOS Mapping?",
+          easyClose = FALSE,
+          p(sprintf(
+            'This term already has an AMOS mapping (canonical: "%s").',
+            existing_canonical
+          )),
+          p("Your mapping will take priority at runtime. The AMOS entry will remain as fallback."),
+          footer = tagList(
+            modalButton("Cancel"),
+            actionButton(session$ns("confirm_amos_override"), "Override", class = "btn-primary")
+          )
+        ))
+        return()
+      }
+
+      # No conflict — proceed with save
+      do_save_media_mapping(new_row, orig_term)
+    })
+
+    observeEvent(input$confirm_amos_override, {
+      pending <- media_pending_save()
+      req(pending)
+      media_pending_save(NULL)
+      do_save_media_mapping(pending, pending$term)
+    })
+
+    do_save_media_mapping <- function(new_row, orig_term) {
+      tbl <- data_store$media_map_working
+
+      # Remove old user entry if updating (upsert logic)
+      if (!is.null(orig_term) && orig_term != "") {
+        idx <- which(tbl$term == orig_term & tbl$source == "user")
+        if (length(idx) > 0) tbl <- tbl[-idx[1], ]
+      }
+
+      data_store$media_map_working <- dplyr::bind_rows(new_row, tbl)
+
+      # Persist user rows only to RDS (D-09)
+      user_rows <- data_store$media_map_working[data_store$media_map_working$source == "user", ]
+      cache_path <- system.file("extdata/reference_cache", package = "chemreg")
+      if (nzchar(cache_path)) {
+        saveRDS(user_rows, file.path(cache_path, "user_media_map.rds"), compress = FALSE)
+      }
+
+      removeModal()
+
+      # Re-run notification (D-10)
+      showNotification(
+        tagList(
+          "Media mappings updated. Re-run harmonization to apply changes?",
+          actionLink(session$ns("media_rerun_now"), "Re-run now", class = "alert-link ms-2")
+        ),
+        type = "message",
+        duration = 8
+      )
+    }
+
+    observeEvent(input$media_rerun_now, {
+      shinyjs::click("run_harmonization")
     })
 
     # --- Unmatched units batch panel (UNIT-06, D-12..D-16) --------------------
