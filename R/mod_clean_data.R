@@ -150,68 +150,87 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
     observeEvent(input$run_pipeline, {
       req(data_store$clean)
 
-      df <- data_store$clean
-      tag_map <- data_store$column_tags
-      name_cols <- names(tag_map)[tag_map == "Name"]
-      unit_cols <- names(tag_map)[tag_map == "Unit"]
+      withProgress(message = "Running pre-flight checks...", value = 0, {
+        df <- data_store$clean
+        tag_map <- data_store$column_tags
+        name_cols <- names(tag_map)[tag_map == "Name"]
+        unit_cols <- names(tag_map)[tag_map == "Unit"]
 
-      # Extract study-type tags (NULL-safe)
-      if (!is.null(data_store$study_type_tags)) {
-        stv <- unlist(data_store$study_type_tags)
-        date_cols <- names(stv)[stv == "StudyDate"]
-        dur_cols <- names(stv)[stv == "Duration"]
-        dur_unit_cols <- names(stv)[stv == "DurationUnit"]
-        media_cols <- names(stv)[stv == "Media"]
-      } else {
-        date_cols <- character(0)
-        dur_cols <- character(0)
-        dur_unit_cols <- character(0)
-        media_cols <- character(0)
-      }
+        # Extract study-type tags (NULL-safe)
+        if (!is.null(data_store$study_type_tags)) {
+          stv <- unlist(data_store$study_type_tags)
+          date_cols <- names(stv)[stv == "StudyDate"]
+          dur_cols <- names(stv)[stv == "Duration"]
+          dur_unit_cols <- names(stv)[stv == "DurationUnit"]
+          media_cols <- names(stv)[stv == "Media"]
+        } else {
+          date_cols <- character(0)
+          dur_cols <- character(0)
+          dur_unit_cols <- character(0)
+          media_cols <- character(0)
+        }
 
-      unit_map_ref <- data_store$unit_map_working %||% data_store$reference_lists$unit_map
+        unit_map_ref <- data_store$unit_map_working %||% data_store$reference_lists$unit_map
 
-      checks <- list(
-        unicode = precheck_unicode_to_ascii(df),
-        whitespace = precheck_trim_whitespace(df),
-        cas = precheck_normalize_cas(df, tag_map),
-        names = precheck_name_cleaning(df, name_cols),
-        isotopes = precheck_isotope_shortcodes(df, name_cols, data_store$reference_lists$isotope_lookup),
-        multi = precheck_multi_analyte(df, name_cols),
-        chiral = precheck_chiral_restore(df, name_cols),
-        units = precheck_harmonize_units(df, unit_cols, unit_map_ref),
-        duration = precheck_harmonize_duration(df, dur_cols, dur_unit_cols, unit_map_ref),
-        dates = precheck_harmonize_dates(df, date_cols),
-        media = precheck_harmonize_media(df, media_cols, data_store$media_map_working)
-      )
-
-      preflight_checks(checks)
-
-      total_changes <- sum(vapply(checks, function(x) x$est_changes, integer(1)))
-
-      if (total_changes == 0L) {
-        showNotification(
-          tagList(
-            "Pre-flight: no steps have changes to apply.",
-            actionLink(session$ns("open_preflight_anyway"), "Open pre-flight modal", class = "alert-link ms-2")
+        incProgress(0.1, detail = "Checking cleaning steps...")
+        checks <- list(
+          unicode = precheck_unicode_to_ascii(df),
+          whitespace = precheck_trim_whitespace(df),
+          cas = precheck_normalize_cas(df, tag_map),
+          names = precheck_name_cleaning(df, name_cols),
+          isotopes = precheck_isotope_shortcodes(
+            df,
+            name_cols,
+            data_store$reference_lists$isotope_lookup
           ),
-          type = "message",
-          duration = 0
+          multi = precheck_multi_analyte(df, name_cols),
+          chiral = precheck_chiral_restore(df, name_cols)
         )
-        return()
-      }
 
-      showModal(modalDialog(
-        title = "Pre-flight Check",
-        size = "m",
-        easyClose = FALSE,
-        uiOutput(session$ns("preflight_checklist")),
-        footer = tagList(
-          modalButton("Cancel"),
-          actionButton(session$ns("run_all"), "Run All Steps", class = "btn-outline-secondary"),
-          actionButton(session$ns("run_checked"), "Run Checked Steps", class = "btn-primary")
+        incProgress(0.4, detail = "Checking harmonization steps...")
+        checks$units <- precheck_harmonize_units(df, unit_cols, unit_map_ref)
+        checks$duration <- precheck_harmonize_duration(
+          df,
+          dur_cols,
+          dur_unit_cols,
+          unit_map_ref
         )
-      ))
+        checks$dates <- precheck_harmonize_dates(df, date_cols)
+        checks$media <- precheck_harmonize_media(
+          df,
+          media_cols,
+          data_store$media_map_working
+        )
+
+        incProgress(0.4, detail = "Building pre-flight report...")
+        preflight_checks(checks)
+
+        total_changes <- sum(vapply(checks, function(x) x$est_changes, integer(1)))
+
+        if (total_changes == 0L) {
+          showNotification(
+            tagList(
+              "Pre-flight: no steps have changes to apply.",
+              actionLink(session$ns("open_preflight_anyway"), "Open pre-flight modal", class = "alert-link ms-2")
+            ),
+            type = "message",
+            duration = 0
+          )
+          return()
+        }
+
+        showModal(modalDialog(
+          title = "Pre-flight Check",
+          size = "m",
+          easyClose = FALSE,
+          uiOutput(session$ns("preflight_checklist")),
+          footer = tagList(
+            modalButton("Cancel"),
+            actionButton(session$ns("run_all"), "Run All Steps", class = "btn-outline-secondary"),
+            actionButton(session$ns("run_checked"), "Run Checked Steps", class = "btn-primary")
+          )
+        ))
+      })
     })
 
     # "Open pre-flight modal" link from zero-change notification
@@ -526,10 +545,55 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
             data_store$resolved_data <- NULL
 
             n_changes <- nrow(audit_combined)
+
+            # Build completion summary from mask
+            cleaning_steps_run <- c(
+              if (mask$unicode) "Unicode" else NULL,
+              if (mask$whitespace) "Whitespace" else NULL,
+              if (mask$cas) "CAS normalization" else NULL,
+              if (mask$names) "Name cleaning" else NULL,
+              if (mask$isotopes) "Isotope expansion" else NULL,
+              if (mask$multi) "Multi-analyte detection" else NULL,
+              if (mask$chiral) "Chiral restoration" else NULL
+            )
+            harmonize_steps_run <- c(
+              if (mask$units) "Units" else NULL,
+              if (mask$duration) "Duration" else NULL,
+              if (mask$dates) "Dates" else NULL,
+              if (mask$media) "Media" else NULL
+            )
+
+            summary_parts <- character()
+            if (length(cleaning_steps_run) > 0) {
+              summary_parts <- c(
+                summary_parts,
+                sprintf(
+                  "Cleaning: %d step(s) ran, %d change(s).",
+                  length(cleaning_steps_run),
+                  n_changes
+                )
+              )
+            }
+            if (length(harmonize_steps_run) > 0) {
+              summary_parts <- c(
+                summary_parts,
+                sprintf(
+                  "Harmonization: %s dispatched.",
+                  paste(harmonize_steps_run, collapse = ", ")
+                )
+              )
+            }
+            if (length(summary_parts) == 0) {
+              summary_parts <- "No steps were selected to run."
+            }
+
             showNotification(
-              sprintf("Cleaning complete: %d transformations applied", n_changes),
+              tagList(
+                tags$strong("Pipeline complete. "),
+                paste(summary_parts, collapse = " ")
+              ),
               type = "message",
-              duration = 5
+              duration = 8
             )
 
             # Call navigation callback if provided
