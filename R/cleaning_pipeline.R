@@ -457,6 +457,109 @@ precheck_chiral_restore <- function(df, name_cols) {
   list(should_run = est_changes > 0L, est_changes = est_changes)
 }
 
+# ==============================================================================
+# Phase 42: Harmonization Pre-check Predicate Functions
+# Follows identical signature / return contract as the 7 cleaning pre-checks
+# above: list(should_run = logical(1), est_changes = integer(1)).
+# ==============================================================================
+
+#' Pre-check predicate for harmonize_units step
+#'
+#' Counts unit values present in Unit-tagged columns. Returns should_run = TRUE
+#' when any Unit-tagged column has non-NA, non-empty values (all will be
+#' processed by harmonize_units). est_changes reports the total number of
+#' values that will pass through the harmonization step.
+#'
+#' @param df Dataframe to check.
+#' @param unit_cols Character vector of Unit-tagged column names.
+#' @param unit_map Tibble with column from_unit (the working copy).
+#' @return list(should_run = logical, est_changes = integer).
+#' @keywords internal
+#' @export
+precheck_harmonize_units <- function(df, unit_cols, unit_map) {
+  if (length(unit_cols) == 0) {
+    return(list(should_run = FALSE, est_changes = 0L))
+  }
+  all_unit_vals <- unlist(lapply(unit_cols, function(col) df[[col]]))
+  all_unit_vals <- all_unit_vals[!is.na(all_unit_vals) & nzchar(all_unit_vals)]
+  est_changes <- as.integer(length(all_unit_vals))
+  list(should_run = length(all_unit_vals) > 0L, est_changes = est_changes)
+}
+
+#' Pre-check predicate for harmonize_duration step
+#'
+#' Counts non-NA, non-empty values across Duration and DurationUnit tagged
+#' columns. Returns should_run = TRUE when any such value exists.
+#'
+#' @param df Dataframe to check.
+#' @param dur_cols Character vector of Duration-tagged column names.
+#' @param dur_unit_cols Character vector of DurationUnit-tagged column names.
+#' @param unit_map Tibble with column from_unit (the working copy, reserved for
+#'   future use).
+#' @return list(should_run = logical, est_changes = integer).
+#' @keywords internal
+#' @export
+precheck_harmonize_duration <- function(df, dur_cols, dur_unit_cols, unit_map) {
+  all_dur_cols <- c(dur_cols, dur_unit_cols)
+  if (length(all_dur_cols) == 0) {
+    return(list(should_run = FALSE, est_changes = 0L))
+  }
+  est_changes <- as.integer(sum(vapply(
+    all_dur_cols,
+    function(col) sum(!is.na(df[[col]]) & nzchar(as.character(df[[col]])), na.rm = TRUE),
+    integer(1)
+  )))
+  list(should_run = est_changes > 0L, est_changes = est_changes)
+}
+
+#' Pre-check predicate for harmonize_dates step
+#'
+#' Counts non-NA, non-empty values across StudyDate-tagged columns.
+#' Returns should_run = TRUE when any parseable date value exists.
+#'
+#' @param df Dataframe to check.
+#' @param date_cols Character vector of StudyDate-tagged column names.
+#' @return list(should_run = logical, est_changes = integer).
+#' @keywords internal
+#' @export
+precheck_harmonize_dates <- function(df, date_cols) {
+  if (length(date_cols) == 0) {
+    return(list(should_run = FALSE, est_changes = 0L))
+  }
+  est_changes <- as.integer(sum(vapply(
+    date_cols,
+    function(col) sum(!is.na(df[[col]]) & nzchar(as.character(df[[col]])), na.rm = TRUE),
+    integer(1)
+  )))
+  list(should_run = est_changes > 0L, est_changes = est_changes)
+}
+
+#' Pre-check predicate for harmonize_media step
+#'
+#' Counts non-NA, non-empty values across Media-tagged columns.
+#' Returns should_run = TRUE when any media value is present.
+#' est_changes reports total values that will be processed by harmonize_media.
+#'
+#' @param df Dataframe to check.
+#' @param media_cols Character vector of Media-tagged column names.
+#' @param media_map Optional tibble with column term. When provided and non-empty,
+#'   used as supplementary info only (est_changes always reflects total values).
+#' @return list(should_run = logical, est_changes = integer).
+#' @keywords internal
+#' @export
+precheck_harmonize_media <- function(df, media_cols, media_map = NULL) {
+  if (length(media_cols) == 0) {
+    return(list(should_run = FALSE, est_changes = 0L))
+  }
+  total_vals <- sum(vapply(
+    media_cols,
+    function(col) sum(!is.na(df[[col]]) & nzchar(as.character(df[[col]])), na.rm = TRUE),
+    integer(1)
+  ))
+  est_changes <- as.integer(total_vals)
+  list(should_run = total_vals > 0L, est_changes = est_changes)
+}
+
 #' Inject row lineage tracking
 #'
 #' Adds original_row_id column as first column to track row identity through transformations.
