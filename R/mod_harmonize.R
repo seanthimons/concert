@@ -67,6 +67,13 @@ mod_harmonize_ui <- function(id) {
       ns("chip_remove")
     ))),
 
+    # Hidden button for programmatic triggering of harmonization pipeline
+    # (shinyjs::click requires a DOM element; button removed from visible UI in Plan 03)
+    tags$div(
+      style = "display: none;",
+      actionButton(ns("run_harmonization"), "Run Harmonization")
+    ),
+
     # Main content when numeric tags exist
     conditionalPanel(
       condition = paste0("output['", ns("has_numeric_tags"), "']"),
@@ -88,7 +95,7 @@ mod_harmonize_ui <- function(id) {
         class = "text-center text-muted py-5",
         bsicons::bs_icon("sliders", size = "3em"),
         h4("No columns tagged for harmonization"),
-        p("Tag your columns (Result, Unit, Study Date, etc.) first, then run harmonization.")
+        p("Tag your columns (Result, Unit, Study Date, etc.) first, then run the pipeline from the Clean Data tab.")
       )
     )
   )
@@ -806,6 +813,7 @@ mod_harmonize_server <- function(id, data_store) {
           title = uiOutput(session$ns("media_editor_title")),
           value = "media_editor",
           icon = bsicons::bs_icon("globe"),
+          uiOutput(session$ns("media_guidance")),
           DT::DTOutput(session$ns("media_table")),
           div(
             class = "mt-2",
@@ -849,6 +857,29 @@ mod_harmonize_server <- function(id, data_store) {
         harmonized$orig_unit[harmonized$unit_flag == "unmatched"]
       ))
       sprintf("Unmatched Units (%d)", n_unique)
+    })
+
+    output$media_guidance <- renderUI({
+      n_unmatched <- 0
+      if (!is.null(data_store$media_results)) {
+        n_unmatched <- sum(
+          data_store$media_results$media_flag == "media_unmatched",
+          na.rm = TRUE
+        )
+      }
+
+      if (n_unmatched > 0) {
+        div(
+          class = "alert alert-info py-2 mb-2",
+          bsicons::bs_icon("info-circle", class = "me-1"),
+          sprintf(
+            "%d unmatched term(s) highlighted in yellow. Click a row to assign a canonical value, or use ",
+            n_unmatched
+          ),
+          tags$strong("Add Media Mapping"),
+          " below to create a new entry."
+        )
+      }
     })
 
     output$media_editor_title <- renderUI({
@@ -1267,7 +1298,7 @@ mod_harmonize_server <- function(id, data_store) {
             rownames = FALSE,
             options = list(
               language = list(
-                emptyTable = "No media data. Run harmonization with a Media-tagged column to populate the classification table."
+                emptyTable = "No media data. Run the pipeline with a Media-tagged column to populate the classification table."
               )
             )
           ))
@@ -1297,7 +1328,7 @@ mod_harmonize_server <- function(id, data_store) {
         DT::datatable(
           display_tbl,
           escape = FALSE,
-          selection = "single",
+          selection = "none",
           rownames = FALSE,
           options = list(
             pageLength = 25,
@@ -1382,29 +1413,33 @@ mod_harmonize_server <- function(id, data_store) {
 
     # --- "Add Media Mapping" button observer -- blank modal -------------------
 
-    observeEvent(input$add_media_mapping, {
-      showModal(modalDialog(
-        title = "Add Media Mapping",
-        easyClose = FALSE,
-        textInput(session$ns("modal_media_term"), "Term", value = ""),
-        textInput(
-          session$ns("modal_media_canonical"),
-          "Canonical",
-          value = "",
-          placeholder = "e.g., freshwater"
-        ),
-        checkboxInput(session$ns("modal_media_active"), "Active", value = TRUE),
-        tags$input(
-          type = "hidden",
-          id = session$ns("modal_media_orig_term"),
-          value = ""
-        ),
-        footer = tagList(
-          modalButton("Discard"),
-          actionButton(session$ns("save_media_mapping"), "Save Mapping", class = "btn-primary")
-        )
-      ))
-    })
+    observeEvent(
+      input$add_media_mapping,
+      {
+        showModal(modalDialog(
+          title = "Add Media Mapping",
+          easyClose = FALSE,
+          textInput(session$ns("modal_media_term"), "Term", value = ""),
+          textInput(
+            session$ns("modal_media_canonical"),
+            "Canonical",
+            value = "",
+            placeholder = "e.g., freshwater"
+          ),
+          checkboxInput(session$ns("modal_media_active"), "Active", value = TRUE),
+          tags$input(
+            type = "hidden",
+            id = session$ns("modal_media_orig_term"),
+            value = ""
+          ),
+          footer = tagList(
+            modalButton("Discard"),
+            actionButton(session$ns("save_media_mapping"), "Save Mapping", class = "btn-primary")
+          )
+        ))
+      },
+      ignoreInit = TRUE
+    )
 
     # --- Save media mapping with AMOS override confirmation (D-13, D-09, D-10) -
 
@@ -1484,7 +1519,7 @@ mod_harmonize_server <- function(id, data_store) {
       # Re-run notification (D-10)
       showNotification(
         tagList(
-          "Media mappings updated. Re-run harmonization to apply changes?",
+          "Media mappings updated. Re-run the pipeline to apply changes?",
           actionLink(session$ns("media_rerun_now"), "Re-run now", class = "alert-link ms-2")
         ),
         type = "message",
@@ -1509,7 +1544,7 @@ mod_harmonize_server <- function(id, data_store) {
       if (is.null(data_store$harmonize_results)) {
         return(p(
           class = "text-muted small",
-          "Run harmonization to see unmatched units."
+          "Run the pipeline to see unmatched units."
         ))
       }
 
@@ -1582,7 +1617,7 @@ mod_harmonize_server <- function(id, data_store) {
 
       showNotification(
         sprintf(
-          "Added %d pass-through mappings. Re-run harmonization to apply.",
+          "Added %d pass-through mappings. Re-run the pipeline to apply.",
           length(unmatched_units)
         ),
         type = "message",
