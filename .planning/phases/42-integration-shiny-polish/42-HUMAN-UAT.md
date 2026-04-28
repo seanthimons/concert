@@ -1,78 +1,54 @@
 ---
-status: diagnosed
+status: partial
 phase: 42-integration-shiny-polish
-source: [42-03-SUMMARY.md]
+source: [42-VERIFICATION.md]
 started: 2026-04-28T00:00:00Z
 updated: 2026-04-28T00:00:00Z
 ---
 
 ## Current Test
 
-[UAT complete — 6 gaps diagnosed]
+[awaiting human testing — gap closure complete, re-verification needed]
+
+## Prior Gap Closure Results
+
+Gaps 1-6 from initial UAT were addressed by plans 42-04 and 42-05:
+- Gap 1 (pre-flight loading): withProgress() added — plan 42-05
+- Gap 2 (unmatched guidance): media_guidance renderUI added — plan 42-04
+- Gap 3 (completion summary): Pipeline complete notification added — plan 42-05
+- Gap 4 (row click broken): selection=none fix — plan 42-04
+- Gap 5 (add button broken): ignoreInit=TRUE fix — plan 42-04
+- Gap 6 (stale wording): all strings updated to "pipeline" — plan 42-04
 
 ## Tests
 
-### 1. Pre-flight modal opens promptly
-expected: Modal appears quickly after clicking Run Pipeline
-result: FAILED — noticeable delay on 100k+ row datasets, no loading indicator
+### 1. Pre-flight modal renders correctly with real dataset
+expected: Pre-flight modal shows accurate pre-check badge values with a real dataset; progress bar appears during pre-check collection
+result: [pending]
 
-### 2. Media editor unmatched rows have guidance
-expected: User understands what action is needed for unmatched terms
-result: FAILED — 7 unmatched terms shown yellow but no explanatory text
+### 2. Step-mask execution skips unchecked steps
+expected: Unchecking a step in pre-flight modal causes it to be skipped during pipeline execution
+result: [pending]
 
-### 3. Post-pipeline completion feedback
-expected: Clear indication of which steps ran and their outcomes
-result: FAILED — no summary of what happened, especially unclear if harmonization ran
+### 3. Media DT unmatched rows and row-click modal
+expected: Unmatched rows highlighted yellow with badge colors; clicking a row opens edit modal; guidance text appears above table
+result: [pending]
 
-### 4. Media editor row click opens edit modal
-expected: Clicking unmatched row opens edit modal
-result: FAILED — row click only highlights, does not open modal (BUG)
+### 4. Save-notification-rerun cascade
+expected: Saving a media mapping shows notification with Re-run now link; clicking link triggers harmonization
+result: [pending]
 
-### 5. Add Media Mapping button works
-expected: Button opens blank edit modal for new mapping
-result: FAILED — button click does nothing (BUG)
-
-### 6. Unmatched units panel wording
-expected: Consistent UX with new unified pipeline
-result: FAILED — still references "run harmonization" button which no longer exists
+### 5. RDS persistence survives session restart
+expected: User media mappings saved to user_media_map.rds persist across app restarts
+result: [pending]
 
 ## Summary
 
-total: 6
+total: 5
 passed: 0
-issues: 6
-pending: 0
+issues: 0
+pending: 5
 skipped: 0
 blocked: 0
 
 ## Gaps
-
-### Gap 1: Pre-flight modal loading indicator
-severity: medium
-type: ux
-description: Wrap pre-check collection in withProgress() or show spinner so user knows something is happening on large datasets
-
-### Gap 2: Media editor unmatched guidance text
-severity: medium
-type: ux
-description: Add explanatory text above the media DT table explaining what unmatched means and what actions are available
-
-### Gap 3: Post-pipeline completion summary
-severity: medium
-type: ux
-description: After pipeline runs, show a summary notification or panel listing which steps ran and their outcomes
-
-### Gap 4: Media editor row click broken
-severity: critical
-type: bug
-description: DT row click JS callback or observeEvent(input$open_media_edit_modal) not firing — edit modal never opens
-
-### Gap 5: Add Media Mapping button broken
-severity: critical
-type: bug
-description: observeEvent(input$add_media_mapping) not firing — button does nothing on click
-
-### Gap 6: Unmatched units panel stale wording
-severity: low
-type: ux
-description: Unmatched units accordion panel still tells user to "run harmonization" — update to reference "Run Pipeline" or remove the instruction
