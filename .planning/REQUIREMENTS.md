@@ -59,23 +59,23 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DICT-01 | — | Pending |
-| DICT-02 | — | Pending |
-| DICT-03 | — | Pending |
-| MATCH-01 | — | Pending |
-| MATCH-02 | — | Pending |
-| MATCH-03 | — | Pending |
-| MATCH-04 | — | Pending |
-| INTG-01 | — | Pending |
-| INTG-02 | — | Pending |
-| INTG-03 | — | Pending |
-| INTG-04 | — | Pending |
+| DICT-01 | Phase 43 | Pending |
+| DICT-02 | Phase 43 | Pending |
+| DICT-03 | Phase 43 | Pending |
+| MATCH-01 | Phase 44 | Pending |
+| MATCH-02 | Phase 44 | Pending |
+| MATCH-03 | Phase 44 | Pending |
+| MATCH-04 | Phase 44 | Pending |
+| INTG-01 | Phase 44 | Pending |
+| INTG-02 | Phase 45 | Pending |
+| INTG-03 | Phase 45 | Pending |
+| INTG-04 | Phase 45 | Pending |
 
 **Coverage:**
 - v2.1 requirements: 11 total
-- Mapped to phases: 0
-- Unmapped: 11 ⚠️
+- Mapped to phases: 11
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-29*
-*Last updated: 2026-04-29 after initial definition*
+*Last updated: 2026-04-29 after roadmap creation*
