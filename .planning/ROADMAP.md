@@ -8,6 +8,7 @@
 - ✅ **v1.8 R Package Migration** -- Phases 24-28 (shipped 2026-04-14)
 - ✅ **v1.9 Number and Unit Coercion Harmonization** -- Phases 29-36 (shipped 2026-04-21)
 - ✅ **v2.0 Pipeline Performance & Date/Media Harmonization** -- Phases 37-42 (shipped 2026-04-29)
+- 🚧 **v2.1 WQX Parameter Harmonization** -- Phases 43-45 (in progress)
 
 ## Phases
 
@@ -79,6 +80,44 @@
 
 </details>
 
+### 🚧 v2.1 WQX Parameter Harmonization (In Progress)
+
+**Milestone Goal:** Add an offline WQX dictionary that matches unresolved analyte names to canonical WQX Characteristic Names, using EPA's alias crosswalk with fuzzy fallback. Fires automatically post-CompTox for names that failed curation.
+
+## Phase Details
+
+### Phase 43: WQX Dictionary
+**Goal**: The WQX lookup dictionary is available locally and stays current
+**Depends on**: Phase 42
+**Requirements**: DICT-01, DICT-02, DICT-03
+**Success Criteria** (what must be TRUE):
+  1. Calling `refresh_wqx_cache()` downloads Characteristic.csv and Characteristic Alias.csv from EPA and writes a combined RDS to `inst/extdata/reference_cache/`
+  2. Loading the package or calling a WQX function for the first time automatically downloads and builds the RDS if it is absent
+  3. The combined RDS contains both canonical characteristic names and alias-to-canonical mappings ready for lookup
+**Plans**: TBD
+
+### Phase 44: Matching Engine + Prototype
+**Goal**: The three-tier WQX matcher is validated against real training data before any pipeline wiring
+**Depends on**: Phase 43
+**Requirements**: MATCH-01, MATCH-02, MATCH-03, MATCH-04, INTG-01
+**Success Criteria** (what must be TRUE):
+  1. A standalone prototype script runs against detections.csv and prints match results without starting the Shiny app
+  2. Names with exact canonical matches are resolved at tier 1 (case-insensitive)
+  3. Names that miss tier 1 but have alias crosswalk entries (SYNONYM REGISTRY, STANDARDIZE NAME, RETIRED NAME) are resolved at tier 2
+  4. Names still unresolved after tiers 1-2 receive a fuzzy candidate from stringdist against canonical names, with distance shown
+  5. Each match attempt produces a cli-formatted console log line reporting success (name + match type) or failure (nearest candidate + distance)
+**Plans**: TBD
+
+### Phase 45: Pipeline Integration
+**Goal**: WQX matching fires automatically in the curation pipeline for names that failed CompTox
+**Depends on**: Phase 44
+**Requirements**: INTG-02, INTG-03, INTG-04
+**Success Criteria** (what must be TRUE):
+  1. After CompTox curation, names with no DTXSID result are automatically passed to the WQX matcher without any user action
+  2. Rows that receive a WQX canonical name show it in the same output column as curated compound names (treated as a resolution, not a separate annotation)
+  3. Running `curate_headless()` on a file with unresolved names produces WQX matches in the output without additional arguments
+**Plans**: TBD
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -108,3 +147,6 @@
 | 40. Date Parser | v2.0 | 3/3 | Complete | 2026-04-27 |
 | 41. Media Harmonizer & AMOS Pipeline | v2.0 | 4/4 | Complete | 2026-04-27 |
 | 42. Integration & Shiny Polish | v2.0 | 5/5 | Complete | 2026-04-28 |
+| 43. WQX Dictionary | v2.1 | 0/TBD | Not started | - |
+| 44. Matching Engine + Prototype | v2.1 | 0/TBD | Not started | - |
+| 45. Pipeline Integration | v2.1 | 0/TBD | Not started | - |
