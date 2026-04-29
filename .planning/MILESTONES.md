@@ -1,5 +1,28 @@
 # Milestones
 
+## v2.0 Pipeline Performance & Date/Media Harmonization (Shipped: 2026-04-29)
+
+**Phases completed:** 6 phases, 20 plans
+**Lines changed:** +6,209 / -756 across 32 R/data files
+**Requirements:** 35/35 satisfied (PERF-01/02/03/04, SKIP-01/02/03, BENCH-01/02/03, DUR-01/02/03/04/05, DATE-01/02/03/04/05/06, MEDIA-01/02/03/04/05/06, AMOS-01/02/03, RECO-01/02, MEDIT-01/02/03)
+**Timeline:** 5 days (2026-04-24 → 2026-04-28)
+
+**Key accomplishments:**
+
+- Distinct-string dedup architecture (`dedup_step()` + `remap_audit_to_parent()`) with short-circuit pre-checks for 5x+ cleaning pipeline speedup at 100K rows
+- Benchmark harness with `bench::press()` grid (1K/10K/100K rows), `use_dedup` toggle for before/after comparison on both cleaning and harmonization paths
+- Duration conversion engine with hours as base unit, 23 conversion + 34 synonym entries, "m" ambiguity flagging, and ToxVal `study_duration_value`/`study_duration_units` wiring
+- Multi-format date parser (`parse_dates()`) handling ISO/MDY/DMY/SAS/YYYYMMDD/year-only/2-digit-year with day≤12 ambiguity detection, wired to ToxVal `original_year`
+- ENVO-based media harmonizer with AMOS pipeline enrichment (26 curated + 7 AMOS-derived terms), compound media resolution, and ppb/ppm routing loop closure
+- Unified "Run Pipeline" button with pre-flight modal (fire/skip indicators), media classification editor with unmatched term surfacing, and progress indicators
+
+**Known gaps accepted:**
+
+- Benchmark results template (`docs/benchmark_results.md`) contains placeholders — needs real 100K data run to populate
+- No formal milestone audit run
+
+---
+
 ## v1.8 R Package Migration (Shipped: 2026-04-14)
 
 **Phases completed:** 5 phases, 5 plans

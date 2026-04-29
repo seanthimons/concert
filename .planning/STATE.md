@@ -2,43 +2,39 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Pipeline Performance & Date/Media Harmonization
-status: executing
-stopped_at: Phase 42 UI-SPEC approved
-last_updated: "2026-04-28T17:14:21.467Z"
-last_activity: 2026-04-28 -- Phase 42 execution started
+status: completed
+stopped_at: Milestone v2.0 archived
+last_updated: "2026-04-29T21:44:22.417Z"
+last_activity: 2026-04-29
 progress:
   total_phases: 6
-  completed_phases: 5
-  total_plans: 19
-  completed_plans: 18
-  percent: 95
+  completed_phases: 6
+  total_plans: 20
+  completed_plans: 20
+  percent: 100
 ---
 
 # Project State: ChemReg
 
-**Last Updated:** 2026-04-24
+**Last Updated:** 2026-04-29
 **Milestone:** v2.0 Pipeline Performance & Date/Media Harmonization
-**Status:** Executing Phase 42
+**Status:** ✅ v2.0 milestone complete — archived
 
 ---
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-24)
+See: .planning/PROJECT.md (updated 2026-04-29)
 
 **Core value:** Users can go from messy regulatory/benchmark data files to validated, harmonized, toxval-compatible datasets in one workflow.
-**Current focus:** Phase 42 — integration-shiny-polish
+**Current focus:** Planning next milestone
 
 ---
 
 ## Current Position
 
-Phase: 42 (integration-shiny-polish) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 42
-Last activity: 2026-04-28 -- Phase 42 execution started
-
-Progress: ░░░░░░░░░░ 0% (v2.0 milestone)
+Milestone v2.0 shipped 2026-04-29. All 6 phases (37-42) complete, 20 plans executed.
+Next step: `/gsd-new-milestone` to define v2.1+ scope.
 
 ---
 
@@ -46,10 +42,10 @@ Progress: ░░░░░░░░░░ 0% (v2.0 milestone)
 
 **Cumulative (all milestones):**
 
-- Total milestones shipped: 9 (v1.0–v1.9)
-- Total phases: 30 complete (through Phase 36)
-- Total plans: 53 complete
-- LOC: ~17,900 R
+- Total milestones shipped: 10 (v1.0–v2.0)
+- Total phases: 36 complete (through Phase 42)
+- Total plans: 73 complete
+- LOC: ~92,900 R
 
 ---
 
@@ -58,24 +54,7 @@ Progress: ░░░░░░░░░░ 0% (v2.0 milestone)
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-Notable additions in v1.9:
-
-- [Phase 29]: 6-column unit table schema (from_unit, to_unit, multiplier, category, confidence, source) with 151 rows
-- [Phase 31.5]: units package as hard Imports dependency; domain units registered via .onLoad() in R/zzz.R
-- [Phase 31.5-03]: ppb/ppm routing: aqueous→mg/L, solid→mg/kg, air→mg/m3; default aqueous with "media_inferred" flag
-- [Phase 32]: 56-column ToxVal schema with typed NAs enforced via assert_typed_nas()
-- [Phase 33]: Tag dispatch helpers as single source of truth; column_tags contains ONLY chemical tags for backwards compat
-
-v2.0 architecture decisions (from research 2026-04-24):
-
-- Dedup is orchestrator wrapper (`dedup_step()`), NOT internal to step functions
-- Short-circuit pre-checks are orchestrator-only; step functions always return `list(cleaned_data, audit_trail)`
-- Date parsing is harmonization-layer (post-tagging), new `R/date_parser.R`
-- Duration uses custom synonym map — never `lubridate::duration()` ("m" = months pitfall)
-- AMOS extraction is build-time only; `amos_media.rds` committed, never called at runtime
-- `lubridate` → Imports; `bench` → Suggests only
-- [Phase 38]: Exclude original_row_id from dedup toggle comparison -- dedup remaps lineage IDs by design
-- [Phase 38]: use_dedup_path intermediate variable in harmonize_units() separates key construction from path execution
+All v2.0 decisions archived — see PROJECT.md for full table.
 
 ### Pending Todos
 
@@ -85,7 +64,7 @@ None.
 
 - Tech debt: `^tests$` in `.Rbuildignore` blocks R CMD check (devtools::test() works)
 - Tech debt: `R/archive/prototype_pipeline.R` has bare library() calls, not excluded from build
-- Phase 37 dedup migration must be one step at a time with 953+ tests green after each
+- Benchmark results template (`docs/benchmark_results.md`) has placeholders — needs real 100K data run
 
 ---
 
@@ -95,15 +74,6 @@ None.
 |----------|------|--------|-------------|
 | Date/Duration | DFUT-01/02/03: Date/duration ranges + step timing | Future milestone | v2.0 |
 | WQX | WFUT-01/02/03: WQX parameter mapping | Future milestone | v2.0 |
-
----
-| Phase 38 P01 | 11min | 2 tasks | 4 files |
-
-## Session Continuity
-
-Last session: 2026-04-28T03:14:13.404Z
-Stopped at: Phase 42 UI-SPEC approved
-Resume file: .planning/phases/42-integration-shiny-polish/42-UI-SPEC.md
 
 ---
 
