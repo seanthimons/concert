@@ -112,6 +112,18 @@ Users can go from messy regulatory/benchmark data files to validated, harmonized
 - ✓ Media classification editor with DT table, unmatched term surfacing, RDS persistence — v2.0 Phase 42
 - ✓ Pre-flight progress indicator and post-pipeline completion summary — v2.0 Phase 42
 
+## Current Milestone: v2.1 WQX Parameter Harmonization
+
+**Goal:** Add an offline WQX dictionary that matches unresolved analyte names to canonical WQX Characteristic Names, using EPA's own alias crosswalk with fuzzy fallback.
+
+**Target features:**
+- Download and cache WQX Characteristic + Alias CSVs, build combined lookup RDS (alias → canonical Characteristic Name) using WQX SYNONYM REGISTRY, STANDARDIZE NAME, and RETIRED NAME alias types
+- Tiered matching: exact match against canonical names → exact match against alias crosswalk → fuzzy match (stringdist, metric TBD) against canonical names
+- Fires automatically for names that failed CompTox curation — no preflight toggle
+- Output: canonical WQX Characteristic Name attached to matched rows
+- Console logging for match successes/failures
+- Dictionary file management follows existing reference cache pattern (inst/extdata/reference_cache/), check-on-load with download if missing
+
 ## Current State
 
 **Shipped:** v2.0 Pipeline Performance & Date/Media Harmonization (2026-04-29)
@@ -258,4 +270,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-29 after v2.0 milestone*
+*Last updated: 2026-04-29 after v2.1 milestone started*
