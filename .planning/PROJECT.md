@@ -99,13 +99,24 @@ Users can go from messy regulatory/benchmark data files to validated, harmonized
 - ✓ StudyDate tag type with 4-element classify_tags() and "Study / Contextual" optgroup — v2.0 Phase 40
 - ✓ Date pipeline wiring: StudyDate tags → parse_dates() → expanded_curated$year → ToxVal original_year — v2.0 Phase 40
 - ✓ Date QC dashboard value boxes (Dates Parsed, Partial, Ambiguous, Unparseable) — v2.0 Phase 40
+- ✓ Distinct-string dedup architecture (`dedup_step()` + `remap_audit_to_parent()`) for cleaning pipeline — v2.0 Phase 37
+- ✓ Short-circuit pre-checks for all cleaning/harmonization steps with `build_skip_result()` — v2.0 Phase 37
+- ✓ False-negative companion tests for every pre-check predicate — v2.0 Phase 37
+- ✓ Unit-key dedup in `harmonize_units()` with n_unique < n/2 bypass threshold — v2.0 Phase 37
+- ✓ `use_dedup` toggle on `run_cleaning_pipeline()` and `harmonize_units()` for benchmark comparison — v2.0 Phase 38
+- ✓ `scripts/benchmark_pipeline.R` with `bench::press()` grid (1K/10K/100K rows) and memory tracking — v2.0 Phase 38
+- ✓ ENVO-based media harmonizer (`harmonize_media()`) with compound media resolution — v2.0 Phase 41
+- ✓ AMOS build-time pipeline with `refresh_amos_cache()` and committed RDS — v2.0 Phase 41
+- ✓ Media tag routing through Stage 3d with canonical media feeding ppb/ppm unit routing — v2.0 Phase 41
+- ✓ Unified "Run Pipeline" button with pre-flight modal showing fire/skip per step — v2.0 Phase 42
+- ✓ Media classification editor with DT table, unmatched term surfacing, RDS persistence — v2.0 Phase 42
+- ✓ Pre-flight progress indicator and post-pipeline completion summary — v2.0 Phase 42
 
 ## Current State
 
-**Shipped:** v1.9 Number and Unit Coercion Harmonization (2026-04-17)
-**Latest:** Phase 40 Date Parser complete (2026-04-27)
+**Shipped:** v2.0 Pipeline Performance & Date/Media Harmonization (2026-04-29)
 
-ChemReg is a proper R package with full compound curation + numeric/unit harmonization + ToxVal schema output. Installed via `devtools::install()`, used interactively via `chemreg::run_app()` or headlessly via `chemreg::curate_headless()`.
+ChemReg is a proper R package with full compound curation, numeric/unit/duration/date/media harmonization, and ToxVal schema output. Installed via `devtools::install()`, used interactively via `chemreg::run_app()` or headlessly via `chemreg::curate_headless()`.
 
 **Package capabilities:**
 - `library(chemreg)` loads 72+ exported functions
@@ -113,37 +124,21 @@ ChemReg is a proper R package with full compound curation + numeric/unit harmoni
 - `chemreg::curate_headless(input, output, tag_map, harmonize=TRUE)` runs full pipeline including harmonization
 - Numeric result parsing: scientific notation, ranges, qualifiers, Fortran exponents
 - Unit harmonization via `units` package with domain registrations, molarity/ppb context routing
+- Duration conversion with hours as base unit and "m" ambiguity flagging
+- Multi-format date parser (ISO/MDY/DMY/SAS/year-only) with ambiguity detection
+- ENVO-based media harmonizer with AMOS pipeline enrichment and ppb/ppm routing
+- Distinct-string dedup architecture for 5x+ speedup at 100K rows
+- Pre-flight modal with fire/skip indicators and media classification editor
 - ToxVal 56-column schema mapper with 19 audit columns and source_hash
 - Parquet/CSV export alongside 8-sheet Excel export
 - `devtools::test()` passes with 1666+ tests
 - `use_dedup` toggle on `run_cleaning_pipeline()` and `harmonize_units()` for benchmark comparison
+- ~92,900 LOC R across `R/`, `inst/app/`, and `tests/testthat/`
 
 **Known tech debt:**
 - `^tests$` in `.Rbuildignore` blocks R CMD check from running tests (critical — devtools::test() works but devtools::check() runs 0 tests)
 - `R/archive/prototype_pipeline.R` has bare library() calls and is not excluded from build
-- Pipeline performance degrades at 100K+ rows — cleaning and harmonization both affected
 - Benchmark results template (`docs/benchmark_results.md`) contains placeholders — needs real data run to populate
-
-## Current Milestone: v2.0 Pipeline Performance & Date/Media Harmonization
-
-**Goal:** Make the cleaning+harmonization pipeline production-fast at 100K+ rows via distinct-string dedup and short-circuit evaluation, then extend harmonization coverage to date/duration parsing and environmental media classification.
-
-**Target features:**
-- Distinct-string dedup architecture for cleaning and harmonization pipelines
-- Short-circuit evaluation with per-step checkers and recommendation modal
-- Performance benchmark harness for 100K training set validation
-- Date/study date parsing into structured date values
-- Duration conversion lifting ECOTOX pattern (hours as base unit)
-- Media/matrix harmonization with extensible source maps and editor UI
-- AMOS media ontology pipeline (~7,500 methods via ComptoxR::chemi_amos_method_pagination())
-
-**Key context:**
-- Speed is first priority — architecture change before new features
-- At 100K rows, current pipeline is unacceptably slow even with vectorization
-- Dedup pattern: extract distinct strings → process uniques → remap to parent dataset
-- Duration conversion table exists in ComptoxR ECOTOX builder (section 12 of ecotox.R)
-- AMOS methods have messy descriptions requiring ontology extraction, not just lookup
-- WQX parameter mapping deferred to its own milestone
 
 ### Out of Scope
 
@@ -161,8 +156,8 @@ ChemReg is a proper R package with full compound curation + numeric/unit harmoni
 
 ## Context
 
-Shipped v1.9 Number and Unit Coercion Harmonization. ~17,900 LOC R across `R/`, `inst/app/`, and `tests/testthat/`.
-Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, writexl, rhandsontable, arrow, units, digest.
+Shipped v2.0 Pipeline Performance & Date/Media Harmonization. ~92,900 LOC R across `R/`, `inst/app/`, and `tests/testthat/`.
+Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, writexl, rhandsontable, arrow, units, lubridate, digest.
 
 The app has 9 top-level tabs: Data Preview, Detection Info, Raw Data, Clean Data, Tag Columns, Run Curation, Review Results, Harmonize, plus sidebar upload and config import. On startup only Upload is visible; tabs appear progressively as the user advances.
 
@@ -179,9 +174,12 @@ Key files:
 - `R/unit_harmonization.R` — unit harmonization with units package + context-aware conversions
 - `R/toxval_schema.R` — 56-column ToxVal schema mapper with audit columns
 - `R/tag_dispatch.R` — tag classification and cascade reset helpers
-- `inst/extdata/reference_cache/` — RDS files for reference lists
-- `inst/extdata/unit_table.csv` — unit conversion table (151 rows)
-- `tests/testthat/` — test suite with 953+ passing tests
+- `R/date_parser.R` — multi-format date parser with ambiguity detection
+- `R/media_harmonizer.R` — ENVO-based media harmonizer with AMOS enrichment
+- `scripts/benchmark_pipeline.R` — dedup performance benchmark harness
+- `scripts/build_amos_media.R` — AMOS media ontology extraction pipeline
+- `inst/extdata/reference_cache/` — RDS files for reference lists, unit data, media maps
+- `tests/testthat/` — test suite with 1666+ passing tests
 
 ## Constraints
 
@@ -229,6 +227,18 @@ Key files:
 | unname(unlist()) before Shiny output bindings | Prevents jsonlite 2.0.0 named vector deprecation warning from unlist() in reactive context | ✓ Good — v1.7 |
 | Content-encoded chiral placeholders (###CHIRAL_PLUS###) | Enables stateless restore without row-index tracking — survives synonym split row reordering | ✓ Good — v1.7 |
 | Greedy isotope matching (sort by symbol length desc) | Ensures Pb matched before P when element symbols share prefix | ✓ Good — v1.7 |
+| Dedup as orchestrator wrapper, not internal | `dedup_step()` wraps step functions; steps stay pure and testable | ✓ Good — v2.0 |
+| Pre-checks are orchestrator-only | Step functions always return `list(cleaned_data, audit_trail)`; skip logic lives outside | ✓ Good — v2.0 |
+| Two-pass dedup architecture | Pass 1 covers name chain (steps 6-pre through 6d3), Pass 2 covers steps 7-9; respects data dependencies | ✓ Good — v2.0 |
+| n_unique < n/2 bypass threshold for unit dedup | Dedup overhead exceeds benefit when uniqueness is high; threshold matches D-03 design | ✓ Good — v2.0 |
+| Custom duration synonym map over lubridate::duration() | "m" = months pitfall in lubridate; custom map resolves explicitly with ambiguity flagging | ✓ Good — v2.0 |
+| Pre-synonym molarity classification | Separate M (Molar) from m (minutes) before synonym lookup to avoid unit confusion | ✓ Good — v2.0 |
+| lubridate for date parsing, not datefixR | Rust binary complicates installation; lubridate handles all verified regulatory formats | ✓ Good — v2.0 |
+| classify_tags() returns 4-element list | chemical_tags, numeric_tags, metadata_tags, study_type_tags — extensible without breaking callers | ✓ Good — v2.0 |
+| AMOS extraction is build-time only | `amos_media.rds` committed, never called at runtime; `refresh_amos_cache()` for manual refresh | ✓ Good — v2.0 |
+| Direct harmonize_media() call over dedup_step wrapper | Media harmonization is hash-based lookup, not string transformation; dedup adds overhead without benefit | ✓ Good — v2.0 |
+| DT selection=none for custom JS callbacks | Simplest fix for row-click conflicts in media editor; no side effects on existing callback pattern | ✓ Good — v2.0 |
+| Unified Run Pipeline button over separate Clean/Harmonize | Single entry point with pre-flight modal gives user full visibility before execution | ✓ Good — v2.0 |
 
 ## Evolution
 
@@ -248,4 +258,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-27 — Phase 40 Date Parser complete (multi-format parsing, StudyDate tag, pipeline wiring)*
+*Last updated: 2026-04-29 after v2.0 milestone*
