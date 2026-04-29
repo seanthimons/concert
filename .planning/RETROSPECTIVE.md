@@ -2,6 +2,56 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
+## Milestone: v2.0 — Pipeline Performance & Date/Media Harmonization
+
+**Shipped:** 2026-04-29
+**Phases:** 6 | **Plans:** 20
+
+### What Was Built
+- Distinct-string dedup architecture (`dedup_step()` + `remap_audit_to_parent()`) with two-pass cleaning pipeline migration and unit-key dedup in harmonizer
+- Short-circuit pre-checks for all cleaning/harmonization steps with false-negative companion tests and `build_skip_result()` helper
+- Benchmark harness (`scripts/benchmark_pipeline.R`) with `bench::press()` grid, `use_dedup` toggle for before/after comparison
+- Duration conversion engine with hours base unit, 23 conversion + 34 synonym entries, "m" ambiguity flagging, ToxVal `study_duration_value`/`study_duration_units` wiring
+- Multi-format date parser (`parse_dates()`) handling ISO/MDY/DMY/SAS/YYYYMMDD/year-only/2-digit-year with day≤12 ambiguity detection
+- ENVO-based media harmonizer with AMOS build-time pipeline (26 curated + 7 AMOS-derived terms), compound media resolution, and ppb/ppm routing loop closure
+- Unified "Run Pipeline" button with pre-flight modal (fire/skip per step), media classification editor with unmatched term surfacing, pre-flight progress indicator, and post-pipeline completion summary
+
+### What Worked
+- Dedup-as-orchestrator-wrapper pattern kept step functions pure and testable — zero changes needed to individual step function signatures
+- Two-pass dedup architecture (Pass 1: name chain steps 6-pre through 6d3, Pass 2: steps 7-9) correctly handled data dependencies without over-deduplicating
+- Custom duration synonym map instead of `lubridate::duration()` avoided the "m" = months pitfall — the explicit ambiguity flagging is the right approach for regulatory data
+- Pre-synonym molarity classification cleanly separated M (Molar) from m (minutes) without upstream changes
+- Gap closure plans (41-04, 42-04, 42-05) were effective at catching UAT-discovered issues — the UAT → gap plan → fix → re-verify cycle worked well
+- DT `selection=none` was the simplest fix for the row-click conflict in the media editor — no JS workaround needed
+- 4-element `classify_tags()` return (chemical, numeric, metadata, study_type) extended cleanly without breaking existing callers
+
+### What Was Inefficient
+- REQUIREMENTS.md traceability table never updated during execution — all 32 non-BENCH requirements still showed "Pending" at milestone close despite all phases completing. This is the 5th+ milestone with this issue.
+- Phase 37 checkbox in ROADMAP.md was never checked despite all 4 plans completing
+- No formal milestone audit was run — accepted as known gap
+- The gsd-tools summary-extract CLI couldn't reliably extract one-liners from SUMMARY.md files — had to fall back to manual reading
+
+### Patterns Established
+- **Dedup orchestrator wrapper**: `dedup_step(fn, df, col, ...)` wraps any step function; step functions stay pure `list(cleaned_data, audit_trail)` returners
+- **Pre-check predicate convention**: `precheck_<step_name>(values)` returns TRUE if step should fire, FALSE to skip; paired with `build_skip_result()` for typed empty audit
+- **Category parameter for harmonize_units()**: `category = "concentration"|"duration"` selects which subset of the unit table to use
+- **Build-time ontology extraction**: AMOS/ENVO data extracted at build time, committed as RDS, never called at runtime
+- **Three-tier media cascade**: user_map → amos_map → envo_base in `harmonize_media()`
+- **Unified pipeline button**: single entry point with pre-flight modal replaces separate Clean/Harmonize buttons
+
+### Key Lessons
+1. **Traceability automation is now critical** — 5+ milestones with requirements tracking lag. Manual checkbox updates simply do not happen during execution. This needs to be automated or eliminated.
+2. **Gap closure plans are a healthy pattern** — Phases 41 and 42 each needed gap closure sub-plans after UAT revealed issues. Planning for 1-2 gap closure rounds is realistic.
+3. **Duration/date/media all followed the same integration pattern** — core function → tag system extension → pipeline wiring → ToxVal mapping. This 4-step pattern should be templated for future harmonization types.
+4. **Pre-flight modals improve user confidence** — showing fire/skip indicators before running gives users control and transparency. Apply this pattern to other long-running operations.
+5. **Build-time data extraction is the right boundary** — AMOS methods require API calls and ontology extraction. Doing this at build time and committing the result keeps the runtime fast and reproducible.
+
+### Cost Observations
+- Sessions: Multiple across 5 days (2026-04-24 → 2026-04-28)
+- Notable: 156 commits, 6 phases, 20 plans. Largest milestone by plan count and code change volume (+6,209 / -756 lines across 32 files).
+
+---
+
 ## Milestone: v1.7 — UI Polish & Isotope Cleaning
 
 **Shipped:** 2026-04-13
@@ -347,13 +397,20 @@
 | v1.4 | 1 | 1 | 2 | Focused bug fix milestone, heuristic pre-checks, fastest completion |
 | v1.5 | 1 | 2 | 2 | Enrichment + modal UI, tech debt resolved organically, clean data contracts |
 | v1.6 | 1 | 3 | 3 | Full auto-advance chain, verifier catching missed files, repeat-until-stable pattern |
+| v1.7 | 2 | 2 | 3 | Milestone audit catches missing restore path, content-encoded placeholders, source-code assertion tests |
+| v1.8 | — | 5 | 5 | R package migration, run_app() launcher, curate_headless(), 953 tests |
+| v1.9 | — | 9 | 20 | Unit harmonization, ToxVal schema, extended tagging, harmonize tab, parquet export |
+| v2.0 | — | 6 | 20 | Dedup architecture, pre-checks, duration/date/media harmonization, pre-flight modal |
 
 ### Top Lessons (Verified Across Milestones)
 
-1. **Traceability must update atomically** — v1.0-v1.3 all had checkbox tracking lag. 4 milestones confirms this needs automation.
+1. **Traceability must update atomically** — v1.0-v2.0 all had checkbox tracking lag. 5+ milestones confirms this needs automation or elimination.
 2. **Verify framework APIs before implementing** — v1.0 nav_panel_hidden, v1.2 modal actionButton, v1.3 bsicons icon names. Always check the actual API.
 3. **UAT and smoke tests reveal what unit tests miss** — All milestones found issues during testing that specs didn't anticipate. v1.3 added mandatory smoke tests.
 4. **Check for shadowing before debugging logic** — v1.2 auto-sourcing order, v1.3 icon library confusion. The problem is often environmental, not logical.
 5. **Run verification for every phase** — v1.3 Phase 12 skipped verification; caught only by milestone audit. No exceptions.
 6. **Small milestones execute fastest** — v1.4 and v1.6 both completed in single sessions with zero rework. Tight scope eliminates coordination overhead.
 7. **Grep the full test directory for patterns being fixed** — v1.6 Phase 21 missed a second test file with identical stale assertions. Always search broadly.
+8. **Gap closure plans are healthy, not rework** — v2.0 Phases 41 and 42 each needed gap closure sub-plans after UAT. Plan for 1-2 rounds.
+9. **Harmonization features follow a repeatable pattern** — core function → tag system → pipeline wiring → ToxVal mapping. Template this for future types.
+10. **Build-time data extraction is the right boundary for ontology data** — AMOS methods at build time, committed RDS at runtime. Fast and reproducible.
