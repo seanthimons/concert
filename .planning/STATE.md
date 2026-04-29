@@ -1,24 +1,24 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: Pipeline Performance & Date/Media Harmonization
-status: completed
-stopped_at: Milestone v2.0 archived
-last_updated: "2026-04-29T21:44:22.417Z"
+milestone: v2.1
+milestone_name: WQX Parameter Harmonization
+status: active
+stopped_at: null
+last_updated: "2026-04-29"
 last_activity: 2026-04-29
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 20
-  completed_plans: 20
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: ChemReg
 
 **Last Updated:** 2026-04-29
-**Milestone:** v2.0 Pipeline Performance & Date/Media Harmonization
-**Status:** ✅ v2.0 milestone complete — archived
+**Milestone:** v2.1 WQX Parameter Harmonization
+**Status:** Defining requirements
 
 ---
 
@@ -27,14 +27,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-29)
 
 **Core value:** Users can go from messy regulatory/benchmark data files to validated, harmonized, toxval-compatible datasets in one workflow.
-**Current focus:** Planning next milestone
+**Current focus:** Defining requirements for v2.1
 
 ---
 
 ## Current Position
 
-Milestone v2.0 shipped 2026-04-29. All 6 phases (37-42) complete, 20 plans executed.
-Next step: `/gsd-new-milestone` to define v2.1+ scope.
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-29 — Milestone v2.1 started
 
 ---
 
@@ -73,7 +75,6 @@ None.
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
 | Date/Duration | DFUT-01/02/03: Date/duration ranges + step timing | Future milestone | v2.0 |
-| WQX | WFUT-01/02/03: WQX parameter mapping | Future milestone | v2.0 |
 
 ---
 
