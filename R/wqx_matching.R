@@ -53,18 +53,21 @@ match_wqx <- function(names, dictionary, threshold = 0.85, verbose = FALSE) {
   # Tier 2: alias rows (synonym, standardize, retired)
   alias_rows <- dictionary[dictionary$type %in% c("synonym", "standardize", "retired"), ]
 
+  # Normalize keys: lowercase + trim + & -> and
+  normalize_key <- function(x) gsub("\\s*&\\s*", " and ", tolower(trimws(x)))
+
   # Deduplicate alias keys: prioritize standardize > synonym > retired,
-  # then keep first row per lowercased name
+  # then keep first row per normalized name
   alias_type_priority <- c("standardize" = 1L, "synonym" = 2L, "retired" = 3L)
   alias_rows <- alias_rows[order(alias_type_priority[alias_rows$type]), ]
   alias_rows <- dplyr::distinct(
-    dplyr::mutate(alias_rows, .lower_name = tolower(trimws(alias_rows$name))),
+    dplyr::mutate(alias_rows, .lower_name = normalize_key(alias_rows$name)),
     .lower_name,
     .keep_all = TRUE
   )
 
-  # O(1) named-vector maps: keys are lowercased, values are original data
-  tier1_map <- stats::setNames(canonical_rows$name, tolower(trimws(canonical_rows$name)))
+  # O(1) named-vector maps
+  tier1_map <- stats::setNames(canonical_rows$name, normalize_key(canonical_rows$name))
   tier2_map <- stats::setNames(alias_rows$canonical_name, alias_rows$.lower_name)
   tier2_type_map <- stats::setNames(alias_rows$type, alias_rows$.lower_name)
 
