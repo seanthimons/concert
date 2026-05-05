@@ -42,8 +42,9 @@ match_wqx <- function(names, dictionary, threshold = 0.85, verbose = FALSE) {
   # --- Identify valid inputs (non-NA, non-empty after trimming) ---
   valid_idx <- which(!is.na(names) & trimws(names) != "")
 
-  # --- Normalize once: lowercase + trim ---
+  # --- Normalize once: lowercase + trim + ampersand swap ---
   names_clean <- tolower(trimws(names))
+  names_clean <- gsub("\\s*&\\s*", " and ", names_clean)
 
   # --- Build hash tables from dictionary ---
   # Tier 1: canonical rows only
@@ -52,8 +53,10 @@ match_wqx <- function(names, dictionary, threshold = 0.85, verbose = FALSE) {
   # Tier 2: alias rows (synonym, standardize, retired)
   alias_rows <- dictionary[dictionary$type %in% c("synonym", "standardize", "retired"), ]
 
-  # Deduplicate alias keys (Pitfall 2): keep first row per lowercased name
-  # Prevents silent overwrites when the same alias maps to multiple canonicals
+  # Deduplicate alias keys: prioritize standardize > synonym > retired,
+  # then keep first row per lowercased name
+  alias_type_priority <- c("standardize" = 1L, "synonym" = 2L, "retired" = 3L)
+  alias_rows <- alias_rows[order(alias_type_priority[alias_rows$type]), ]
   alias_rows <- dplyr::distinct(
     dplyr::mutate(alias_rows, .lower_name = tolower(trimws(alias_rows$name))),
     .lower_name,
