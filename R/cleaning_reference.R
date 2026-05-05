@@ -512,3 +512,116 @@ load_all_reference_lists <- function(cache_dir) {
     media_map = load_media_map(cache_dir) # Phase 42: merged user + AMOS media map
   )
 }
+
+# Internal function — builds WQX dictionary from EPA domain value CSVs
+# Downloads Characteristic.csv and Characteristic Alias.csv as zips,
+# parses them, and returns a combined tibble per D-01/D-05 schema.
+.build_wqx_dictionary <- function() {
+  char_url <- "https://cdx.epa.gov/wqx/download/DomainValues/Characteristic_CSV.zip"
+  alias_url <- "https://cdx.epa.gov/wqx/download/DomainValues/CharacteristicAlias_CSV.zip"
+
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  # Download both zips
+  char_zip <- file.path(tmp_dir, "char.zip")
+  alias_zip <- file.path(tmp_dir, "alias.zip")
+  utils::download.file(char_url, destfile = char_zip, mode = "wb", quiet = TRUE)
+  utils::download.file(alias_url, destfile = alias_zip, mode = "wb", quiet = TRUE)
+
+  # Extract
+  utils::unzip(char_zip, exdir = tmp_dir)
+  utils::unzip(alias_zip, exdir = tmp_dir)
+
+  # Parse Characteristic.csv -> canonical rows
+  char_tbl <- readr::read_csv(
+    file.path(tmp_dir, "Characteristic.csv"),
+    show_col_types = FALSE
+  ) |>
+    dplyr::select(
+      name = Name,
+      cas_number = `CAS Number`,
+      group_name = `Group Name`,
+      description = Description
+    ) |>
+    dplyr::mutate(
+      name = trimws(name),
+      canonical_name = name,
+      type = "canonical"
+    )
+
+  # Parse Characteristic Alias.csv -> alias rows (3 types only)
+  # NOTE: CSV filename has a space: "Characteristic Alias.csv" (not "CharacteristicAlias.csv")
+  kept_alias_types <- c(
+    "WQX SYNONYM REGISTRY (validation)",
+    "STANDARDIZE NAME (Normalized)",
+    "RETIRED NAME"
+  )
+  type_map <- c(
+    "WQX SYNONYM REGISTRY (validation)" = "synonym",
+    "STANDARDIZE NAME (Normalized)" = "standardize",
+    "RETIRED NAME" = "retired"
+  )
+  alias_tbl <- readr::read_csv(
+    file.path(tmp_dir, "Characteristic Alias.csv"),
+    show_col_types = FALSE
+  ) |>
+    dplyr::filter(`Alias Type Name` %in% kept_alias_types) |>
+    dplyr::select(
+      name = `Alias Name`,
+      canonical_name = `Characteristic Name`,
+      description = Description,
+      alias_type = `Alias Type Name`
+    ) |>
+    dplyr::mutate(
+      name = trimws(name),
+      canonical_name = trimws(canonical_name),
+      type = dplyr::recode(alias_type, !!!type_map),
+      cas_number = NA_character_,
+      group_name = NA_character_
+    ) |>
+    dplyr::select(-alias_type)
+
+  dplyr::bind_rows(char_tbl, alias_tbl)
+}
+
+#' Load WQX dictionary lookup table
+#'
+#' Returns a combined tibble of canonical WQX Characteristic Names and alias
+#' mappings (synonym, standardize, retired). Uses the generic cache-or-fetch
+#' infrastructure — builds the dictionary from EPA data on first call if no
+#' cached RDS exists.
+#'
+#' @param cache_dir Directory containing reference cache RDS files
+#' @return Tibble with columns: name, canonical_name, type, cas_number, group_name, description
+#' @export
+load_wqx_dictionary <- function(cache_dir) {
+  cache_path <- file.path(cache_dir, "wqx_dictionary.rds")
+  load_or_fetch_reference(cache_path, .build_wqx_dictionary, "WQX dictionary")
+}
+
+#' Refresh WQX dictionary cache
+#'
+#' Re-downloads Characteristic.csv and Characteristic Alias.csv from EPA,
+#' rebuilds the combined lookup tibble, and saves to cache. Overwrites any
+#' existing cached RDS silently.
+#'
+#' @param cache_dir Directory for reference cache. Defaults to installed package path.
+#' @return Invisibly returns the rebuilt tibble
+#' @export
+refresh_wqx_cache <- function(cache_dir = NULL) {
+  if (is.null(cache_dir)) {
+    cache_dir <- system.file("extdata", "reference_cache", package = "chemreg")
+  }
+  cache_path <- file.path(cache_dir, "wqx_dictionary.rds")
+  if (file.exists(cache_path)) {
+    unlink(cache_path)
+  }
+
+  result <- .build_wqx_dictionary()
+  fs::dir_create(dirname(cache_path), recurse = TRUE)
+  saveRDS(result, cache_path, compress = FALSE)
+  message(sprintf("WQX dictionary refreshed: %d rows written to %s", nrow(result), cache_path))
+  invisible(result)
+}
