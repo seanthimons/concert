@@ -583,7 +583,8 @@ load_all_reference_lists <- function(cache_dir) {
     ) |>
     dplyr::select(-alias_type)
 
-  dplyr::bind_rows(char_tbl, alias_tbl)
+  dplyr::bind_rows(char_tbl, alias_tbl) |>
+    dplyr::select(name, canonical_name, type, cas_number, group_name, description)
 }
 
 #' Load WQX dictionary lookup table
