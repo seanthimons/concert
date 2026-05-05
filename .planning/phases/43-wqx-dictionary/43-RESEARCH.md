@@ -17,7 +17,7 @@ All infrastructure already exists. The `load_or_fetch_reference()` generic handl
 
 ### Locked Decisions
 
-- **D-01:** Single tibble with a `type` column (values: canonical, synonym, standardize, retired). Canonical rows have `name == canonical_name`. Aliases map `name` → `canonical_name` with their alias type.
+- **D-01:** Single tibble with a `type` column (values: canonical, synonym, standardize, retired). Canonical rows have `name == canonical_name`. Aliases map `name` -> `canonical_name` with their alias type.
 - **D-02:** Follow the existing `load_or_fetch_reference()` pattern (lazy, on first WQX function call). The RDS ships pre-built in `inst/extdata/reference_cache/`. No `.onLoad()` eager download.
 - **D-03:** Hardcode EPA download URLs directly in the function. `refresh_wqx_cache()` re-downloads and rebuilds silently with no staleness warnings.
 - **D-04:** Source URLs (zipped CSVs):
@@ -269,7 +269,7 @@ saveRDS(result, "inst/extdata/reference_cache/wqx_dictionary.rds", compress = FA
 **What goes wrong:** Code assumes `"CharacteristicAlias.csv"` but the zip contains `"Characteristic Alias.csv"` (with a space).
 **Why it happens:** The zip filename is `CharacteristicAlias_CSV.zip` but the CSV inside has a space: `Characteristic Alias.csv`.
 **How to avoid:** Use `unzip(zip_path, list = TRUE)$Name[1]` to discover the actual filename rather than hardcoding it, or hardcode `"Characteristic Alias.csv"` (verified from zip listing).
-**Warning signs:** `file.path(tmp_dir, "CharacteristicAlias.csv")` → `No such file or directory`.
+**Warning signs:** `file.path(tmp_dir, "CharacteristicAlias.csv")` -> `No such file or directory`.
 
 [VERIFIED: actual zip downloaded and listed]
 
@@ -374,17 +374,13 @@ tibble(
 
 **All other claims were verified against actual files or live URLs in this session.**
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Where to place the new code: `cleaning_reference.R` vs new `wqx_dictionary.R`**
-   - What we know: CONTEXT.md says "New `load_wqx_dictionary()` function in `R/cleaning_reference.R` (or new `R/wqx_dictionary.R`)"
-   - What's unclear: No strong preference was stated
-   - Recommendation: Add to `cleaning_reference.R` for consistency. All reference loaders live there. Create a new file only if the combined file becomes unwieldy (it is already 515 lines).
+   - **RESOLVED:** Add to `R/cleaning_reference.R`. All 10 existing reference loaders live there. Plans 43-01 and 43-02 implement this choice. The file grows from ~515 to ~600 lines, which remains manageable.
 
 2. **Whether to add `wqx_dictionary` to `load_all_reference_lists()`**
-   - What we know: CONTEXT.md says "WQX dictionary may be added here or kept separate (Phase 45 decision)"
-   - What's unclear: Phase 45 integration may require it
-   - Recommendation: Do NOT add to `load_all_reference_lists()` in Phase 43. Leave that change to Phase 45 when the matching engine is wired.
+   - **RESOLVED:** Do NOT add to `load_all_reference_lists()` in Phase 43. CONTEXT.md explicitly marks this as a "Phase 45 decision." Plan 43-01 Task 2 action includes a guard note: "Do NOT add to load_all_reference_lists()."
 
 ## Environment Availability
 
