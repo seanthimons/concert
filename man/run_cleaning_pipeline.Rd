@@ -4,7 +4,12 @@
 \alias{run_cleaning_pipeline}
 \title{Run complete cleaning pipeline with audit trail tracking}
 \usage{
-run_cleaning_pipeline(df, tag_map = NULL, reference_lists = NULL)
+run_cleaning_pipeline(
+  df,
+  tag_map = NULL,
+  reference_lists = NULL,
+  use_dedup = TRUE
+)
 }
 \arguments{
 \item{df}{Dataframe to clean}
@@ -12,6 +17,10 @@ run_cleaning_pipeline(df, tag_map = NULL, reference_lists = NULL)
 \item{tag_map}{Optional named list mapping column names to types ("CASRN", "Name", "Other")}
 
 \item{reference_lists}{Optional list of reference data (unused in Phase 11, reserved for future)}
+
+\item{use_dedup}{Logical. When TRUE (default), uses dedup_step() wrappers
+and pre-check predicates for performance optimization. Set to FALSE for
+benchmark comparison against the non-dedup baseline path.}
 }
 \value{
 List with cleaned_data (tibble), audit_trail (tibble), and new_tags (list)

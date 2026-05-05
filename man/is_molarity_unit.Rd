@@ -7,12 +7,14 @@
 is_molarity_unit(unit)
 }
 \arguments{
-\item{unit}{Character vector of unit strings (normalized)}
+\item{unit}{Character vector of unit strings (normalized, pre-synonym)}
 }
 \value{
 Logical vector
 }
 \description{
-Check if a unit is a molarity unit
+Case-sensitive for standalone "m"/"M": uppercase "M" is Molar; lowercase "m"
+is ambiguous (minutes) and handled by the synonym table.  All other molarity
+units (mm, um, nm, pm and their mol/L forms) are matched case-insensitively.
 }
 \keyword{internal}

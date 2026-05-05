@@ -10,7 +10,9 @@ harmonize_units(
   unit_map,
   media = NULL,
   dtxsid = NULL,
-  molecular_weight = NULL
+  molecular_weight = NULL,
+  use_dedup = TRUE,
+  category = NULL
 )
 }
 \arguments{
@@ -26,6 +28,13 @@ Values: "aqueous", "air", "solid", or NULL (defaults to aqueous per D-09)}
 \item{dtxsid}{Optional character vector - DTXSIDs for MW lookup when molarity detected}
 
 \item{molecular_weight}{Optional numeric vector - MW override (skips API call)}
+
+\item{use_dedup}{Logical. When TRUE (default), applies unit-key dedup
+optimization (Phase 37 D-07). Set to FALSE for benchmark baseline.}
+
+\item{category}{Character or NULL. When non-NULL, filters unit_map to rows
+matching this category before conversion. Use "duration" for duration
+harmonization. Default NULL uses all rows (backward compatible).}
 }
 \value{
 A tibble with columns:

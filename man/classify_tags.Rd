@@ -11,11 +11,12 @@ classify_tags(tags)
 (e.g., list(col1 = "Name", col2 = "Result"))}
 }
 \value{
-Named list with three elements:
+Named list with four elements:
 \describe{
 \item{chemical_tags}{Named list of chemical-related tags (Name, CASRN, Other)}
 \item{numeric_tags}{Named list of numeric/measurement tags (Result, Unit, Qualifier, Duration, DurationUnit)}
 \item{metadata_tags}{Named list of study metadata tags (Species, ExposureRoute)}
+\item{study_type_tags}{Named list of study/contextual tags (StudyDate)}
 }
 }
 \description{
