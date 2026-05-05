@@ -109,7 +109,10 @@ Plans:
   3. Names that miss tier 1 but have alias crosswalk entries (SYNONYM REGISTRY, STANDARDIZE NAME, RETIRED NAME) are resolved at tier 2
   4. Names still unresolved after tiers 1-2 receive a fuzzy candidate from stringdist against canonical names, with distance shown
   5. Each match attempt produces a cli-formatted console log line reporting success (name + match type) or failure (nearest candidate + distance)
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 44-01-PLAN.md — TDD: Tests + match_wqx() three-tier engine + DESCRIPTION/NAMESPACE updates
+- [ ] 44-02-PLAN.md — Prototype script + human verification of match quality
 
 ### Phase 45: Pipeline Integration
 **Goal**: WQX matching fires automatically in the curation pipeline for names that failed CompTox
@@ -151,5 +154,5 @@ Plans:
 | 41. Media Harmonizer & AMOS Pipeline | v2.0 | 4/4 | Complete | 2026-04-27 |
 | 42. Integration & Shiny Polish | v2.0 | 5/5 | Complete | 2026-04-28 |
 | 43. WQX Dictionary | v2.1 | 2/2 | Complete    | 2026-05-05 |
-| 44. Matching Engine + Prototype | v2.1 | 0/TBD | Not started | - |
+| 44. Matching Engine + Prototype | v2.1 | 0/2 | Not started | - |
 | 45. Pipeline Integration | v2.1 | 0/TBD | Not started | - |
