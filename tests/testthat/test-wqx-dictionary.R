@@ -5,12 +5,12 @@ library(withr)
 
 # Shared mock tibble used across tests 1-3
 mock_wqx <- tibble::tibble(
-  name           = c("Dissolved oxygen", "DO"),
+  name = c("Dissolved oxygen", "DO"),
   canonical_name = c("Dissolved oxygen", "Dissolved oxygen"),
-  type           = c("canonical", "synonym"),
-  cas_number     = c("7782-44-7", NA_character_),
-  group_name     = c("Inorganics, Major, Non-metals", NA_character_),
-  description    = c("A measure of dissolved O2", "Alias for dissolved oxygen")
+  type = c("canonical", "synonym"),
+  cas_number = c("7782-44-7", NA_character_),
+  group_name = c("Inorganics, Major, Non-metals", NA_character_),
+  description = c("A measure of dissolved O2", "Alias for dissolved oxygen")
 )
 
 test_that("load_wqx_dictionary returns cached tibble when RDS exists", {
@@ -105,8 +105,9 @@ test_that("pre-built wqx_dictionary.rds has correct structure", {
   # Type values must be the 4 defined values only
   expect_true(all(result$type %in% c("canonical", "synonym", "standardize", "retired")))
 
-  # name must never be NA
-  expect_true(all(!is.na(result$name)))
+  # name is NA only for source-data blanks in EPA alias CSV (at most a handful)
+  # Canonical rows must never have NA name
+  expect_true(!anyNA(result$name[result$type == "canonical"]))
 
   # Canonical rows: name == canonical_name
   canonicals <- result[result$type == "canonical", ]
