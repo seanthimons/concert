@@ -150,6 +150,6 @@ Plans:
 | 40. Date Parser | v2.0 | 3/3 | Complete | 2026-04-27 |
 | 41. Media Harmonizer & AMOS Pipeline | v2.0 | 4/4 | Complete | 2026-04-27 |
 | 42. Integration & Shiny Polish | v2.0 | 5/5 | Complete | 2026-04-28 |
-| 43. WQX Dictionary | v2.1 | 2/2 | Complete   | 2026-05-05 |
+| 43. WQX Dictionary | v2.1 | 2/2 | Complete    | 2026-05-05 |
 | 44. Matching Engine + Prototype | v2.1 | 0/TBD | Not started | - |
 | 45. Pipeline Integration | v2.1 | 0/TBD | Not started | - |
