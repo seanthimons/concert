@@ -510,9 +510,13 @@ run_tiered_search <- function(dedup_result) {
 map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved = NULL) {
   input_rows <- nrow(df)
 
-  # Build a fast lookup table: searchValue -> best result (lowest rank)
+  # Build a fast lookup table: searchValue -> best result
+  # Prefer resolved rows (non-NA dtxsid or preferredName) over unresolved, then lowest rank
   lookup_deduped <- lookup_results |>
-    dplyr::arrange(rank) |>
+    dplyr::arrange(
+      is.na(dtxsid) & is.na(preferredName),
+      rank
+    ) |>
     dplyr::distinct(searchValue, .keep_all = TRUE)
 
   # Named list for O(1) lookup by searchValue
