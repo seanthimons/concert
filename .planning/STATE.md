@@ -6,7 +6,7 @@ status: planning
 last_updated: "2026-05-06"
 last_activity: 2026-05-06
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,7 +17,7 @@ progress:
 
 **Last Updated:** 2026-05-06
 **Milestone:** v2.2 WQX Pipeline Refinement
-**Status:** Defining requirements
+**Status:** Roadmap created — ready to plan Phase 47
 
 ---
 
@@ -26,16 +26,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** Users can go from messy regulatory/benchmark data files to validated, harmonized, toxval-compatible datasets in one workflow.
-**Current focus:** Defining requirements for v2.2
+**Current focus:** Phase 47 — Pipeline Reordering, Threshold Control & Starts-With Toggle
 
 ---
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-05-06 — Milestone v2.2 started
+Phase: 47 of 48 (Pipeline Reordering, Threshold Control & Starts-With Toggle)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-06 — Roadmap created for v2.2 (2 phases, 10 requirements mapped)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -83,5 +83,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-05-06
-Stopped at: Milestone v2.2 initialization
+Stopped at: Roadmap created for v2.2 — run `/gsd-plan-phase 47` to begin
 Resume file: —
