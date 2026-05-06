@@ -116,10 +116,19 @@ Users can go from messy regulatory/benchmark data files to validated, harmonized
 - ✓ WQX matching auto-fires as Tier 3b for CompTox failures in both Shiny and headless paths — v2.1 Phase 45
 - ✓ WQX consensus classification with "wqx" status, teal badges, and tier-specific match type labels — v2.1 Phase 46
 
+## Current Milestone: v2.2 WQX Pipeline Refinement
+
+**Goal:** Fix WQX/CompTox pipeline ordering, expose fuzzy match confidence, and add interactive WQX value resolution for misses and bad matches.
+
+**Target features:**
+- WQX curation runs before CompTox starts-with so starts-with only fires on truly unresolved names
+- Confidence slider/filter for WQX fuzzy match scores in the Review Results UI
+- Type-ahead search against validated WQX values for overriding misses or bad fuzzy matches
+
 ## Current State
 
 **Shipped:** v2.1 WQX Parameter Harmonization (2026-05-06)
-**Next milestone:** Not yet planned
+**Active:** v2.2 WQX Pipeline Refinement
 
 ChemReg is a proper R package with full compound curation, numeric/unit/duration/date/media harmonization, WQX parameter matching, and ToxVal schema output. Installed via `devtools::install()`, used interactively via `chemreg::run_app()` or headlessly via `chemreg::curate_headless()`.
 
@@ -270,4 +279,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-06 after v2.1 milestone shipped*
+*Last updated: 2026-05-06 after v2.2 milestone started*

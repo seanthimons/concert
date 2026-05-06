@@ -1,42 +1,41 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.1
-milestone_name: WQX Parameter Harmonization
-status: completed
-stopped_at: Phase 45 context gathered
-last_updated: "2026-05-06T22:14:07.313Z"
+milestone: v2.2
+milestone_name: WQX Pipeline Refinement
+status: planning
+last_updated: "2026-05-06"
 last_activity: 2026-05-06
 progress:
-  total_phases: 5
-  completed_phases: 4
-  total_plans: 7
-  completed_plans: 7
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: ChemReg
 
-**Last Updated:** 2026-04-29
-**Milestone:** v2.1 WQX Parameter Harmonization
-**Status:** v2.1 milestone complete
+**Last Updated:** 2026-05-06
+**Milestone:** v2.2 WQX Pipeline Refinement
+**Status:** Defining requirements
 
 ---
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-29)
+See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** Users can go from messy regulatory/benchmark data files to validated, harmonized, toxval-compatible datasets in one workflow.
-**Current focus:** Phase 45 — Pipeline Integration
+**Current focus:** Defining requirements for v2.2
 
 ---
 
 ## Current Position
 
-Phase: 45
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-06
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-06 — Milestone v2.2 started
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -46,10 +45,10 @@ Progress: [░░░░░░░░░░] 0%
 
 **Cumulative (all milestones):**
 
-- Total milestones shipped: 10 (v1.0–v2.0)
-- Total phases complete: 36 (through Phase 42)
-- Total plans complete: 73
-- LOC: ~92,900 R
+- Total milestones shipped: 11 (v1.0–v2.1)
+- Total phases complete: 40 (through Phase 46)
+- Total plans complete: 80
+- LOC: ~94,200 R
 
 ---
 
@@ -58,7 +57,7 @@ Progress: [░░░░░░░░░░] 0%
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-All v2.0 decisions archived — see PROJECT.md for full table.
+All v2.1 decisions archived — see PROJECT.md for full table.
 
 ### Pending Todos
 
@@ -77,11 +76,12 @@ None.
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
 | Date/Duration | DFUT-01/02/03: Date/duration ranges + step timing | Future milestone | v2.0 |
+| Tests | Phase 47 stale test fixes from Phases 37-41 | Tracked as bean chemreg-mtpo | v2.1 |
 
 ---
 
 ## Session Continuity
 
-Last session: 2026-05-06T17:23:34.003Z
-Stopped at: Phase 45 context gathered
-Resume file: .planning/phases/45-pipeline-integration/45-CONTEXT.md
+Last session: 2026-05-06
+Stopped at: Milestone v2.2 initialization
+Resume file: —
