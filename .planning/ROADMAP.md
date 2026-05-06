@@ -8,7 +8,7 @@
 - ✅ **v1.8 R Package Migration** -- Phases 24-28 (shipped 2026-04-14)
 - ✅ **v1.9 Number and Unit Coercion Harmonization** -- Phases 29-36 (shipped 2026-04-21)
 - ✅ **v2.0 Pipeline Performance & Date/Media Harmonization** -- Phases 37-42 (shipped 2026-04-29)
-- 🚧 **v2.1 WQX Parameter Harmonization** -- Phases 43-45 (in progress)
+- 🚧 **v2.1 WQX Parameter Harmonization** -- Phases 43-47 (in progress)
 
 ## Phases
 
@@ -127,6 +127,30 @@ Plans:
 - [x] 45-01-PLAN.md — TDD: WQX consensus classification (compute_qc_tier + classify_consensus guard)
 - [x] 45-02-PLAN.md — Wire WQX tier into run_curation_pipeline + integration tests + smoke test
 
+### Phase 46: WQX UI Display Fixes
+**Goal**: WQX-resolved rows display correctly in the Shiny review panel
+**Depends on**: Phase 45
+**Requirements**: None (tech debt closure)
+**Gap Closure:** Closes UI display debt from v2.1 audit
+**Success Criteria** (what must be TRUE):
+  1. `recalc_consensus_summary()` counts `"wqx"` status — WQX rows visible in dashboard value_boxes
+  2. `derive_resolution_html()` renders a meaningful Resolution cell for `status == "wqx"` rows
+  3. `derive_match_type()` maps `wqx_exact`, `wqx_alias`, `wqx_fuzzy` to descriptive tier labels
+Plans:
+- [ ] 46-01-PLAN.md — Fix WQX status counting, resolution rendering, and tier labels in mod_review_results.R
+
+### Phase 47: Stale Test Fixes
+**Goal**: Pre-existing test failures from Phases 37-41 are resolved
+**Depends on**: None
+**Requirements**: None (tech debt closure)
+**Gap Closure:** Closes stale test assertions from v2.1 audit
+**Success Criteria** (what must be TRUE):
+  1. `test-cleaning-reference.R` passes with correct key-count assertions
+  2. `test-reference-provenance.R` passes with correct assertions
+  3. Full test suite runs without failures
+Plans:
+- [ ] 47-01-PLAN.md — Update stale assertions in test-cleaning-reference.R and test-reference-provenance.R
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -159,3 +183,5 @@ Plans:
 | 43. WQX Dictionary | v2.1 | 2/2 | Complete    | 2026-05-05 |
 | 44. Matching Engine + Prototype | v2.1 | 2/2 | Complete    | 2026-05-05 |
 | 45. Pipeline Integration | v2.1 | 2/2 | Complete    | 2026-05-06 |
+| 46. WQX UI Display Fixes | v2.1 | 0/1 | Not Started | — |
+| 47. Stale Test Fixes | v2.1 | 0/1 | Not Started | — |
