@@ -10,7 +10,8 @@ recalc_consensus_summary <- function(df) {
     n_single = sum(df$consensus_status == "single", na.rm = TRUE),
     n_error = sum(df$consensus_status == "error", na.rm = TRUE),
     n_manual = sum(df$consensus_status == "manual", na.rm = TRUE),
-    n_unresolvable = sum(df$consensus_status == "unresolvable", na.rm = TRUE)
+    n_unresolvable = sum(df$consensus_status == "unresolvable", na.rm = TRUE),
+    n_wqx = sum(df$consensus_status == "wqx", na.rm = TRUE)
   )
 }
 
@@ -24,7 +25,10 @@ derive_match_type <- function(df) {
   tier_label_map <- c(
     "exact" = "Exact Match",
     "cas" = "CAS Lookup",
-    "starts_with" = "Starts-With"
+    "starts_with" = "Starts-With",
+    "wqx_exact" = "WQX Exact",
+    "wqx_alias" = "WQX Alias",
+    "wqx_fuzzy" = "WQX Fuzzy"
   )
 
   result <- rep("No Match", nrow(df))
@@ -135,6 +139,18 @@ derive_resolution_html <- function(df, row_indices) {
 
   # unresolvable
   result[status == "unresolvable"] <- "\u26A0\uFE0F Auto-curation failed"
+
+  # wqx
+  wqx_mask <- status == "wqx"
+  wqx_has_pref <- wqx_mask & !is.na(pref_name)
+  wqx_badge <- '<span class="badge bg-success ms-1" style="font-size:0.7em;">wqx</span>'
+  result[wqx_has_pref] <- paste0(
+    "\u2705 ",
+    htmltools::htmlEscape(pref_name[wqx_has_pref]),
+    " ",
+    wqx_badge
+  )
+  result[wqx_mask & !wqx_has_pref] <- paste0("\u2705 WQX matched ", wqx_badge)
 
   result
 }
@@ -466,7 +482,8 @@ mod_review_results_server <- function(id, data_store) {
       resolved <- summary$n_agree +
         (summary$n_agree_caveat %||% 0) +
         (summary$n_single %||% 0) +
-        (summary$n_manual %||% 0)
+        (summary$n_manual %||% 0) +
+        (summary$n_wqx %||% 0)
       errors <- (summary$n_error %||% 0) + (summary$n_unresolvable %||% 0)
 
       layout_columns(
@@ -748,13 +765,16 @@ mod_review_results_server <- function(id, data_store) {
       # Badge: match_type
       if ("match_type" %in% names(df_display)) {
         match_levels <- intersect(
-          c("Exact Match", "CAS Lookup", "Starts-With", "No Match"),
+          c("Exact Match", "CAS Lookup", "Starts-With", "WQX Exact", "WQX Alias", "WQX Fuzzy", "No Match"),
           unique(as.character(df_display$match_type))
         )
         match_colors <- c(
           "Exact Match" = "#28a745",
           "CAS Lookup" = "#007bff",
           "Starts-With" = "#ffc107",
+          "WQX Exact" = "#20c997",
+          "WQX Alias" = "#17a2b8",
+          "WQX Fuzzy" = "#6f42c1",
           "No Match" = "#dc3545"
         )
         match_text_colors <- c("Starts-With" = "#212529")
@@ -787,13 +807,14 @@ mod_review_results_server <- function(id, data_store) {
       # Badge: consensus_status
       if ("consensus_status" %in% names(df_display)) {
         status_levels <- intersect(
-          c("agree", "agree_caveat", "single", "disagree", "error", "manual", "unresolvable"),
+          c("agree", "agree_caveat", "single", "wqx", "disagree", "error", "manual", "unresolvable"),
           unique(as.character(df_display$consensus_status))
         )
         status_colors <- c(
           "agree" = "#28a745",
           "agree_caveat" = "#17a2b8",
           "single" = "#6c757d",
+          "wqx" = "#20c997",
           "disagree" = "#fd7e14",
           "error" = "#343a40",
           "manual" = "#6f42c1",
@@ -887,6 +908,7 @@ mod_review_results_server <- function(id, data_store) {
         "agree_caveat" = "rgba(40, 167, 69, 0.05)",
         "disagree" = "rgba(220, 53, 69, 0.08)",
         "single" = "rgba(108, 117, 125, 0.05)",
+        "wqx" = "rgba(32, 201, 151, 0.08)",
         "error" = "rgba(220, 53, 69, 0.12)",
         "manual" = "rgba(111, 66, 193, 0.08)",
         "unresolvable" = "rgba(114, 28, 36, 0.12)"
