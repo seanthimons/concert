@@ -122,7 +122,10 @@ Plans:
   1. After CompTox curation, names with no DTXSID result are automatically passed to the WQX matcher without any user action
   2. Rows that receive a WQX canonical name show it in the same output column as curated compound names (treated as a resolution, not a separate annotation)
   3. Running `curate_headless()` on a file with unresolved names produces WQX matches in the output without additional arguments
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 45-01-PLAN.md — TDD: WQX consensus classification (compute_qc_tier + classify_consensus guard)
+- [ ] 45-02-PLAN.md — Wire WQX tier into run_curation_pipeline + integration tests + smoke test
 
 ## Progress
 
@@ -155,4 +158,4 @@ Plans:
 | 42. Integration & Shiny Polish | v2.0 | 5/5 | Complete | 2026-04-28 |
 | 43. WQX Dictionary | v2.1 | 2/2 | Complete    | 2026-05-05 |
 | 44. Matching Engine + Prototype | v2.1 | 2/2 | Complete    | 2026-05-05 |
-| 45. Pipeline Integration | v2.1 | 0/TBD | Not started | - |
+| 45. Pipeline Integration | v2.1 | 0/2 | Not started | - |
