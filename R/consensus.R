@@ -28,10 +28,12 @@ find_dtxsid_cols <- function(df) {
 #' @return Integer QC tier (1 = best, K+1 = worst)
 #' @export
 compute_qc_tier <- function(status, n_matched, n_total) {
-  tier <- switch(status,
+  tier <- switch(
+    status,
     "agree" = 1L,
     "agree_caveat" = 1L + as.integer(n_total - n_matched),
     "single" = as.integer(n_total),
+    "wqx" = as.integer(n_total),
     "disagree" = as.integer(n_total + 1L),
     "error" = as.integer(n_total + 2L),
     NA_integer_
@@ -46,7 +48,7 @@ compute_qc_tier <- function(status, n_matched, n_total) {
 #' Classify consensus across tagged columns for each row
 #'
 #' NOTE: This function returns status values "agree", "agree_caveat", "single",
-#' "disagree", and "error". Downstream code (manual validation flow, retry merge)
+#' "wqx", "disagree", and "error". Downstream code (manual validation flow, retry merge)
 #' may add additional status values: "manual" (manually-entered DTXSID) and
 #' "unresolvable" (error persisting after retry).
 #'
@@ -64,17 +66,47 @@ classify_consensus <- function(df, dtxsid_cols) {
   consensus_source <- character(nrow(df))
   qc_tier <- integer(nrow(df))
 
+  # Pre-compute source_tier column names (avoids repeated sub() inside loop)
+  tier_cols <- sub("^dtxsid_", "source_tier_", dtxsid_cols)
+  tier_cols_exist <- tier_cols %in% names(df)
+
   for (i in seq_len(nrow(df))) {
     # Extract DTXSIDs for this row across all tagged columns
-    values <- vapply(dtxsid_cols, function(col) {
-      val <- df[[col]][i]
-      if (is.na(val)) NA_character_ else as.character(val)
-    }, character(1))
+    values <- vapply(
+      dtxsid_cols,
+      function(col) {
+        val <- df[[col]][i]
+        if (is.na(val)) NA_character_ else as.character(val)
+      },
+      character(1)
+    )
 
     non_na <- values[!is.na(values)]
     n_present <- length(non_na)
     unique_vals <- unique(non_na)
     n_unique <- length(unique_vals)
+
+    # WQX guard: rows with NA DTXSIDs but WQX source_tier get "wqx" status, not "error"
+    if (n_present == 0) {
+      row_tiers <- vapply(
+        seq_along(tier_cols),
+        function(j) {
+          if (tier_cols_exist[j]) as.character(df[[tier_cols[j]]][i]) else NA_character_
+        },
+        character(1)
+      )
+      is_wqx_row <- any(!is.na(row_tiers) & grepl("^wqx_", row_tiers))
+
+      if (is_wqx_row) {
+        consensus_status[i] <- "wqx"
+        consensus_dtxsid[i] <- NA_character_
+        # Find which column had the WQX resolution for source attribution
+        wqx_col_idx <- which(!is.na(row_tiers) & grepl("^wqx_", row_tiers))[1]
+        consensus_source[i] <- sub("^source_tier_", "", tier_cols[wqx_col_idx])
+        qc_tier[i] <- compute_qc_tier("wqx", 0L, k)
+        next
+      }
+    }
 
     if (n_present == 0) {
       # All NA -> error
@@ -281,8 +313,12 @@ apply_priority_chain <- function(df, priority_order, dtxsid_cols) {
 
   for (i in seq_len(nrow(df))) {
     # Only process disagree rows that are not pinned
-    if (df$consensus_status[i] != "disagree") next
-    if (isTRUE(df$.pinned[i])) next
+    if (df$consensus_status[i] != "disagree") {
+      next
+    }
+    if (isTRUE(df$.pinned[i])) {
+      next
+    }
 
     # Walk priority order, pick first with non-NA value
     for (col in priority_order) {
