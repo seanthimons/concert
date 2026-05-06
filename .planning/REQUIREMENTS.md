@@ -45,22 +45,22 @@ None deferred for this milestone.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ORD-01 | — | Pending |
-| ORD-02 | — | Pending |
-| CONF-01 | — | Pending |
-| CONF-02 | — | Pending |
-| CONF-03 | — | Pending |
-| RES-01 | — | Pending |
-| RES-02 | — | Pending |
-| RES-03 | — | Pending |
-| TOG-01 | — | Pending |
-| TOG-02 | — | Pending |
+| ORD-01 | Phase 47 | Pending |
+| ORD-02 | Phase 47 | Pending |
+| CONF-01 | Phase 47 | Pending |
+| CONF-02 | Phase 47 | Pending |
+| TOG-01 | Phase 47 | Pending |
+| TOG-02 | Phase 47 | Pending |
+| CONF-03 | Phase 48 | Pending |
+| RES-01 | Phase 48 | Pending |
+| RES-02 | Phase 48 | Pending |
+| RES-03 | Phase 48 | Pending |
 
 **Coverage:**
 - v2.2 requirements: 10 total
-- Mapped to phases: 0
-- Unmapped: 10 ⚠️
+- Mapped to phases: 10
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-05-06*
-*Last updated: 2026-05-06 after initial definition*
+*Last updated: 2026-05-06 — traceability populated after v2.2 roadmap created*
