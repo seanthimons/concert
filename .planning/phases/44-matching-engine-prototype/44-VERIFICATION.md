@@ -1,13 +1,13 @@
 ---
 phase: 44-matching-engine-prototype
-verified: 2026-05-05T21:00:00Z
-status: human_needed
-score: 8/9
+verified: 2026-05-06T22:00:00Z
+status: passed
+score: 9/9
 overrides_applied: 0
 human_verification:
   - test: "Run `Rscript scripts/prototype_wqx_matching.R` and review the match output"
     expected: "Tier breakdown shows reasonable resolution rate; fuzzy matches (if any) look sensible; unresolved names are genuinely unresolvable (e.g., trade names/compound codes not in WQX registry)"
-    why_human: "Match quality is a judgment call — verifier confirmed the script runs and prints tier breakdown, but a human must review whether GenX (HFPO-DA), TPH-GRO (C6-C10), and TPH-ORO (C28-C36) are correctly unresolved at threshold 0.85, and whether the 92% resolution rate (46/50) is acceptable for Phase 45 integration"
+    result: "PASSED — human approved 2026-05-06. Unresolved names (GenX/HFPO-DA, TPH-GRO, TPH-ORO) confirmed genuinely absent from WQX at threshold 0.85. Resolution rate acceptable. Note: temperature resolution bug found during UAT and fixed (commit 4a51f89)."
 ---
 
 # Phase 44: Matching Engine + Prototype — Verification Report
@@ -31,7 +31,7 @@ human_verification:
 | 6 | Prototype script runs against detections_uat_sample_50.csv and prints match results without starting the Shiny app | VERIFIED | Script exits with code 0. Live run confirmed: 46/50 names resolved (92%), TIER BREAKDOWN / FUZZY MATCHES / UNRESOLVED NAMES sections all printed. No Shiny dependency — sources R files directly. |
 | 7 | Output shows tier breakdown: N exact, N alias, N fuzzy, N unresolved | VERIFIED | Script outputs `alias exact none / 14 32 4` in live run. `table(results$match_tier)` + `print()` confirmed present at line 72-73 of script. |
 | 8 | Fuzzy matches are printed with distances for manual review | VERIFIED | Script contains `fuzzy_hits[, c("input_name", "wqx_name", "match_distance")]` at line 78. Live run produced "(no fuzzy matches)" section (all matches were exact or alias at threshold 0.85). |
-| 9 | Unresolved names are printed with nearest candidate and distance | HUMAN NEEDED | Section present and printed in live run — 4 unresolved names shown with distances. However, the SUMMARY claimed 1 unresolved (GenX only) while live run shows 4 unresolved (GenX + TPH compounds). Match quality for those additional unresolved names needs human sign-off before Phase 45 integration. |
+| 9 | Unresolved names are printed with nearest candidate and distance | VERIFIED | Section present and printed in live run — 4 unresolved names shown with distances. Human approved 2026-05-06: GenX (HFPO-DA), TPH-GRO (C6-C10), TPH-ORO (C28-C36) confirmed genuinely absent from WQX at threshold 0.85. |
 
 **Score:** 8/9 truths verified (truth 9 is partially automated-verified but requires human judgment on match quality)
 

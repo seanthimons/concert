@@ -1,22 +1,22 @@
 ---
 phase: 46-wqx-ui-display-fixes
-verified: 2026-05-06T21:15:00Z
-status: human_needed
+verified: 2026-05-06T22:00:00Z
+status: passed
 score: 4/4
 overrides_applied: 0
 human_verification:
   - test: "Upload a dataset with WQX-resolved rows and verify the Resolved value_box count includes them"
     expected: "WQX-resolved rows are counted in the Resolved total alongside agree, agree_caveat, single, and manual rows"
-    why_human: "Value box rendering is a Shiny reactive UI output -- requires running the app with real WQX data to see the count"
+    result: "PASSED — human approved 2026-05-06"
   - test: "Check the Resolution column for a WQX row in the review table"
     expected: "Green checkmark, the WQX canonical name (e.g., 'Dissolved oxygen (DO)'), and a green 'wqx' badge"
-    why_human: "HTML rendering within reactable cells cannot be verified without visual inspection in a browser"
+    result: "PASSED — human approved 2026-05-06"
   - test: "Check the match_type badge for WQX rows with different tiers"
     expected: "WQX Exact shows teal (#20c997), WQX Alias shows info blue (#17a2b8), WQX Fuzzy shows purple (#6f42c1)"
-    why_human: "Badge color rendering in reactable cells requires visual inspection"
+    result: "PASSED — human approved 2026-05-06"
   - test: "Check the consensus_status badge and row background tint for WQX rows"
     expected: "Status badge shows 'wqx' in teal (#20c997), row has a subtle teal background tint"
-    why_human: "CSS background color and badge appearance require visual inspection in a running Shiny app"
+    result: "PASSED — human approved 2026-05-06"
 ---
 
 # Phase 46: WQX UI Display Fixes Verification Report
