@@ -127,8 +127,9 @@ Users can go from messy regulatory/benchmark data files to validated, harmonized
 ## Current State
 
 **Shipped:** v2.0 Pipeline Performance & Date/Media Harmonization (2026-04-29)
+**In progress:** v2.1 WQX Parameter Harmonization — Phase 45 (Pipeline Integration) complete (2026-05-06)
 
-ChemReg is a proper R package with full compound curation, numeric/unit/duration/date/media harmonization, and ToxVal schema output. Installed via `devtools::install()`, used interactively via `chemreg::run_app()` or headlessly via `chemreg::curate_headless()`.
+ChemReg is a proper R package with full compound curation, numeric/unit/duration/date/media harmonization, WQX parameter matching, and ToxVal schema output. Installed via `devtools::install()`, used interactively via `chemreg::run_app()` or headlessly via `chemreg::curate_headless()`.
 
 **Package capabilities:**
 - `library(chemreg)` loads 72+ exported functions
@@ -143,7 +144,9 @@ ChemReg is a proper R package with full compound curation, numeric/unit/duration
 - Pre-flight modal with fire/skip indicators and media classification editor
 - ToxVal 56-column schema mapper with 19 audit columns and source_hash
 - Parquet/CSV export alongside 8-sheet Excel export
-- `devtools::test()` passes with 1666+ tests
+- WQX dictionary matching: exact → alias → fuzzy for names that failed CompTox curation
+- WQX matches auto-fire in pipeline, results in same output column as CompTox curated names
+- `devtools::test()` passes with 2022+ tests
 - `use_dedup` toggle on `run_cleaning_pipeline()` and `harmonize_units()` for benchmark comparison
 - ~92,900 LOC R across `R/`, `inst/app/`, and `tests/testthat/`
 
