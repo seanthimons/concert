@@ -1,5 +1,28 @@
 # Milestones
 
+## v2.1 WQX Parameter Harmonization (Shipped: 2026-05-06)
+
+**Phases completed:** 4 phases (43-46), 7 plans
+**Lines changed:** +1,303 / -39 across 14 R/test files
+**Requirements:** 11/11 satisfied (DICT-01/02/03, MATCH-01/02/03/04, INTG-01/02/03/04)
+**Timeline:** 8 days (2026-04-29 → 2026-05-06)
+
+**Key accomplishments:**
+
+- WQX dictionary loader with EPA Characteristic + Alias CSV download, combined 124K-row RDS cache, and lazy-load pattern matching existing reference cache architecture
+- Three-tier WQX name matcher: exact canonical (O(1) hash), alias crosswalk (synonym/standardize/retired), Jaro-Winkler fuzzy fallback with configurable threshold
+- Pipeline integration: WQX matching fires automatically as Tier 3b after CompTox for unresolved names, wired into both Shiny and headless paths without new arguments
+- Consensus classification extended with "wqx" status, WQX-aware value box counting, resolution rendering with canonical name + teal badges, and tier-specific match type labels
+- Bug fix: dedup priority in map_results_to_rows now prefers resolved rows over NA-dtxsid exact misses (caught during UAT with sswqs.xlsx wild dataset)
+
+**Known gaps:**
+
+- Phase 47 (stale test fixes from Phases 37-41) deferred — tracked as bean `chemreg-mtpo`
+
+**UAT:** All 4 phases verified (43: 7/7, 44: 9/9, 45: 9/9, 46: 4/4). Human sign-off on match quality and UI display approved 2026-05-06.
+
+---
+
 ## v2.0 Pipeline Performance & Date/Media Harmonization (Shipped: 2026-04-29)
 
 **Phases completed:** 6 phases, 20 plans
