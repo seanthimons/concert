@@ -111,23 +111,15 @@ Users can go from messy regulatory/benchmark data files to validated, harmonized
 - ✓ Unified "Run Pipeline" button with pre-flight modal showing fire/skip per step — v2.0 Phase 42
 - ✓ Media classification editor with DT table, unmatched term surfacing, RDS persistence — v2.0 Phase 42
 - ✓ Pre-flight progress indicator and post-pipeline completion summary — v2.0 Phase 42
-
-## Current Milestone: v2.1 WQX Parameter Harmonization
-
-**Goal:** Add an offline WQX dictionary that matches unresolved analyte names to canonical WQX Characteristic Names, using EPA's own alias crosswalk with fuzzy fallback.
-
-**Target features:**
-- Download and cache WQX Characteristic + Alias CSVs, build combined lookup RDS (alias → canonical Characteristic Name) using WQX SYNONYM REGISTRY, STANDARDIZE NAME, and RETIRED NAME alias types
-- Tiered matching: exact match against canonical names → exact match against alias crosswalk → fuzzy match (stringdist, metric TBD) against canonical names
-- Fires automatically for names that failed CompTox curation — no preflight toggle
-- Output: canonical WQX Characteristic Name attached to matched rows
-- Console logging for match successes/failures
-- Dictionary file management follows existing reference cache pattern (inst/extdata/reference_cache/), check-on-load with download if missing
+- ✓ WQX dictionary loader with EPA Characteristic + Alias CSV download and combined 124K-row RDS cache — v2.1 Phase 43
+- ✓ Three-tier WQX name matcher: exact canonical, alias crosswalk, Jaro-Winkler fuzzy — v2.1 Phase 44
+- ✓ WQX matching auto-fires as Tier 3b for CompTox failures in both Shiny and headless paths — v2.1 Phase 45
+- ✓ WQX consensus classification with "wqx" status, teal badges, and tier-specific match type labels — v2.1 Phase 46
 
 ## Current State
 
-**Shipped:** v2.0 Pipeline Performance & Date/Media Harmonization (2026-04-29)
-**In progress:** v2.1 WQX Parameter Harmonization — Phase 45 (Pipeline Integration) complete (2026-05-06)
+**Shipped:** v2.1 WQX Parameter Harmonization (2026-05-06)
+**Next milestone:** Not yet planned
 
 ChemReg is a proper R package with full compound curation, numeric/unit/duration/date/media harmonization, WQX parameter matching, and ToxVal schema output. Installed via `devtools::install()`, used interactively via `chemreg::run_app()` or headlessly via `chemreg::curate_headless()`.
 
@@ -171,7 +163,7 @@ ChemReg is a proper R package with full compound curation, numeric/unit/duration
 
 ## Context
 
-Shipped v2.0 Pipeline Performance & Date/Media Harmonization. ~92,900 LOC R across `R/`, `inst/app/`, and `tests/testthat/`.
+Shipped v2.1 WQX Parameter Harmonization. ~94,200 LOC R across `R/`, `inst/app/`, and `tests/testthat/`.
 Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, writexl, rhandsontable, arrow, units, lubridate, digest.
 
 The app has 9 top-level tabs: Data Preview, Detection Info, Raw Data, Clean Data, Tag Columns, Run Curation, Review Results, Harmonize, plus sidebar upload and config import. On startup only Upload is visible; tabs appear progressively as the user advances.
@@ -254,6 +246,11 @@ Key files:
 | Direct harmonize_media() call over dedup_step wrapper | Media harmonization is hash-based lookup, not string transformation; dedup adds overhead without benefit | ✓ Good — v2.0 |
 | DT selection=none for custom JS callbacks | Simplest fix for row-click conflicts in media editor; no side effects on existing callback pattern | ✓ Good — v2.0 |
 | Unified Run Pipeline button over separate Clean/Harmonize | Single entry point with pre-flight modal gives user full visibility before execution | ✓ Good — v2.0 |
+| WQX dictionary as combined canonical+alias RDS | Single file serves both tier-1 and tier-2 lookups; follows existing reference cache pattern | ✓ Good — v2.1 |
+| Jaro-Winkler over Levenshtein for fuzzy matching | Better at handling prefix/suffix variations common in chemical names | ✓ Good — v2.1 |
+| WQX tier fires unconditionally (no toggle) | Simplest UX; names that reach this tier already failed all CompTox paths | ✓ Good — v2.1 |
+| Dedup prefers resolved rows over NA-dtxsid exact misses | Fixes shadowing bug where CompTox NA results blocked WQX resolution | ✓ Good — v2.1 |
+| Teal color family for WQX UI elements | Visually distinct from CompTox agree (green) but still in "resolved" palette | ✓ Good — v2.1 |
 
 ## Evolution
 
@@ -273,4 +270,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-29 after v2.1 milestone started*
+*Last updated: 2026-05-06 after v2.1 milestone shipped*
