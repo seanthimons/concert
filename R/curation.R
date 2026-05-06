@@ -27,11 +27,13 @@ deduplicate_tagged_columns <- function(df, tag_map, skip_flags = NULL) {
     skip_pattern <- paste0("\\b(", paste(skip_flags, collapse = "|"), ")\\b")
     skipped_rows <- which(!is.na(df$cleaning_flag) & grepl(skip_pattern, df$cleaning_flag))
     if (length(skipped_rows) > 0) {
-      message(sprintf("[dedup] Skipping %d rows from search pool (flags: %s)",
-        length(skipped_rows), paste(skip_flags, collapse = ", ")))
+      message(sprintf(
+        "[dedup] Skipping %d rows from search pool (flags: %s)",
+        length(skipped_rows),
+        paste(skip_flags, collapse = ", ")
+      ))
     }
   }
-
 
   # Build dedup key map using vectorized operations (O(n) instead of O(n²))
   n_rows <- nrow(df)
@@ -187,19 +189,24 @@ search_starts_with <- function(missed_names) {
   uncached_names <- unique_names[!cached_mask]
   cached_names <- unique_names[cached_mask]
 
-
   # Retrieve cached results — rebuild searchValue from current query casing.
   # Cache stores payload-only (no searchValue) to avoid stale casing in setdiff().
   cached_results <- if (length(cached_names) > 0) {
-    mapply(function(name, k) {
-      cached_payload <- get(k, envir = .starts_with_cache)
-      if (nrow(cached_payload) > 0) {
-        cached_payload |> dplyr::mutate(searchValue = name, .before = 1)
-      } else {
-        # True miss — return empty with correct schema
-        empty_result
-      }
-    }, cached_names, tolower(cached_names), SIMPLIFY = FALSE, USE.NAMES = FALSE)
+    mapply(
+      function(name, k) {
+        cached_payload <- get(k, envir = .starts_with_cache)
+        if (nrow(cached_payload) > 0) {
+          cached_payload |> dplyr::mutate(searchValue = name, .before = 1)
+        } else {
+          # True miss — return empty with correct schema
+          empty_result
+        }
+      },
+      cached_names,
+      tolower(cached_names),
+      SIMPLIFY = FALSE,
+      USE.NAMES = FALSE
+    )
   } else {
     list()
   }
@@ -208,7 +215,8 @@ search_starts_with <- function(missed_names) {
   if (length(uncached_names) > 0) {
     message(sprintf(
       "Falling back on %d misses with starts-with search (%d cached)...",
-      length(uncached_names), length(cached_names)
+      length(uncached_names),
+      length(cached_names)
     ))
 
     for (name in uncached_names) {
@@ -477,7 +485,10 @@ run_tiered_search <- function(dedup_result) {
   n_miss <- sum(combined$source_tier == "miss", na.rm = TRUE)
   message(sprintf(
     "Results: %d exact, %d starts-with, %d CAS, %d misses",
-    n_exact, n_sw, n_cas, n_miss
+    n_exact,
+    n_sw,
+    n_cas,
+    n_miss
   ))
 
   combined
@@ -509,7 +520,9 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
 
   message(sprintf(
     "[map_results_to_rows] Input: %d rows, %d lookup results (%d unique searchValues)",
-    input_rows, nrow(lookup_results), nrow(lookup_deduped)
+    input_rows,
+    nrow(lookup_results),
+    nrow(lookup_deduped)
   ))
 
   # Filter out NA/empty dedup keys
@@ -661,6 +674,7 @@ run_curation_pipeline <- function(clean_data, column_tags, progress_callback = N
   n_cas_from_names <- 0
   n_cas_from_columns <- 0
   n_miss <- 0
+  n_wqx <- 0L
 
   # Tier 1: Exact match on names
   if (length(dedup_result$unique_names) > 0) {
@@ -678,7 +692,12 @@ run_curation_pipeline <- function(clean_data, column_tags, progress_callback = N
     if (!is.null(progress_callback)) {
       progress_callback(
         "exact",
-        sprintf("Exact match: %d/%d found, %d falling back...", n_exact, length(dedup_result$unique_names), length(missed_names))
+        sprintf(
+          "Exact match: %d/%d found, %d falling back...",
+          n_exact,
+          length(dedup_result$unique_names),
+          length(missed_names)
+        )
       )
     }
 
@@ -733,6 +752,35 @@ run_curation_pipeline <- function(clean_data, column_tags, progress_callback = N
           final_missed <- still_missed
         }
 
+        # Tier 3b: WQX matching on names that failed all CompTox tiers (per D-01)
+        if (length(final_missed) > 0) {
+          cache_dir <- system.file("extdata", "reference_cache", package = "chemreg")
+          wqx_dict <- load_wqx_dictionary(cache_dir)
+          wqx_raw <- match_wqx(final_missed, wqx_dict, verbose = FALSE)
+
+          wqx_resolved <- wqx_raw[wqx_raw$match_tier != "none", ]
+          n_wqx <- nrow(wqx_resolved)
+
+          if (n_wqx > 0) {
+            wqx_rows <- tibble::tibble(
+              searchValue = wqx_resolved$input_name,
+              dtxsid = NA_character_,
+              preferredName = wqx_resolved$wqx_name,
+              searchName = NA_character_,
+              rank = NA_integer_,
+              source_tier = paste0("wqx_", wqx_resolved$match_tier)
+            )
+            all_results[[length(all_results) + 1]] <- wqx_rows
+          }
+
+          wqx_matched_names <- wqx_resolved$input_name
+          final_missed <- setdiff(final_missed, wqx_matched_names)
+
+          if (!is.null(progress_callback)) {
+            progress_callback("wqx", sprintf("WQX match: %d more found...", n_wqx))
+          }
+        }
+
         n_miss <- length(final_missed)
 
         if (length(final_missed) > 0) {
@@ -776,7 +824,11 @@ run_curation_pipeline <- function(clean_data, column_tags, progress_callback = N
     if (!is.null(progress_callback)) {
       progress_callback(
         "cas_columns",
-        sprintf("CAS columns: %d valid, %d invalid...", n_cas_from_columns, length(dedup_result$unique_cas) - n_cas_from_columns)
+        sprintf(
+          "CAS columns: %d valid, %d invalid...",
+          n_cas_from_columns,
+          length(dedup_result$unique_cas) - n_cas_from_columns
+        )
       )
     }
   }
@@ -796,14 +848,24 @@ run_curation_pipeline <- function(clean_data, column_tags, progress_callback = N
   }
 
   # Stage 3: Map results to rows
-  message(sprintf("[pipeline] clean_data: %d rows, combined_results: %d rows", nrow(clean_data), nrow(combined_results)))
-  mapped_df <- map_results_to_rows(clean_data, dedup_result$dedup_key_map, combined_results, pre_resolved = pre_resolved)
+  message(sprintf(
+    "[pipeline] clean_data: %d rows, combined_results: %d rows",
+    nrow(clean_data),
+    nrow(combined_results)
+  ))
+  mapped_df <- map_results_to_rows(
+    clean_data,
+    dedup_result$dedup_key_map,
+    combined_results,
+    pre_resolved = pre_resolved
+  )
 
   # Assert row count preserved
   if (nrow(mapped_df) != nrow(clean_data)) {
     warning(sprintf(
       "[pipeline] CRITICAL: row count changed after mapping: %d -> %d. Truncating to original.",
-      nrow(clean_data), nrow(mapped_df)
+      nrow(clean_data),
+      nrow(mapped_df)
     ))
     mapped_df <- mapped_df[seq_len(nrow(clean_data)), , drop = FALSE]
   }
@@ -845,6 +907,7 @@ run_curation_pipeline <- function(clean_data, column_tags, progress_callback = N
       n_exact = n_exact,
       n_starts_with = n_starts_with,
       n_cas_valid = n_cas_from_columns + n_cas_from_names,
+      n_wqx = n_wqx,
       n_miss = n_miss
     ),
     consensus_summary = list(
@@ -1146,7 +1209,13 @@ validate_manual_dtxsids <- function(dtxsids, batch_size = 20, delay_sec = 1) {
 merge_retry_results <- function(original_state, retry_results, selected_row_indices, tags_changed = FALSE) {
   # Validate input
   if (nrow(retry_results) != length(selected_row_indices)) {
-    stop("Mismatch: retry_results has ", nrow(retry_results), " rows but selected_row_indices has ", length(selected_row_indices), " elements")
+    stop(
+      "Mismatch: retry_results has ",
+      nrow(retry_results),
+      " rows but selected_row_indices has ",
+      length(selected_row_indices),
+      " elements"
+    )
   }
 
   # Initialize resolution state if needed
@@ -1156,7 +1225,11 @@ merge_retry_results <- function(original_state, retry_results, selected_row_indi
   pinned_mask <- original_state$.pinned[selected_row_indices]
   if (any(pinned_mask, na.rm = TRUE)) {
     pinned_indices <- selected_row_indices[pinned_mask]
-    warning(sprintf("Skipping %d pinned rows: %s", sum(pinned_mask, na.rm = TRUE), paste(pinned_indices, collapse = ", ")))
+    warning(sprintf(
+      "Skipping %d pinned rows: %s",
+      sum(pinned_mask, na.rm = TRUE),
+      paste(pinned_indices, collapse = ", ")
+    ))
     # Filter out pinned rows from both selected_row_indices and retry_results
     selected_row_indices <- selected_row_indices[!pinned_mask]
     retry_results <- retry_results[!pinned_mask, , drop = FALSE]
@@ -1218,7 +1291,10 @@ merge_retry_results <- function(original_state, retry_results, selected_row_indi
   if (any(unresolvable_mask, na.rm = TRUE)) {
     unresolvable_indices <- selected_row_indices[unresolvable_mask]
     original_state$consensus_status[unresolvable_indices] <- "unresolvable"
-    message(sprintf("Marked %d rows as unresolvable (error before and after retry)", sum(unresolvable_mask, na.rm = TRUE)))
+    message(sprintf(
+      "Marked %d rows as unresolvable (error before and after retry)",
+      sum(unresolvable_mask, na.rm = TRUE)
+    ))
   }
 
   message(sprintf("Merged retry results for %d rows", length(selected_row_indices)))
