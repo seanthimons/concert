@@ -137,7 +137,7 @@ Plans:
   2. `derive_resolution_html()` renders a meaningful Resolution cell for `status == "wqx"` rows
   3. `derive_match_type()` maps `wqx_exact`, `wqx_alias`, `wqx_fuzzy` to descriptive tier labels
 Plans:
-- [ ] 46-01-PLAN.md — Fix WQX status counting, resolution rendering, and tier labels in mod_review_results.R
+- [x] 46-01-PLAN.md — Fix WQX status counting, resolution rendering, and tier labels in mod_review_results.R
 
 ### Phase 47: Stale Test Fixes
 **Goal**: Pre-existing test failures from Phases 37-41 are resolved
@@ -183,5 +183,5 @@ Plans:
 | 43. WQX Dictionary | v2.1 | 2/2 | Complete    | 2026-05-05 |
 | 44. Matching Engine + Prototype | v2.1 | 2/2 | Complete    | 2026-05-05 |
 | 45. Pipeline Integration | v2.1 | 2/2 | Complete    | 2026-05-06 |
-| 46. WQX UI Display Fixes | v2.1 | 0/1 | Not Started | — |
+| 46. WQX UI Display Fixes | v2.1 | 1/1 | Complete   | 2026-05-06 |
 | 47. Stale Test Fixes | v2.1 | 0/1 | Not Started | — |
