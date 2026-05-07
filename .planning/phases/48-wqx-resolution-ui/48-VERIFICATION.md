@@ -1,44 +1,69 @@
 ---
 phase: 48-wqx-resolution-ui
-verified: 2026-05-07T00:00:00Z
+verified: 2026-05-07T20:30:33Z
 status: gaps_found
-score: 3/5
+score: 2/5
 overrides_applied: 0
+re_verification:
+  previous_status: gaps_found
+  previous_score: 3/5
+  gaps_closed:
+    - "wqx_confidence column dropped by map_results_to_rows (fixed by Plan 03 -- 6th pre-allocation vector added)"
+  gaps_remaining:
+    - "CR-01: row$searchValue references non-existent column -- WQX Review modal crashes on click"
+    - "WR-02: wqx_confidence column suffixed in multi-tag mode -- colDef guard and modal confidence lookup fail for common datasets"
+  regressions: []
 gaps:
+  - truth: "User can click Review on a WQX row and see a modal with input name, current WQX match, match type, and confidence score"
+    status: failed
+    reason: "CR-01: wqx_review_click observer reads row$searchValue (line 1755), but searchValue is not a column in resolution_state. The $ accessor returns NULL, and is.na(NULL) returns logical(0), causing 'Error in if: argument is of length zero'. The modal never opens; user sees a red error notification instead."
+    artifacts:
+      - path: "R/mod_review_results.R"
+        issue: "Line 1755: input_name <- row$searchValue -- column does not exist on resolution_state"
+    missing:
+      - "Replace row$searchValue with a lookup against the tagged Name column(s) from data_store$column_tags"
   - truth: "Review Results table shows a wqx_confidence column with the Jaro-Winkler score for rows resolved via WQX fuzzy matching"
     status: failed
-    reason: "wqx_confidence is added to wqx_rows in curation.R but silently dropped by map_results_to_rows(), which only pre-allocates and writes 5 hard-coded columns (dtxsid, preferredName, searchName, rank, source_tier). The column is present in lookup_deduped but never read or assigned to df. resolution_state has no wqx_confidence column; the colDef guard is always FALSE; the WQX Conf. column never appears in the table; the confidence score in the modal always falls back to NA_real_."
+    reason: "WR-02: In multi-tag mode (common case when both Name and CASRN are tagged), map_results_to_rows produces wqx_confidence_Chemical (suffixed), but the colDef guard at line 767 checks for wqx_confidence (unsuffixed). Guard evaluates FALSE; column appears raw/unformatted or not at all. Single-tag mode works correctly."
     artifacts:
-      - path: "R/curation.R"
-        issue: "map_results_to_rows() lines 543-579 allocates only 5 vectors and writes only 5 columns; wqx_confidence in lookup_deduped is never read. Single-column path (line 566-571) must add wqx_conf_vec <- rep(NA_real_, input_rows), fill it in the inner loop, and assign df$wqx_confidence <- wqx_conf_vec."
+      - path: "R/mod_review_results.R"
+        issue: "Line 767: if ('wqx_confidence' %in% names(df_display)) -- never matches when column is wqx_confidence_Chemical"
+      - path: "R/mod_review_results.R"
+        issue: "Line 1788: if ('wqx_confidence' %in% names(row)) -- never matches in multi-tag mode; confidence always falls back to NA_real_"
     missing:
-      - "Add wqx_conf_vec pre-allocation in map_results_to_rows() for-col loop (line 548 area)"
-      - "Fill wqx_conf_vec[ridx] from lookup_deduped$wqx_confidence[match_pos] inside inner for-i loop (guarded by presence check)"
-      - "Assign df$wqx_confidence <- wqx_conf_vec in single-tag-col branch (line 566)"
-      - "Handle multi-tag-col suffix branch analogously (line 572)"
+      - "Use grep('^wqx_confidence', names(df_display), value = TRUE) for colDef application (same pattern as preferredName_*)"
+      - "Use grep('^wqx_confidence', names(row), value = TRUE) for modal confidence lookup"
 human_verification:
-  - test: "Verify WQX Conf. column appears in Review Results table after curation"
-    expected: "Upload a dataset with chemical names that produce WQX fuzzy matches. After curation, navigate to Review Results. The 'WQX Conf.' column should be visible with decimal scores (e.g. 0.87) for fuzzy-matched rows and blank cells for exact/alias rows."
-    why_human: "Requires a live Shiny session with a real WQX-matching dataset. Automated checks can only verify code structure; actual column appearance requires runtime verification with real data."
-  - test: "Verify confidence score appears in WQX Review modal for fuzzy rows"
-    expected: "After fixing WR-01, click Review on a fuzzy-matched WQX row. The context card should show a 'Confidence Score' row with a decimal value. For exact/alias rows, the Confidence Score row should be absent."
-    why_human: "Requires live session and data; depends on WR-01 being fixed first."
-  - test: "Verify wqx_override_name persists in Excel export after override action"
-    expected: "Override a WQX match via type-ahead. Download Excel. The Curated Data sheet should contain the wqx_override_name column with the user-selected canonical name on the overridden row."
-    why_human: "Export correctness requires a live session; export_helpers.R passes resolution_state through directly (no explicit exclude of wqx_override_name) but this must be confirmed at runtime."
-  - test: "Verify rejected WQX rows show unresolvable status and needs_review=TRUE in Excel export"
-    expected: "Reject a WQX match. Download Excel. The rejected row should have consensus_status='unresolvable' and needs_review=TRUE on the Curated Data sheet."
-    why_human: "Export recalculates needs_review from consensus_status in export_helpers.R:43, so this should work correctly, but the recomputation behavior needs runtime confirmation."
+  - test: "Verify WQX Conf. column appears in Review Results table after curation (after CR-01 and WR-02 fixes)"
+    expected: "Upload a dataset with both Name and CASRN tagged. After curation, navigate to Review Results. The 'WQX Conf.' column should be visible with decimal similarity scores for fuzzy-matched rows and blank cells for exact/alias rows."
+    why_human: "Requires a live Shiny session with a real WQX-matching dataset. Automated checks can only verify code structure."
+  - test: "Verify WQX Review modal opens and shows correct context (after CR-01 fix)"
+    expected: "Click 'Review' on a WQX fuzzy-matched row. Modal opens showing: Input Name (the user's original value from the tagged column), Current WQX Match, Match Type ('WQX Fuzzy'), and Confidence Score (decimal value). For exact/alias rows, Confidence Score row should be absent."
+    why_human: "Requires live session; modal rendering depends on runtime data and corrected column reference."
+  - test: "Verify type-ahead override persists in Excel export"
+    expected: "Override a WQX match via type-ahead. Download Excel. Curated Data sheet contains wqx_override_name column with the user-selected canonical name."
+    why_human: "Export correctness requires runtime confirmation; export_helpers.R passes resolution_state directly."
+  - test: "Verify rejected row export"
+    expected: "Reject a WQX match. Download Excel. Rejected row has consensus_status = 'unresolvable' and needs_review = TRUE."
+    why_human: "Export recalculates needs_review from consensus_status at export time; requires runtime confirmation."
 ---
 
-# Phase 48: WQX Resolution UI — Verification Report
+# Phase 48: WQX Resolution UI -- Verification Report
 
 **Phase Goal:** Users can inspect WQX fuzzy match confidence, reject bad matches, search for the correct canonical WQX name, and have overrides persist through export
-**Verified:** 2026-05-07
+**Verified:** 2026-05-07T20:30:33Z
 **Status:** gaps_found
-**Re-verification:** No — initial verification
+**Re-verification:** Yes -- after gap closure (Plan 03 fixed wqx_confidence propagation through map_results_to_rows)
 
----
+## Re-verification Summary
+
+Plan 03 successfully closed the original BLOCKER gap: `map_results_to_rows()` now carries `wqx_confidence` via a 6th pre-allocation vector (`wqx_conf_vec`), with a column presence guard and correct assignment in both single-tag and multi-tag branches. Three integration tests (Test Group 6, 25/25 passing) verify the fix.
+
+However, two issues remain -- one critical (CR-01 from code review) and one warning elevated to gap (WR-02):
+
+1. **CR-01:** The `wqx_review_click` observer reads `row$searchValue`, a column that does not exist in `resolution_state`. This causes an R error that prevents the WQX Review modal from opening. Since the modal is the entry point for SC-2 through SC-4 (type-ahead search, override, reject), this is a runtime blocker.
+
+2. **WR-02:** In multi-tag mode (the common case when both Name and CASRN are tagged), `wqx_confidence` is column-suffixed (e.g., `wqx_confidence_Chemical`), but both consumer sites check for the unsuffixed name. This means SC-1 (confidence column visible) fails for multi-tag datasets.
 
 ## Goal Achievement
 
@@ -46,128 +71,116 @@ human_verification:
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | Review Results table shows a wqx_confidence column with the Jaro-Winkler score for rows resolved via WQX fuzzy matching | FAILED | wqx_confidence computed and added to wqx_rows in curation.R:761-765, but map_results_to_rows() (lines 543-579) only writes 5 hard-coded columns — wqx_confidence never reaches resolution_state. The colDef guard at mod_review_results.R:767 is always FALSE. |
-| 2 | User can type into a search input on a WQX-matched row and see matching WQX canonical names appear as type-ahead suggestions | VERIFIED | observeEvent(wqx_review_click) at line 1743 shows modal with selectizeInput("wqx_typeahead"), then calls updateSelectizeInput(server=TRUE) with full WQX dictionary after showModal. JS handler at line 297-300 dispatches wqx_review_click on button click. |
-| 3 | User can select a type-ahead result to override a bad WQX fuzzy match, and the row reflects the new canonical name | VERIFIED | observeEvent(wqx_modal_confirm) at line 1891 reads input$wqx_typeahead, writes wqx_override_name via group_rows loop. derive_resolution_html uses effective_wqx_name = ifelse(!is.na(wqx_override), wqx_override, pref_name) at line 148. |
-| 4 | User can reject a WQX fuzzy match and mark the row unresolvable without selecting an alternative | VERIFIED | observeEvent(wqx_reject_click) at line 1925 sets consensus_status[r] <- "unresolvable" and needs_review[r] <- TRUE for all group rows. Null-check on wqx_modal_row_idx guards against orphan fires. The "Reject Match" button fires wqx_reject_click via onclick JS. |
-| 5 | Exported Excel and Parquet files include the user's WQX override or unresolvable status on the affected rows | UNCERTAIN (human) | export_helpers.R:41 passes resolution_state directly to curated_data_sheet; only .pinned and .manual_entry are removed (line 45); wqx_override_name is not in the exclude list so it flows through. For rejected rows, export_helpers.R:43 recomputes needs_review from consensus_status == "unresolvable" — correct. Parquet export is headless-only (harmonize=TRUE path in curate_headless.R). Runtime confirmation needed. |
+| 1 | Review Results table shows a wqx_confidence column with the Jaro-Winkler score for WQX fuzzy rows | FAILED | Pipeline now carries wqx_confidence through map_results_to_rows (fixed by Plan 03, confirmed at R/curation.R:549,563-565,576,584). However, in multi-tag mode the column is named `wqx_confidence_Chemical`, and the colDef guard at mod_review_results.R:767 checks for unsuffixed `wqx_confidence`. Guard is FALSE for multi-tag datasets; column appears raw or not at all. Single-tag mode works correctly. |
+| 2 | User can type into a search input on a WQX-matched row and see matching WQX canonical names as type-ahead suggestions | FAILED | All modal infrastructure exists: observeEvent(wqx_review_click) at line 1743, selectizeInput("wqx_typeahead") at line 1820, updateSelectizeInput(server=TRUE) with full WQX dictionary at line 1873. However, the modal never opens due to CR-01: line 1755 reads `row$searchValue` (NULL), line 1796 evaluates `if (!is.na(NULL))` -> `if (logical(0))` -> R error. |
+| 3 | User can select a type-ahead result to override a bad WQX fuzzy match, and the row reflects the new name | FAILED | Override logic is correctly wired: observeEvent(wqx_modal_confirm) at line 1891 writes wqx_override_name via group_rows loop, derive_resolution_html uses effective_wqx_name at line 148. But since the modal cannot open (CR-01), the user cannot reach this action. |
+| 4 | User can reject a WQX fuzzy match and mark the row unresolvable | FAILED | Reject logic is correctly wired: observeEvent(wqx_reject_click) at line 1925 sets consensus_status = "unresolvable" and needs_review = TRUE. But since the modal cannot open (CR-01), the user cannot reach this action. |
+| 5 | Exported Excel and Parquet files include the user's WQX override or unresolvable status | UNCERTAIN | export_helpers.R:41 passes resolution_state directly; wqx_override_name is not in the exclusion list. For rejected rows, export_helpers.R:43 recomputes needs_review from consensus_status. Logic is correct but depends on CR-01 being fixed first (user must be able to create overrides/rejections). Runtime confirmation needed. |
 
-**Score: 3/5 truths verified** (SC-1 failed due to WR-01 data-loss bug; SC-5 uncertain pending human verification)
+**Score: 2/5 truths verified** (SC-2 through SC-4 blocked by CR-01; SC-1 fails for multi-tag via WR-02; SC-5 uncertain)
 
----
+Note: SC-2, SC-3, SC-4 infrastructure is fully wired and substantive -- the code logic is correct. Only the `row$searchValue` reference at line 1755 prevents the modal from opening. This is a single-line fix.
 
-### Required Artifacts
+## Gap Closure Assessment (from Previous Verification)
+
+| Previous Gap | Status | Evidence |
+|-------------|--------|----------|
+| wqx_confidence dropped by map_results_to_rows | CLOSED | Plan 03 commit f6fba84: wqx_conf_vec pre-allocation at line 549, guarded fill at lines 563-565, assignment at lines 576 (single-tag) and 584 (multi-tag). 3 integration tests pass (Test Group 6). |
+
+## Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `R/curation.R` | wqx_confidence column in wqx_rows tibble | PARTIAL | wqx_confidence correctly computed in wqx_rows (line 761-765) and enters combined_results. Dropped by map_results_to_rows() before returning resolved_df. |
-| `R/mod_review_results.R` | Review button HTML, JS handler, wqx_confidence colDef, modal observers | VERIFIED | Contains: wqx-review-btn (2x), wqx_review_click (3x), wqx_modal_confirm (4x), wqx_reject_click (2x), WQX Conf. (1x), wqx_override_name (7x), effective_wqx_name (3x), Review WQX Match (1x), wqx_typeahead (5x). All observers present and substantive. |
-| `tests/testthat/test-mod-review-helpers.R` | Unit tests for wqx_confidence and Review button rendering | STUB (integration gap) | 18 tests present and passing. Tests in Group 4 inline the ifelse formula directly rather than calling the pipeline — WR-01 (column dropped by mapper) is invisible to the test suite. No test calls run_curation_pipeline or map_results_to_rows to assert wqx_confidence in output. |
+| `R/curation.R` | wqx_confidence column computed and propagated through map_results_to_rows | VERIFIED | wqx_confidence computed at line 767 (ifelse on match_tier). wqx_conf_vec pre-allocated at line 549, filled at line 564, assigned at lines 576/584. Column reaches output df. |
+| `R/mod_review_results.R` | Review button, JS handler, wqx_confidence colDef, modal observers, override/reject logic | PARTIAL | All code present and substantive. Two defects: (1) CR-01 at line 1755 references non-existent column, (2) WR-02 at lines 767,1788 use unsuffixed column name that fails in multi-tag mode. |
+| `tests/testthat/test-mod-review-helpers.R` | Unit and integration tests | VERIFIED | 25 tests, all passing. Test Group 6 covers map_results_to_rows wqx_confidence propagation with 3 integration tests. Test Groups 4-5 cover confidence computation and Review button HTML. |
 
----
-
-### Key Link Verification
+## Key Link Verification
 
 | From | To | Via | Status | Details |
 |------|----|-----|--------|---------|
-| R/curation.R (wqx_rows tibble) | R/mod_review_results.R (wqx_confidence colDef) | wqx_confidence column propagated through map_results_to_rows → resolution_state | NOT_WIRED | wqx_confidence enters combined_results but map_results_to_rows() never reads or writes it. resolution_state has no wqx_confidence column. |
-| R/mod_review_results.R (observeEvent wqx_review_click) | R/mod_review_results.R (showModal) | Reads resolution_state row, shows modal with context | WIRED | showModal(modalDialog(title = "Review WQX Match", ...)) at line 1859 inside wqx_review_click observer. |
-| R/mod_review_results.R (observeEvent wqx_modal_confirm) | R/mod_review_results.R (resolution_state) | Updates wqx_override_name via get_group_rows loop | WIRED | Line 1909-1911: updated_df$wqx_override_name[r] <- new_name inside for(r in group_rows). |
-| R/mod_review_results.R (observeEvent wqx_reject_click) | R/mod_review_results.R (resolution_state) | Sets consensus_status = "unresolvable", needs_review = TRUE | WIRED | Lines 1935-1937 inside wqx_reject_click observer. consensus_status = "unresolvable" is primary; needs_review = TRUE written without initialization guard (WR-02). |
-| R/mod_review_results.R (derive_resolution_html) | export (resolution_state) | wqx_override_name persists through CSV/Excel download | WIRED | export_helpers.R:41 starts from resolution_state; dplyr::select(-any_of(c(".pinned", ".manual_entry"))) does not remove wqx_override_name. |
+| R/curation.R (wqx_rows tibble) | R/curation.R (map_results_to_rows output) | wqx_conf_vec 6th vector | WIRED | Plan 03 fix confirmed: pre-allocate, fill, assign in both branches. |
+| R/curation.R (map_results_to_rows output) | R/mod_review_results.R (colDef guard) | wqx_confidence column in resolution_state | PARTIAL | Column exists but is suffixed (`wqx_confidence_Chemical`) in multi-tag mode; guard checks unsuffixed name. Works in single-tag only. |
+| R/mod_review_results.R (wqx_review_click observer) | R/mod_review_results.R (showModal) | Reads resolution_state row, shows modal | BROKEN | showModal at line 1859 is wired, but observer crashes at line 1755 before reaching it (row$searchValue -> NULL -> if(logical(0)) error). |
+| R/mod_review_results.R (wqx_modal_confirm observer) | R/mod_review_results.R (resolution_state) | Updates wqx_override_name via group_rows | WIRED | Line 1909-1911: correct group-propagated mutation. Unreachable at runtime due to CR-01. |
+| R/mod_review_results.R (wqx_reject_click observer) | R/mod_review_results.R (resolution_state) | Sets consensus_status = "unresolvable" | WIRED | Lines 1935-1937: correct mutation. WR-01 (needs_review init guard) is a minor inconsistency; export recalculates correctly. Unreachable at runtime due to CR-01. |
+| R/mod_review_results.R (derive_resolution_html) | export (resolution_state) | wqx_override_name persists | WIRED | export_helpers.R excludes only .pinned and .manual_entry; wqx_override_name flows through. |
 
----
-
-### Data-Flow Trace (Level 4)
+## Data-Flow Trace (Level 4)
 
 | Artifact | Data Variable | Source | Produces Real Data | Status |
 |----------|---------------|--------|--------------------|--------|
-| mod_review_results.R renderReactable (wqx_confidence colDef) | wqx_confidence in df_display | run_curation_pipeline → map_results_to_rows | No — column dropped by mapper; guard at line 767 always FALSE | DISCONNECTED |
-| mod_review_results.R (wqx_review_click observer) | wqx_confidence for modal confidence score | resolution_state$wqx_confidence | No — column absent from resolution_state due to WR-01; falls back to NA_real_ always | DISCONNECTED |
-| mod_review_results.R (wqx_modal_confirm observer) | wqx_override_name in resolution_state | input$wqx_typeahead (server-populated from load_wqx_dictionary) | Yes — updateSelectizeInput(server=TRUE) loads real dictionary entries | FLOWING |
-| mod_review_results.R (wqx_reject_click observer) | consensus_status in resolution_state | wqx_reject_click input event, observer sets "unresolvable" | Yes — mutation correctly propagated | FLOWING |
+| curation.R map_results_to_rows | wqx_conf_vec | lookup_deduped$wqx_confidence | Yes (guarded fill from real match data) | FLOWING |
+| mod_review_results.R colDef | wqx_confidence in df_display | resolution_state via map_results_to_rows | Partial -- column present but suffixed in multi-tag mode; guard mismatches | STATIC (multi-tag) / FLOWING (single-tag) |
+| mod_review_results.R modal context card | row$searchValue | resolution_state | NULL -- column does not exist | DISCONNECTED |
+| mod_review_results.R modal confidence | row$wqx_confidence | resolution_state | Falls back to NA in multi-tag; correct in single-tag | STATIC (multi-tag) / FLOWING (single-tag) |
+| mod_review_results.R wqx_modal_confirm | wqx_override_name | input$wqx_typeahead -> resolution_state | Real data from server-side selectize | FLOWING (when reachable) |
+| mod_review_results.R wqx_reject_click | consensus_status | observer -> resolution_state | Sets "unresolvable" correctly | FLOWING (when reachable) |
 
----
-
-### Behavioral Spot-Checks
-
-Step 7b: SKIPPED for all but static checks — modal interactions and reactable rendering require a running Shiny session.
+## Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-| wqx_confidence computed in wqx_rows tibble | grep "wqx_confidence = ifelse" R/curation.R | Match at line 761 | PASS |
-| map_results_to_rows writes wqx_confidence | grep "wqx_confidence" R/curation.R (lines 543-614) | No match in mapper body | FAIL — column not carried through |
-| wqx-review-btn present in derive_resolution_html | grep -c "wqx-review-btn" mod_review_results.R => 2 | 2 matches | PASS |
-| All 4 modal observers present | grep -c "observeEvent.input\$wqx_" mod_review_results.R | wqx_review_click (1), wqx_modal_confirm (1), wqx_reject_click (1), wqx_typeahead (1) | PASS |
-| effective_wqx_name priority in derive_resolution_html | grep "effective_wqx_name" => 3 | 3 matches (assignment, wqx_has_pref, result assignment) | PASS |
-| TDD commits exist | git log efc1066 12643c5 b40a7ab 42602d6 | All 4 commits verified | PASS |
+| wqx_conf_vec pre-allocated | grep "wqx_conf_vec <- rep" R/curation.R | Match at line 549 | PASS |
+| wqx_conf_vec filled in inner loop | grep "wqx_conf_vec\[ridx\]" R/curation.R | Match at line 564 | PASS |
+| wqx_confidence assigned to df | grep "wqx_confidence" R/curation.R (lines 569-586) | Lines 576 (single-tag) and 584 (multi-tag) | PASS |
+| All unit tests pass | Rscript testthat::test_file | 25/25 PASS, 0 FAIL | PASS |
+| row$searchValue references non-existent column | grep "searchValue" R/mod_review_results.R | Line 1755: input_name <- row$searchValue (CR-01 confirmed) | FAIL |
+| colDef uses unsuffixed wqx_confidence | grep "wqx_confidence" R/mod_review_results.R | Lines 767, 1788: unsuffixed checks only (WR-02 confirmed) | FAIL |
 
----
-
-### Requirements Coverage
+## Requirements Coverage
 
 | Requirement | Source Plan | Description | Status | Evidence |
 |-------------|-------------|-------------|--------|----------|
-| CONF-03 | 48-01 | Review Results table displays WQX fuzzy match confidence score as a visible column | BLOCKED | wqx_confidence colDef exists in mod_review_results.R:767-779 but the column is never present in resolution_state due to WR-01. The guard condition is always FALSE. Column never renders. |
-| RES-01 | 48-02 | User can search WQX dictionary via type-ahead input to find correct canonical name | SATISFIED | selectizeInput("wqx_typeahead") in modal with updateSelectizeInput(server=TRUE, choices=wqx_choices) loading full ~124K dictionary. observeEvent(wqx_typeahead) shows/hides confirm button. |
-| RES-02 | 48-02 | User can reject a bad WQX fuzzy match and pick type-ahead or mark unresolvable | SATISFIED | observeEvent(wqx_reject_click) sets consensus_status = "unresolvable". Modal footer has "Reject Match" button with JS onclick that fires wqx_reject_click. Warning WR-02: needs_review column written without initialization guard but export behavior is correct since export recalculates from consensus_status. |
-| RES-03 | 48-02 | WQX manual overrides persist through export | SATISFIED (human verify) | export_helpers.R:41-45 passes resolution_state to curated_data_sheet; wqx_override_name not in exclusion list. wqx_override_name column initialized lazily on first override and written to resolution_state. Export also recalculates needs_review = (consensus_status %in% c("error", "unresolvable")), correctly covering rejected rows. Runtime confirmation recommended. |
+| CONF-03 | 48-01, 48-03 | Review Results table displays WQX fuzzy match confidence score as a visible column | BLOCKED | Pipeline computes and carries wqx_confidence correctly (Plan 03 fix). colDef exists (line 767-778). But column is suffixed in multi-tag mode and colDef guard fails. |
+| RES-01 | 48-02 | User can search WQX dictionary via type-ahead input | BLOCKED | selectizeInput + updateSelectizeInput(server=TRUE) with full dictionary wired correctly. But modal never opens due to CR-01, so user cannot reach the search input. |
+| RES-02 | 48-02 | User can reject a bad WQX fuzzy match and pick type-ahead or mark unresolvable | BLOCKED | Reject observer correctly sets consensus_status = "unresolvable". But modal never opens due to CR-01. |
+| RES-03 | 48-02 | WQX manual overrides persist through export | BLOCKED | Export path is correctly wired (wqx_override_name flows through). But user cannot create overrides because modal never opens due to CR-01. |
 
 **Orphaned requirements check:** REQUIREMENTS.md maps CONF-03, RES-01, RES-02, RES-03 to Phase 48. All four appear in plan frontmatter. No orphaned requirements.
 
----
+## Anti-Patterns Found
 
-### Anti-Patterns Found
+| File | Line | Pattern | Severity | Impact |
+|------|------|---------|----------|--------|
+| R/mod_review_results.R | 1755 | `row$searchValue` references non-existent column on resolution_state; causes R error "argument is of length zero" | BLOCKER | WQX Review modal crashes on click; blocks SC-2 through SC-4 |
+| R/mod_review_results.R | 767, 1788 | Unsuffixed `wqx_confidence` check fails in multi-tag mode (column is `wqx_confidence_Chemical`) | BLOCKER | WQX Conf. column invisible and modal confidence always NA for common multi-tag datasets |
+| R/mod_review_results.R | 1937 | `needs_review[r] <- TRUE` written without initialization guard; creates NA/TRUE mix | WARNING | In-memory inconsistency; export is correct (recalculates from consensus_status) |
+| R/mod_review_results.R | 1944 | `--` (double hyphen) instead of em-dash in notification | INFO | Minor cosmetic inconsistency |
 
-| File | Location | Pattern | Severity | Impact |
-|------|----------|---------|----------|--------|
-| R/curation.R | lines 543-579 (map_results_to_rows) | wqx_confidence written to combined_results but the mapper only carries 5 hard-coded column vectors; new column silently discarded | BLOCKER | wqx_confidence never reaches resolution_state; CONF-03 fails; WQX Conf. column never appears; confidence score always NA in modal |
-| tests/testthat/test-mod-review-helpers.R | lines 118-163 (Test Group 4) | Tests inline the ifelse formula directly rather than calling map_results_to_rows or run_curation_pipeline — pipeline integration gap is invisible to test suite | WARNING | WR-01 was not caught before shipping; adding an integration-level test for map_results_to_rows output would have caught it |
-| R/mod_review_results.R | line 1937 (wqx_reject_click observer) | updated_df$needs_review[r] <- TRUE without initialization guard; creates column with NA/TRUE mix if column not yet present in resolution_state | WARNING | In-state needs_review is NA for non-rejected rows (not FALSE); export is correct because export_helpers.R:43 recomputes from consensus_status; no user-facing impact but downstream observers would see mixed NA/TRUE |
-| R/mod_review_results.R | lines 151-155 (derive_resolution_html) | review_btn vector pre-allocated over all n rows, then only WQX-row subsets used; slightly less efficient than the compare-btn pattern which constructs only for matching rows | INFO | No correctness impact; unused button strings are never inserted into DOM |
-| R/mod_review_results.R | line 1944 | Notification uses -- (double hyphen) instead of — (U+2014 em-dash) per UI-SPEC | INFO | Minor cosmetic inconsistency with other notifications in the file |
+## Human Verification Required
 
----
+### 1. WQX Conf. Column Visibility (blocked until WR-02 fix)
 
-### Human Verification Required
+**Test:** After fixing WR-02, upload a dataset with both Name and CASRN tagged. Run curation. Navigate to Review Results.
+**Expected:** "WQX Conf." column visible with decimal scores for fuzzy rows, blank for exact/alias.
+**Why human:** Requires live Shiny session with real WQX-matching dataset.
 
-#### 1. WQX Conf. Column Visibility (blocked until WR-01 fixed)
+### 2. WQX Review Modal -- Full Workflow (blocked until CR-01 fix)
 
-**Test:** After fixing WR-01, upload a dataset with chemical names that produce WQX fuzzy matches (e.g., sswqs.xlsx). Run curation. Navigate to Review Results.
-**Expected:** A "WQX Conf." column is visible with decimal similarity scores (e.g., 0.87) for fuzzy-matched rows and blank cells for exact/alias rows.
-**Why human:** Requires a live Shiny session with a real WQX-matching dataset; column visibility depends on runtime colDef application.
+**Test:** After fixing CR-01, click "Review" on a WQX fuzzy-matched row.
+**Expected:** Modal opens with Input Name (user's original value), Current WQX Match, Match Type, and Confidence Score. Type-ahead works. Override and reject actions update the table.
+**Why human:** Requires live session; modal rendering depends on runtime data.
 
-#### 2. WQX Review Modal — Confidence Score in Context Card (blocked until WR-01 fixed)
+### 3. Export Persistence (blocked until CR-01 fix)
 
-**Test:** After fixing WR-01, click "Review" on a WQX fuzzy-matched row.
-**Expected:** Modal opens showing a context card with four fields: Input Name, Current WQX Match, Match Type ("WQX Fuzzy"), and Confidence Score (decimal value). For exact/alias rows, the Confidence Score row should be absent.
-**Why human:** Requires live session; confidence score rendering in the modal context card depends on wqx_confidence being present in resolution_state (which WR-01 currently prevents).
+**Test:** After fixing CR-01, override a WQX match via type-ahead and reject another. Download Excel.
+**Expected:** Override row has wqx_override_name populated; rejected row has consensus_status = "unresolvable" and needs_review = TRUE.
+**Why human:** Export path correctness requires runtime confirmation.
 
-#### 3. WQX Override Persists in Excel Export
+## Gaps Summary
 
-**Test:** Override a WQX match via type-ahead. Download Excel export.
-**Expected:** Curated Data sheet contains wqx_override_name column with the user-selected canonical name on the overridden row.
-**Why human:** Export correctness for wqx_override_name requires runtime confirmation; export_helpers.R does not explicitly include or exclude the column.
+**Two gaps found, both blocking goal achievement:**
 
-#### 4. Rejected Row Export
+1. **CR-01 (BLOCKER -- single-line fix):** `row$searchValue` at line 1755 references a column that does not exist in `resolution_state`. The `$` accessor returns NULL, `is.na(NULL)` returns `logical(0)`, and `if (logical(0))` throws an R error. This prevents the WQX Review modal from opening entirely, blocking SC-2, SC-3, SC-4, and indirectly SC-5. The fix is to read the input name from the tagged Name column via `data_store$column_tags` instead of `row$searchValue`.
 
-**Test:** Reject a WQX match. Download Excel export.
-**Expected:** Rejected row has consensus_status = "unresolvable" and needs_review = TRUE in the Curated Data sheet.
-**Why human:** Export recalculates needs_review from consensus_status at export time; confirming this at runtime closes the WR-02 export concern.
+2. **WR-02 (BLOCKER -- grep-pattern fix):** In multi-tag mode (common case with Name + CASRN tagged), `map_results_to_rows` produces `wqx_confidence_Chemical` (suffixed), but the colDef guard (line 767) and modal confidence lookup (line 1788) check for `wqx_confidence` (unsuffixed). This means the WQX Conf. column never appears and the modal confidence score is always NA for multi-tag datasets. The fix is to use `grep("^wqx_confidence", names(...))` for column lookup, consistent with the existing pattern for `preferredName_*` and `source_tier_*`.
 
----
+**Root cause relationship:** These are independent bugs. CR-01 is a code review finding from the initial Plan 02 execution. WR-02 was identified in the code review but not addressed by Plan 03 (which focused only on the map_results_to_rows column-drop bug).
 
-### Gaps Summary
-
-**One blocker gap found:** The `wqx_confidence` column is correctly computed in `curation.R` but is silently dropped by `map_results_to_rows()`. This function uses a pre-allocated vector pattern for exactly 5 columns and does not carry arbitrary extra columns from `lookup_deduped` into the output data frame. As a result, `resolution_state` has no `wqx_confidence` column, the `if ("wqx_confidence" %in% names(df_display))` guard is always FALSE, and the "WQX Conf." column never appears in the Review Results table. The Confidence Score row in the WQX Review modal context card also always falls back to `NA_real_`.
-
-This bug (WR-01 from the code review) was flagged before verification and is confirmed. The fix requires modifying `map_results_to_rows()` to carry `wqx_confidence` through the same pre-allocation pattern used for the other 5 columns.
-
-The remaining 3 requirements (RES-01, RES-02, RES-03) are implemented correctly. The override and reject workflows are wired, the modal opens with correct context, type-ahead loads the WQX dictionary, group propagation is applied, and export reads `resolution_state` directly so `wqx_override_name` and updated `consensus_status` flow through.
-
-The test suite gap (WR-03) means a similar regression would not be caught automatically. An integration-level test for `map_results_to_rows` output would close this.
+**Positive note:** The Plan 03 gap closure was successful. The original BLOCKER (wqx_confidence silently dropped by map_results_to_rows) is fully fixed with 3 integration tests proving the column reaches the output df. All 25 tests pass. The underlying logic for modal observers, override/reject actions, derive_resolution_html, and export persistence is correctly wired -- only the two reference bugs prevent it from working at runtime.
 
 ---
 
-_Verified: 2026-05-07_
+_Verified: 2026-05-07T20:30:33Z_
 _Verifier: Claude (gsd-verifier)_
