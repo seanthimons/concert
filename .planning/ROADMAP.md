@@ -99,7 +99,7 @@
 - [x] **Phase 47: Pipeline Reordering, Threshold Control & Starts-With Toggle** - Reorder search chain so WQX fires before CompTox starts-with, expose fuzzy threshold in pre-flight modal, and make starts-with opt-in (completed 2026-05-07)
 
 #### Phase 48: WQX Resolution UI
-- [x] **Phase 48: WQX Resolution UI** - Add fuzzy confidence column to Review Results, type-ahead WQX search for overrides, reject/re-pick workflow, and export persistence (completed 2026-05-07)
+- [ ] **Phase 48: WQX Resolution UI** - Add fuzzy confidence column to Review Results, type-ahead WQX search for overrides, reject/re-pick workflow, and export persistence (gap closure in progress)
 
 ## Phase Details
 
@@ -129,10 +129,11 @@ Plans:
   3. User can select a type-ahead result to override a bad WQX fuzzy match, and the row reflects the new canonical name
   4. User can reject a WQX fuzzy match and mark the row unresolvable without selecting an alternative
   5. Exported Excel and Parquet files include the user's WQX override or unresolvable status on the affected rows
-**Plans**: 2 plans
+**Plans**: 3 plans
 Plans:
 - [x] 48-01-PLAN.md — Pipeline plumbing (wqx_confidence), Review button, JS handler, colDef, unit tests
 - [x] 48-02-PLAN.md — WQX Review modal (open, override, reject), type-ahead wiring, smoke test
+- [ ] 48-03-PLAN.md — Gap closure: fix map_results_to_rows wqx_confidence propagation + integration test
 **UI hint**: yes
 
 ## Progress
@@ -169,4 +170,4 @@ Plans:
 | 45. Pipeline Integration | v2.1 | 2/2 | Complete | 2026-05-06 |
 | 46. WQX UI Display Fixes | v2.1 | 1/1 | Complete | 2026-05-06 |
 | 47. Pipeline Reordering, Threshold Control & Starts-With Toggle | v2.2 | 2/2 | Complete    | 2026-05-07 |
-| 48. WQX Resolution UI | v2.2 | 2/2 | Complete   | 2026-05-07 |
+| 48. WQX Resolution UI | v2.2 | 2/3 | Gap Closure | — |
