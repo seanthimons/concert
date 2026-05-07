@@ -3,8 +3,9 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: WQX Pipeline Refinement
 status: planning
-last_updated: "2026-05-06"
-last_activity: 2026-05-06
+stopped_at: Phase 47 context gathered
+last_updated: "2026-05-07T00:23:07.970Z"
+last_activity: 2026-05-06 — Roadmap created for v2.2 (2 phases, 10 requirements mapped)
 progress:
   total_phases: 2
   completed_phases: 0
@@ -82,6 +83,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-06
-Stopped at: Roadmap created for v2.2 — run `/gsd-plan-phase 47` to begin
-Resume file: —
+Last session: 2026-05-07T00:23:07.964Z
+Stopped at: Phase 47 context gathered
+Resume file: .planning/phases/47-pipeline-reordering-threshold-control-starts-with-toggle/47-CONTEXT.md
