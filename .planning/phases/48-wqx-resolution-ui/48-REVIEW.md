@@ -1,6 +1,6 @@
 ---
 phase: 48-wqx-resolution-ui
-reviewed: 2026-05-07T14:30:00Z
+reviewed: 2026-05-07T21:07:45Z
 depth: standard
 files_reviewed: 3
 files_reviewed_list:
@@ -10,151 +10,118 @@ files_reviewed_list:
 findings:
   critical: 1
   warning: 2
-  info: 2
-  total: 5
+  info: 1
+  total: 4
 status: issues_found
 ---
 
 # Phase 48: Code Review Report
 
-**Reviewed:** 2026-05-07T14:30:00Z
+**Reviewed:** 2026-05-07T21:07:45Z
 **Depth:** standard
 **Files Reviewed:** 3
 **Status:** issues_found
 
 ## Summary
 
-This review covers the final state of the Phase 48 WQX Resolution UI changes across six commits (efc1066..f541eac). The phase added: (1) `wqx_confidence` pipeline propagation through `map_results_to_rows()`, (2) a WQX Review modal with accept/override/reject actions, and (3) integration tests for `wqx_confidence`.
+This review covers the final state of the Phase 48 WQX Resolution UI changes: (1) `wqx_confidence` pipeline propagation through `map_results_to_rows()`, (2) a WQX Review modal with accept/override/reject actions, (3) WQX override rendering in `derive_resolution_html`, and (4) integration tests for `wqx_confidence` and gap closure regressions.
 
-The prior review's primary finding (WR-01: `wqx_confidence` dropped by `map_results_to_rows`) was fixed in commit `f6fba84`. The integration test gap (WR-03) was closed in commit `9d738e9` with Test Group 6. However, the fix introduced a new critical bug: the WQX Review modal references `row$searchValue`, a column that does not exist on `resolution_state`, causing an R error ("argument is of length zero") when the Review button is clicked. Two prior warnings remain open (needs_review init guard, multi-tag wqx_confidence naming). Two info-level items are noted for completeness.
+All findings from the prior review (CR-01: `searchValue` crash, WR-01: `needs_review` init guard, WR-02: unsuffixed `wqx_confidence` lookup, IN-02: em-dash inconsistency) have been fixed. The WQX modal flow is well structured -- lifecycle is clean, group propagation is consistent, `htmltools::htmlEscape` is correctly applied to all user-derived values, and the new grep-based column lookups correctly handle both single-tag and multi-tag naming modes.
 
----
+However, a pre-existing vectorization bug in `recalc_consensus_summary` silently miscounts pinned disagree rows. This bug is in code that was not changed by Phase 48, but it directly impacts the disagree count displayed in the value boxes and the "Apply Priority" notification -- both of which are exercised by the new WQX reject flow (which can change rows to `unresolvable`, affecting the disagree count). Two additional warnings relate to missing defensive guards.
 
 ## Critical Issues
 
-### CR-01: `row$searchValue` references non-existent column -- WQX Review modal crashes on click
+### CR-01: `isTRUE()` on vector silently disables pinned-row filter in disagree count
 
-**File:** `R/mod_review_results.R:1755`
-**Issue:** The `wqx_review_click` observer reads `input_name <- row$searchValue` where `row` is a single-row slice of `data_store$resolution_state`. However, `searchValue` is never propagated to the output data frame by `map_results_to_rows()` -- that function maps `searchName` (the API's match name), not `searchValue` (the user's input query). The `$` accessor on a data.frame for a missing column returns `NULL`.
+**File:** `R/mod_review_results.R:8`
+**Issue:** `isTRUE(df$.pinned)` is a scalar function -- when called on a vector (the `.pinned` column of a data frame), it always returns `FALSE` per R documentation: "isTRUE returns TRUE if its argument value is identical to TRUE." For a vector of length > 1, `identical(vec, TRUE)` is always FALSE. Therefore `!isTRUE(df$.pinned)` is always `TRUE`, and the `& !isTRUE(df$.pinned)` filter in the `n_disagree` calculation has no effect. Pinned disagree rows are always counted toward `n_disagree`, contradicting the apparent intent to exclude them.
 
-At line 1796, the code evaluates:
+The same bug appears at two additional call sites within the `apply_priority` observer:
+- Line 1476: `!isTRUE(data_store$resolution_state$.pinned)` in the before-count
+- Line 1493: `!isTRUE(updated_df$.pinned)` in the after-count
+
+Consequences:
+1. The "Disagree" value box always overstates the actionable disagree count by including pinned (already-resolved) rows.
+2. The "N rows resolved" notification after Apply Priority reports incorrect numbers since both before and after counts include pinned rows, masking the actual effect.
+3. After a user pins a disagree row via the Compare modal or WQX reject flow, the disagree count does not decrease, which is confusing UX.
+
+**Fix:**
+
+Replace `!isTRUE(df$.pinned)` with a vectorized equivalent. For line 8:
 ```r
-div(class = "col-8", if (!is.na(input_name)) input_name else "(unknown)")
+# Before (broken):
+n_disagree = sum(df$consensus_status == "disagree" & !isTRUE(df$.pinned), na.rm = TRUE),
+
+# After (fixed):
+n_disagree = sum(
+  df$consensus_status == "disagree" & !(df$.pinned %in% TRUE),
+  na.rm = TRUE
+),
 ```
 
-Since `input_name` is `NULL`, `is.na(NULL)` returns `logical(0)`, and `if (logical(0))` throws: **"Error in if: argument is of length zero"**. This error propagates to the Shiny observer, preventing the WQX Review modal from opening. The user sees a red error notification instead of the modal.
-
-**Fix:** Read the input name from the tagged column(s) instead. The column names are available via `data_store$column_tags`:
-
+The `%in% TRUE` idiom correctly handles vectors and treats `NA` as not-TRUE. Apply the same fix at lines 1476 and 1493:
 ```r
-# Replace line 1755:
-# input_name <- row$searchValue
-# With:
-name_cols <- names(data_store$column_tags)[data_store$column_tags == "Name"]
-input_name <- NA_character_
-for (nc in name_cols) {
-  if (nc %in% names(row) && !is.na(row[[nc]])) {
-    input_name <- row[[nc]]
-    break
-  }
-}
+# Line 1476:
+!isTRUE(data_store$resolution_state$.pinned)
+# becomes:
+!(data_store$resolution_state$.pinned %in% TRUE)
+
+# Line 1493:
+!isTRUE(updated_df$.pinned)
+# becomes:
+!(updated_df$.pinned %in% TRUE)
 ```
-
-This reads the user's original input value from the tagged Name column, which is the correct semantic for "Input Name" in the modal context card.
-
----
 
 ## Warnings
 
-### WR-01: `needs_review` column written without initialization guard in `wqx_reject_click`
+### WR-01: Missing `req()` guard on `data_store$column_tags` in `wqx_review_click` handler
 
-**File:** `R/mod_review_results.R:1937`
-**Issue:** The `wqx_reject_click` observer writes `updated_df$needs_review[r] <- TRUE` directly. The `needs_review` column does not exist on `resolution_state` at this point -- it is only materialized at export time by `export_helpers.R:43` via `dplyr::mutate()`. When R assigns to a non-existent column via `$<-`, the column is implicitly created with `NA` for all other rows. This means:
+**File:** `R/mod_review_results.R:1746-1758`
+**Issue:** The WQX review modal handler reads `names(data_store$column_tags)[data_store$column_tags == "Name"]` at line 1758 without a `req()` or null check on `data_store$column_tags`. While `column_tags` is expected to be set by the time curation completes, the compare modal handler at line 1187 defensively wraps similar access in `if (!is.null(data_store$column_tags) && length(data_store$column_tags) > 0)`. The WQX handler lacks this guard, which would cause an error on `names(NULL)` if `column_tags` were not yet set.
 
-1. Non-rejected rows get `NA` (not `FALSE`) for `needs_review`.
-2. If any downstream observer reads `updated_df$needs_review` expecting a fully-initialized logical vector, it gets a mix of `TRUE` and `NA`.
-3. The export path in `export_helpers.R` overwrites the column, so there is no user-facing data corruption in exports.
+**Fix:**
 
-The practical risk is low because the export recalculates, but the in-memory state is inconsistent. No downstream observer currently reads this column, but future code could be surprised by the `NA`/`TRUE` mix.
-
-**Fix:** Add an initialization guard before the mutation loop:
-
+Add `data_store$column_tags` to the existing `req()` call:
 ```r
-# In the wqx_reject_click observer, before the for loop:
-if (!"needs_review" %in% names(updated_df)) {
-  updated_df$needs_review <- FALSE
-}
-for (r in group_rows) {
-  updated_df$consensus_status[r] <- "unresolvable"
-  updated_df$needs_review[r] <- TRUE
-}
+observeEvent(input$wqx_review_click, {
+  req(data_store$resolution_state, data_store$column_tags)
+  # ... rest of handler
+})
 ```
 
----
+### WR-02: WQX reject handler silently returns without closing modal on NULL row index
 
-### WR-02: `wqx_confidence` column naming is unsuffixed in multi-tag mode -- confidence lost for most datasets
+**File:** `R/mod_review_results.R:1938-1940`
+**Issue:** The `wqx_reject_click` handler returns early on line 1940 if `data_store$wqx_modal_row_idx` is NULL. However, it does not call `removeModal()` before returning. The modal was opened with `easyClose = TRUE` (line 1877), so the user can dismiss it by clicking outside, but the early return path leaves the modal open with no explicit dismissal. This could occur in a double-click race condition: the first click processes the reject and sets `wqx_modal_row_idx` to NULL (line 1963), then the second click fires `wqx_reject_click` again and hits the NULL guard.
 
-**File:** `R/mod_review_results.R:767-778,1788` and `R/curation.R:576,584`
+The same pattern exists in the `wqx_modal_confirm` handler (line 1905), but that path shows a notification ("Please select a candidate first") which at least communicates state to the user. The reject path silently does nothing.
 
-**Issue:** `map_results_to_rows()` correctly propagates `wqx_confidence` to the output data frame, but in multi-tag mode (more than one tagged column, which is the common case when both a Name and CASRN column are tagged), it uses a suffixed name: `wqx_confidence_<col>` (e.g., `wqx_confidence_Chemical`). The two consumer sites both check for the unsuffixed name:
+**Fix:**
 
-- Table colDef (line 767): `if ("wqx_confidence" %in% names(df_display))` -- colDef never applied, raw numeric column appears without formatting.
-- Modal (line 1788): `if ("wqx_confidence" %in% names(row))` -- confidence always falls back to `NA_real_`, so "Confidence Score" row never appears in modal.
-
-In single-tag mode (one tagged column), the unsuffixed `wqx_confidence` is used and everything works. But single-tag is the uncommon case.
-
-**Fix:** Use a grep-based lookup consistent with the pattern used for `preferredName_*` and `source_tier_*`:
-
+Add `removeModal()` before the early return:
 ```r
-# Table colDef (around line 767):
-wqx_conf_cols <- grep("^wqx_confidence", names(df_display), value = TRUE)
-for (wcc in wqx_conf_cols) {
-  col_defs[[wcc]] <- reactable::colDef(
-    name = "WQX Conf.",
-    minWidth = 80,
-    align = "right",
-    cell = function(value, index) {
-      if (is.na(value)) return("")
-      formatC(value, digits = 2, format = "f")
-    }
-  )
-}
-
-# Modal (line 1788):
-wqx_conf_col <- grep("^wqx_confidence", names(row), value = TRUE)
-confidence <- if (length(wqx_conf_col) > 0) row[[wqx_conf_col[1]]] else NA_real_
+observeEvent(input$wqx_reject_click, {
+  row_idx <- data_store$wqx_modal_row_idx
+  if (is.null(row_idx)) {
+    removeModal()
+    return()
+  }
+  # ... rest of handler
+})
 ```
-
----
 
 ## Info
 
-### IN-01: `review_btn` vector built for all `n` rows but used only for WQX subset
+### IN-01: Test Group 7 tests grep patterns inline rather than through actual functions
 
-**File:** `R/mod_review_results.R:151-155`
-**Issue:** `review_btn` is constructed as a full-length character vector across all `n` display rows. Only elements at WQX-masked positions are used. The existing `compare-btn` pattern (lines 134-141) only constructs HTML for the `compare_mask` subset. The WQX implementation is slightly less efficient than the pattern it follows, though correctness is not affected.
+**File:** `tests/testthat/test-mod-review-helpers.R:298-382`
+**Issue:** Tests in Group 7 (gap closure regression tests) duplicate the grep pattern logic and column-lookup loop from `mod_review_results.R` inline rather than calling the actual functions. This means the tests verify that `grep("^wqx_confidence", ...)` works in isolation, but if the pattern in the source code were accidentally changed, the tests would still pass. This is a known trade-off for testing server-side observer logic (which requires a full Shiny test harness), and the inline approach is reasonable for gap closure. Pairing these with `shinytest2`-based integration tests would provide stronger end-to-end coverage.
 
-**Fix:** Generate button HTML inline at the assignment sites rather than pre-allocating for all rows.
-
----
-
-### IN-02: Em-dash inconsistency in WQX reject notification
-
-**File:** `R/mod_review_results.R:1943`
-**Issue:** The reject notification uses a double hyphen `--`:
-```r
-sprintf("WQX match rejected for %d row(s) -- marked unresolvable", length(group_rows))
-```
-
-All other notifications in this file use Unicode em-dashes (e.g., `"\u2014"` at line 79). Minor cosmetic inconsistency.
-
-**Fix:**
-```r
-sprintf("WQX match rejected for %d row(s) \u2014 marked unresolvable", length(group_rows))
-```
+**Fix:** Consider adding `shinytest2` tests that exercise the WQX review modal flow end-to-end to supplement the unit-level pattern tests. Low priority.
 
 ---
 
-_Reviewed: 2026-05-07T14:30:00Z_
+_Reviewed: 2026-05-07T21:07:45Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
