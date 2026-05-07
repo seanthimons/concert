@@ -91,7 +91,7 @@
 
 </details>
 
-### 🚧 v2.2 WQX Pipeline Refinement (In Progress)
+### v2.2 WQX Pipeline Refinement (In Progress)
 
 **Milestone Goal:** Fix WQX/CompTox pipeline ordering, expose fuzzy match confidence, and add interactive WQX value resolution for misses and bad matches.
 
@@ -129,7 +129,10 @@ Plans:
   3. User can select a type-ahead result to override a bad WQX fuzzy match, and the row reflects the new canonical name
   4. User can reject a WQX fuzzy match and mark the row unresolvable without selecting an alternative
   5. Exported Excel and Parquet files include the user's WQX override or unresolvable status on the affected rows
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 48-01-PLAN.md — Pipeline plumbing (wqx_confidence), Review button, JS handler, colDef, unit tests
+- [ ] 48-02-PLAN.md — WQX Review modal (open, override, reject), type-ahead wiring, smoke test
 **UI hint**: yes
 
 ## Progress
@@ -166,4 +169,4 @@ Plans:
 | 45. Pipeline Integration | v2.1 | 2/2 | Complete | 2026-05-06 |
 | 46. WQX UI Display Fixes | v2.1 | 1/1 | Complete | 2026-05-06 |
 | 47. Pipeline Reordering, Threshold Control & Starts-With Toggle | v2.2 | 2/2 | Complete    | 2026-05-07 |
-| 48. WQX Resolution UI | v2.2 | 0/TBD | Not started | - |
+| 48. WQX Resolution UI | v2.2 | 0/2 | Not started | - |
