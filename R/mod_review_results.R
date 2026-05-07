@@ -144,13 +144,23 @@ derive_resolution_html <- function(df, row_indices) {
   wqx_mask <- status == "wqx"
   wqx_has_pref <- wqx_mask & !is.na(pref_name)
   wqx_badge <- '<span class="badge bg-success ms-1" style="font-size:0.7em;">wqx</span>'
+  review_btn <- paste0(
+    ' <button class="wqx-review-btn btn btn-sm btn-outline-success" data-row="',
+    row_indices,
+    '">Review</button>'
+  )
   result[wqx_has_pref] <- paste0(
     "\u2705 ",
     htmltools::htmlEscape(pref_name[wqx_has_pref]),
     " ",
-    wqx_badge
+    wqx_badge,
+    review_btn[wqx_has_pref]
   )
-  result[wqx_mask & !wqx_has_pref] <- paste0("\u2705 WQX matched ", wqx_badge)
+  result[wqx_mask & !wqx_has_pref] <- paste0(
+    "\u2705 WQX matched ",
+    wqx_badge,
+    review_btn[wqx_mask & !wqx_has_pref]
+  )
 
   result
 }
