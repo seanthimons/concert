@@ -113,7 +113,10 @@
   3. The pre-flight modal contains a starts-with toggle that is off by default; enabling it causes starts-with to fire as before
   4. Names that WQX resolves do not appear in the starts-with search batch even when the toggle is on
   5. Headless curate_headless() respects both the threshold and the starts-with toggle via its argument interface
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 47-01-PLAN.md — Pipeline reorder + headless API params + unit tests
+- [ ] 47-02-PLAN.md — Pre-flight modal UI controls + curation wiring
 **UI hint**: yes
 
 ### Phase 48: WQX Resolution UI
@@ -162,5 +165,5 @@
 | 44. Matching Engine + Prototype | v2.1 | 2/2 | Complete | 2026-05-05 |
 | 45. Pipeline Integration | v2.1 | 2/2 | Complete | 2026-05-06 |
 | 46. WQX UI Display Fixes | v2.1 | 1/1 | Complete | 2026-05-06 |
-| 47. Pipeline Reordering, Threshold Control & Starts-With Toggle | v2.2 | 0/TBD | Not started | - |
+| 47. Pipeline Reordering, Threshold Control & Starts-With Toggle | v2.2 | 0/2 | Not started | - |
 | 48. WQX Resolution UI | v2.2 | 0/TBD | Not started | - |
