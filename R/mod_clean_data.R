@@ -296,7 +296,50 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         open = TRUE,
         multiple = TRUE,
         bslib::accordion_panel(title = "Cleaning Steps", value = "cleaning", cleaning_rows),
-        bslib::accordion_panel(title = "Harmonization Steps", value = "harmonization", harmonize_rows)
+        bslib::accordion_panel(title = "Harmonization Steps", value = "harmonization", harmonize_rows),
+        bslib::accordion_panel(
+          title = "Search Settings",
+          value = "search_settings",
+          div(
+            class = "mb-3",
+            tags$label(class = "form-label fw-semibold", "WQX Fuzzy Match Threshold"),
+            tags$small(
+              class = "text-muted d-block mb-2",
+              "Minimum similarity score for fuzzy WQX matches (0.50 = permissive, 1.00 = exact only)"
+            ),
+            bslib::layout_columns(
+              col_widths = c(8, 4),
+              sliderInput(
+                session$ns("wqx_threshold"),
+                label = NULL,
+                min = 0.50,
+                max = 1.00,
+                step = 0.01,
+                value = 0.85,
+                ticks = FALSE
+              ),
+              numericInput(
+                session$ns("wqx_threshold_num"),
+                label = NULL,
+                value = 0.85,
+                min = 0.50,
+                max = 1.00,
+                step = 0.01
+              )
+            )
+          ),
+          div(
+            checkboxInput(
+              session$ns("starts_with_enabled"),
+              label = "Enable CompTox starts-with search",
+              value = FALSE
+            ),
+            tags$small(
+              class = "text-muted",
+              "Off by default. Enable for datasets where exact + CAS + WQX resolution is insufficient."
+            )
+          )
+        )
       )
     })
 
@@ -313,12 +356,36 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         units = isTRUE(input$step_units),
         duration = isTRUE(input$step_duration),
         dates = isTRUE(input$step_dates),
-        media = isTRUE(input$step_media)
+        media = isTRUE(input$step_media),
+        wqx_threshold = input$wqx_threshold,
+        starts_with = isTRUE(input$starts_with_enabled)
       )
     }
 
+    observeEvent(
+      input$wqx_threshold,
+      {
+        updateNumericInput(session, "wqx_threshold_num", value = input$wqx_threshold)
+      },
+      ignoreInit = TRUE
+    )
+
+    observeEvent(
+      input$wqx_threshold_num,
+      {
+        val <- input$wqx_threshold_num
+        if (!is.null(val) && !is.na(val) && val >= 0.50 && val <= 1.00) {
+          updateSliderInput(session, "wqx_threshold", value = val)
+        }
+      },
+      ignoreInit = TRUE
+    )
+
     # Shared pipeline execution function (called by run_all and run_checked)
     execute_pipeline <- function(mask) {
+      data_store$wqx_threshold <- mask$wqx_threshold %||% 0.85
+      data_store$starts_with <- isTRUE(mask$starts_with)
+
       removeModal()
       shinyjs::disable("run_pipeline")
 
@@ -640,7 +707,9 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         units = TRUE,
         duration = TRUE,
         dates = TRUE,
-        media = TRUE
+        media = TRUE,
+        wqx_threshold = input$wqx_threshold,
+        starts_with = isTRUE(input$starts_with_enabled)
       )
       execute_pipeline(mask)
     })
