@@ -115,6 +115,10 @@ Users can go from messy regulatory/benchmark data files to validated, harmonized
 - ✓ Three-tier WQX name matcher: exact canonical, alias crosswalk, Jaro-Winkler fuzzy — v2.1 Phase 44
 - ✓ WQX matching auto-fires as Tier 3b for CompTox failures in both Shiny and headless paths — v2.1 Phase 45
 - ✓ WQX consensus classification with "wqx" status, teal badges, and tier-specific match type labels — v2.1 Phase 46
+- ✓ WQX curation fires before CompTox starts-with in pipeline ordering — v2.2 Phase 47
+- ✓ Configurable WQX fuzzy threshold (0.50-1.00) via pre-flight slider with synced numeric input — v2.2 Phase 47
+- ✓ CompTox starts-with is opt-in toggle (default OFF) in pre-flight modal — v2.2 Phase 47
+- ✓ WQX match count displayed in curation notification string — v2.2 Phase 47
 
 ## Current Milestone: v2.2 WQX Pipeline Refinement
 
@@ -260,6 +264,9 @@ Key files:
 | WQX tier fires unconditionally (no toggle) | Simplest UX; names that reach this tier already failed all CompTox paths | ✓ Good — v2.1 |
 | Dedup prefers resolved rows over NA-dtxsid exact misses | Fixes shadowing bug where CompTox NA results blocked WQX resolution | ✓ Good — v2.1 |
 | Teal color family for WQX UI elements | Visually distinct from CompTox agree (green) but still in "resolved" palette | ✓ Good — v2.1 |
+| WQX before starts-with in pipeline order | Starts-with is lowest confidence; WQX dictionary matches are more reliable | ✓ Good — v2.2 |
+| Starts-with default OFF | Opt-in reduces noise from low-confidence prefix matches; power users enable when needed | ✓ Good — v2.2 |
+| Slider + synced numeric for threshold | Slider for quick adjustment, numeric for precise values; bidirectional sync via observeEvent | ✓ Good — v2.2 |
 
 ## Evolution
 
@@ -279,4 +286,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-06 after v2.2 milestone started*
+*Last updated: 2026-05-07 after Phase 47*
