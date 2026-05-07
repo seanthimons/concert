@@ -380,3 +380,38 @@ test_that("input name lookup reads from tagged Name column, not searchValue", {
   }
   expect_true(is.na(input_name2))
 })
+
+# ============================================================================
+# Test Group 8: GAP closure regression (UAT round 2)
+# ============================================================================
+
+test_that("wqx_conf_cols Filter removes all-NA columns in multi-tag mode", {
+  # Simulate multi-tag df_display with two wqx_confidence columns:
+  # wqx_confidence_Chemical has real data, wqx_confidence_CASRN is all NA
+  df <- data.frame(
+    wqx_confidence_Chemical = c(0.87, NA_real_, 0.92),
+    wqx_confidence_CASRN = c(NA_real_, NA_real_, NA_real_),
+    stringsAsFactors = FALSE
+  )
+  wqx_conf_cols <- grep("^wqx_confidence", names(df), value = TRUE)
+  # Before filter: both columns match
+  expect_equal(length(wqx_conf_cols), 2)
+
+  # Apply the same Filter logic used in mod_review_results.R
+  wqx_conf_cols <- Filter(function(col) any(!is.na(df[[col]])), wqx_conf_cols)
+  # After filter: only the Chemical column remains
+  expect_equal(length(wqx_conf_cols), 1)
+  expect_equal(wqx_conf_cols, "wqx_confidence_Chemical")
+})
+
+test_that("wqx_conf_cols Filter preserves single-tag column", {
+  # Simulate single-tag df_display with one wqx_confidence column
+  df <- data.frame(
+    wqx_confidence = c(0.87, NA_real_, 0.92),
+    stringsAsFactors = FALSE
+  )
+  wqx_conf_cols <- grep("^wqx_confidence", names(df), value = TRUE)
+  wqx_conf_cols <- Filter(function(col) any(!is.na(df[[col]])), wqx_conf_cols)
+  expect_equal(length(wqx_conf_cols), 1)
+  expect_equal(wqx_conf_cols, "wqx_confidence")
+})
