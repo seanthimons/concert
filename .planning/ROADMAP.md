@@ -96,7 +96,7 @@
 **Milestone Goal:** Fix WQX/CompTox pipeline ordering, expose fuzzy match confidence, and add interactive WQX value resolution for misses and bad matches.
 
 #### Phase 47: Pipeline Reordering, Threshold Control & Starts-With Toggle
-- [ ] **Phase 47: Pipeline Reordering, Threshold Control & Starts-With Toggle** - Reorder search chain so WQX fires before CompTox starts-with, expose fuzzy threshold in pre-flight modal, and make starts-with opt-in
+- [x] **Phase 47: Pipeline Reordering, Threshold Control & Starts-With Toggle** - Reorder search chain so WQX fires before CompTox starts-with, expose fuzzy threshold in pre-flight modal, and make starts-with opt-in (completed 2026-05-07)
 
 #### Phase 48: WQX Resolution UI
 - [ ] **Phase 48: WQX Resolution UI** - Add fuzzy confidence column to Review Results, type-ahead WQX search for overrides, reject/re-pick workflow, and export persistence
@@ -115,8 +115,8 @@
   5. Headless curate_headless() respects both the threshold and the starts-with toggle via its argument interface
 **Plans**: 2 plans
 Plans:
-- [ ] 47-01-PLAN.md — Pipeline reorder + headless API params + unit tests
-- [ ] 47-02-PLAN.md — Pre-flight modal UI controls + curation wiring
+- [x] 47-01-PLAN.md — Pipeline reorder + headless API params + unit tests
+- [x] 47-02-PLAN.md — Pre-flight modal UI controls + curation wiring
 **UI hint**: yes
 
 ### Phase 48: WQX Resolution UI
@@ -165,5 +165,5 @@ Plans:
 | 44. Matching Engine + Prototype | v2.1 | 2/2 | Complete | 2026-05-05 |
 | 45. Pipeline Integration | v2.1 | 2/2 | Complete | 2026-05-06 |
 | 46. WQX UI Display Fixes | v2.1 | 1/1 | Complete | 2026-05-06 |
-| 47. Pipeline Reordering, Threshold Control & Starts-With Toggle | v2.2 | 0/2 | Not started | - |
+| 47. Pipeline Reordering, Threshold Control & Starts-With Toggle | v2.2 | 2/2 | Complete   | 2026-05-07 |
 | 48. WQX Resolution UI | v2.2 | 0/TBD | Not started | - |
