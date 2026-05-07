@@ -1,6 +1,6 @@
 ---
 phase: 48-wqx-resolution-ui
-reviewed: 2026-05-07T00:00:00Z
+reviewed: 2026-05-07T14:30:00Z
 depth: standard
 files_reviewed: 3
 files_reviewed_list:
@@ -8,70 +8,79 @@ files_reviewed_list:
   - R/mod_review_results.R
   - tests/testthat/test-mod-review-helpers.R
 findings:
-  critical: 0
-  warning: 3
-  info: 3
-  total: 6
+  critical: 1
+  warning: 2
+  info: 2
+  total: 5
 status: issues_found
 ---
 
 # Phase 48: Code Review Report
 
-**Reviewed:** 2026-05-07
+**Reviewed:** 2026-05-07T14:30:00Z
 **Depth:** standard
 **Files Reviewed:** 3
 **Status:** issues_found
 
 ## Summary
 
-This review covers the Phase 48 WQX Resolution UI changes: the `wqx_confidence` pipeline column added in `curation.R`, the Review button and WQX Review modal added to `mod_review_results.R`, and the helper-function tests in `test-mod-review-helpers.R`.
+This review covers the final state of the Phase 48 WQX Resolution UI changes across six commits (efc1066..f541eac). The phase added: (1) `wqx_confidence` pipeline propagation through `map_results_to_rows()`, (2) a WQX Review modal with accept/override/reject actions, and (3) integration tests for `wqx_confidence`.
 
-The design intent is sound and the implementation largely follows the patterns laid out in PATTERNS.md and UI-SPEC.md. The most significant issue is a data-loss bug: `wqx_confidence` is added to `combined_results` in `curation.R` but is silently dropped by `map_results_to_rows()` because that function only maps five hard-coded columns. The `wqx_confidence` column never reaches `resolution_state`, so the confidence score column in the UI always renders blank. The test suite does not catch this because the `wqx_confidence` tests inline the formula rather than calling the pipeline end-to-end. Three other quality issues are noted below.
+The prior review's primary finding (WR-01: `wqx_confidence` dropped by `map_results_to_rows`) was fixed in commit `f6fba84`. The integration test gap (WR-03) was closed in commit `9d738e9` with Test Group 6. However, the fix introduced a new critical bug: the WQX Review modal references `row$searchValue`, a column that does not exist on `resolution_state`, causing an R error ("argument is of length zero") when the Review button is clicked. Two prior warnings remain open (needs_review init guard, multi-tag wqx_confidence naming). Two info-level items are noted for completeness.
+
+---
+
+## Critical Issues
+
+### CR-01: `row$searchValue` references non-existent column -- WQX Review modal crashes on click
+
+**File:** `R/mod_review_results.R:1755`
+**Issue:** The `wqx_review_click` observer reads `input_name <- row$searchValue` where `row` is a single-row slice of `data_store$resolution_state`. However, `searchValue` is never propagated to the output data frame by `map_results_to_rows()` -- that function maps `searchName` (the API's match name), not `searchValue` (the user's input query). The `$` accessor on a data.frame for a missing column returns `NULL`.
+
+At line 1796, the code evaluates:
+```r
+div(class = "col-8", if (!is.na(input_name)) input_name else "(unknown)")
+```
+
+Since `input_name` is `NULL`, `is.na(NULL)` returns `logical(0)`, and `if (logical(0))` throws: **"Error in if: argument is of length zero"**. This error propagates to the Shiny observer, preventing the WQX Review modal from opening. The user sees a red error notification instead of the modal.
+
+**Fix:** Read the input name from the tagged column(s) instead. The column names are available via `data_store$column_tags`:
+
+```r
+# Replace line 1755:
+# input_name <- row$searchValue
+# With:
+name_cols <- names(data_store$column_tags)[data_store$column_tags == "Name"]
+input_name <- NA_character_
+for (nc in name_cols) {
+  if (nc %in% names(row) && !is.na(row[[nc]])) {
+    input_name <- row[[nc]]
+    break
+  }
+}
+```
+
+This reads the user's original input value from the tagged Name column, which is the correct semantic for "Input Name" in the modal context card.
 
 ---
 
 ## Warnings
 
-### WR-01: `wqx_confidence` dropped by `map_results_to_rows` — column never reaches `resolution_state`
-
-**File:** `R/curation.R:543-579`
-
-**Issue:** `run_curation_pipeline` appends `wqx_confidence` to each WQX row in `combined_results` (line 761-765). However, `map_results_to_rows()` pre-allocates exactly five output vectors (`dtxsid_vec`, `pref_vec`, `search_vec`, `rank_vec`, `tier_vec`) and assigns only those five columns to the mapped data frame (lines 566-579). `wqx_confidence` is present in `lookup_deduped` (because `bind_rows` keeps it), but it is never read from `lookup_deduped` and never written to `df`. The column is silently discarded. As a result, `data_store$resolution_state` has no `wqx_confidence` column, the `if ("wqx_confidence" %in% names(df_display))` guard in `renderReactable` (line 767) is always `FALSE`, and the WQX Conf. column never appears in the table.
-
-**Fix:** Add a `wqx_conf_vec` in `map_results_to_rows` alongside the existing five vectors, and write it out as `wqx_confidence`:
-
-```r
-# Inside the for (col in tag_cols) loop, add:
-wqx_conf_vec <- rep(NA_real_, input_rows)
-
-# Inside the inner for (i in ...) loop, add:
-if ("wqx_confidence" %in% names(lookup_deduped)) {
-  wqx_conf_vec[ridx] <- lookup_deduped$wqx_confidence[match_pos]
-}
-
-# In the single-tag-col branch (line 566), add:
-df$wqx_confidence <- wqx_conf_vec
-
-# In the multi-tag-col branch (line 572), add:
-df[[paste0("wqx_confidence", suffix)]] <- wqx_conf_vec
-```
-
-For the multi-column case, the per-column suffix means multiple `wqx_confidence_*` columns would exist. The `renderReactable` guard checks for `"wqx_confidence"` (no suffix), which would still miss the multi-column scenario. That is a separate concern; the immediate fix is to ensure the single-column path (the typical use case) propagates the value.
-
----
-
-### WR-02: `needs_review` column written without initialization guard in `wqx_reject_click`
+### WR-01: `needs_review` column written without initialization guard in `wqx_reject_click`
 
 **File:** `R/mod_review_results.R:1937`
+**Issue:** The `wqx_reject_click` observer writes `updated_df$needs_review[r] <- TRUE` directly. The `needs_review` column does not exist on `resolution_state` at this point -- it is only materialized at export time by `export_helpers.R:43` via `dplyr::mutate()`. When R assigns to a non-existent column via `$<-`, the column is implicitly created with `NA` for all other rows. This means:
 
-**Issue:** The `wqx_reject_click` observer writes `updated_df$needs_review[r] <- TRUE` (line 1937) directly. If `resolution_state` does not have a `needs_review` column at the time of rejection — which is the case when the column is only materialized at export time in `export_helpers.R:43` — this implicitly creates a new logical column initialized to `NA` for all rows except the mutated ones. A subsequent `dplyr::mutate(needs_review = ...)` in the export helper would then overwrite it, rendering the in-state column meaningless. More importantly, if any downstream observer reads `updated_df$needs_review` expecting a fully-initialized logical vector, it will get a mix of `TRUE` and `NA` rather than `TRUE` and `FALSE`.
+1. Non-rejected rows get `NA` (not `FALSE`) for `needs_review`.
+2. If any downstream observer reads `updated_df$needs_review` expecting a fully-initialized logical vector, it gets a mix of `TRUE` and `NA`.
+3. The export path in `export_helpers.R` overwrites the column, so there is no user-facing data corruption in exports.
 
-`init_resolution_state()` does not initialize `needs_review` (it only adds `.pinned` and `.manual_entry`). There is no other initialization site for this column.
+The practical risk is low because the export recalculates, but the in-memory state is inconsistent. No downstream observer currently reads this column, but future code could be surprised by the `NA`/`TRUE` mix.
 
-**Fix:** Add `needs_review` initialization to `init_resolution_state()` in `R/consensus.R`, or add a guard in the observer before the assignment:
+**Fix:** Add an initialization guard before the mutation loop:
 
 ```r
-# In the wqx_reject_click observer, before the mutation loop:
+# In the wqx_reject_click observer, before the for loop:
 if (!"needs_review" %in% names(updated_df)) {
   updated_df$needs_review <- FALSE
 }
@@ -83,103 +92,69 @@ for (r in group_rows) {
 
 ---
 
-### WR-03: `wqx_confidence` test group exercises an inlined formula, not the pipeline — integration gap not surfaced
+### WR-02: `wqx_confidence` column naming is unsuffixed in multi-tag mode -- confidence lost for most datasets
 
-**File:** `tests/testthat/test-mod-review-helpers.R:118-163`
+**File:** `R/mod_review_results.R:767-778,1788` and `R/curation.R:576,584`
 
-**Issue:** The four `wqx_confidence` tests (Test Group 4) construct a local `wqx_resolved` tibble and apply the `ifelse(match_tier == "fuzzy", 1 - match_distance, NA_real_)` formula directly. They verify the arithmetic is correct in isolation, which is fine. However, they do not call `run_curation_pipeline()` or even `map_results_to_rows()`, so the bug described in WR-01 (the column is dropped by the mapper) is completely invisible to the test suite. A test that calls the pipeline end-to-end and asserts `"wqx_confidence" %in% names(result$results)` would have caught WR-01 before it shipped.
+**Issue:** `map_results_to_rows()` correctly propagates `wqx_confidence` to the output data frame, but in multi-tag mode (more than one tagged column, which is the common case when both a Name and CASRN column are tagged), it uses a suffixed name: `wqx_confidence_<col>` (e.g., `wqx_confidence_Chemical`). The two consumer sites both check for the unsuffixed name:
 
-**Fix:** Add an integration-level test (even with a minimal mock or stubbed API calls) that runs `run_curation_pipeline` with a WQX-matched row and asserts the returned `results` data frame contains a `wqx_confidence` column with the expected value. At minimum, a unit test of `map_results_to_rows` that passes a `lookup_results` tibble containing `wqx_confidence` and asserts the output contains the column would be sufficient.
+- Table colDef (line 767): `if ("wqx_confidence" %in% names(df_display))` -- colDef never applied, raw numeric column appears without formatting.
+- Modal (line 1788): `if ("wqx_confidence" %in% names(row))` -- confidence always falls back to `NA_real_`, so "Confidence Score" row never appears in modal.
+
+In single-tag mode (one tagged column), the unsuffixed `wqx_confidence` is used and everything works. But single-tag is the uncommon case.
+
+**Fix:** Use a grep-based lookup consistent with the pattern used for `preferredName_*` and `source_tier_*`:
+
+```r
+# Table colDef (around line 767):
+wqx_conf_cols <- grep("^wqx_confidence", names(df_display), value = TRUE)
+for (wcc in wqx_conf_cols) {
+  col_defs[[wcc]] <- reactable::colDef(
+    name = "WQX Conf.",
+    minWidth = 80,
+    align = "right",
+    cell = function(value, index) {
+      if (is.na(value)) return("")
+      formatC(value, digits = 2, format = "f")
+    }
+  )
+}
+
+# Modal (line 1788):
+wqx_conf_col <- grep("^wqx_confidence", names(row), value = TRUE)
+confidence <- if (length(wqx_conf_col) > 0) row[[wqx_conf_col[1]]] else NA_real_
+```
 
 ---
 
 ## Info
 
-### IN-01: `review_btn` vector built over all `n` rows but used only for WQX rows
+### IN-01: `review_btn` vector built for all `n` rows but used only for WQX subset
 
 **File:** `R/mod_review_results.R:151-155`
+**Issue:** `review_btn` is constructed as a full-length character vector across all `n` display rows. Only elements at WQX-masked positions are used. The existing `compare-btn` pattern (lines 134-141) only constructs HTML for the `compare_mask` subset. The WQX implementation is slightly less efficient than the pattern it follows, though correctness is not affected.
 
-**Issue:** `review_btn` is constructed as a full-length character vector of `n` HTML strings (one per display row) via:
-
-```r
-review_btn <- paste0(
-  ' <button class="wqx-review-btn btn btn-sm btn-outline-success" data-row="',
-  row_indices,
-  '">Review</button>'
-)
-```
-
-Only elements at `wqx_has_pref` and `wqx_mask & !wqx_has_pref` positions are ever used. For tables with many rows and few WQX rows, this allocates and constructs HTML for every row unnecessarily. This matches the existing `compare-btn` pattern (line 135-141) which only constructs HTML for rows where `compare_mask` is TRUE, so the WQX implementation is slightly less efficient than the pattern it was intended to copy.
-
-This is not a correctness issue (the unused strings are never inserted into the DOM), but it is an inconsistency with the established pattern.
-
-**Fix:** Mirror the `compare-btn` pattern and generate button HTML only for the subset of rows that will use it:
-
-```r
-wqx_review_html <- function(indices) {
-  paste0(
-    ' <button class="wqx-review-btn btn btn-sm btn-outline-success" data-row="',
-    indices,
-    '">Review</button>'
-  )
-}
-result[wqx_has_pref] <- paste0(
-  "\u2705 ", htmltools::htmlEscape(effective_wqx_name[wqx_has_pref]),
-  " ", wqx_badge, wqx_review_html(row_indices[wqx_has_pref])
-)
-result[wqx_mask & !wqx_has_pref] <- paste0(
-  "\u2705 WQX matched ", wqx_badge,
-  wqx_review_html(row_indices[wqx_mask & !wqx_has_pref])
-)
-```
+**Fix:** Generate button HTML inline at the assignment sites rather than pre-allocating for all rows.
 
 ---
 
-### IN-02: `row$wqx_confidence` access returns a 1-element data frame column, not a scalar
-
-**File:** `R/mod_review_results.R:1788`
-
-**Issue:**
-
-```r
-confidence <- if ("wqx_confidence" %in% names(row)) row$wqx_confidence else NA_real_
-```
-
-`row` is a single-row data frame produced by `data_store$resolution_state[row_idx, ]`. `row$wqx_confidence` returns a length-1 vector (not a scalar), which is correct in practice — `is.na(confidence)` and `formatC(confidence, ...)` both handle length-1 vectors. However, when `wqx_confidence` is absent from `resolution_state` entirely (as it currently is due to WR-01), the `else NA_real_` branch executes and returns a proper scalar, masking the silent NA as if it were an expected absence rather than a bug. Once WR-01 is fixed this line becomes correct; no change is required here beyond fixing WR-01.
-
-This is noted only for traceability: if WR-01 is not fixed, this line will always take the `else` branch and `confidence` will always be `NA_real_`, so the "Confidence Score" row will never appear in the modal context card even for fuzzy matches.
-
-**Fix:** No change needed here — this is a symptom of WR-01. Fix WR-01 and this resolves automatically.
-
----
-
-### IN-03: Notification copy for WQX reject diverges from UI spec
+### IN-02: Em-dash inconsistency in WQX reject notification
 
 **File:** `R/mod_review_results.R:1943`
-
-**Issue:** The `wqx_reject_click` observer shows:
-
+**Issue:** The reject notification uses a double hyphen `--`:
 ```r
 sprintf("WQX match rejected for %d row(s) -- marked unresolvable", length(group_rows))
 ```
 
-The UI spec (48-UI-SPEC.md, Copywriting Contract) specifies the copy as:
-
-> "WQX match rejected for {N} row(s) — marked unresolvable"
-
-The implementation uses a double hyphen `--` instead of an em-dash `—` (U+2014). All other notifications in this file use Unicode em-dashes directly (e.g., `"\u2014"` at line 79). This is a minor cosmetic inconsistency.
+All other notifications in this file use Unicode em-dashes (e.g., `"\u2014"` at line 79). Minor cosmetic inconsistency.
 
 **Fix:**
-
 ```r
-sprintf(
-  "WQX match rejected for %d row(s) \u2014 marked unresolvable",
-  length(group_rows)
-)
+sprintf("WQX match rejected for %d row(s) \u2014 marked unresolvable", length(group_rows))
 ```
 
 ---
 
-_Reviewed: 2026-05-07_
+_Reviewed: 2026-05-07T14:30:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
