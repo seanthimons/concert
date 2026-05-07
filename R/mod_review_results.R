@@ -764,10 +764,16 @@ mod_review_results_server <- function(id, data_store) {
       )
 
       # WQX confidence column (fuzzy similarity score; NA for exact/alias rows)
-      # Use grep-based lookup to handle both single-tag (wqx_confidence) and
-      # multi-tag (wqx_confidence_Chemical) naming from map_results_to_rows()
+      # In multi-tag mode, grep finds wqx_confidence_Chemical AND wqx_confidence_CASRN.
+      # Only show columns that have at least one non-NA value (WQX only matches Name-tagged columns).
       wqx_conf_cols <- grep("^wqx_confidence", names(df_display), value = TRUE)
-      for (wcc in wqx_conf_cols) {
+      wqx_conf_visible <- Filter(function(col) any(!is.na(df_display[[col]])), wqx_conf_cols)
+      # Hide all-NA wqx_confidence columns (e.g., wqx_confidence_CASRN in multi-tag mode)
+      wqx_conf_hidden <- setdiff(wqx_conf_cols, wqx_conf_visible)
+      for (whc in wqx_conf_hidden) {
+        col_defs[[whc]] <- reactable::colDef(show = FALSE)
+      }
+      for (wcc in wqx_conf_visible) {
         col_defs[[wcc]] <- reactable::colDef(
           name = "WQX Conf.",
           minWidth = 80,
@@ -1877,13 +1883,20 @@ mod_review_results_server <- function(id, data_store) {
         easyClose = TRUE
       ))
 
-      # Load WQX dictionary and populate selectize (MUST be after showModal per RESEARCH.md Pitfall 2)
+      # Load WQX dictionary and populate selectize
+      # MUST use onFlushed to ensure modal DOM (and selectize.js widget) is fully initialized
+      # before reconfiguring for server-side rendering (fixes GAP-2: search box not accepting input)
       cache_dir <- system.file("extdata", "reference_cache", package = "chemreg")
       wqx_dict <- load_wqx_dictionary(cache_dir)
       display_type <- ifelse(wqx_dict$type == "canonical", "canonical", "alias")
       wqx_labels <- paste0(wqx_dict$name, " (", display_type, ")")
       wqx_choices <- stats::setNames(wqx_dict$canonical_name, wqx_labels)
-      updateSelectizeInput(session, "wqx_typeahead", choices = wqx_choices, server = TRUE)
+      session$onFlushed(
+        function() {
+          updateSelectizeInput(session, "wqx_typeahead", choices = wqx_choices, server = TRUE)
+        },
+        once = TRUE
+      )
     })
 
     # Show "Use Selected Name" button when type-ahead selection is made
