@@ -626,7 +626,14 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
 #' @param dedup_only If TRUE, return after dedup stage with just counts (for preview)
 #' @return List with results, dedup_summary, search_summary, consensus_summary
 #' @export
-run_curation_pipeline <- function(clean_data, column_tags, progress_callback = NULL, dedup_only = FALSE) {
+run_curation_pipeline <- function(
+  clean_data,
+  column_tags,
+  progress_callback = NULL,
+  dedup_only = FALSE,
+  wqx_threshold = 0.85,
+  starts_with = FALSE
+) {
   # Build pre-resolved tibble for isotope-matched rows (skip API search)
   pre_resolved <- NULL
   if ("cleaning_flag" %in% names(clean_data) && "isotope_dtxsid" %in% names(clean_data)) {
@@ -734,54 +741,49 @@ run_curation_pipeline <- function(clean_data, column_tags, progress_callback = N
         progress_callback("cas_names", sprintf("CAS fallback on names: %d resolved...", length(cas_matched)))
       }
 
-      # Tier 3: Starts-with on remaining misses (MOVED TO LAST, with 3-char minimum)
+      # Tier 3: WQX — no character minimum (local dictionary, no API cost)
       if (length(still_missed) > 0) {
-        sw_candidates <- still_missed[nchar(still_missed) >= 3]
+        cache_dir <- system.file("extdata", "reference_cache", package = "chemreg")
+        wqx_dict <- load_wqx_dictionary(cache_dir)
+        wqx_raw <- match_wqx(still_missed, wqx_dict, threshold = wqx_threshold, verbose = FALSE)
 
-        if (length(sw_candidates) > 0) {
-          sw_results <- search_starts_with(sw_candidates)
-          if (nrow(sw_results) > 0) {
-            sw_results$source_tier <- "starts_with"
-            all_results[[length(all_results) + 1]] <- sw_results
-            n_starts_with <- sum(!is.na(sw_results$dtxsid))
-          }
+        wqx_resolved <- wqx_raw[wqx_raw$match_tier != "none", ]
+        n_wqx <- nrow(wqx_resolved)
 
-          if (!is.null(progress_callback)) {
-            progress_callback("starts_with", sprintf("Starts-with: %d more found...", n_starts_with))
-          }
-
-          sw_matched <- sw_results$searchValue[!is.na(sw_results$dtxsid)]
-          final_missed <- setdiff(still_missed, sw_matched)
-        } else {
-          final_missed <- still_missed
+        if (n_wqx > 0) {
+          wqx_rows <- tibble::tibble(
+            searchValue = wqx_resolved$input_name,
+            dtxsid = NA_character_,
+            preferredName = wqx_resolved$wqx_name,
+            searchName = NA_character_,
+            rank = NA_integer_,
+            source_tier = paste0("wqx_", wqx_resolved$match_tier)
+          )
+          all_results[[length(all_results) + 1]] <- wqx_rows
         }
 
-        # Tier 3b: WQX matching on names that failed all CompTox tiers (per D-01)
-        if (length(final_missed) > 0) {
-          cache_dir <- system.file("extdata", "reference_cache", package = "chemreg")
-          wqx_dict <- load_wqx_dictionary(cache_dir)
-          wqx_raw <- match_wqx(final_missed, wqx_dict, verbose = FALSE)
+        wqx_matched_names <- wqx_resolved$input_name
+        final_missed <- setdiff(still_missed, wqx_matched_names)
 
-          wqx_resolved <- wqx_raw[wqx_raw$match_tier != "none", ]
-          n_wqx <- nrow(wqx_resolved)
+        if (!is.null(progress_callback)) {
+          progress_callback("wqx", sprintf("WQX match: %d more found...", n_wqx))
+        }
 
-          if (n_wqx > 0) {
-            wqx_rows <- tibble::tibble(
-              searchValue = wqx_resolved$input_name,
-              dtxsid = NA_character_,
-              preferredName = wqx_resolved$wqx_name,
-              searchName = NA_character_,
-              rank = NA_integer_,
-              source_tier = paste0("wqx_", wqx_resolved$match_tier)
-            )
-            all_results[[length(all_results) + 1]] <- wqx_rows
-          }
-
-          wqx_matched_names <- wqx_resolved$input_name
-          final_missed <- setdiff(final_missed, wqx_matched_names)
-
-          if (!is.null(progress_callback)) {
-            progress_callback("wqx", sprintf("WQX match: %d more found...", n_wqx))
+        # Tier 4: Starts-with — only when enabled AND names remain
+        if (starts_with && length(final_missed) > 0) {
+          sw_candidates <- final_missed[nchar(final_missed) >= 3]
+          if (length(sw_candidates) > 0) {
+            sw_results <- search_starts_with(sw_candidates)
+            if (nrow(sw_results) > 0) {
+              sw_results$source_tier <- "starts_with"
+              all_results[[length(all_results) + 1]] <- sw_results
+              n_starts_with <- sum(!is.na(sw_results$dtxsid))
+            }
+            if (!is.null(progress_callback)) {
+              progress_callback("starts_with", sprintf("Starts-with: %d more found...", n_starts_with))
+            }
+            sw_matched <- sw_results$searchValue[!is.na(sw_results$dtxsid)]
+            final_missed <- setdiff(final_missed, sw_matched)
           }
         }
 
