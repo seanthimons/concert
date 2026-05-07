@@ -134,7 +134,7 @@ Plans:
 - [x] 48-01-PLAN.md — Pipeline plumbing (wqx_confidence), Review button, JS handler, colDef, unit tests
 - [x] 48-02-PLAN.md — WQX Review modal (open, override, reject), type-ahead wiring, smoke test
 - [x] 48-03-PLAN.md — Gap closure: fix map_results_to_rows wqx_confidence propagation + integration test
-- [ ] 48-04-PLAN.md — Gap closure: fix searchValue crash (CR-01), multi-tag wqx_confidence suffix (WR-02), needs_review init (WR-01)
+- [x] 48-04-PLAN.md — Gap closure: fix searchValue crash (CR-01), multi-tag wqx_confidence suffix (WR-02), needs_review init (WR-01)
 **UI hint**: yes
 
 ## Progress
@@ -171,4 +171,4 @@ Plans:
 | 45. Pipeline Integration | v2.1 | 2/2 | Complete | 2026-05-06 |
 | 46. WQX UI Display Fixes | v2.1 | 1/1 | Complete | 2026-05-06 |
 | 47. Pipeline Reordering, Threshold Control & Starts-With Toggle | v2.2 | 2/2 | Complete    | 2026-05-07 |
-| 48. WQX Resolution UI | v2.2 | 3/4 | Gap Closure | — |
+| 48. WQX Resolution UI | v2.2 | 4/4 | Complete   | 2026-05-07 |
