@@ -110,3 +110,86 @@ test_that("derive_resolution_html still works correctly for agree rows (regressi
   expect_match(result, "DTXSID7021360")
   expect_match(result, "Toluene")
 })
+
+# ============================================================================
+# Test Group 4: wqx_confidence computation
+# ============================================================================
+
+test_that("wqx_confidence is similarity score for fuzzy rows", {
+  wqx_resolved <- tibble::tibble(
+    input_name = "dissolved oxygen",
+    wqx_name = "Dissolved oxygen (DO)",
+    match_tier = "fuzzy",
+    match_distance = 0.13,
+    alias_type = NA_character_
+  )
+  wqx_confidence <- ifelse(
+    wqx_resolved$match_tier == "fuzzy",
+    1 - wqx_resolved$match_distance,
+    NA_real_
+  )
+  expect_equal(wqx_confidence, 0.87)
+})
+
+test_that("wqx_confidence is NA for exact match", {
+  wqx_resolved <- tibble::tibble(
+    input_name = "Dissolved oxygen",
+    wqx_name = "Dissolved oxygen (DO)",
+    match_tier = "exact",
+    match_distance = NA_real_,
+    alias_type = NA_character_
+  )
+  wqx_confidence <- ifelse(
+    wqx_resolved$match_tier == "fuzzy",
+    1 - wqx_resolved$match_distance,
+    NA_real_
+  )
+  expect_true(is.na(wqx_confidence))
+})
+
+test_that("wqx_confidence is NA for alias match", {
+  wqx_resolved <- tibble::tibble(
+    input_name = "DO",
+    wqx_name = "Dissolved oxygen (DO)",
+    match_tier = "alias",
+    match_distance = NA_real_,
+    alias_type = "synonym"
+  )
+  wqx_confidence <- ifelse(
+    wqx_resolved$match_tier == "fuzzy",
+    1 - wqx_resolved$match_distance,
+    NA_real_
+  )
+  expect_true(is.na(wqx_confidence))
+})
+
+# ============================================================================
+# Test Group 5: derive_resolution_html — Review button for WQX rows
+# ============================================================================
+
+test_that("derive_resolution_html includes wqx-review-btn for WQX rows", {
+  df <- data.frame(
+    consensus_status = c("wqx"),
+    consensus_dtxsid = c(NA_character_),
+    preferredName_Chemical = c("Dissolved oxygen (DO)"),
+    .pinned = c(FALSE),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  result <- derive_resolution_html(df, row_indices = 1L)
+  expect_match(result, "wqx-review-btn")
+  expect_match(result, 'data-row="1"')
+})
+
+test_that("derive_resolution_html Review button absent for non-WQX rows", {
+  df <- data.frame(
+    consensus_status = c("agree"),
+    consensus_dtxsid = c("DTXSID7021360"),
+    preferredName_Chemical = c("Toluene"),
+    .pinned = c(FALSE),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  result <- derive_resolution_html(df, row_indices = 1L)
+  expect_no_match(result, "wqx-review-btn")
+})
