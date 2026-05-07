@@ -131,7 +131,7 @@ Plans:
   5. Exported Excel and Parquet files include the user's WQX override or unresolvable status on the affected rows
 **Plans**: 2 plans
 Plans:
-- [ ] 48-01-PLAN.md — Pipeline plumbing (wqx_confidence), Review button, JS handler, colDef, unit tests
+- [x] 48-01-PLAN.md — Pipeline plumbing (wqx_confidence), Review button, JS handler, colDef, unit tests
 - [ ] 48-02-PLAN.md — WQX Review modal (open, override, reject), type-ahead wiring, smoke test
 **UI hint**: yes
 
@@ -169,4 +169,4 @@ Plans:
 | 45. Pipeline Integration | v2.1 | 2/2 | Complete | 2026-05-06 |
 | 46. WQX UI Display Fixes | v2.1 | 1/1 | Complete | 2026-05-06 |
 | 47. Pipeline Reordering, Threshold Control & Starts-With Toggle | v2.2 | 2/2 | Complete    | 2026-05-07 |
-| 48. WQX Resolution UI | v2.2 | 0/2 | Not started | - |
+| 48. WQX Resolution UI | v2.2 | 1/2 | In Progress|  |
