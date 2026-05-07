@@ -289,11 +289,17 @@ mod_review_results_ui <- function(id) {
       // Show confirm button
       $('#%s').show();
     });
+
+    $(document).on('click', '.wqx-review-btn', function() {
+      var row = $(this).data('row');
+      Shiny.setInputValue('%s', {row: row, t: Math.random()}, {priority: 'event'});
+    });
   ",
     ns("compare_row_click"),
     ns("compare_row_click"),
     ns("modal_candidate_select"),
-    ns("confirm_container")
+    ns("confirm_container"),
+    ns("wqx_review_click")
   )))
 
   # Inline DTXSID editing JavaScript (namespace-aware)
@@ -752,6 +758,21 @@ mod_review_results_server <- function(id, data_store) {
           }
         }
       )
+
+      # WQX confidence column (fuzzy similarity score; NA for exact/alias rows)
+      if ("wqx_confidence" %in% names(df_display)) {
+        col_defs[["wqx_confidence"]] <- reactable::colDef(
+          name = "WQX Conf.",
+          minWidth = 80,
+          align = "right",
+          cell = function(value, index) {
+            if (is.na(value)) {
+              return("")
+            }
+            formatC(value, digits = 2, format = "f")
+          }
+        )
+      }
 
       # Dropdown filter helper
       table_id <- session$ns("curation_table")
