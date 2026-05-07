@@ -757,7 +757,12 @@ run_curation_pipeline <- function(
             preferredName = wqx_resolved$wqx_name,
             searchName = NA_character_,
             rank = NA_integer_,
-            source_tier = paste0("wqx_", wqx_resolved$match_tier)
+            source_tier = paste0("wqx_", wqx_resolved$match_tier),
+            wqx_confidence = ifelse(
+              wqx_resolved$match_tier == "fuzzy",
+              1 - wqx_resolved$match_distance,
+              NA_real_
+            )
           )
           all_results[[length(all_results) + 1]] <- wqx_rows
         }
