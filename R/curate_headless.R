@@ -72,7 +72,9 @@ curate_headless <- function(
   format = "parquet",
   unit_map = NULL,
   corrections = NULL,
-  media = NULL
+  media = NULL,
+  wqx_threshold = 0.85,
+  starts_with = FALSE
 ) {
   # skip_flags reserved for future use; isotope_match skip is handled internally by run_curation_pipeline()
 
@@ -173,7 +175,12 @@ curate_headless <- function(
     # Step 8: Run curation pipeline (CompTox API search)
     # ------------------------------------------------------------------
     message("[headless] Running curation pipeline (CompTox API search)...")
-    pipeline_result <- run_curation_pipeline(cleaning_result$cleaned_data, merged_tags)
+    pipeline_result <- run_curation_pipeline(
+      cleaning_result$cleaned_data,
+      merged_tags,
+      wqx_threshold = wqx_threshold,
+      starts_with = starts_with
+    )
     resolution_state <- pipeline_result$results
 
     # ------------------------------------------------------------------
