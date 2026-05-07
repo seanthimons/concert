@@ -764,8 +764,11 @@ mod_review_results_server <- function(id, data_store) {
       )
 
       # WQX confidence column (fuzzy similarity score; NA for exact/alias rows)
-      if ("wqx_confidence" %in% names(df_display)) {
-        col_defs[["wqx_confidence"]] <- reactable::colDef(
+      # Use grep-based lookup to handle both single-tag (wqx_confidence) and
+      # multi-tag (wqx_confidence_Chemical) naming from map_results_to_rows()
+      wqx_conf_cols <- grep("^wqx_confidence", names(df_display), value = TRUE)
+      for (wcc in wqx_conf_cols) {
+        col_defs[[wcc]] <- reactable::colDef(
           name = "WQX Conf.",
           minWidth = 80,
           align = "right",
@@ -1752,7 +1755,14 @@ mod_review_results_server <- function(id, data_store) {
       data_store$wqx_modal_row_idx <- row_idx
 
       # Read display context
-      input_name <- row$searchValue
+      name_cols <- names(data_store$column_tags)[data_store$column_tags == "Name"]
+      input_name <- NA_character_
+      for (nc in name_cols) {
+        if (nc %in% names(row) && !is.na(row[[nc]])) {
+          input_name <- row[[nc]]
+          break
+        }
+      }
       # Get current preferred name (first non-NA preferredName_*)
       pref_cols <- grep("^preferredName_", names(row), value = TRUE)
       current_name <- NA_character_
@@ -1785,7 +1795,10 @@ mod_review_results_server <- function(id, data_store) {
       )
 
       # Confidence score (only for fuzzy)
-      confidence <- if ("wqx_confidence" %in% names(row)) row$wqx_confidence else NA_real_
+      # Use grep-based lookup to handle both single-tag (wqx_confidence) and
+      # multi-tag (wqx_confidence_Chemical) naming from map_results_to_rows()
+      wqx_conf_col <- grep("^wqx_confidence", names(row), value = TRUE)
+      confidence <- if (length(wqx_conf_col) > 0) row[[wqx_conf_col[1]]] else NA_real_
 
       # Build context card (per D-07, UI-SPEC)
       context_card <- div(
@@ -1932,6 +1945,9 @@ mod_review_results_server <- function(id, data_store) {
       group_rows <- get_group_rows(row_idx, isolate(data_store$dedup_group_map))
       updated_df <- data_store$resolution_state
 
+      if (!"needs_review" %in% names(updated_df)) {
+        updated_df$needs_review <- FALSE
+      }
       for (r in group_rows) {
         updated_df$consensus_status[r] <- "unresolvable"
         updated_df$needs_review[r] <- TRUE
@@ -1941,7 +1957,7 @@ mod_review_results_server <- function(id, data_store) {
 
       removeModal()
       showNotification(
-        sprintf("WQX match rejected for %d row(s) -- marked unresolvable", length(group_rows)),
+        sprintf("WQX match rejected for %d row(s) \u2014 marked unresolvable", length(group_rows)),
         type = "message"
       )
       data_store$wqx_modal_row_idx <- NULL
