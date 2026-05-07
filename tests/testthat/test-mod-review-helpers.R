@@ -193,3 +193,100 @@ test_that("derive_resolution_html Review button absent for non-WQX rows", {
   result <- derive_resolution_html(df, row_indices = 1L)
   expect_no_match(result, "wqx-review-btn")
 })
+
+# ============================================================================
+# Test Group 6: map_results_to_rows -- wqx_confidence propagation (integration)
+# ============================================================================
+
+test_that("map_results_to_rows carries wqx_confidence to output df for WQX fuzzy rows", {
+  # Input data frame with one row
+  df <- data.frame(
+    Chemical = "dissolved oxygen",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  # Dedup key map: row 1 maps to "dissolved oxygen" in column "Chemical"
+  dedup_key_map <- tibble::tibble(
+    row_idx = 1L,
+    column_name = "Chemical",
+    dedup_key = "dissolved oxygen"
+  )
+
+  # Lookup results: one WQX fuzzy match with wqx_confidence
+  lookup_results <- tibble::tibble(
+    searchValue = "dissolved oxygen",
+    dtxsid = NA_character_,
+    preferredName = "Dissolved oxygen (DO)",
+    searchName = NA_character_,
+    rank = NA_integer_,
+    source_tier = "wqx_fuzzy",
+    wqx_confidence = 0.87
+  )
+
+  result <- map_results_to_rows(df, dedup_key_map, lookup_results)
+
+  expect_true("wqx_confidence" %in% names(result), info = "wqx_confidence column must be present in output")
+  expect_equal(result$wqx_confidence[1], 0.87)
+})
+
+test_that("map_results_to_rows sets wqx_confidence to NA for non-WQX rows", {
+  df <- data.frame(
+    Chemical = c("toluene", "dissolved oxygen"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  dedup_key_map <- tibble::tibble(
+    row_idx = c(1L, 2L),
+    column_name = c("Chemical", "Chemical"),
+    dedup_key = c("toluene", "dissolved oxygen")
+  )
+
+  # Two results: one CompTox (no wqx_confidence), one WQX fuzzy
+  lookup_results <- tibble::tibble(
+    searchValue = c("toluene", "dissolved oxygen"),
+    dtxsid = c("DTXSID7021360", NA_character_),
+    preferredName = c("Toluene", "Dissolved oxygen (DO)"),
+    searchName = c("Toluene", NA_character_),
+    rank = c(1L, NA_integer_),
+    source_tier = c("comptox_exact", "wqx_fuzzy"),
+    wqx_confidence = c(NA_real_, 0.87)
+  )
+
+  result <- map_results_to_rows(df, dedup_key_map, lookup_results)
+
+  expect_true("wqx_confidence" %in% names(result))
+  expect_true(is.na(result$wqx_confidence[1]), info = "CompTox row should have NA wqx_confidence")
+  expect_equal(result$wqx_confidence[2], 0.87, info = "WQX fuzzy row should have 0.87 wqx_confidence")
+})
+
+test_that("map_results_to_rows handles lookup_results without wqx_confidence column", {
+  df <- data.frame(
+    Chemical = "toluene",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  dedup_key_map <- tibble::tibble(
+    row_idx = 1L,
+    column_name = "Chemical",
+    dedup_key = "toluene"
+  )
+
+  # Lookup results without wqx_confidence column (no WQX matching ran)
+  lookup_results <- tibble::tibble(
+    searchValue = "toluene",
+    dtxsid = "DTXSID7021360",
+    preferredName = "Toluene",
+    searchName = "Toluene",
+    rank = 1L,
+    source_tier = "comptox_exact"
+  )
+
+  result <- map_results_to_rows(df, dedup_key_map, lookup_results)
+
+  # wqx_confidence column should still be created (all NA) because it is pre-allocated
+  expect_true("wqx_confidence" %in% names(result))
+  expect_true(is.na(result$wqx_confidence[1]))
+})
