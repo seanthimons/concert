@@ -546,6 +546,7 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
     search_vec <- rep(NA_character_, input_rows)
     rank_vec <- rep(NA_integer_, input_rows)
     tier_vec <- rep(NA_character_, input_rows)
+    wqx_conf_vec <- rep(NA_real_, input_rows)
 
     # Fill in results by direct index lookup
     for (i in seq_len(nrow(col_keys))) {
@@ -559,6 +560,9 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
         search_vec[ridx] <- lookup_deduped$searchName[match_pos]
         rank_vec[ridx] <- lookup_deduped$rank[match_pos]
         tier_vec[ridx] <- lookup_deduped$source_tier[match_pos]
+        if ("wqx_confidence" %in% names(lookup_deduped)) {
+          wqx_conf_vec[ridx] <- lookup_deduped$wqx_confidence[match_pos]
+        }
       }
     }
 
@@ -569,6 +573,7 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
       df$searchName <- search_vec
       df$rank <- rank_vec
       df$source_tier <- tier_vec
+      df$wqx_confidence <- wqx_conf_vec
     } else {
       suffix <- paste0("_", col)
       df[[paste0("dtxsid", suffix)]] <- dtxsid_vec
@@ -576,6 +581,7 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
       df[[paste0("searchName", suffix)]] <- search_vec
       df[[paste0("rank", suffix)]] <- rank_vec
       df[[paste0("source_tier", suffix)]] <- tier_vec
+      df[[paste0("wqx_confidence", suffix)]] <- wqx_conf_vec
     }
   }
 
