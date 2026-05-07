@@ -66,6 +66,9 @@ derive_resolution_html <- function(df, row_indices) {
     pref_name[needs_fill] <- df[[pc]][needs_fill]
   }
 
+  # WQX override: prefer user-selected name over pipeline result (per D-08)
+  wqx_override <- if ("wqx_override_name" %in% names(df)) df$wqx_override_name else rep(NA_character_, n)
+
   # agree / agree_caveat / single
   resolved <- status %in% c("agree", "agree_caveat", "single") & !is.na(dtxsid)
   has_pref <- resolved & !is.na(pref_name)
@@ -142,7 +145,8 @@ derive_resolution_html <- function(df, row_indices) {
 
   # wqx
   wqx_mask <- status == "wqx"
-  wqx_has_pref <- wqx_mask & !is.na(pref_name)
+  effective_wqx_name <- ifelse(!is.na(wqx_override), wqx_override, pref_name)
+  wqx_has_pref <- wqx_mask & !is.na(effective_wqx_name)
   wqx_badge <- '<span class="badge bg-success ms-1" style="font-size:0.7em;">wqx</span>'
   review_btn <- paste0(
     ' <button class="wqx-review-btn btn btn-sm btn-outline-success" data-row="',
@@ -151,7 +155,7 @@ derive_resolution_html <- function(df, row_indices) {
   )
   result[wqx_has_pref] <- paste0(
     "\u2705 ",
-    htmltools::htmlEscape(pref_name[wqx_has_pref]),
+    htmltools::htmlEscape(effective_wqx_name[wqx_has_pref]),
     " ",
     wqx_badge,
     review_btn[wqx_has_pref]
@@ -1733,6 +1737,214 @@ mod_review_results_server <- function(id, data_store) {
       # Update consensus summary
       updated_df <- data_store$resolution_state
       data_store$consensus_summary <- recalc_consensus_summary(updated_df)
+    })
+
+    # Handle WQX Review button click - open modal with review options
+    observeEvent(input$wqx_review_click, {
+      req(data_store$resolution_state)
+
+      row_idx <- input$wqx_review_click$row
+      if (is.null(row_idx) || row_idx < 1 || row_idx > nrow(data_store$resolution_state)) {
+        return()
+      }
+
+      row <- data_store$resolution_state[row_idx, ]
+      data_store$wqx_modal_row_idx <- row_idx
+
+      # Read display context
+      input_name <- row$searchValue
+      # Get current preferred name (first non-NA preferredName_*)
+      pref_cols <- grep("^preferredName_", names(row), value = TRUE)
+      current_name <- NA_character_
+      for (pc in pref_cols) {
+        if (!is.na(row[[pc]])) {
+          current_name <- row[[pc]]
+          break
+        }
+      }
+      # Prefer override name if set
+      if ("wqx_override_name" %in% names(row) && !is.na(row$wqx_override_name)) {
+        current_name <- row$wqx_override_name
+      }
+
+      # Get match type from source_tier_* columns
+      tier_cols <- grep("^source_tier_", names(row), value = TRUE)
+      match_tier_raw <- NA_character_
+      for (tc in tier_cols) {
+        if (!is.na(row[[tc]])) {
+          match_tier_raw <- row[[tc]]
+          break
+        }
+      }
+      match_type_label <- switch(
+        as.character(match_tier_raw),
+        "wqx_exact" = "WQX Exact",
+        "wqx_alias" = "WQX Alias",
+        "wqx_fuzzy" = "WQX Fuzzy",
+        "WQX"
+      )
+
+      # Confidence score (only for fuzzy)
+      confidence <- if ("wqx_confidence" %in% names(row)) row$wqx_confidence else NA_real_
+
+      # Build context card (per D-07, UI-SPEC)
+      context_card <- div(
+        class = "card card-body bg-light mb-3",
+        div(
+          class = "row mb-2",
+          div(class = "col-4", tags$strong("Input Name")),
+          div(class = "col-8", if (!is.na(input_name)) input_name else "(unknown)")
+        ),
+        div(
+          class = "row mb-2",
+          div(class = "col-4", tags$strong("Current WQX Match")),
+          div(class = "col-8", if (!is.na(current_name)) current_name else "(none)")
+        ),
+        div(
+          class = "row mb-2",
+          div(class = "col-4", tags$strong("Match Type")),
+          div(class = "col-8", match_type_label)
+        ),
+        if (!is.na(confidence)) {
+          div(
+            class = "row mb-2",
+            div(class = "col-4", tags$strong("Confidence Score")),
+            div(class = "col-8", formatC(confidence, digits = 2, format = "f"))
+          )
+        }
+      )
+
+      # Type-ahead section (per D-06, UI-SPEC)
+      typeahead_section <- div(
+        tags$h6(class = "mt-3 mb-2", "Find a Different WQX Name"),
+        selectizeInput(
+          session$ns("wqx_typeahead"),
+          label = NULL,
+          choices = NULL,
+          options = list(
+            placeholder = "Type to search WQX names...",
+            maxOptions = 20
+          )
+        )
+      )
+
+      # Modal footer: Accept Current, Use Selected Name (hidden), Reject Match
+      footer <- tagList(
+        tags$button(
+          class = "btn btn-outline-secondary",
+          `data-dismiss` = "modal",
+          `data-bs-dismiss` = "modal",
+          "Accept Current"
+        ),
+        div(
+          id = session$ns("wqx_confirm_container"),
+          style = "display:inline-block;",
+          actionButton(
+            session$ns("wqx_modal_confirm"),
+            "Use Selected Name",
+            class = "btn-primary",
+            style = "display:none;"
+          )
+        ),
+        tags$button(
+          class = "btn btn-outline-danger",
+          onclick = sprintf(
+            "Shiny.setInputValue('%s', {t: Math.random()}, {priority: 'event'});",
+            session$ns("wqx_reject_click")
+          ),
+          "Reject Match"
+        )
+      )
+
+      showModal(modalDialog(
+        title = "Review WQX Match",
+        tagList(context_card, typeahead_section),
+        footer = footer,
+        size = "l",
+        easyClose = TRUE
+      ))
+
+      # Load WQX dictionary and populate selectize (MUST be after showModal per RESEARCH.md Pitfall 2)
+      cache_dir <- system.file("extdata", "reference_cache", package = "chemreg")
+      wqx_dict <- load_wqx_dictionary(cache_dir)
+      display_type <- ifelse(wqx_dict$type == "canonical", "canonical", "alias")
+      wqx_labels <- paste0(wqx_dict$name, " (", display_type, ")")
+      wqx_choices <- stats::setNames(wqx_dict$canonical_name, wqx_labels)
+      updateSelectizeInput(session, "wqx_typeahead", choices = wqx_choices, server = TRUE)
+    })
+
+    # Show "Use Selected Name" button when type-ahead selection is made
+    observeEvent(
+      input$wqx_typeahead,
+      {
+        if (!is.null(input$wqx_typeahead) && input$wqx_typeahead != "") {
+          shinyjs::show("wqx_modal_confirm")
+        } else {
+          shinyjs::hide("wqx_modal_confirm")
+        }
+      },
+      ignoreInit = TRUE,
+      ignoreNULL = FALSE
+    )
+
+    # Handle WQX modal confirm — override with type-ahead selection
+    observeEvent(input$wqx_modal_confirm, {
+      row_idx <- data_store$wqx_modal_row_idx
+      new_name <- input$wqx_typeahead
+
+      if (is.null(new_name) || new_name == "") {
+        showNotification("Please select a WQX name first", type = "warning")
+        return()
+      }
+
+      # Group-propagated mutation (per D-08: consensus_status stays "wqx", preferredName updated)
+      group_rows <- get_group_rows(row_idx, isolate(data_store$dedup_group_map))
+      updated_df <- data_store$resolution_state
+
+      # Initialize wqx_override_name column if it doesn't exist
+      if (!"wqx_override_name" %in% names(updated_df)) {
+        updated_df$wqx_override_name <- NA_character_
+      }
+
+      for (r in group_rows) {
+        updated_df$wqx_override_name[r] <- new_name
+        # consensus_status stays "wqx" per D-08 — no change
+      }
+      data_store$resolution_state <- updated_df
+      data_store$consensus_summary <- recalc_consensus_summary(updated_df)
+
+      removeModal()
+      showNotification(
+        sprintf("WQX match overridden for %d row(s): %s", length(group_rows), new_name),
+        type = "message"
+      )
+      data_store$wqx_modal_row_idx <- NULL
+    })
+
+    # Handle WQX reject — mark row unresolvable
+    observeEvent(input$wqx_reject_click, {
+      row_idx <- data_store$wqx_modal_row_idx
+      if (is.null(row_idx)) {
+        return()
+      }
+
+      # Group-propagated mutation (per D-08: consensus_status -> "unresolvable", needs_review -> TRUE)
+      group_rows <- get_group_rows(row_idx, isolate(data_store$dedup_group_map))
+      updated_df <- data_store$resolution_state
+
+      for (r in group_rows) {
+        updated_df$consensus_status[r] <- "unresolvable"
+        updated_df$needs_review[r] <- TRUE
+      }
+      data_store$resolution_state <- updated_df
+      data_store$consensus_summary <- recalc_consensus_summary(updated_df)
+
+      removeModal()
+      showNotification(
+        sprintf("WQX match rejected for %d row(s) -- marked unresolvable", length(group_rows)),
+        type = "message"
+      )
+      data_store$wqx_modal_row_idx <- NULL
     })
 
     # Curation completed indicator
