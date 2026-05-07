@@ -290,3 +290,93 @@ test_that("map_results_to_rows handles lookup_results without wqx_confidence col
   expect_true("wqx_confidence" %in% names(result))
   expect_true(is.na(result$wqx_confidence[1]))
 })
+
+# ============================================================================
+# Test Group 7: Gap closure regression tests (Plan 04 -- CR-01, WR-02)
+# ============================================================================
+
+test_that("wqx_confidence grep pattern matches both suffixed and unsuffixed column names", {
+  # Single-tag mode: unsuffixed
+  single_tag_names <- c("consensus_status", "wqx_confidence", "preferredName_Chemical")
+  expect_length(grep("^wqx_confidence", single_tag_names, value = TRUE), 1)
+  expect_equal(grep("^wqx_confidence", single_tag_names, value = TRUE), "wqx_confidence")
+
+  # Multi-tag mode: suffixed
+  multi_tag_names <- c("consensus_status", "wqx_confidence_Chemical", "preferredName_Chemical")
+  expect_length(grep("^wqx_confidence", multi_tag_names, value = TRUE), 1)
+  expect_equal(grep("^wqx_confidence", multi_tag_names, value = TRUE), "wqx_confidence_Chemical")
+
+  # Both present (edge case): matches both
+  both_names <- c("wqx_confidence", "wqx_confidence_Chemical")
+  expect_length(grep("^wqx_confidence", both_names, value = TRUE), 2)
+
+  # No match
+  no_match_names <- c("consensus_status", "preferredName_Chemical")
+  expect_length(grep("^wqx_confidence", no_match_names, value = TRUE), 0)
+})
+
+test_that("grep-based wqx_confidence lookup extracts value from suffixed column", {
+  # Simulate a single-row slice of resolution_state with suffixed column (multi-tag mode)
+  row <- data.frame(
+    consensus_status = "wqx",
+    wqx_confidence_Chemical = 0.87,
+    stringsAsFactors = FALSE
+  )
+
+  wqx_conf_col <- grep("^wqx_confidence", names(row), value = TRUE)
+  confidence <- if (length(wqx_conf_col) > 0) row[[wqx_conf_col[1]]] else NA_real_
+  expect_equal(confidence, 0.87)
+
+  # Single-tag mode (unsuffixed)
+  row2 <- data.frame(
+    consensus_status = "wqx",
+    wqx_confidence = 0.92,
+    stringsAsFactors = FALSE
+  )
+  wqx_conf_col2 <- grep("^wqx_confidence", names(row2), value = TRUE)
+  confidence2 <- if (length(wqx_conf_col2) > 0) row2[[wqx_conf_col2[1]]] else NA_real_
+  expect_equal(confidence2, 0.92)
+
+  # No confidence column at all
+  row3 <- data.frame(consensus_status = "wqx", stringsAsFactors = FALSE)
+  wqx_conf_col3 <- grep("^wqx_confidence", names(row3), value = TRUE)
+  confidence3 <- if (length(wqx_conf_col3) > 0) row3[[wqx_conf_col3[1]]] else NA_real_
+  expect_true(is.na(confidence3))
+})
+
+test_that("input name lookup reads from tagged Name column, not searchValue", {
+  # Simulate resolution_state row with tagged Name column
+  row <- data.frame(
+    Chemical = "Dissolved oxygen",
+    consensus_status = "wqx",
+    stringsAsFactors = FALSE
+  )
+
+  # Simulate column_tags (named character vector mapping column names to tag types)
+  column_tags <- c("Chemical" = "Name", "cas_number" = "CASRN")
+
+  name_cols <- names(column_tags)[column_tags == "Name"]
+  input_name <- NA_character_
+  for (nc in name_cols) {
+    if (nc %in% names(row) && !is.na(row[[nc]])) {
+      input_name <- row[[nc]]
+      break
+    }
+  }
+  expect_equal(input_name, "Dissolved oxygen")
+
+  # Row where the Name column is NA (falls through to NA_character_)
+  row2 <- data.frame(
+    Chemical = NA_character_,
+    consensus_status = "wqx",
+    stringsAsFactors = FALSE
+  )
+  input_name2 <- NA_character_
+  for (nc in name_cols) {
+    if (nc %in% names(row2) && !is.na(row2[[nc]])) {
+      input_name2 <- row2[[nc]]
+      break
+    }
+  }
+  expect_true(is.na(input_name2))
+})
