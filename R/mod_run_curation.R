@@ -55,7 +55,6 @@ mod_run_curation_ui <- function(id) {
 #' @export
 mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL) {
   moduleServer(id, function(input, output, session) {
-
     # Curation summary
     output$curation_summary <- renderUI({
       req(data_store$column_tags)
@@ -162,7 +161,9 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
               clean_data = input_data,
               column_tags = data_store$column_tags,
               progress_callback = progress_callback,
-              dedup_only = FALSE
+              dedup_only = FALSE,
+              wqx_threshold = data_store$wqx_threshold %||% 0.85,
+              starts_with = isTRUE(data_store$starts_with)
             )
 
             # Store results
@@ -190,75 +191,84 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
             data_store$curation_status <- "completed"
 
             # --- Enrichment: auto-trigger after curation ---
-            tryCatch({
-              # Collect ALL unique DTXSIDs for enrichment (disagree + agree/single)
-              all_unique_dtxsids <- character(0)
+            tryCatch(
+              {
+                # Collect ALL unique DTXSIDs for enrichment (disagree + agree/single)
+                all_unique_dtxsids <- character(0)
 
-              # From disagree rows: all candidate DTXSIDs across dtxsid_* columns
-              dtxsid_cols <- data_store$dtxsid_cols
-              disagree_idx <- which(pipeline_result$results$consensus_status == "disagree")
-              if (length(disagree_idx) > 0 && length(dtxsid_cols) > 0) {
-                for (dc in dtxsid_cols) {
-                  vals <- pipeline_result$results[[dc]][disagree_idx]
-                  all_unique_dtxsids <- c(all_unique_dtxsids, vals[!is.na(vals)])
+                # From disagree rows: all candidate DTXSIDs across dtxsid_* columns
+                dtxsid_cols <- data_store$dtxsid_cols
+                disagree_idx <- which(pipeline_result$results$consensus_status == "disagree")
+                if (length(disagree_idx) > 0 && length(dtxsid_cols) > 0) {
+                  for (dc in dtxsid_cols) {
+                    vals <- pipeline_result$results[[dc]][disagree_idx]
+                    all_unique_dtxsids <- c(all_unique_dtxsids, vals[!is.na(vals)])
+                  }
                 }
-              }
 
-              # From agree/single/agree_caveat rows: consensus_dtxsid values
-              non_disagree_idx <- which(pipeline_result$results$consensus_status %in%
-                c("agree", "agree_caveat", "single"))
-              if (length(non_disagree_idx) > 0) {
-                consensus_vals <- pipeline_result$results$consensus_dtxsid[non_disagree_idx]
-                all_unique_dtxsids <- c(all_unique_dtxsids, consensus_vals[!is.na(consensus_vals)])
-              }
+                # From agree/single/agree_caveat rows: consensus_dtxsid values
+                non_disagree_idx <- which(
+                  pipeline_result$results$consensus_status %in%
+                    c("agree", "agree_caveat", "single")
+                )
+                if (length(non_disagree_idx) > 0) {
+                  consensus_vals <- pipeline_result$results$consensus_dtxsid[non_disagree_idx]
+                  all_unique_dtxsids <- c(all_unique_dtxsids, consensus_vals[!is.na(consensus_vals)])
+                }
 
-              all_unique_dtxsids <- unique(all_unique_dtxsids)
+                all_unique_dtxsids <- unique(all_unique_dtxsids)
 
-              if (length(all_unique_dtxsids) > 0) {
+                if (length(all_unique_dtxsids) > 0) {
+                  showNotification(
+                    sprintf("Enriching %d candidates...", length(all_unique_dtxsids)),
+                    type = "message",
+                    duration = 3,
+                    id = "enrich-progress"
+                  )
+
+                  enrich_result <- enrich_candidates(
+                    dtxsids = all_unique_dtxsids,
+                    existing_cache = data_store$enrichment_cache
+                  )
+
+                  data_store$enrichment_cache <- enrich_result$cache
+                  data_store$enrichment_failed <- enrich_result$failed_dtxsids
+
+                  n_enriched <- sum(!is.na(enrich_result$cache$casrn))
+                  n_total <- nrow(enrich_result$cache)
+                  n_failed <- length(enrich_result$failed_dtxsids)
+
+                  if (n_failed > 0) {
+                    showNotification(
+                      sprintf("Enrichment: %d of %d DTXSIDs enriched (%d failed)", n_enriched, n_total, n_failed),
+                      type = "warning",
+                      duration = 8
+                    )
+                  } else {
+                    showNotification(
+                      sprintf("Enrichment complete: %d of %d DTXSIDs enriched", n_enriched, n_total),
+                      type = "message",
+                      duration = 5
+                    )
+                  }
+                }
+              },
+              error = function(e) {
+                warning(sprintf("[enrich] Enrichment failed: %s", e$message))
                 showNotification(
-                  sprintf("Enriching %d candidates...", length(all_unique_dtxsids)),
-                  type = "message", duration = 3, id = "enrich-progress"
+                  paste("Enrichment failed (curation results still valid):", e$message),
+                  type = "warning",
+                  duration = 8
                 )
-
-                enrich_result <- enrich_candidates(
-                  dtxsids = all_unique_dtxsids,
-                  existing_cache = data_store$enrichment_cache
-                )
-
-                data_store$enrichment_cache <- enrich_result$cache
-                data_store$enrichment_failed <- enrich_result$failed_dtxsids
-
-                n_enriched <- sum(!is.na(enrich_result$cache$casrn))
-                n_total <- nrow(enrich_result$cache)
-                n_failed <- length(enrich_result$failed_dtxsids)
-
-                if (n_failed > 0) {
-                  showNotification(
-                    sprintf("Enrichment: %d of %d DTXSIDs enriched (%d failed)",
-                      n_enriched, n_total, n_failed),
-                    type = "warning", duration = 8
-                  )
-                } else {
-                  showNotification(
-                    sprintf("Enrichment complete: %d of %d DTXSIDs enriched",
-                      n_enriched, n_total),
-                    type = "message", duration = 5
-                  )
-                }
               }
-            }, error = function(e) {
-              warning(sprintf("[enrich] Enrichment failed: %s", e$message))
-              showNotification(
-                paste("Enrichment failed (curation results still valid):", e$message),
-                type = "warning", duration = 8
-              )
-            })
+            )
 
             # Show tier breakdown notification
             notification_msg <- sprintf(
-              "Search complete: %d exact, %d CAS, %d starts-with, %d no match",
+              "Search complete: %d exact, %d CAS, %d WQX, %d starts-with, %d no match",
               pipeline_result$search_summary$n_exact,
               pipeline_result$search_summary$n_cas_valid,
+              pipeline_result$search_summary$n_wqx,
               pipeline_result$search_summary$n_starts_with,
               pipeline_result$search_summary$n_miss
             )
