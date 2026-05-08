@@ -252,6 +252,29 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
                     )
                   }
                 }
+
+                # --- Synonym fetch (per D-01: fetch at enrichment time, read from cache at score time) ---
+                if (length(all_unique_dtxsids) > 0) {
+                  synonym_result <- enrich_synonyms(
+                    dtxsids = all_unique_dtxsids,
+                    existing_cache = data_store$enrichment_cache
+                  )
+                  data_store$enrichment_cache <- synonym_result$cache
+                }
+
+                # --- Similarity scoring (per D-03: max JW + rank bonus, clamped [0,1]) ---
+                if (
+                  !is.null(data_store$resolution_state) &&
+                    !is.null(data_store$dtxsid_cols) &&
+                    !is.null(data_store$column_tags)
+                ) {
+                  data_store$resolution_state <- compute_similarity_scores(
+                    resolution_state = data_store$resolution_state,
+                    enrichment_cache = data_store$enrichment_cache,
+                    dtxsid_cols = data_store$dtxsid_cols,
+                    column_tags = data_store$column_tags
+                  )
+                }
               },
               error = function(e) {
                 warning(sprintf("[enrich] Enrichment failed: %s", e$message))
