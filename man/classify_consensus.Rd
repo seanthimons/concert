@@ -17,7 +17,7 @@ consensus_source, qc_tier
 }
 \description{
 NOTE: This function returns status values "agree", "agree_caveat", "single",
-"disagree", and "error". Downstream code (manual validation flow, retry merge)
+"wqx", "disagree", and "error". Downstream code (manual validation flow, retry merge)
 may add additional status values: "manual" (manually-entered DTXSID) and
 "unresolvable" (error persisting after retry).
 }

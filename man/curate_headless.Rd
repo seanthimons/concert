@@ -16,7 +16,9 @@ curate_headless(
   format = "parquet",
   unit_map = NULL,
   corrections = NULL,
-  media = NULL
+  media = NULL,
+  wqx_threshold = 0.85,
+  starts_with = FALSE
 )
 }
 \arguments{
