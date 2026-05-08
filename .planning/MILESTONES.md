@@ -1,5 +1,24 @@
 # Milestones
 
+## v2.2 WQX Pipeline Refinement (Shipped: 2026-05-08)
+
+**Phases completed:** 2 phases (47-48), 7 plans
+**Lines changed:** +7,896 / -6,522 across 78 files
+**Requirements:** 10/10 satisfied (ORD-01/02, CONF-01/02/03, RES-01/02/03, TOG-01/02)
+**Timeline:** 3 days (2026-05-06 → 2026-05-08)
+
+**Key accomplishments:**
+
+- Pipeline reorder: WQX dictionary matching fires as Tier 3 before CompTox starts-with, with starts-with gated behind opt-in toggle (default OFF)
+- Configurable WQX fuzzy threshold (0.50–1.00) via pre-flight slider with synced numeric input, threaded through to both Shiny and headless paths
+- WQX confidence column (Jaro-Winkler similarity) surfaced in Review Results table as "WQX Conf." with deduplication for multi-tag datasets
+- WQX Review modal with type-ahead search over 124K-entry dictionary, override action writing wqx_override_name to dedup groups, and reject action setting unresolvable status
+- Override/reject persistence through export (same resolution_state pattern as existing DTXSID resolution)
+
+**UAT:** Phase 47 (2/2 plans verified), Phase 48 (5/5 plans verified with 3 gap closure waves). Human sign-off on WQX Review modal and confidence display approved 2026-05-08.
+
+---
+
 ## v2.1 WQX Parameter Harmonization (Shipped: 2026-05-06)
 
 **Phases completed:** 4 phases (43-46), 7 plans
