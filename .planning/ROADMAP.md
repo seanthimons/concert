@@ -10,6 +10,7 @@
 - ✅ **v2.0 Pipeline Performance & Date/Media Harmonization** -- Phases 37-42 (shipped 2026-04-29)
 - ✅ **v2.1 WQX Parameter Harmonization** -- Phases 43-46 (shipped 2026-05-06)
 - ✅ **v2.2 WQX Pipeline Refinement** -- Phases 47-48 (shipped 2026-05-08)
+- 🚧 **v2.3 Curation Intelligence** -- Phases 49-52 (in progress)
 
 ## Phases
 
@@ -99,6 +100,63 @@
 
 </details>
 
+### 🚧 v2.3 Curation Intelligence (In Progress)
+
+**Milestone Goal:** Improve curation pipeline accuracy with automated conflict scoring, explicit user flagging, and configurable detection sensitivity.
+
+- [ ] **Phase 49: Conflict Scoring Engine** - Prototype and implement Jaro-Winkler-based similarity scoring for name-vs-CAS disagreements using CompTox synonym and rank data
+- [ ] **Phase 50: Auto-Resolve & Suggest** - Consume scores to auto-resolve clear mismatches and surface a ranked best-match suggestion for ambiguous cases
+- [ ] **Phase 51: Row Flagging** - Add BAD/FOLLOW-UP/VERIFIED flag labels to the resolution UI with batch flagging and export persistence
+- [ ] **Phase 52: Detection Threshold Wiring** - Wire threshold parameters through `detect_data_start()` and both call sites in `mod_file_upload.R`
+
+## Phase Details
+
+### Phase 49: Conflict Scoring Engine
+**Goal**: Users can see a similarity score for each candidate in disagree rows, computed from CompTox synonym lists and rank data
+**Depends on**: Phase 48 (v2.2 complete)
+**Requirements**: SCORE-01, SCORE-02
+**Success Criteria** (what must be TRUE):
+  1. Prototype script produces a numeric similarity score (0-1) for each candidate name against the input string for a known disagree row (e.g., Silica vs Estradiol)
+  2. Scoring uses CompTox synonym list and rank data — lower-rank synonyms and closer Jaro-Winkler distance produce higher scores
+  3. Review Results table shows a similarity score column for disagree rows, not blank for agree/single rows
+  4. Score computation runs without additional API calls (uses data already fetched during enrichment)
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 50: Auto-Resolve & Suggest
+**Goal**: Clear mismatches are auto-resolved without user action; ambiguous cases show a ranked suggested match the user can accept or override
+**Depends on**: Phase 49
+**Requirements**: SCORE-03, SCORE-04
+**Success Criteria** (what must be TRUE):
+  1. A Silica/sand vs Estradiol disagree row is auto-resolved (to the correct candidate) with an audit trail entry explaining the auto-resolution
+  2. An ambiguous disagree row shows a "Suggested: [name]" indicator in the resolution UI that the user can accept with one click
+  3. User can override an auto-resolution or reject a suggestion and manually choose any candidate
+  4. Auto-resolved rows are visually distinguishable from manually resolved rows in Review Results
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 51: Row Flagging
+**Goal**: Users can label any row as BAD, FOLLOW-UP, or VERIFIED from the resolution UI, select multiple rows for batch flagging, and find the flag column in the exported file
+**Depends on**: Phase 48 (can run parallel to 49-50, depends on UI module only)
+**Requirements**: FLAG-01, FLAG-02, FLAG-03
+**Success Criteria** (what must be TRUE):
+  1. Each row in Review Results has a flag dropdown or button set offering BAD, FOLLOW-UP, and VERIFIED options (plus an unset/clear state)
+  2. User can select multiple rows via checkboxes and apply a flag to all selected rows in one action
+  3. Flag status survives tab navigation and re-render within the session
+  4. Exported Excel/Parquet file contains a dedicated flag column with the per-row flag values
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 52: Detection Threshold Wiring
+**Goal**: `detect_data_start()` accepts threshold parameters and both Shiny call sites pass them through, making detection sensitivity configurable without a UI
+**Depends on**: Phase 48 (v2.2 complete; independent of Phases 49-51)
+**Requirements**: DETECT-01, DETECT-02
+**Success Criteria** (what must be TRUE):
+  1. `detect_data_start()` signature accepts `min_filled_ratio` and `min_cols` parameters and forwards them to the heuristic sub-function
+  2. Both calls to `detect_data_start()` in `mod_file_upload.R` pass the threshold arguments (even if defaulted) without error
+  3. Calling `detect_data_start(data, min_filled_ratio = 0.5)` on a borderline file produces a different (lower) detected header row than the default 0.7 threshold
+**Plans**: TBD
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -134,3 +192,7 @@
 | 46. WQX UI Display Fixes | v2.1 | 1/1 | Complete | 2026-05-06 |
 | 47. Pipeline Reordering, Threshold Control & Starts-With Toggle | v2.2 | 2/2 | Complete | 2026-05-07 |
 | 48. WQX Resolution UI | v2.2 | 5/5 | Complete | 2026-05-08 |
+| 49. Conflict Scoring Engine | v2.3 | 0/? | Not started | - |
+| 50. Auto-Resolve & Suggest | v2.3 | 0/? | Not started | - |
+| 51. Row Flagging | v2.3 | 0/? | Not started | - |
+| 52. Detection Threshold Wiring | v2.3 | 0/? | Not started | - |
