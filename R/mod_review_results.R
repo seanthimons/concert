@@ -787,6 +787,21 @@ mod_review_results_server <- function(id, data_store) {
         )
       }
 
+      # Similarity score column (per D-05: 2-decimal right-aligned, blank for non-disagree)
+      if ("similarity_score" %in% names(df_display)) {
+        col_defs[["similarity_score"]] <- reactable::colDef(
+          name = "Sim. Score",
+          minWidth = 80,
+          align = "right",
+          cell = function(value, index) {
+            if (is.na(value)) {
+              return("")
+            }
+            formatC(value, digits = 2, format = "f")
+          }
+        )
+      }
+
       # Dropdown filter helper
       table_id <- session$ns("curation_table")
       make_select_filter <- function(choices, col_name) {
@@ -1209,9 +1224,37 @@ mod_review_results_server <- function(id, data_store) {
         NULL
       }
 
+      # Precompute scoring context outside lapply (O(1) lookup per candidate; per D-06)
+      modal_input_name <- NA_character_
+      modal_synonym_map <- NULL
+      if (!is.null(data_store$column_tags) && !is.null(data_store$enrichment_cache)) {
+        name_cols_modal <- names(data_store$column_tags)[data_store$column_tags == "Name"]
+        if (length(name_cols_modal) > 0 && name_cols_modal[1] %in% names(data_store$resolution_state)) {
+          modal_input_name <- as.character(data_store$resolution_state[[name_cols_modal[1]]][row_idx])
+        }
+        if ("synonyms" %in% names(data_store$enrichment_cache)) {
+          ec <- data_store$enrichment_cache
+          modal_synonym_map <- stats::setNames(ec$synonyms, ec$dtxsid)
+        }
+      }
+
       # Build candidate cards
       cards <- lapply(names(options), function(col) {
         opt <- options[[col]]
+
+        # Compute per-candidate similarity score using precomputed context (per D-06)
+        candidate_sim_score <- NA_real_
+        if (!is.na(modal_input_name) && !is.null(modal_synonym_map)) {
+          synonyms_str <- modal_synonym_map[opt$dtxsid]
+          synonyms_str <- if (length(synonyms_str) == 1 && !is.na(synonyms_str)) synonyms_str else NA_character_
+          candidate_sim_score <- score_one_candidate(
+            input_name = modal_input_name,
+            preferred_name = opt$preferredName,
+            synonyms_str = synonyms_str,
+            rank = opt$rank
+          )
+        }
+
         div(
           class = "candidate-card card mb-2",
           style = "border: 2px solid #dee2e6; border-radius: 8px; transition: border-color 0.2s;",
@@ -1223,10 +1266,22 @@ mod_review_results_server <- function(id, data_store) {
                 tags$h6(class = "mb-1 fw-bold", opt$dtxsid),
                 if (!is.na(opt$preferredName)) tags$p(class = "mb-1 text-muted", opt$preferredName) else NULL
               ),
-              tags$button(
-                class = "modal-select-btn btn btn-sm btn-outline-success",
-                `data-column` = col,
-                "Select"
+              div(
+                class = "d-flex align-items-center gap-2",
+                if (!is.na(candidate_sim_score)) {
+                  tags$span(
+                    class = "badge bg-info",
+                    title = "Similarity score (Jaro-Winkler)",
+                    sprintf("%.2f", candidate_sim_score)
+                  )
+                } else {
+                  NULL
+                },
+                tags$button(
+                  class = "modal-select-btn btn btn-sm btn-outline-success",
+                  `data-column` = col,
+                  "Select"
+                )
               )
             ),
             tags$hr(class = "my-2"),
