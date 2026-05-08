@@ -38,7 +38,7 @@ derive_match_type <- function(df) {
     is_known <- !is.na(tier_val) & tier_val %in% names(tier_label_map)
     update_mask <- is_known & result == "No Match"
     if (any(update_mask)) {
-      result[update_mask] <- tier_label_map[tier_val[update_mask]]
+      result[update_mask] <- unname(tier_label_map[tier_val[update_mask]])
     }
   }
 
@@ -767,7 +767,7 @@ mod_review_results_server <- function(id, data_store) {
       # In multi-tag mode, grep finds wqx_confidence_Chemical AND wqx_confidence_CASRN.
       # Only show columns that have at least one non-NA value (WQX only matches Name-tagged columns).
       wqx_conf_cols <- grep("^wqx_confidence", names(df_display), value = TRUE)
-      wqx_conf_visible <- Filter(function(col) any(!is.na(df_display[[col]])), wqx_conf_cols)
+      wqx_conf_visible <- Filter(function(col) !all(is.na(df_display[[col]])), wqx_conf_cols)
       # Hide all-NA wqx_confidence columns (e.g., wqx_confidence_CASRN in multi-tag mode)
       wqx_conf_hidden <- setdiff(wqx_conf_cols, wqx_conf_visible)
       for (whc in wqx_conf_hidden) {
@@ -826,8 +826,8 @@ mod_review_results_server <- function(id, data_store) {
         col_defs[["match_type"]] <- reactable::colDef(
           cell = function(value, index) {
             val <- as.character(value)
-            bg <- match_colors[val] %||% "#6c757d"
-            fg <- match_text_colors[val] %||% "#fff"
+            bg <- unname(match_colors[val]) %||% "#6c757d"
+            fg <- unname(match_text_colors[val]) %||% "#fff"
             htmltools::span(
               style = sprintf(
                 "background:%s;color:%s;padding:2px 8px;border-radius:4px;font-weight:600;font-size:0.85em;display:inline-block;",
@@ -868,7 +868,7 @@ mod_review_results_server <- function(id, data_store) {
         col_defs[["consensus_status"]] <- reactable::colDef(
           cell = function(value, index) {
             val <- as.character(value)
-            bg <- status_colors[val] %||% "#6c757d"
+            bg <- unname(status_colors[val]) %||% "#6c757d"
             htmltools::span(
               style = sprintf(
                 "background:%s;color:#fff;padding:2px 8px;border-radius:4px;font-weight:600;font-size:0.85em;display:inline-block;",
@@ -966,7 +966,7 @@ mod_review_results_server <- function(id, data_store) {
           }
         }
         status <- as.character(df_display$consensus_status[index])
-        bg <- row_bg_colors[status]
+        bg <- unname(row_bg_colors[status])
         if (!is.null(bg) && !is.na(bg)) list(backgroundColor = bg) else NULL
       }
 
@@ -1884,19 +1884,19 @@ mod_review_results_server <- function(id, data_store) {
       ))
 
       # Load WQX dictionary and populate selectize
-      # MUST use onFlushed to ensure modal DOM (and selectize.js widget) is fully initialized
-      # before reconfiguring for server-side rendering (fixes GAP-2: search box not accepting input)
+      # shinyjs::delay defers via client-side setTimeout — guarantees the browser
+      # has rendered the modal DOM and initialized selectize.js before the server
+      # reconfigures the widget for server-side (AJAX) filtering of 124K choices.
+      # session$onFlushed alone is insufficient: it fires when the websocket send
+      # completes, not when the browser finishes DOM rendering.
       cache_dir <- system.file("extdata", "reference_cache", package = "chemreg")
       wqx_dict <- load_wqx_dictionary(cache_dir)
       display_type <- ifelse(wqx_dict$type == "canonical", "canonical", "alias")
       wqx_labels <- paste0(wqx_dict$name, " (", display_type, ")")
       wqx_choices <- stats::setNames(wqx_dict$canonical_name, wqx_labels)
-      session$onFlushed(
-        function() {
-          updateSelectizeInput(session, "wqx_typeahead", choices = wqx_choices, server = TRUE)
-        },
-        once = TRUE
-      )
+      shinyjs::delay(300, {
+        updateSelectizeInput(session, "wqx_typeahead", choices = wqx_choices, server = TRUE)
+      })
     })
 
     # Show "Use Selected Name" button when type-ahead selection is made
