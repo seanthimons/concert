@@ -124,10 +124,19 @@ Users can go from messy regulatory/benchmark data files to validated, harmonized
 - ✓ WQX manual overrides persist through export via wqx_override_name on resolution_state — v2.2 Phase 48
 - ✓ WQX reject action sets consensus_status to unresolvable with needs_review flag — v2.2 Phase 48
 
+## Current Milestone: v2.3 Curation Intelligence
+
+**Goal:** Improve curation pipeline accuracy with automated conflict scoring, explicit user flagging, and configurable detection sensitivity.
+
+**Target features:**
+- String similarity scoring for Name-vs-CAS disagreements using CompTox synonyms/ranks
+- Explicit BAD/FOLLOW-UP flag labels in the existing resolution UI
+- Detection threshold controls wired into the existing Preview Settings sidebar card
+
 ## Current State
 
 **Shipped:** v2.2 WQX Pipeline Refinement (2026-05-08)
-**Active:** Planning next milestone
+**Active:** v2.3 Curation Intelligence
 
 ChemReg is a proper R package with full compound curation, numeric/unit/duration/date/media harmonization, WQX parameter matching with interactive resolution, and ToxVal schema output. Installed via `devtools::install()`, used interactively via `chemreg::run_app()` or headlessly via `chemreg::curate_headless()`.
 
@@ -288,4 +297,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-08 after v2.2 milestone*
+*Last updated: 2026-05-08 after v2.3 milestone start*
