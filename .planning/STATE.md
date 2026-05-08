@@ -1,24 +1,24 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.2
-milestone_name: WQX Pipeline Refinement
-status: completed
-stopped_at: Phase 48 UI-SPEC approved
-last_updated: "2026-05-08T13:36:27.861Z"
+milestone: v2.3
+milestone_name: Curation Intelligence
+status: active
+stopped_at: null
+last_updated: "2026-05-08"
 last_activity: 2026-05-08
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: ChemReg
 
 **Last Updated:** 2026-05-08
-**Milestone:** v2.2 WQX Pipeline Refinement
-**Status:** Shipped — planning next milestone
+**Milestone:** v2.3 Curation Intelligence
+**Status:** Defining requirements
 
 ---
 
@@ -27,18 +27,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-08)
 
 **Core value:** Users can go from messy regulatory/benchmark data files to validated, harmonized, toxval-compatible datasets in one workflow.
-**Current focus:** Planning next milestone
+**Current focus:** v2.3 Curation Intelligence
 
 ---
 
 ## Current Position
 
-Phase: —
+Phase: Not started (defining requirements)
 Plan: —
-Status: Between milestones (v2.2 shipped)
-Last activity: 2026-05-08
+Status: Defining requirements
+Last activity: 2026-05-08 — Milestone v2.3 started
 
-Progress: [██████████] 100%
+Progress: [░░░░░░░░░░] 0%
 
 ---
 
