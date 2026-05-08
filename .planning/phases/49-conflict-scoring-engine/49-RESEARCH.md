@@ -498,17 +498,15 @@ No new test files needed — all tests added to existing files:
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Prototype script as Wave 0 task or separate?**
+1. **Prototype script as Wave 0 task or separate?** -- RESOLVED: Not a Wave 0 task; tests are added directly to existing test files (test-enrichment.R and test-consensus.R). The unit tests with synthetic data serve the same validation purpose as a prototype script, without adding a separate task.
    - What we know: Claude's discretion controls prototype script structure (CONTEXT.md)
-   - What's unclear: Whether the planner should include a prototype script task in Wave 0 before integration
-   - Recommendation: Include prototype in Wave 0 to validate the score formula against a real disagree row (e.g., Silica vs Estradiol) before wiring into the app
+   - Resolution: Unit tests in existing files validate the score formula against known inputs (Silica vs Silicon Dioxide, Silica vs Estradiol) -- no separate prototype script needed.
 
-2. **Synonym fetch batching — all at once vs. chunked**
+2. **Synonym fetch batching -- all at once vs. chunked** -- RESOLVED: Fetch all at once; ComptoxR handles internal batching (same as enrich_candidates pattern).
    - What we know: ComptoxR handles batching internally via `batch_limit` env var (default 100); `ct_chemical_synonym_search_bulk()` takes a full DTXSIDs vector
-   - What's unclear: Whether projects with 1000+ unique DTXSIDs will hit timeout or memory issues
-   - Recommendation: Fetch all at once (same pattern as `enrich_candidates()`); the internal batching handles chunking
+   - Resolution: Pass the full DTXSIDs vector to `ct_chemical_synonym_search_bulk()` in a single call, identical to the existing `enrich_candidates()` pattern. ComptoxR's internal batching (default 100 per batch) handles chunking transparently.
 
 ---
 
