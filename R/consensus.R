@@ -258,6 +258,129 @@ get_resolution_options <- function(df, row_idx, dtxsid_cols, enrichment_cache = 
 }
 
 # ============================================================================
+# score_one_candidate
+# ============================================================================
+
+#' Compute similarity score for a single candidate against an input name
+#'
+#' Score formula (per D-03): max(JW(input, preferredName, synonym_1, ..., synonym_N)).
+#' If candidate rank <= 3, add +0.05 bonus. Clamp final score to [0, 1].
+#' All synonym tiers treated equally (per D-04).
+#'
+#' @param input_name Character scalar -- user's original chemical name (per D-07)
+#' @param preferred_name Character scalar -- candidate's CompTox preferred name (NA allowed)
+#' @param synonyms_str Character scalar -- pipe-joined synonyms from enrichment cache (NA allowed)
+#' @param rank Numeric scalar -- candidate's rank value (NA allowed; bonus only if <= 3)
+#' @return Numeric scalar in [0, 1], or NA_real_ if no valid comparison possible
+#' @export
+score_one_candidate <- function(input_name, preferred_name, synonyms_str, rank) {
+  if (is.na(input_name) || nchar(trimws(input_name)) == 0) {
+    return(NA_real_)
+  }
+
+  syns <- if (!is.na(synonyms_str)) strsplit(synonyms_str, "|", fixed = TRUE)[[1]] else character(0)
+  all_names <- c(preferred_name, syns)
+  all_names <- all_names[!is.na(all_names) & nchar(trimws(all_names)) > 0]
+
+  if (length(all_names) == 0) {
+    return(NA_real_)
+  }
+
+  sims <- 1 - stringdist::stringdist(tolower(input_name), tolower(all_names), method = "jw")
+  base_score <- max(sims, na.rm = TRUE)
+
+  bonus <- if (!is.na(rank) && rank <= 3) 0.05 else 0.0
+  min(1.0, base_score + bonus)
+}
+
+# ============================================================================
+# compute_similarity_scores
+# ============================================================================
+
+#' Compute similarity scores for all disagree rows in resolution_state
+#'
+#' For each disagree row, scores each candidate DTXSID by comparing the user's
+#' original Name-tagged column value against the candidate's preferredName and
+#' all cached synonyms. Returns the best (max) candidate score per row.
+#' Non-disagree rows get NA_real_.
+#'
+#' @param resolution_state Data frame with consensus_status, dtxsid_*, preferredName_*, rank_* columns
+#' @param enrichment_cache Tibble with dtxsid and (optionally) synonyms columns
+#' @param dtxsid_cols Character vector of dtxsid column names (e.g., c("dtxsid_Chemical", "dtxsid_CAS"))
+#' @param column_tags Named list (col_name -> "Name"|"CASRN"|"Other") -- used to find input name column
+#' @return resolution_state with similarity_score column added
+#' @export
+compute_similarity_scores <- function(resolution_state, enrichment_cache, dtxsid_cols, column_tags) {
+  n <- nrow(resolution_state)
+  scores <- rep(NA_real_, n)
+
+  # Identify the Name-tagged column (per D-07: input is always user's original chemical name)
+  name_cols <- names(column_tags)[column_tags == "Name"]
+  if (length(name_cols) == 0) {
+    message("[scoring] No Name-tagged column found -- skipping similarity scoring")
+    resolution_state$similarity_score <- scores
+    return(resolution_state)
+  }
+  name_col <- name_cols[1] # Use first Name-tagged column
+
+  disagree_idx <- which(resolution_state$consensus_status == "disagree")
+
+  if (length(disagree_idx) == 0) {
+    resolution_state$similarity_score <- scores
+    return(resolution_state)
+  }
+
+  has_synonyms <- !is.null(enrichment_cache) &&
+    nrow(enrichment_cache) > 0 &&
+    "synonyms" %in% names(enrichment_cache)
+
+  # Pre-build dtxsid -> synonyms lookup for O(1) access
+  syn_lookup <- if (has_synonyms) {
+    stats::setNames(enrichment_cache$synonyms, enrichment_cache$dtxsid)
+  } else {
+    character(0)
+  }
+
+  for (i in disagree_idx) {
+    input_name <- as.character(resolution_state[[name_col]][i])
+    if (is.na(input_name) || nchar(trimws(input_name)) == 0) {
+      next
+    }
+
+    candidate_scores <- numeric(0)
+
+    for (col in dtxsid_cols) {
+      dtxsid_val <- resolution_state[[col]][i]
+      if (is.na(dtxsid_val)) {
+        next
+      }
+
+      pref_col <- sub("^dtxsid_", "preferredName_", col)
+      rank_col <- sub("^dtxsid_", "rank_", col)
+      pref_name <- if (pref_col %in% names(resolution_state)) resolution_state[[pref_col]][i] else NA_character_
+      rank_val <- if (rank_col %in% names(resolution_state)) resolution_state[[rank_col]][i] else NA_real_
+
+      # Get synonyms from pre-built lookup
+      synonyms_str <- if (length(syn_lookup) > 0 && dtxsid_val %in% names(syn_lookup)) {
+        syn_lookup[[dtxsid_val]]
+      } else {
+        NA_character_
+      }
+
+      cs <- score_one_candidate(input_name, pref_name, synonyms_str, rank_val)
+      if (!is.na(cs)) candidate_scores <- c(candidate_scores, cs)
+    }
+
+    if (length(candidate_scores) > 0) {
+      scores[i] <- max(candidate_scores)
+    }
+  }
+
+  resolution_state$similarity_score <- scores
+  resolution_state
+}
+
+# ============================================================================
 # resolve_row
 # ============================================================================
 
