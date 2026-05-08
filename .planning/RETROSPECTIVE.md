@@ -2,6 +2,86 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
+## Milestone: v2.2 — WQX Pipeline Refinement
+
+**Shipped:** 2026-05-08
+**Phases:** 2 | **Plans:** 7
+
+### What Was Built
+- Pipeline reorder: WQX dictionary matching fires as Tier 3 before CompTox starts-with, with starts-with gated behind opt-in toggle (default OFF)
+- Configurable WQX fuzzy threshold (0.50–1.00) via pre-flight slider with synced numeric input, threaded through Shiny and headless paths
+- WQX confidence column (Jaro-Winkler similarity) surfaced in Review Results as "WQX Conf." with dedup for multi-tag datasets
+- WQX Review modal with selectize type-ahead over 124K-entry dictionary, override/reject actions with dedup group propagation
+- Override/reject persistence through export via `wqx_override_name` on `resolution_state`
+
+### What Worked
+- TDD RED-GREEN cycle in Plan 01 caught issues early — vectorized review_btn approach (pre-compute, mask-subset) was clean
+- Gap closure wave pattern (Plans 03-05) continued to be effective: Plan 03 fixed a silent column drop, Plan 04 fixed 4 code review findings, Plan 05 fixed 2 UAT issues
+- `session$onFlushed(once=TRUE)` for deferring selectize init solved the 124K-row modal loading timing issue cleanly
+- grep-based column lookup (`grep('^wqx_confidence', names(x))`) handled both single-tag and multi-tag suffixed column names without mode detection
+- Content guard pattern (`if ("col" %in% names(df))`) for backward compatibility with non-WQX-enabled curation runs
+
+### What Was Inefficient
+- REQUIREMENTS.md traceability table never updated during execution — all 10 requirements still "Pending" at milestone close despite all being implemented. This is the 6th+ milestone with this issue.
+- Plan 01 had to add `wqx_confidence` to the pipeline but Plan 03 discovered it was silently dropped by `map_results_to_rows()` — the pre-allocation vector pattern is easy to miss when adding new columns
+- `row$searchValue` reference in the modal observer (Plan 04, CR-01 BLOCKER) crashed the modal on first click — the column never existed on `resolution_state`. Code review should have caught this before execution.
+- gsd-tools summary-extract couldn't extract one-liners from SUMMARY files — same issue as v2.0
+
+### Patterns Established
+- **Filter() for all-NA column dedup**: `Filter(function(col) any(!is.na(...)))` removes duplicate colDefs in multi-tag mode while preserving data
+- **onFlushed selectize init**: `session$onFlushed(once=TRUE)` wrapping `updateSelectizeInput(server=TRUE)` for large-dictionary modals
+- **grep-based column family lookup**: `grep('^prefix_', names(df), value=TRUE)` for suffix-agnostic column matching across single/multi-tag modes
+- **Pre-allocation checklist**: When adding a new column to curation results, must update all pre-allocation vectors in `map_results_to_rows()`
+
+### Key Lessons
+1. **Pre-allocation vectors are a maintenance trap** — `map_results_to_rows()` has N pre-allocated vectors that must all be extended when adding a new output column. Plan 01 added `wqx_confidence` to `wqx_rows` but forgot the mapping function. Add a checklist comment listing all vectors.
+2. **Test modal observers with real data** — `row$searchValue` was never on `resolution_state`; a single manual test would have caught this before Plan 04 gap closure.
+3. **Gap closure plans remain healthy** — 3 gap closure plans (03-05) out of 5 total for Phase 48. This ratio is consistent with v2.0. Budget for it.
+4. **Selectize + large datasets need deferred init** — `showModal()` + immediate `updateSelectizeInput(server=TRUE)` races the DOM. Always defer via `onFlushed`.
+
+### Cost Observations
+- Sessions: Multiple across 3 days (2026-05-06 → 2026-05-08)
+- Notable: Phase 47 was fast (2 plans, ~1 hour). Phase 48 required 5 plans with 3 gap closure waves. 78 files changed, +7,896 / -6,522 lines.
+
+---
+
+## Milestone: v2.1 — WQX Parameter Harmonization
+
+**Shipped:** 2026-05-06
+**Phases:** 4 | **Plans:** 7
+
+### What Was Built
+- WQX dictionary loader with EPA Characteristic + Alias CSV download and combined 124K-row RDS cache
+- Three-tier WQX name matcher: exact canonical, alias crosswalk, Jaro-Winkler fuzzy with configurable threshold
+- Pipeline integration: WQX fires automatically as Tier 3b after CompTox for unresolved names
+- Consensus classification with "wqx" status, teal badges, and tier-specific match type labels
+- Dedup priority fix: resolved rows preferred over NA-dtxsid exact misses
+
+### What Worked
+- Following the established harmonization pattern (core function → pipeline wiring → UI integration) kept execution clean
+- WQX dictionary as combined canonical+alias RDS (single file for both tier-1 and tier-2 lookups) follows existing reference cache pattern
+- Jaro-Winkler over Levenshtein was the right choice for chemical name fuzzy matching (prefix/suffix variations)
+- Dedup priority bug (CompTox NA results shadowing WQX resolution) caught during UAT with real dataset
+
+### What Was Inefficient
+- Stale test fixes from Phases 37-41 deferred again — tracked as bean but not addressed
+- REQUIREMENTS.md traceability not updated during execution
+
+### Patterns Established
+- WQX dictionary as single combined RDS serving both exact and alias lookups
+- Teal color family for WQX UI elements (distinct from CompTox green but still "resolved" palette)
+- Unconditional tier firing for fallback matchers (no toggle needed when only reached on failure)
+
+### Key Lessons
+1. **Dedup logic must prefer resolved rows** — when the same input name appears in both CompTox (NA result) and WQX (resolved) batches, the resolved row must win
+2. **Wild dataset UAT is essential** — sswqs.xlsx revealed the dedup shadowing bug that synthetic test data missed
+
+### Cost Observations
+- Sessions: Multiple across 8 days (2026-04-29 → 2026-05-06)
+- Notable: 4 phases, 7 plans. +1,303 / -39 across 14 files.
+
+---
+
 ## Milestone: v2.0 — Pipeline Performance & Date/Media Harmonization
 
 **Shipped:** 2026-04-29
@@ -401,10 +481,12 @@
 | v1.8 | — | 5 | 5 | R package migration, run_app() launcher, curate_headless(), 953 tests |
 | v1.9 | — | 9 | 20 | Unit harmonization, ToxVal schema, extended tagging, harmonize tab, parquet export |
 | v2.0 | — | 6 | 20 | Dedup architecture, pre-checks, duration/date/media harmonization, pre-flight modal |
+| v2.1 | — | 4 | 7 | WQX dictionary matching, 3-tier fuzzy, dedup priority fix, teal UI family |
+| v2.2 | — | 2 | 7 | Pipeline reorder, threshold slider, WQX Review modal, selectize onFlushed pattern |
 
 ### Top Lessons (Verified Across Milestones)
 
-1. **Traceability must update atomically** — v1.0-v2.0 all had checkbox tracking lag. 5+ milestones confirms this needs automation or elimination.
+1. **Traceability must update atomically** — v1.0-v2.2 all had checkbox tracking lag. 6+ milestones confirms this needs automation or elimination.
 2. **Verify framework APIs before implementing** — v1.0 nav_panel_hidden, v1.2 modal actionButton, v1.3 bsicons icon names. Always check the actual API.
 3. **UAT and smoke tests reveal what unit tests miss** — All milestones found issues during testing that specs didn't anticipate. v1.3 added mandatory smoke tests.
 4. **Check for shadowing before debugging logic** — v1.2 auto-sourcing order, v1.3 icon library confusion. The problem is often environmental, not logical.
