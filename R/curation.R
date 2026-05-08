@@ -313,7 +313,7 @@ validate_and_lookup_cas <- function(unique_cas) {
   )
 
   # Lookup DTXSID for valid CAS numbers
-  valid_cas_values <- result$validated_cas[!is.na(result$validated_cas) & result$is_valid == TRUE]
+  valid_cas_values <- result$validated_cas[!is.na(result$validated_cas) & result$is_valid]
 
   if (length(valid_cas_values) > 0) {
     tryCatch(
@@ -399,7 +399,7 @@ run_tiered_search <- function(dedup_result) {
           rank = cas_from_names$rank,
           source_tier = dplyr::case_when(
             !is.na(cas_from_names$dtxsid) ~ "cas",
-            cas_from_names$is_valid == TRUE ~ "cas_no_match",
+            cas_from_names$is_valid ~ "cas_no_match",
             TRUE ~ "cas_invalid"
           )
         )
@@ -457,7 +457,7 @@ run_tiered_search <- function(dedup_result) {
         rank = cas_results$rank,
         source_tier = dplyr::case_when(
           !is.na(cas_results$dtxsid) ~ "cas",
-          cas_results$is_valid == TRUE ~ "cas_no_match",
+          cas_results$is_valid ~ "cas_no_match",
           TRUE ~ "cas_invalid"
         )
       )
@@ -733,7 +733,7 @@ run_curation_pipeline <- function(
           rank = cas_from_names$rank,
           source_tier = dplyr::case_when(
             !is.na(cas_from_names$dtxsid) ~ "cas",
-            cas_from_names$is_valid == TRUE ~ "cas_no_match",
+            cas_from_names$is_valid ~ "cas_no_match",
             TRUE ~ "cas_invalid"
           )
         )
@@ -831,7 +831,7 @@ run_curation_pipeline <- function(
         rank = cas_results$rank,
         source_tier = dplyr::case_when(
           !is.na(cas_results$dtxsid) ~ "cas",
-          cas_results$is_valid == TRUE ~ "cas_no_match",
+          cas_results$is_valid ~ "cas_no_match",
           TRUE ~ "cas_invalid"
         )
       )
