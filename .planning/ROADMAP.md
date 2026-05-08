@@ -172,4 +172,4 @@ Plans:
 | 45. Pipeline Integration | v2.1 | 2/2 | Complete | 2026-05-06 |
 | 46. WQX UI Display Fixes | v2.1 | 1/1 | Complete | 2026-05-06 |
 | 47. Pipeline Reordering, Threshold Control & Starts-With Toggle | v2.2 | 2/2 | Complete    | 2026-05-07 |
-| 48. WQX Resolution UI | v2.2 | 5/5 | Complete   | 2026-05-08 |
+| 48. WQX Resolution UI | v2.2 | 5/5 | Complete    | 2026-05-08 |
