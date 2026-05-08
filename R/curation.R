@@ -1064,6 +1064,164 @@ enrich_candidates <- function(dtxsids, existing_cache = NULL) {
 }
 
 # ============================================================================
+# flatten_synonym_tiers
+# ============================================================================
+
+#' Flatten all synonym tiers from a single API response row into a pipe-joined string
+#' @param row A single-row list/tibble from ct_chemical_synonym_search_bulk output
+#' @return Character string of pipe-joined unique synonyms, or NA_character_ if none
+#' @noRd
+flatten_synonym_tiers <- function(row) {
+  tier_cols <- c("valid", "good", "other", "deleted", "beilstein", "alternate", "pcCode")
+  syns <- unlist(lapply(tier_cols, function(col) {
+    vals <- row[[col]]
+    if (!is.null(vals)) as.character(unlist(vals)) else character(0)
+  }))
+  syns <- unique(syns[!is.na(syns) & nchar(syns) > 0])
+  if (length(syns) == 0) NA_character_ else paste(syns, collapse = "|")
+}
+
+# ============================================================================
+# enrich_synonyms
+# ============================================================================
+
+#' Fetch and cache CompTox synonym data for a set of DTXSIDs
+#'
+#' Extends the enrichment cache with a `synonyms` column containing pipe-joined
+#' synonym strings from all CompTox synonym tiers. Follows the same incremental
+#' caching pattern as \code{enrich_candidates()}: only fetches DTXSIDs not
+#' already present in the cache with a \code{synonyms} column.
+#'
+#' @param dtxsids Character vector of DTXSIDs to enrich with synonyms
+#' @param existing_cache Optional tibble from a previous enrichment call.
+#'   If it already has a \code{synonyms} column, DTXSIDs already cached will
+#'   not be re-fetched. If the \code{synonyms} column is absent, all DTXSIDs
+#'   are treated as needing fetch.
+#' @return Named list with:
+#'   - cache: tibble with all original columns plus a \code{synonyms} column
+#'     (pipe-joined string per DTXSID; NA_character_ if API returned no synonyms)
+#'   - failed_dtxsids: character vector of DTXSIDs that could not be fetched
+#' @export
+enrich_synonyms <- function(dtxsids, existing_cache = NULL) {
+  empty_cache <- tibble::tibble(
+    dtxsid = character(0),
+    synonyms = character(0)
+  )
+
+  # Handle empty input
+  if (length(dtxsids) == 0) {
+    if (!is.null(existing_cache)) {
+      if (!"synonyms" %in% names(existing_cache)) {
+        existing_cache$synonyms <- NA_character_
+      }
+      return(list(cache = existing_cache, failed_dtxsids = character(0)))
+    }
+    return(list(cache = empty_cache, failed_dtxsids = character(0)))
+  }
+
+  unique_dtxsids <- unique(dtxsids[!is.na(dtxsids) & dtxsids != ""])
+
+  if (length(unique_dtxsids) == 0) {
+    if (!is.null(existing_cache)) {
+      if (!"synonyms" %in% names(existing_cache)) {
+        existing_cache$synonyms <- NA_character_
+      }
+      return(list(cache = existing_cache, failed_dtxsids = character(0)))
+    }
+    return(list(cache = empty_cache, failed_dtxsids = character(0)))
+  }
+
+  # Incremental caching: skip DTXSIDs already cached with synonyms column
+  dtxsids_to_fetch <- unique_dtxsids
+  has_synonyms_col <- !is.null(existing_cache) &&
+    nrow(existing_cache) > 0 &&
+    "synonyms" %in% names(existing_cache)
+
+  if (has_synonyms_col) {
+    already_cached <- existing_cache$dtxsid
+    dtxsids_to_fetch <- setdiff(unique_dtxsids, already_cached)
+  }
+
+  if (length(dtxsids_to_fetch) == 0) {
+    message("[synonyms] All DTXSIDs already cached -- skipping API call")
+    return(list(cache = existing_cache, failed_dtxsids = character(0)))
+  }
+
+  message(sprintf("[synonyms] Fetching synonyms for %d DTXSIDs...", length(dtxsids_to_fetch)))
+
+  api_error <- NULL
+  raw <- tryCatch(
+    suppressMessages(ComptoxR::ct_chemical_synonym_search_bulk(dtxsids_to_fetch)),
+    error = function(e) {
+      message(sprintf("[synonyms] API call failed: %s", conditionMessage(e)))
+      api_error <<- conditionMessage(e)
+      NULL
+    }
+  )
+
+  # Handle API call failure
+  if (!is.null(api_error)) {
+    combined <- existing_cache %||% empty_cache
+    if (!"synonyms" %in% names(combined)) {
+      combined$synonyms <- NA_character_
+    }
+    return(list(cache = combined, failed_dtxsids = dtxsids_to_fetch))
+  }
+
+  # Build synonym cache from API response
+  if (is.null(raw) || (is.data.frame(raw) && nrow(raw) == 0)) {
+    message("[synonyms] API returned no results")
+    new_syn_cache <- tibble::tibble(
+      dtxsid = dtxsids_to_fetch,
+      synonyms = NA_character_
+    )
+  } else {
+    message(sprintf("[synonyms] Got %d rows from synonym API", nrow(raw)))
+    returned_dtxsids <- if ("dtxsid" %in% names(raw)) raw$dtxsid else character(0)
+
+    # Flatten each row's tiers into a pipe-joined string
+    syn_strings <- vapply(seq_len(nrow(raw)), function(i) {
+      flatten_synonym_tiers(raw[i, , drop = FALSE])
+    }, character(1))
+
+    new_syn_cache <- tibble::tibble(
+      dtxsid = returned_dtxsids,
+      synonyms = syn_strings
+    )
+
+    # Add NA rows for DTXSIDs not in API response
+    missing_dtxsids <- setdiff(dtxsids_to_fetch, returned_dtxsids)
+    if (length(missing_dtxsids) > 0) {
+      missing_rows <- tibble::tibble(
+        dtxsid = missing_dtxsids,
+        synonyms = NA_character_
+      )
+      new_syn_cache <- dplyr::bind_rows(new_syn_cache, missing_rows)
+    }
+  }
+
+  # Merge new synonym data into existing cache
+  if (!is.null(existing_cache) && nrow(existing_cache) > 0) {
+    if (has_synonyms_col) {
+      # Existing cache already has synonyms column: bind new rows
+      combined <- dplyr::bind_rows(existing_cache, new_syn_cache)
+    } else {
+      # Existing cache lacks synonyms column: add it via left_join
+      combined <- dplyr::left_join(existing_cache, new_syn_cache, by = "dtxsid")
+    }
+  } else {
+    combined <- new_syn_cache
+  }
+
+  message(sprintf("[synonyms] Synonym cache now has %d entries", nrow(combined)))
+
+  list(
+    cache = combined,
+    failed_dtxsids = character(0)
+  )
+}
+
+# ============================================================================
 # get_dedup_preview
 # ============================================================================
 

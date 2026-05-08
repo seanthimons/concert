@@ -325,3 +325,168 @@ test_that("get_resolution_options handles NA source_tier", {
   expect_equal(options[["dtxsid_Chemical"]]$source_tier, "Unknown")
   expect_equal(options[["dtxsid_CAS"]]$source_tier, "Unknown")
 })
+
+# ============================================================================
+# Test Group 7: enrich_synonyms - synonym fetching and caching
+# ============================================================================
+
+test_that("enrich_synonyms returns cache with synonyms column", {
+  mock_response <- tibble::tibble(
+    dtxsid = "DTXSID5000001",
+    valid = list(c("Silica gel", "Quartz")),
+    good = list(c("Silicon dioxide")),
+    other = list(NULL),
+    deleted = list(NULL),
+    beilstein = list(NULL),
+    alternate = list(NULL),
+    pcCode = list(NULL)
+  )
+
+  testthat::local_mocked_bindings(
+    ct_chemical_synonym_search_bulk = function(...) mock_response,
+    .package = "ComptoxR"
+  )
+
+  result <- enrich_synonyms(dtxsids = "DTXSID5000001")
+
+  expect_type(result, "list")
+  expect_true("cache" %in% names(result))
+  expect_true("failed_dtxsids" %in% names(result))
+
+  cache <- result$cache
+  expect_true("dtxsid" %in% names(cache))
+  expect_true("synonyms" %in% names(cache))
+  expect_equal(nrow(cache), 1)
+  expect_equal(cache$dtxsid[1], "DTXSID5000001")
+
+  # Synonyms should be pipe-joined; all three names should be present
+  syns <- strsplit(cache$synonyms[1], "|", fixed = TRUE)[[1]]
+  expect_true("Silica gel" %in% syns)
+  expect_true("Quartz" %in% syns)
+  expect_true("Silicon dioxide" %in% syns)
+})
+
+test_that("enrich_synonyms stores NA when API returns 0 rows", {
+  mock_response <- tibble::tibble(
+    dtxsid = character(0),
+    valid = list(),
+    good = list()
+  )
+
+  testthat::local_mocked_bindings(
+    ct_chemical_synonym_search_bulk = function(...) mock_response,
+    .package = "ComptoxR"
+  )
+
+  result <- enrich_synonyms(dtxsids = "DTXSID5000002")
+
+  cache <- result$cache
+  expect_equal(nrow(cache), 1)
+  expect_equal(cache$dtxsid[1], "DTXSID5000002")
+  expect_true(is.na(cache$synonyms[1]))
+})
+
+test_that("enrich_synonyms merges into existing cache preserving other columns", {
+  existing_cache <- tibble::tibble(
+    dtxsid = "DTXSID5000003",
+    casrn = "7631-86-9",
+    molecular_formula = "O2Si",
+    molecular_weight = 60.08
+  )
+
+  mock_response <- tibble::tibble(
+    dtxsid = "DTXSID5000003",
+    valid = list(c("Silica")),
+    good = list(NULL),
+    other = list(NULL),
+    deleted = list(NULL),
+    beilstein = list(NULL),
+    alternate = list(NULL),
+    pcCode = list(NULL)
+  )
+
+  testthat::local_mocked_bindings(
+    ct_chemical_synonym_search_bulk = function(...) mock_response,
+    .package = "ComptoxR"
+  )
+
+  result <- enrich_synonyms(dtxsids = "DTXSID5000003", existing_cache = existing_cache)
+
+  cache <- result$cache
+  # All original columns preserved
+  expect_true("casrn" %in% names(cache))
+  expect_true("molecular_formula" %in% names(cache))
+  expect_true("molecular_weight" %in% names(cache))
+  # Plus the new synonyms column
+  expect_true("synonyms" %in% names(cache))
+  expect_equal(cache$casrn[cache$dtxsid == "DTXSID5000003"], "7631-86-9")
+  expect_false(is.na(cache$synonyms[cache$dtxsid == "DTXSID5000003"]))
+})
+
+test_that("enrich_synonyms skips already-cached DTXSIDs with synonyms", {
+  call_args <- NULL
+  testthat::local_mocked_bindings(
+    ct_chemical_synonym_search_bulk = function(dtxsids, ...) {
+      call_args <<- dtxsids
+      tibble::tibble(
+        dtxsid = dtxsids,
+        valid = lapply(dtxsids, function(x) "Some synonym"),
+        good = lapply(dtxsids, function(x) NULL),
+        other = lapply(dtxsids, function(x) NULL),
+        deleted = lapply(dtxsids, function(x) NULL),
+        beilstein = lapply(dtxsids, function(x) NULL),
+        alternate = lapply(dtxsids, function(x) NULL),
+        pcCode = lapply(dtxsids, function(x) NULL)
+      )
+    },
+    .package = "ComptoxR"
+  )
+
+  # Cache with synonyms already for DTXSID5000004
+  existing_cache <- tibble::tibble(
+    dtxsid = "DTXSID5000004",
+    synonyms = "Cached synonym"
+  )
+
+  result <- enrich_synonyms(
+    dtxsids = c("DTXSID5000004", "DTXSID5000005"),
+    existing_cache = existing_cache
+  )
+
+  # API should only have been called for DTXSID5000005
+  expect_false(is.null(call_args))
+  expect_false("DTXSID5000004" %in% call_args)
+  expect_true("DTXSID5000005" %in% call_args)
+
+  # Both DTXSIDs should be in the result
+  cache <- result$cache
+  expect_true("DTXSID5000004" %in% cache$dtxsid)
+  expect_true("DTXSID5000005" %in% cache$dtxsid)
+})
+
+test_that("enrich_synonyms handles API failure gracefully", {
+  testthat::local_mocked_bindings(
+    ct_chemical_synonym_search_bulk = function(...) stop("API connection refused"),
+    .package = "ComptoxR"
+  )
+
+  existing_cache <- tibble::tibble(
+    dtxsid = "DTXSID5000006",
+    casrn = "108-88-3",
+    molecular_formula = "C7H8",
+    molecular_weight = 92.14
+  )
+
+  result <- enrich_synonyms(
+    dtxsids = c("DTXSID5000006", "DTXSID5000007"),
+    existing_cache = existing_cache
+  )
+
+  # Should not crash
+  expect_type(result, "list")
+  # Existing cache preserved (with synonyms column added)
+  cache <- result$cache
+  expect_true("DTXSID5000006" %in% cache$dtxsid)
+  # Failed DTXSIDs reported (only new ones, since 5000006 was already cached)
+  expect_true("DTXSID5000007" %in% result$failed_dtxsids)
+})
