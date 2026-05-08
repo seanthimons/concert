@@ -16,29 +16,29 @@ progress:
 
 # Project State: ChemReg
 
-**Last Updated:** 2026-05-07
+**Last Updated:** 2026-05-08
 **Milestone:** v2.2 WQX Pipeline Refinement
-**Status:** v2.2 milestone complete
+**Status:** Shipped — planning next milestone
 
 ---
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-07)
+See: .planning/PROJECT.md (updated 2026-05-08)
 
 **Core value:** Users can go from messy regulatory/benchmark data files to validated, harmonized, toxval-compatible datasets in one workflow.
-**Current focus:** Phase 48 — wqx-resolution-ui
+**Current focus:** Planning next milestone
 
 ---
 
 ## Current Position
 
-Phase: 48
-Plan: Not started
-Status: Executing Phase 48
+Phase: —
+Plan: —
+Status: Between milestones (v2.2 shipped)
 Last activity: 2026-05-08
 
-Progress: [█████░░░░░] 50%
+Progress: [██████████] 100%
 
 ---
 
@@ -46,9 +46,9 @@ Progress: [█████░░░░░] 50%
 
 **Cumulative (all milestones):**
 
-- Total milestones shipped: 11 (v1.0–v2.1)
-- Total phases complete: 41 (through Phase 47)
-- Total plans complete: 82
+- Total milestones shipped: 12 (v1.0–v2.2)
+- Total phases complete: 48
+- Total plans complete: 89
 - LOC: ~94,200 R
 
 ---
@@ -58,10 +58,7 @@ Progress: [█████░░░░░] 50%
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-All v2.1 decisions archived — see PROJECT.md for full table.
-
-- Phase 47: WQX runs before CompTox starts-with; starts-with is opt-in toggle (default OFF)
-- Phase 47: WQX threshold exposed as slider (0.50-1.00) with synced numeric input
+All v2.2 decisions archived — see PROJECT.md for full table.
 
 ### Pending Todos
 
@@ -86,6 +83,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-07T18:38:13.127Z
-Stopped at: Phase 48 UI-SPEC approved
-Resume file: .planning/phases/48-wqx-resolution-ui/48-UI-SPEC.md
+Last session: 2026-05-08
+Stopped at: v2.2 milestone archived
+Resume file: —
