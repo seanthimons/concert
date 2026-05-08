@@ -42,6 +42,7 @@ build_export_sheets <- function(
     dplyr::mutate(
       needs_review = (consensus_status %in% c("error", "unresolvable"))
     ) %>%
+    # Note: similarity_score (from Phase 49) flows through automatically -- not excluded
     dplyr::select(-tidyselect::any_of(c(".pinned", ".manual_entry")))
 
   # Add enrichment columns (consensus_casrn, consensus_formula, consensus_mw)
