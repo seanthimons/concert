@@ -119,22 +119,17 @@ Users can go from messy regulatory/benchmark data files to validated, harmonized
 - ✓ Configurable WQX fuzzy threshold (0.50-1.00) via pre-flight slider with synced numeric input — v2.2 Phase 47
 - ✓ CompTox starts-with is opt-in toggle (default OFF) in pre-flight modal — v2.2 Phase 47
 - ✓ WQX match count displayed in curation notification string — v2.2 Phase 47
-
-## Current Milestone: v2.2 WQX Pipeline Refinement
-
-**Goal:** Fix WQX/CompTox pipeline ordering, expose fuzzy match confidence, and add interactive WQX value resolution for misses and bad matches.
-
-**Target features:**
-- WQX curation runs before CompTox starts-with so starts-with only fires on truly unresolved names
-- Confidence slider/filter for WQX fuzzy match scores in the Review Results UI
-- Type-ahead search against validated WQX values for overriding misses or bad fuzzy matches
+- ✓ WQX fuzzy match confidence (Jaro-Winkler similarity) displayed as "WQX Conf." column in Review Results — v2.2 Phase 48
+- ✓ WQX Review modal with type-ahead search over 124K-entry dictionary for override/reject — v2.2 Phase 48
+- ✓ WQX manual overrides persist through export via wqx_override_name on resolution_state — v2.2 Phase 48
+- ✓ WQX reject action sets consensus_status to unresolvable with needs_review flag — v2.2 Phase 48
 
 ## Current State
 
-**Shipped:** v2.1 WQX Parameter Harmonization (2026-05-06)
-**Active:** v2.2 WQX Pipeline Refinement
+**Shipped:** v2.2 WQX Pipeline Refinement (2026-05-08)
+**Active:** Planning next milestone
 
-ChemReg is a proper R package with full compound curation, numeric/unit/duration/date/media harmonization, WQX parameter matching, and ToxVal schema output. Installed via `devtools::install()`, used interactively via `chemreg::run_app()` or headlessly via `chemreg::curate_headless()`.
+ChemReg is a proper R package with full compound curation, numeric/unit/duration/date/media harmonization, WQX parameter matching with interactive resolution, and ToxVal schema output. Installed via `devtools::install()`, used interactively via `chemreg::run_app()` or headlessly via `chemreg::curate_headless()`.
 
 **Package capabilities:**
 - `library(chemreg)` loads 72+ exported functions
@@ -146,14 +141,15 @@ ChemReg is a proper R package with full compound curation, numeric/unit/duration
 - Multi-format date parser (ISO/MDY/DMY/SAS/year-only) with ambiguity detection
 - ENVO-based media harmonizer with AMOS pipeline enrichment and ppb/ppm routing
 - Distinct-string dedup architecture for 5x+ speedup at 100K rows
-- Pre-flight modal with fire/skip indicators and media classification editor
+- Pre-flight modal with fire/skip indicators, media classification editor, WQX threshold slider, and starts-with toggle
 - ToxVal 56-column schema mapper with 19 audit columns and source_hash
 - Parquet/CSV export alongside 8-sheet Excel export
 - WQX dictionary matching: exact → alias → fuzzy for names that failed CompTox curation
-- WQX matches auto-fire in pipeline, results in same output column as CompTox curated names
+- WQX matches auto-fire as Tier 3 before CompTox starts-with, with configurable fuzzy threshold
+- WQX Review modal with type-ahead search over 124K-entry dictionary for override/reject workflow
 - `devtools::test()` passes with 2022+ tests
 - `use_dedup` toggle on `run_cleaning_pipeline()` and `harmonize_units()` for benchmark comparison
-- ~92,900 LOC R across `R/`, `inst/app/`, and `tests/testthat/`
+- ~94,200 LOC R across `R/`, `inst/app/`, and `tests/testthat/`
 
 **Known tech debt:**
 - `^tests$` in `.Rbuildignore` blocks R CMD check from running tests (critical — devtools::test() works but devtools::check() runs 0 tests)
@@ -176,7 +172,7 @@ ChemReg is a proper R package with full compound curation, numeric/unit/duration
 
 ## Context
 
-Shipped v2.1 WQX Parameter Harmonization. ~94,200 LOC R across `R/`, `inst/app/`, and `tests/testthat/`.
+Shipped v2.2 WQX Pipeline Refinement. ~94,200 LOC R across `R/`, `inst/app/`, and `tests/testthat/`.
 Tech stack: R/Shiny, bslib, shinyjs, ComptoxR, DT, rio/readxl, writexl, rhandsontable, arrow, units, lubridate, digest.
 
 The app has 9 top-level tabs: Data Preview, Detection Info, Raw Data, Clean Data, Tag Columns, Run Curation, Review Results, Harmonize, plus sidebar upload and config import. On startup only Upload is visible; tabs appear progressively as the user advances.
@@ -267,6 +263,12 @@ Key files:
 | WQX before starts-with in pipeline order | Starts-with is lowest confidence; WQX dictionary matches are more reliable | ✓ Good — v2.2 |
 | Starts-with default OFF | Opt-in reduces noise from low-confidence prefix matches; power users enable when needed | ✓ Good — v2.2 |
 | Slider + synced numeric for threshold | Slider for quick adjustment, numeric for precise values; bidirectional sync via observeEvent | ✓ Good — v2.2 |
+| wqx_confidence as 1-match_distance | JW distance→similarity inversion; ifelse guard for exact/alias (NA distance) | ✓ Good — v2.2 |
+| Vectorized review_btn with mask subset | Pre-compute button HTML for all rows, then subset by WQX mask; avoids per-row function calls | ✓ Good — v2.2 |
+| selectize server=TRUE with onFlushed | Defers 124K-row dictionary load until modal DOM is ready; prevents broken type-ahead | ✓ Good — v2.2 |
+| grep-based wqx_confidence column lookup | Handles both single-tag and multi-tag suffixed column names without mode detection | ✓ Good — v2.2 |
+| wqx_override_name on resolution_state | Override writes to existing resolution_state (same pattern as DTXSID); export reads it directly | ✓ Good — v2.2 |
+| Filter() for all-NA wqx_confidence cols | Removes duplicate WQX Conf. colDefs in multi-tag mode; preserves data, hides from UI | ✓ Good — v2.2 |
 
 ## Evolution
 
@@ -286,4 +288,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-08 after Phase 48*
+*Last updated: 2026-05-08 after v2.2 milestone*
