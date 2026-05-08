@@ -195,7 +195,7 @@ Plans:
 | 46. WQX UI Display Fixes | v2.1 | 1/1 | Complete | 2026-05-06 |
 | 47. Pipeline Reordering, Threshold Control & Starts-With Toggle | v2.2 | 2/2 | Complete | 2026-05-07 |
 | 48. WQX Resolution UI | v2.2 | 5/5 | Complete | 2026-05-08 |
-| 49. Conflict Scoring Engine | v2.3 | 2/2 | Complete   | 2026-05-08 |
+| 49. Conflict Scoring Engine | v2.3 | 2/2 | Complete    | 2026-05-08 |
 | 50. Auto-Resolve & Suggest | v2.3 | 0/? | Not started | - |
 | 51. Row Flagging | v2.3 | 0/? | Not started | - |
 | 52. Detection Threshold Wiring | v2.3 | 0/? | Not started | - |
