@@ -8,7 +8,9 @@ run_curation_pipeline(
   clean_data,
   column_tags,
   progress_callback = NULL,
-  dedup_only = FALSE
+  dedup_only = FALSE,
+  wqx_threshold = 0.85,
+  starts_with = FALSE
 )
 }
 \arguments{
