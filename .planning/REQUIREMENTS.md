@@ -48,21 +48,21 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SCORE-01 | — | Pending |
-| SCORE-02 | — | Pending |
-| SCORE-03 | — | Pending |
-| SCORE-04 | — | Pending |
-| FLAG-01 | — | Pending |
-| FLAG-02 | — | Pending |
-| FLAG-03 | — | Pending |
-| DETECT-01 | — | Pending |
-| DETECT-02 | — | Pending |
+| SCORE-01 | Phase 49 | Pending |
+| SCORE-02 | Phase 49 | Pending |
+| SCORE-03 | Phase 50 | Pending |
+| SCORE-04 | Phase 50 | Pending |
+| FLAG-01 | Phase 51 | Pending |
+| FLAG-02 | Phase 51 | Pending |
+| FLAG-03 | Phase 51 | Pending |
+| DETECT-01 | Phase 52 | Pending |
+| DETECT-02 | Phase 52 | Pending |
 
 **Coverage:**
 - v2.3 requirements: 9 total
-- Mapped to phases: 0
-- Unmapped: 9
+- Mapped to phases: 9
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-08*
-*Last updated: 2026-05-08 after initial definition*
+*Last updated: 2026-05-08 after roadmap creation (v2.3 Phases 49-52)*
