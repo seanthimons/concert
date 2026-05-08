@@ -129,10 +129,10 @@ test_that("classify_consensus: mixed rows classified independently", {
 
   result <- classify_consensus(df, dtxsid_cols)
 
-  expect_equal(result$consensus_status[1], "agree")     # Both same DTXSID
-  expect_equal(result$consensus_status[2], "disagree")   # Different DTXSIDs
-  expect_equal(result$consensus_status[3], "error")      # Both NA
-  expect_equal(result$consensus_status[4], "single")     # Only Chemical has data
+  expect_equal(result$consensus_status[1], "agree") # Both same DTXSID
+  expect_equal(result$consensus_status[2], "disagree") # Different DTXSIDs
+  expect_equal(result$consensus_status[3], "error") # Both NA
+  expect_equal(result$consensus_status[4], "single") # Only Chemical has data
 })
 
 # ============================================================================
@@ -766,4 +766,207 @@ test_that("full flow: classify -> resolve_row -> apply_priority_chain", {
 
   # Row 3: single, was already resolved during classification
   expect_equal(df$consensus_dtxsid[3], "DTXSID1020001")
+})
+
+# ============================================================================
+# Test Group 14: score_one_candidate - single candidate scoring
+# ============================================================================
+
+test_that("score_one_candidate: exact synonym match scores near 1.0", {
+  # "Silica" is in synonyms_str, so JW("silica", "silica") = 1.0, +0.05 rank bonus clamped to 1.0
+  result <- score_one_candidate(
+    input_name = "Silica",
+    preferred_name = "Silicon Dioxide",
+    synonyms_str = "Silica gel|Silica|Quartz",
+    rank = 1
+  )
+  expect_true(is.numeric(result))
+  expect_true(result >= 0.95)
+  expect_true(result <= 1.0)
+})
+
+test_that("score_one_candidate: dissimilar name scores low", {
+  # "Silica" vs "Testosterone" has JW similarity ~0.42 -- verified against stringdist runtime
+  result <- score_one_candidate(
+    input_name = "Silica",
+    preferred_name = "Testosterone",
+    synonyms_str = NA_character_,
+    rank = 5
+  )
+  expect_true(is.numeric(result))
+  expect_true(result < 0.5)
+})
+
+test_that("score_one_candidate: rank bonus adds 0.05 for rank <= 3 vs rank > 3", {
+  # Same inputs except rank -- difference should be exactly 0.05
+  # Use a name pair with low base score so clamping doesn't interfere
+  score_rank2 <- score_one_candidate(
+    input_name = "Toluene",
+    preferred_name = "Benzene",
+    synonyms_str = NA_character_,
+    rank = 2
+  )
+  score_rank5 <- score_one_candidate(
+    input_name = "Toluene",
+    preferred_name = "Benzene",
+    synonyms_str = NA_character_,
+    rank = 5
+  )
+  expect_equal(score_rank2 - score_rank5, 0.05, tolerance = 1e-9)
+})
+
+test_that("score_one_candidate: clamped to 1.0 when base + bonus exceeds 1", {
+  # JW("toluene", "toluene") = 1.0 similarity, + 0.05 rank bonus = 1.05 -> clamped to 1.0
+  result <- score_one_candidate(
+    input_name = "Toluene",
+    preferred_name = "Toluene",
+    synonyms_str = NA_character_,
+    rank = 1
+  )
+  expect_equal(result, 1.0)
+})
+
+test_that("score_one_candidate: NA input_name returns NA_real_", {
+  result <- score_one_candidate(
+    input_name = NA_character_,
+    preferred_name = "Toluene",
+    synonyms_str = NA_character_,
+    rank = 1
+  )
+  expect_true(is.na(result))
+})
+
+test_that("score_one_candidate: no valid names returns NA_real_", {
+  result <- score_one_candidate(
+    input_name = "Silica",
+    preferred_name = NA_character_,
+    synonyms_str = NA_character_,
+    rank = 1
+  )
+  expect_true(is.na(result))
+})
+
+# ============================================================================
+# Test Group 15: compute_similarity_scores - batch scoring
+# ============================================================================
+
+test_that("compute_similarity_scores: disagree rows get numeric score, others NA", {
+  # Build 3-row resolution_state: agree, disagree, single
+  df <- data.frame(
+    Chemical = c("Toluene", "Silica", "Ethanol"),
+    dtxsid_Chemical = c("DTXSID7021360", "DTXSID5000001", "DTXSID9020584"),
+    dtxsid_CAS = c("DTXSID7021360", "DTXSID5000002", NA_character_),
+    preferredName_Chemical = c("Toluene", "Silicon Dioxide", "Ethanol"),
+    preferredName_CAS = c("Toluene", "Quartz", NA_character_),
+    rank_Chemical = c(1L, 1L, 1L),
+    rank_CAS = c(1L, 2L, NA_integer_),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+  # Row 1: agree, row 2: disagree, row 3: single
+
+  enrichment_cache <- tibble::tibble(
+    dtxsid = c("DTXSID5000001", "DTXSID5000002"),
+    synonyms = c("Silica gel|Silica|Quartz", "Quartzite|Silica")
+  )
+  column_tags <- list(Chemical = "Name", CAS = "CASRN")
+
+  result <- compute_similarity_scores(df, enrichment_cache, dtxsid_cols, column_tags)
+
+  expect_true("similarity_score" %in% names(result))
+  expect_true(is.na(result$similarity_score[1])) # agree -> NA
+  expect_true(!is.na(result$similarity_score[2])) # disagree -> numeric
+  expect_true(is.numeric(result$similarity_score[2]))
+  expect_true(is.na(result$similarity_score[3])) # single -> NA
+})
+
+test_that("compute_similarity_scores: best candidate score is selected", {
+  # 1 disagree row with 2 candidates: Chemical = high similarity, CAS = low similarity
+  df <- data.frame(
+    Chemical = c("Silica"),
+    dtxsid_Chemical = c("DTXSID5000001"), # has "Silica" in synonyms -> high score
+    dtxsid_CAS = c("DTXSID9000001"), # maps to "Estradiol" -> low score
+    preferredName_Chemical = c("Silicon Dioxide"),
+    preferredName_CAS = c("Estradiol"),
+    rank_Chemical = c(5L), # no rank bonus for either
+    rank_CAS = c(5L),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  enrichment_cache <- tibble::tibble(
+    dtxsid = c("DTXSID5000001", "DTXSID9000001"),
+    synonyms = c("Silica gel|Silica|Quartz", NA_character_)
+  )
+  column_tags <- list(Chemical = "Name")
+
+  result <- compute_similarity_scores(df, enrichment_cache, dtxsid_cols, column_tags)
+
+  score <- result$similarity_score[1]
+  expect_true(!is.na(score))
+
+  # The high-similarity candidate (Silica synonym) should dominate
+  # Score should be high (Silica vs Silica is 1.0), not the low Estradiol score
+  expect_true(score > 0.8)
+})
+
+test_that("compute_similarity_scores: missing synonyms column falls back to preferredName-only", {
+  df <- data.frame(
+    Chemical = c("Toluene"),
+    dtxsid_Chemical = c("DTXSID7021360"),
+    dtxsid_CAS = c("DTXSID1020001"),
+    preferredName_Chemical = c("Toluene"),
+    preferredName_CAS = c("Acetone"),
+    rank_Chemical = c(1L),
+    rank_CAS = c(2L),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  # enrichment_cache WITHOUT synonyms column
+  enrichment_cache <- tibble::tibble(
+    dtxsid = c("DTXSID7021360", "DTXSID1020001"),
+    casrn = c("108-88-3", "67-64-1"),
+    molecular_formula = c("C7H8", "C3H6O"),
+    molecular_weight = c(92.14, 58.08)
+  )
+  column_tags <- list(Chemical = "Name")
+
+  # Should not error -- scores based on preferredName only
+  result <- expect_no_error(
+    compute_similarity_scores(df, enrichment_cache, dtxsid_cols, column_tags)
+  )
+  expect_true("similarity_score" %in% names(result))
+  expect_true(!is.na(result$similarity_score[1]))
+})
+
+test_that("compute_similarity_scores: no Name-tagged column returns all NA", {
+  df <- data.frame(
+    Chemical = c("Toluene"),
+    CAS_Number = c("108-88-3"),
+    dtxsid_Chemical = c("DTXSID7021360"),
+    dtxsid_CAS_Number = c("DTXSID1020001"),
+    preferredName_Chemical = c("Toluene"),
+    preferredName_CAS_Number = c("Acetone"),
+    rank_Chemical = c(1L),
+    rank_CAS_Number = c(2L),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS_Number")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  enrichment_cache <- tibble::tibble(
+    dtxsid = "DTXSID7021360",
+    synonyms = "Methylbenzene|Toluene"
+  )
+  # No "Name" tag -- only CASRN
+  column_tags <- list(CAS_Number = "CASRN")
+
+  result <- compute_similarity_scores(df, enrichment_cache, dtxsid_cols, column_tags)
+
+  expect_true("similarity_score" %in% names(result))
+  expect_true(all(is.na(result$similarity_score)))
 })
