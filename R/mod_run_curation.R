@@ -285,6 +285,8 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
                   n_auto <- sum(data_store$resolution_state$consensus_status == "auto_resolved", na.rm = TRUE)
                   n_sugg <- sum(data_store$resolution_state$consensus_status == "suggested", na.rm = TRUE)
                   message(sprintf("[auto-resolve] %d auto-resolved, %d suggested", n_auto, n_sugg))
+
+                  data_store$consensus_summary <- recalc_consensus_summary(data_store$resolution_state)
                 }
               },
               error = function(e) {
