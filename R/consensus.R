@@ -517,8 +517,10 @@ classify_auto_resolve <- function(
   name_col <- name_cols[1]
 
   # Only process non-pinned disagree rows
+  # Use vectorized !is.na() + logical comparison rather than isTRUE() (scalar-only)
+  pinned_vec <- !is.na(resolution_state$.pinned) & resolution_state$.pinned
   disagree_idx <- which(
-    resolution_state$consensus_status == "disagree" & !isTRUE(resolution_state$.pinned)
+    resolution_state$consensus_status == "disagree" & !pinned_vec
   )
 
   if (length(disagree_idx) == 0) {
