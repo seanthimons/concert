@@ -11,7 +11,9 @@ recalc_consensus_summary <- function(df) {
     n_error = sum(df$consensus_status == "error", na.rm = TRUE),
     n_manual = sum(df$consensus_status == "manual", na.rm = TRUE),
     n_unresolvable = sum(df$consensus_status == "unresolvable", na.rm = TRUE),
-    n_wqx = sum(df$consensus_status == "wqx", na.rm = TRUE)
+    n_wqx = sum(df$consensus_status == "wqx", na.rm = TRUE),
+    n_auto_resolved = sum(df$consensus_status == "auto_resolved", na.rm = TRUE),
+    n_suggested = sum(df$consensus_status == "suggested", na.rm = TRUE)
   )
 }
 
@@ -65,6 +67,9 @@ derive_resolution_html <- function(df, row_indices) {
     }
     pref_name[needs_fill] <- df[[pc]][needs_fill]
   }
+
+  # Pre-compute search icon once (used by multiple blocks below)
+  search_icon <- as.character(shiny::icon("search"))
 
   # WQX override: prefer user-selected name over pipeline result (per D-08)
   wqx_override <- if ("wqx_override_name" %in% names(df)) df$wqx_override_name else rep(NA_character_, n)
@@ -129,9 +134,75 @@ derive_resolution_html <- function(df, row_indices) {
     change_link(row_indices[dp & is.na(dtxsid)])
   )
 
+  # auto_resolved
+  auto_mask <- status == "auto_resolved" & !is.na(dtxsid)
+  auto_reasons <- if (".resolution_reason" %in% names(df)) df$.resolution_reason else rep(NA_character_, n)
+  auto_title <- ifelse(!is.na(auto_reasons), paste0(' title="', htmltools::htmlEscape(auto_reasons), '"'), "")
+  auto_badge_vec <- paste0(
+    '<span class="badge ms-1" style="background:#0D6EFD;color:#fff;font-size:0.7em;"',
+    auto_title,
+    ">auto</span>"
+  )
+  compare_btn_vec <- paste0(
+    ' <button class="compare-btn btn btn-sm btn-outline-primary" data-row="',
+    row_indices,
+    '">',
+    search_icon,
+    " Compare</button>"
+  )
+  auto_pref <- auto_mask & !is.na(pref_name)
+  result[auto_pref] <- paste0(
+    "\u2705 ",
+    htmltools::htmlEscape(dtxsid[auto_pref]),
+    " \u2014 ",
+    htmltools::htmlEscape(pref_name[auto_pref]),
+    " ",
+    auto_badge_vec[auto_pref],
+    compare_btn_vec[auto_pref]
+  )
+  auto_no_pref <- auto_mask & !auto_pref & !is.na(dtxsid)
+  result[auto_no_pref] <- paste0(
+    "\u2705 ",
+    htmltools::htmlEscape(dtxsid[auto_no_pref]),
+    " ",
+    auto_badge_vec[auto_no_pref],
+    compare_btn_vec[auto_no_pref]
+  )
+
+  # suggested (not yet resolved / not pinned)
+  suggested_mask <- status == "suggested" & !pinned
+  result[suggested_mask] <- paste0(
+    '<button class="compare-btn btn btn-sm btn-outline-info" data-row="',
+    row_indices[suggested_mask],
+    '">',
+    search_icon,
+    " Review Suggestion</button>"
+  )
+
+  # suggested + pinned (accepted suggestion — show resolved display)
+  suggested_pinned <- status == "suggested" & pinned & !is.na(dtxsid)
+  accepted_badge <- '<span class="badge ms-1" style="background:#0DCAF0;color:#fff;font-size:0.7em;">accepted</span>'
+  sp_pref <- suggested_pinned & !is.na(pref_name)
+  result[sp_pref] <- paste0(
+    "\u2705 ",
+    htmltools::htmlEscape(dtxsid[sp_pref]),
+    " \u2014 ",
+    htmltools::htmlEscape(pref_name[sp_pref]),
+    " ",
+    accepted_badge,
+    compare_btn_vec[sp_pref]
+  )
+  sp_no_pref <- suggested_pinned & !sp_pref
+  result[sp_no_pref] <- paste0(
+    "\u2705 ",
+    htmltools::htmlEscape(dtxsid[sp_no_pref]),
+    " ",
+    accepted_badge,
+    compare_btn_vec[sp_no_pref]
+  )
+
   # disagree + not pinned
   compare_mask <- status == "disagree" & !pinned
-  search_icon <- as.character(shiny::icon("search"))
   result[compare_mask] <- paste0(
     '<button class="compare-btn btn btn-sm btn-outline-primary" data-row="',
     row_indices[compare_mask],
@@ -396,6 +467,14 @@ mod_review_results_ui <- function(id) {
           ),
           shinyjs::hidden(
             actionButton(
+              ns("accept_all_suggestions"),
+              "Accept All Suggestions",
+              icon = icon("wand-magic-sparkles"),
+              class = "btn-sm btn-primary"
+            )
+          ),
+          shinyjs::hidden(
+            actionButton(
               ns("retag_selected"),
               "Re-tag Selected",
               icon = icon("tags"),
@@ -503,11 +582,12 @@ mod_review_results_server <- function(id, data_store) {
         (summary$n_agree_caveat %||% 0) +
         (summary$n_single %||% 0) +
         (summary$n_manual %||% 0) +
-        (summary$n_wqx %||% 0)
+        (summary$n_wqx %||% 0) +
+        (summary$n_auto_resolved %||% 0)
       errors <- (summary$n_error %||% 0) + (summary$n_unresolvable %||% 0)
 
       layout_columns(
-        col_widths = c(3, 3, 3, 3),
+        col_widths = c(2, 2, 2, 2, 2, 2),
         value_box(
           title = "Resolved",
           value = resolved,
@@ -530,6 +610,18 @@ mod_review_results_server <- function(id, data_store) {
           title = "Match Rate",
           value = paste0(match_rate, "%"),
           showcase = bsicons::bs_icon("percent"),
+          theme = "info"
+        ),
+        value_box(
+          title = "Auto-Resolved",
+          value = summary$n_auto_resolved %||% 0,
+          showcase = bsicons::bs_icon("magic"),
+          theme = "primary"
+        ),
+        value_box(
+          title = "Suggested",
+          value = summary$n_suggested %||% 0,
+          showcase = bsicons::bs_icon("lightbulb"),
           theme = "info"
         )
       )
@@ -866,7 +958,18 @@ mod_review_results_server <- function(id, data_store) {
       # Badge: consensus_status
       if ("consensus_status" %in% names(df_display)) {
         status_levels <- intersect(
-          c("agree", "agree_caveat", "single", "wqx", "disagree", "error", "manual", "unresolvable"),
+          c(
+            "agree",
+            "agree_caveat",
+            "single",
+            "wqx",
+            "disagree",
+            "error",
+            "manual",
+            "unresolvable",
+            "auto_resolved",
+            "suggested"
+          ),
           unique(as.character(df_display$consensus_status))
         )
         status_colors <- c(
@@ -877,7 +980,9 @@ mod_review_results_server <- function(id, data_store) {
           "disagree" = "#fd7e14",
           "error" = "#343a40",
           "manual" = "#6f42c1",
-          "unresolvable" = "#721c24"
+          "unresolvable" = "#721c24",
+          "auto_resolved" = "#0D6EFD",
+          "suggested" = "#0DCAF0"
         )
 
         col_defs[["consensus_status"]] <- reactable::colDef(
@@ -970,7 +1075,9 @@ mod_review_results_server <- function(id, data_store) {
         "wqx" = "rgba(32, 201, 151, 0.08)",
         "error" = "rgba(220, 53, 69, 0.12)",
         "manual" = "rgba(111, 66, 193, 0.08)",
-        "unresolvable" = "rgba(114, 28, 36, 0.12)"
+        "unresolvable" = "rgba(114, 28, 36, 0.12)",
+        "auto_resolved" = "rgba(13, 110, 253, 0.08)",
+        "suggested" = "rgba(13, 202, 240, 0.08)"
       )
 
       row_style_fn <- function(index) {
@@ -1135,6 +1242,21 @@ mod_review_results_server <- function(id, data_store) {
       }
     })
 
+    # Show/hide Accept All Suggestions based on suggested row count
+    observe({
+      req(data_store$resolution_state)
+      pinned_vec <- !is.na(data_store$resolution_state$.pinned) & data_store$resolution_state$.pinned
+      has_suggested <- any(
+        data_store$resolution_state$consensus_status == "suggested" & !pinned_vec,
+        na.rm = TRUE
+      )
+      if (has_suggested) {
+        shinyjs::show("accept_all_suggestions")
+      } else {
+        shinyjs::hide("accept_all_suggestions")
+      }
+    })
+
     # Handle per-row resolution dropdown
     observeEvent(input$resolve_row_choice, {
       req(data_store$resolution_state, data_store$dtxsid_cols)
@@ -1186,6 +1308,14 @@ mod_review_results_server <- function(id, data_store) {
       req(data_store$resolution_state, data_store$dtxsid_cols)
 
       row_idx <- input$compare_row_click$row
+      row_status <- as.character(data_store$resolution_state$consensus_status[row_idx])
+
+      # Get suggested column for highlight logic (D-08 override flow)
+      suggested_col <- if (".suggested_column" %in% names(data_store$resolution_state)) {
+        data_store$resolution_state$.suggested_column[row_idx]
+      } else {
+        NA_character_
+      }
 
       # Get resolution options with enrichment metadata
       options <- get_resolution_options(
@@ -1255,15 +1385,38 @@ mod_review_results_server <- function(id, data_store) {
           )
         }
 
+        # Determine highlight style for suggested/auto_resolved candidate (D-14 override flow)
+        is_suggested_candidate <- !is.na(suggested_col) && col == suggested_col
+        card_border_style <- if (is_suggested_candidate && row_status == "suggested") {
+          "border: 2px solid #0D6EFD; border-radius: 8px; transition: border-color 0.2s; background-color: #f0f7ff;"
+        } else if (is_suggested_candidate && row_status == "auto_resolved") {
+          "border: 2px solid #FFC107; border-radius: 8px; transition: border-color 0.2s; background-color: #fffdf0;"
+        } else {
+          "border: 2px solid #dee2e6; border-radius: 8px; transition: border-color 0.2s;"
+        }
+
+        # Badge for suggested/auto_resolved candidate
+        candidate_badge <- if (is_suggested_candidate && row_status == "suggested") {
+          tags$span(class = "badge bg-primary ms-2", "Suggested")
+        } else if (is_suggested_candidate && row_status == "auto_resolved") {
+          tags$span(class = "badge bg-warning text-dark ms-2", "Auto-Selected")
+        } else {
+          NULL
+        }
+
         div(
           class = "candidate-card card mb-2",
-          style = "border: 2px solid #dee2e6; border-radius: 8px; transition: border-color 0.2s;",
+          style = card_border_style,
           div(
             class = "card-body",
             div(
               class = "d-flex justify-content-between align-items-start",
               div(
-                tags$h6(class = "mb-1 fw-bold", opt$dtxsid),
+                div(
+                  class = "d-flex align-items-center",
+                  tags$h6(class = "mb-1 fw-bold d-inline", opt$dtxsid),
+                  candidate_badge
+                ),
                 if (!is.na(opt$preferredName)) tags$p(class = "mb-1 text-muted", opt$preferredName) else NULL
               ),
               div(
@@ -1314,8 +1467,23 @@ mod_review_results_server <- function(id, data_store) {
       # Build scrollable container
       cards_container <- div(style = "max-height: 60vh; overflow-y: auto;", cards)
 
+      # "Accept Suggestion" button only shown for suggested rows
+      accept_suggestion_btn <- if (row_status == "suggested") {
+        tags$button(
+          class = "btn btn-primary",
+          onclick = sprintf(
+            "Shiny.setInputValue('%s', {t: Math.random()}, {priority: 'event'});",
+            session$ns("accept_suggestion")
+          ),
+          "Accept Suggestion"
+        )
+      } else {
+        NULL
+      }
+
       # Build modal footer
       footer <- tagList(
+        accept_suggestion_btn,
         div(
           id = session$ns("confirm_container"),
           style = "display:none;",
@@ -1368,6 +1536,8 @@ mod_review_results_server <- function(id, data_store) {
       updated_df <- data_store$resolution_state
       for (r in group_rows) {
         updated_df <- resolve_row(updated_df, r, chosen_column, data_store$dtxsid_cols)
+        # Safety reinforcement: resolve_row (Plan 01) sets .resolution_method="manual"
+        updated_df$.resolution_method[r] <- "manual"
       }
       data_store$resolution_state <- updated_df
       data_store$consensus_summary <- recalc_consensus_summary(updated_df)
@@ -1384,6 +1554,56 @@ mod_review_results_server <- function(id, data_store) {
 
       data_store$modal_row_idx <- NULL
       data_store$modal_selected_column <- NULL
+    })
+
+    # Handle Accept Suggestion from modal (suggested rows only)
+    observeEvent(input$accept_suggestion, {
+      row_idx <- data_store$modal_row_idx
+      if (is.null(row_idx)) {
+        return()
+      }
+
+      suggested_col <- if (".suggested_column" %in% names(data_store$resolution_state)) {
+        data_store$resolution_state$.suggested_column[row_idx]
+      } else {
+        NA_character_
+      }
+
+      if (is.na(suggested_col)) {
+        showNotification("No suggestion available for this row", type = "warning")
+        return()
+      }
+
+      tryCatch(
+        {
+          group_rows <- get_group_rows(row_idx, isolate(data_store$dedup_group_map))
+          updated_df <- data_store$resolution_state
+          for (r in group_rows) {
+            updated_df <- resolve_row(updated_df, r, suggested_col, data_store$dtxsid_cols)
+            updated_df$.resolution_method[r] <- "suggested-accept"
+          }
+          data_store$resolution_state <- updated_df
+          data_store$consensus_summary <- recalc_consensus_summary(updated_df)
+
+          opt_dtxsid <- updated_df$consensus_dtxsid[row_idx]
+          pref_col <- sub("^dtxsid_", "preferredName_", suggested_col)
+          opt_pref <- if (pref_col %in% names(updated_df)) updated_df[[pref_col]][row_idx] else NA_character_
+          notification_msg <- if (!is.na(opt_pref)) {
+            sprintf("Accepted suggestion for %d row(s): %s - %s", length(group_rows), opt_dtxsid, opt_pref)
+          } else {
+            sprintf("Accepted suggestion for %d row(s): %s", length(group_rows), opt_dtxsid)
+          }
+
+          removeModal()
+          showNotification(notification_msg, type = "message")
+
+          data_store$modal_row_idx <- NULL
+          data_store$modal_selected_column <- NULL
+        },
+        error = function(e) {
+          showNotification(paste0("Error accepting suggestion: ", e$message), type = "error")
+        }
+      )
     })
 
     # Handle modal skip
@@ -1568,6 +1788,40 @@ mod_review_results_server <- function(id, data_store) {
         error = function(e) {
           showNotification(
             paste0("Error applying priority: ", e$message),
+            type = "error"
+          )
+        }
+      )
+    })
+
+    # Handle Accept All Suggestions
+    observeEvent(input$accept_all_suggestions, {
+      req(data_store$resolution_state, data_store$dtxsid_cols)
+
+      tryCatch(
+        {
+          pinned_vec <- !is.na(data_store$resolution_state$.pinned) & data_store$resolution_state$.pinned
+          before_count <- sum(
+            data_store$resolution_state$consensus_status == "suggested" & !pinned_vec,
+            na.rm = TRUE
+          )
+
+          updated_df <- accept_all_suggestions(
+            data_store$resolution_state,
+            data_store$dtxsid_cols
+          )
+
+          data_store$resolution_state <- updated_df
+          data_store$consensus_summary <- recalc_consensus_summary(updated_df)
+
+          showNotification(
+            sprintf("%d suggestion(s) accepted", before_count),
+            type = "message"
+          )
+        },
+        error = function(e) {
+          showNotification(
+            "Failed to accept suggestions. Please try again.",
             type = "error"
           )
         }
