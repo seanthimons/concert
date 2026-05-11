@@ -344,16 +344,23 @@ precheck_normalize_cas <- function(df, tag_map) {
   }
   placeholder_pattern <- "(?i)^\\s*(no\\s*cas|n/?a|proprietary|none|-)\\s*$"
   unformatted_pattern <- "^\\d+$"
+  cas_format_pattern <- "^\\d{2,7}-\\d{2}-\\d$"
   est_changes <- 0L
   for (col in cas_cols) {
     vals <- df[[col]]
+    non_na <- !is.na(vals) & nchar(trimws(vals)) > 0
     # Unformatted pure digits (e.g. "67641") would be reformatted
-    unformatted <- !is.na(vals) & stringr::str_detect(vals, unformatted_pattern)
+    unformatted <- non_na & stringr::str_detect(vals, unformatted_pattern)
     # Placeholder text would be set to NA
-    placeholders <- !is.na(vals) & stringr::str_detect(vals, placeholder_pattern)
-    est_changes <- est_changes + as.integer(sum(unformatted | placeholders, na.rm = TRUE))
+    placeholders <- non_na & stringr::str_detect(vals, placeholder_pattern)
+    # Values present but not matching valid CAS format (catches invalid check digits, malformed)
+    has_cas_shape <- non_na & stringr::str_detect(vals, cas_format_pattern)
+    non_cas_format <- non_na & !has_cas_shape & !unformatted & !placeholders
+    est_changes <- est_changes + as.integer(sum(unformatted | placeholders | non_cas_format, na.rm = TRUE))
   }
-  list(should_run = est_changes > 0L, est_changes = est_changes)
+  # Always recommend when CASRN columns are tagged (validation catches check digit errors)
+  has_cas_data <- any(vapply(cas_cols, function(col) any(!is.na(df[[col]])), logical(1)))
+  list(should_run = has_cas_data, est_changes = est_changes)
 }
 
 #' Pre-check predicate for the name cleaning chain (Steps 6-pre through 6d3)
