@@ -42,8 +42,9 @@ build_export_sheets <- function(
     dplyr::mutate(
       needs_review = (consensus_status %in% c("error", "unresolvable"))
     ) %>%
-    # Note: similarity_score (from Phase 49) flows through automatically -- not excluded
-    dplyr::select(-tidyselect::any_of(c(".pinned", ".manual_entry")))
+    # Note: similarity_score, .resolution_method, .resolution_reason flow through automatically.
+    # .pinned, .manual_entry, .suggested_column are internal state -- excluded from export.
+    dplyr::select(-tidyselect::any_of(c(".pinned", ".manual_entry", ".suggested_column")))
 
   # Add enrichment columns (consensus_casrn, consensus_formula, consensus_mw)
   if (!is.null(enrichment_cache) && nrow(enrichment_cache) > 0) {
@@ -56,6 +57,12 @@ build_export_sheets <- function(
     curated_data_sheet$consensus_formula <- NA_character_
     curated_data_sheet$consensus_mw <- NA_real_
   }
+
+  curated_data_sheet <- curated_data_sheet %>%
+    dplyr::relocate(
+      tidyselect::any_of(c(".resolution_method", ".resolution_reason")),
+      .after = tidyselect::any_of("consensus_source")
+    )
 
   curated_data_sheet <- curated_data_sheet %>%
     dplyr::relocate(needs_review, .after = tidyselect::last_col())
@@ -71,6 +78,8 @@ build_export_sheets <- function(
       "Consensus - Manual",
       "Consensus - Error",
       "Consensus - Unresolvable",
+      "Consensus - Auto-Resolved",
+      "Consensus - Suggested",
       "Match Rate (%)"
     ),
     Value = c(
@@ -82,6 +91,8 @@ build_export_sheets <- function(
       consensus_summary$n_manual %||% 0,
       consensus_summary$n_error,
       consensus_summary$n_unresolvable %||% 0,
+      sum(resolution_state$consensus_status == "auto_resolved", na.rm = TRUE),
+      sum(resolution_state$consensus_status == "suggested", na.rm = TRUE),
       round((sum(!is.na(resolution_state$consensus_dtxsid)) / nrow(resolution_state)) * 100, 1)
     )
   )
