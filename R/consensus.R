@@ -158,9 +158,13 @@ classify_consensus <- function(df, dtxsid_cols) {
 #' Initialize resolution state on a classified data frame
 #'
 #' Adds .pinned column (FALSE) and .manual_entry column (FALSE) if not already present.
+#' Also adds .resolution_method and .resolution_reason columns (NA_character_) for
+#' tracking how each row was resolved (per D-11).
+#'
+#' Valid .resolution_method values: "auto", "suggested-accept", "bulk-accept", "manual", NA.
 #'
 #' @param df Data frame (typically output of classify_consensus)
-#' @return df with .pinned and .manual_entry columns
+#' @return df with .pinned, .manual_entry, .resolution_method, and .resolution_reason columns
 #' @export
 init_resolution_state <- function(df) {
   if (!".pinned" %in% names(df)) {
@@ -168,6 +172,12 @@ init_resolution_state <- function(df) {
   }
   if (!".manual_entry" %in% names(df)) {
     df$.manual_entry <- FALSE
+  }
+  if (!".resolution_method" %in% names(df)) {
+    df$.resolution_method <- NA_character_
+  }
+  if (!".resolution_reason" %in% names(df)) {
+    df$.resolution_reason <- NA_character_
   }
   df
 }
@@ -188,7 +198,8 @@ init_resolution_state <- function(df) {
 #'         Sorted by rank (best first). Empty list if row is not "disagree".
 #' @export
 get_resolution_options <- function(df, row_idx, dtxsid_cols, enrichment_cache = NULL) {
-  if (df$consensus_status[row_idx] != "disagree") {
+  allowed_statuses <- c("disagree", "auto_resolved", "suggested")
+  if (!df$consensus_status[row_idx] %in% allowed_statuses) {
     return(list())
   }
 
@@ -393,10 +404,10 @@ compute_similarity_scores <- function(resolution_state, enrichment_cache, dtxsid
 #' @return Modified df with consensus filled and row pinned
 #' @export
 resolve_row <- function(df, row_idx, chosen_column, dtxsid_cols) {
-  # Validate row is disagree
-
-  if (df$consensus_status[row_idx] != "disagree") {
-    stop("Row ", row_idx, " is not a disagree row (status: ", df$consensus_status[row_idx], ")")
+  # Validate row status allows resolution (disagree, auto_resolved, or suggested)
+  allowed_statuses <- c("disagree", "auto_resolved", "suggested")
+  if (!df$consensus_status[row_idx] %in% allowed_statuses) {
+    stop("Row ", row_idx, " cannot be resolved (status: ", df$consensus_status[row_idx], ")")
   }
 
   # Validate chosen_column exists and has data
@@ -416,6 +427,7 @@ resolve_row <- function(df, row_idx, chosen_column, dtxsid_cols) {
   df$consensus_dtxsid[row_idx] <- val
   df$consensus_source[row_idx] <- sub("^dtxsid_", "", chosen_column)
   df$.pinned[row_idx] <- TRUE
+  df$.resolution_method[row_idx] <- "manual"
 
   df
 }
@@ -452,6 +464,208 @@ apply_priority_chain <- function(df, priority_order, dtxsid_cols) {
         break
       }
     }
+  }
+
+  df
+}
+
+# ============================================================================
+# classify_auto_resolve
+# ============================================================================
+
+#' Classify disagree rows as auto-resolved, suggested, or leave as disagree
+#'
+#' Runs after compute_similarity_scores(). For each disagree row, collects
+#' per-candidate scores and applies threshold logic (D-01/D-02/D-03):
+#'   - Auto-resolve: best score >= 0.95 AND gap >= 0.15
+#'   - Suggest: best score >= 0.70 (but not auto-resolve eligible)
+#'   - Leave as disagree: best score < 0.70
+#'
+#' @param resolution_state Data frame with consensus_status, similarity_score, dtxsid_*,
+#'   preferredName_*, rank_* columns
+#' @param enrichment_cache Tibble with dtxsid and (optionally) synonyms columns
+#' @param dtxsid_cols Character vector of dtxsid column names
+#' @param column_tags Named list (col_name -> "Name"|"CASRN"|"Other")
+#' @param auto_threshold Numeric, minimum score for auto-resolve (default 0.95, per D-01)
+#' @param gap_threshold Numeric, minimum gap between best and second-best (default 0.15, per D-03)
+#' @param suggest_threshold Numeric, minimum score for suggestion (default 0.70, per D-02)
+#' @return resolution_state with updated consensus_status, .pinned, .resolution_method,
+#'   .resolution_reason, and .suggested_column columns
+#' @export
+classify_auto_resolve <- function(
+  resolution_state,
+  enrichment_cache,
+  dtxsid_cols,
+  column_tags,
+  auto_threshold = 0.95,
+  gap_threshold = 0.15,
+  suggest_threshold = 0.70
+) {
+  resolution_state <- init_resolution_state(resolution_state)
+
+  # Add .suggested_column column if not present
+  if (!".suggested_column" %in% names(resolution_state)) {
+    resolution_state$.suggested_column <- NA_character_
+  }
+
+  # Identify the Name-tagged column (same pattern as compute_similarity_scores)
+  name_cols <- names(column_tags)[column_tags == "Name"]
+  if (length(name_cols) == 0) {
+    message("[classify_auto_resolve] No Name-tagged column found -- skipping classification")
+    return(resolution_state)
+  }
+  name_col <- name_cols[1]
+
+  # Only process non-pinned disagree rows
+  disagree_idx <- which(
+    resolution_state$consensus_status == "disagree" & !isTRUE(resolution_state$.pinned)
+  )
+
+  if (length(disagree_idx) == 0) {
+    return(resolution_state)
+  }
+
+  has_synonyms <- !is.null(enrichment_cache) &&
+    nrow(enrichment_cache) > 0 &&
+    "synonyms" %in% names(enrichment_cache)
+
+  # Pre-build dtxsid -> synonyms lookup for O(1) access
+  syn_lookup <- if (has_synonyms) {
+    stats::setNames(enrichment_cache$synonyms, enrichment_cache$dtxsid)
+  } else {
+    character(0)
+  }
+
+  # Pre-build column name -> stripped source name map (avoids repeated sub() in loop)
+  source_names <- stats::setNames(
+    sub("^dtxsid_", "", dtxsid_cols),
+    dtxsid_cols
+  )
+
+  for (i in disagree_idx) {
+    input_name <- as.character(resolution_state[[name_col]][i])
+    if (is.na(input_name) || nchar(trimws(input_name)) == 0) {
+      next
+    }
+
+    # Collect per-candidate scores as a named numeric vector (name = column name)
+    candidate_scores <- numeric(0)
+
+    for (col in dtxsid_cols) {
+      dtxsid_val <- resolution_state[[col]][i]
+      if (is.na(dtxsid_val)) {
+        next
+      }
+
+      pref_col <- sub("^dtxsid_", "preferredName_", col)
+      rank_col <- sub("^dtxsid_", "rank_", col)
+      pref_name <- if (pref_col %in% names(resolution_state)) {
+        resolution_state[[pref_col]][i]
+      } else {
+        NA_character_
+      }
+      rank_val <- if (rank_col %in% names(resolution_state)) {
+        resolution_state[[rank_col]][i]
+      } else {
+        NA_real_
+      }
+
+      synonyms_str <- if (length(syn_lookup) > 0 && dtxsid_val %in% names(syn_lookup)) {
+        syn_lookup[[dtxsid_val]]
+      } else {
+        NA_character_
+      }
+
+      cs <- score_one_candidate(input_name, pref_name, synonyms_str, rank_val)
+      if (!is.na(cs)) {
+        candidate_scores[col] <- cs
+      }
+    }
+
+    if (length(candidate_scores) == 0) {
+      next
+    }
+
+    # Sort descending to get best and second-best
+    candidate_scores <- sort(candidate_scores, decreasing = TRUE)
+    best_score <- candidate_scores[1]
+    best_col <- names(candidate_scores)[1]
+    second_best <- if (length(candidate_scores) >= 2) candidate_scores[2] else 0.0
+    gap <- best_score - second_best
+
+    if (best_score >= auto_threshold && gap >= gap_threshold) {
+      # Auto-resolve: clear winner with sufficient margin
+      resolution_state$consensus_status[i] <- "auto_resolved"
+      resolution_state$.pinned[i] <- TRUE
+      resolution_state$.resolution_method[i] <- "auto"
+      resolution_state$.resolution_reason[i] <- sprintf(
+        "score=%.2f, gap=%.2f, threshold=%.2f",
+        best_score,
+        gap,
+        auto_threshold
+      )
+      resolution_state$consensus_dtxsid[i] <- resolution_state[[best_col]][i]
+      resolution_state$consensus_source[i] <- source_names[[best_col]]
+      resolution_state$.suggested_column[i] <- best_col
+    } else if (best_score >= suggest_threshold) {
+      # Suggest: good score but not conclusive enough to auto-resolve
+      resolution_state$consensus_status[i] <- "suggested"
+      # .pinned stays FALSE -- user must act
+      resolution_state$.resolution_method[i] <- NA_character_
+      resolution_state$.resolution_reason[i] <- sprintf(
+        "score=%.2f, gap=%.2f, suggest_threshold=%.2f",
+        best_score,
+        gap,
+        suggest_threshold
+      )
+      resolution_state$.suggested_column[i] <- best_col
+    }
+    # else: leave as "disagree" -- best score below suggest_threshold
+  }
+
+  resolution_state
+}
+
+# ============================================================================
+# accept_all_suggestions
+# ============================================================================
+
+#' Accept all suggested resolutions in bulk
+#'
+#' For each row with consensus_status == "suggested" that is not pinned,
+#' resolves to the best-scoring candidate (stored in .suggested_column).
+#' Sets .resolution_method to "bulk-accept" and .pinned to TRUE.
+#'
+#' @param df Data frame with consensus_status, .suggested_column, dtxsid_* columns
+#' @param dtxsid_cols Character vector of DTXSID column names
+#' @return Modified df with suggested rows resolved
+#' @export
+accept_all_suggestions <- function(df, dtxsid_cols) {
+  df <- init_resolution_state(df)
+
+  for (i in seq_len(nrow(df))) {
+    if (df$consensus_status[i] != "suggested") {
+      next
+    }
+    if (isTRUE(df$.pinned[i])) {
+      next
+    }
+
+    best_col <- df$.suggested_column[i]
+    if (is.na(best_col) || !best_col %in% dtxsid_cols) {
+      next
+    }
+
+    val <- df[[best_col]][i]
+    if (is.na(val)) {
+      next
+    }
+
+    df$consensus_dtxsid[i] <- val
+    df$consensus_source[i] <- sub("^dtxsid_", "", best_col)
+    df$.pinned[i] <- TRUE
+    df$.resolution_method[i] <- "bulk-accept"
+    # Preserve existing .resolution_reason from classification
   }
 
   df
