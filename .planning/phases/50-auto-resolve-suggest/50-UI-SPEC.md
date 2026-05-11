@@ -1,7 +1,7 @@
 ---
 phase: 50
 slug: auto-resolve-suggest
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-05-10
@@ -57,7 +57,7 @@ Source: Flatly bootswatch defaults. Matches existing rendering confirmed in mod_
 |------|------|--------|-------------|
 | Body | 16px | 400 (regular) | 1.5 |
 | Label / Badge | 13.6px (0.85em of 16px) | 600 (semibold) | 1.2 |
-| Card heading (DTXSID) | 16px | 700 (bold, `fw-bold`) | 1.2 |
+| Card heading (DTXSID) | 16px | 600 (semibold, `fw-semibold`) | 1.2 |
 | Small / secondary text (preferredName, source details) | 14px (`small` / `text-muted`) | 400 (regular) | 1.4 |
 
 No new font sizes introduced. All typography follows existing patterns in `derive_resolution_html()` and candidate card markup.
@@ -215,11 +215,11 @@ No component registry is used. All UI components are standard bslib / Bootstrap 
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved 2026-05-10
