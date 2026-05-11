@@ -274,6 +274,17 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
                     dtxsid_cols = data_store$dtxsid_cols,
                     column_tags = data_store$column_tags
                   )
+
+                  # Phase 50: Classify auto-resolved and suggested rows
+                  data_store$resolution_state <- classify_auto_resolve(
+                    resolution_state = data_store$resolution_state,
+                    enrichment_cache = data_store$enrichment_cache,
+                    dtxsid_cols = data_store$dtxsid_cols,
+                    column_tags = data_store$column_tags
+                  )
+                  n_auto <- sum(data_store$resolution_state$consensus_status == "auto_resolved", na.rm = TRUE)
+                  n_sugg <- sum(data_store$resolution_state$consensus_status == "suggested", na.rm = TRUE)
+                  message(sprintf("[auto-resolve] %d auto-resolved, %d suggested", n_auto, n_sugg))
                 }
               },
               error = function(e) {
