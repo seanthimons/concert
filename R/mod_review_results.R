@@ -933,8 +933,8 @@ mod_review_results_server <- function(id, data_store) {
         col_defs[["match_type"]] <- reactable::colDef(
           cell = function(value, index) {
             val <- as.character(value)
-            bg <- match_colors[val] %||% "#6c757d"
-            fg <- match_text_colors[val] %||% "#fff"
+            bg <- unname(match_colors[val]) %||% "#6c757d"
+            fg <- unname(match_text_colors[val]) %||% "#fff"
             htmltools::span(
               style = sprintf(
                 "background:%s;color:%s;padding:2px 8px;border-radius:4px;font-weight:600;font-size:0.85em;display:inline-block;",
@@ -988,7 +988,7 @@ mod_review_results_server <- function(id, data_store) {
         col_defs[["consensus_status"]] <- reactable::colDef(
           cell = function(value, index) {
             val <- as.character(value)
-            bg <- status_colors[val] %||% "#6c757d"
+            bg <- unname(status_colors[val]) %||% "#6c757d"
             htmltools::span(
               style = sprintf(
                 "background:%s;color:#fff;padding:2px 8px;border-radius:4px;font-weight:600;font-size:0.85em;display:inline-block;",
@@ -1088,7 +1088,7 @@ mod_review_results_server <- function(id, data_store) {
           }
         }
         status <- as.character(df_display$consensus_status[index])
-        bg <- row_bg_colors[status]
+        bg <- unname(row_bg_colors[status])
         if (!is.null(bg) && !is.na(bg)) list(backgroundColor = bg) else NULL
       }
 
