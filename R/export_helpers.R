@@ -49,6 +49,7 @@ build_export_sheets <- function(
   # Add enrichment columns (consensus_casrn, consensus_formula, consensus_mw)
   if (!is.null(enrichment_cache) && nrow(enrichment_cache) > 0) {
     enrich_lookup <- enrichment_cache[, c("dtxsid", "casrn", "molecular_formula", "molecular_weight")]
+    enrich_lookup <- enrich_lookup[!duplicated(enrich_lookup$dtxsid), ]
     names(enrich_lookup) <- c("consensus_dtxsid", "consensus_casrn", "consensus_formula", "consensus_mw")
     curated_data_sheet <- curated_data_sheet %>%
       dplyr::left_join(enrich_lookup, by = "consensus_dtxsid")
