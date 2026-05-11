@@ -970,3 +970,351 @@ test_that("compute_similarity_scores: no Name-tagged column returns all NA", {
   expect_true("similarity_score" %in% names(result))
   expect_true(all(is.na(result$similarity_score)))
 })
+
+# ============================================================================
+# Test Group 16: init_resolution_state — new columns
+# ============================================================================
+
+test_that("classify_auto_resolve: init_resolution_state adds .resolution_method and .resolution_reason", {
+  df <- data.frame(x = 1:3, stringsAsFactors = FALSE)
+  df <- init_resolution_state(df)
+  expect_true(".resolution_method" %in% names(df))
+  expect_true(".resolution_reason" %in% names(df))
+  expect_true(all(is.na(df$.resolution_method)))
+  expect_true(all(is.na(df$.resolution_reason)))
+})
+
+# ============================================================================
+# Test Group 17: classify_auto_resolve
+# ============================================================================
+
+# Helper: build a 2-row disagree fixture for auto-resolve tests.
+# Row 1: Input "Silica", Chemical candidate = Silica (high score, large gap vs Estradiol)
+#         -> expected: auto_resolved (score ~1.0, gap >> 0.15)
+# Row 2: Input "Silica", Chemical candidate = "Silica" vs CAS candidate = "Silica gel"
+#         -> expected: suggested (both high score, gap < 0.15)
+build_auto_resolve_fixture <- function() {
+  df <- data.frame(
+    Chemical = c("Silica", "Silica"),
+    dtxsid_Chemical = c("DTXSID5000001", "DTXSID5000001"),
+    dtxsid_CAS = c("DTXSID9000001", "DTXSID5000002"),
+    preferredName_Chemical = c("Silica", "Silica"),
+    preferredName_CAS = c("Estradiol", "Silica gel"),
+    rank_Chemical = c(5L, 5L),
+    rank_CAS = c(5L, 5L),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+  # Both rows should be disagree
+
+  enrichment_cache <- tibble::tibble(
+    dtxsid = c("DTXSID5000001", "DTXSID9000001", "DTXSID5000002"),
+    synonyms = c(
+      "Silica gel|Silica|Quartz", # DTXSID5000001: matches "Silica" perfectly
+      NA_character_, # DTXSID9000001: Estradiol, no Silica synonyms
+      "Silica gel|Silicon Dioxide" # DTXSID5000002: also Silica-like
+    ),
+    casrn = rep(NA_character_, 3),
+    molecular_formula = rep(NA_character_, 3),
+    molecular_weight = rep(NA_real_, 3)
+  )
+  column_tags <- list(Chemical = "Name")
+  list(df = df, enrichment_cache = enrichment_cache, dtxsid_cols = dtxsid_cols, column_tags = column_tags)
+}
+
+test_that("classify_auto_resolve: high-score + high-gap row becomes auto_resolved", {
+  fix <- build_auto_resolve_fixture()
+  result <- classify_auto_resolve(
+    fix$df,
+    fix$enrichment_cache,
+    fix$dtxsid_cols,
+    fix$column_tags
+  )
+
+  # Row 1: Silica vs Estradiol -> clear winner, large gap -> auto_resolved
+  expect_equal(result$consensus_status[1], "auto_resolved")
+  expect_true(isTRUE(result$.pinned[1]))
+  expect_equal(result$.resolution_method[1], "auto")
+  expect_true(grepl("score=", result$.resolution_reason[1]))
+  expect_equal(result$consensus_dtxsid[1], "DTXSID5000001")
+})
+
+test_that("classify_auto_resolve: high-score + low-gap row becomes suggested", {
+  fix <- build_auto_resolve_fixture()
+  result <- classify_auto_resolve(
+    fix$df,
+    fix$enrichment_cache,
+    fix$dtxsid_cols,
+    fix$column_tags
+  )
+
+  # Row 2: Silica vs Silica gel -> both high score, small gap -> suggested
+  expect_equal(result$consensus_status[2], "suggested")
+  expect_false(isTRUE(result$.pinned[2]))
+  expect_true(is.na(result$.resolution_method[2]))
+  expect_false(is.na(result$.suggested_column[2]))
+})
+
+test_that("classify_auto_resolve: low-score row stays disagree", {
+  # Input name with no resemblance to any candidate
+  df <- data.frame(
+    Chemical = c("XYZ Unknown Compound 9999"),
+    dtxsid_Chemical = c("DTXSID7021360"),
+    dtxsid_CAS = c("DTXSID1020001"),
+    preferredName_Chemical = c("Toluene"),
+    preferredName_CAS = c("Acetone"),
+    rank_Chemical = c(5L),
+    rank_CAS = c(5L),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  enrichment_cache <- tibble::tibble(
+    dtxsid = c("DTXSID7021360", "DTXSID1020001"),
+    synonyms = c("Methylbenzene|Toluene", NA_character_),
+    casrn = c(NA_character_, NA_character_),
+    molecular_formula = c(NA_character_, NA_character_),
+    molecular_weight = c(NA_real_, NA_real_)
+  )
+  column_tags <- list(Chemical = "Name")
+
+  result <- classify_auto_resolve(df, enrichment_cache, dtxsid_cols, column_tags)
+
+  expect_equal(result$consensus_status[1], "disagree")
+})
+
+test_that("classify_auto_resolve: score >= 0.95 but gap < 0.15 becomes suggested not auto_resolved", {
+  # Input "Silica", both candidates have "Silica" in synonyms -> both score near 1.0, gap < 0.15
+  df <- data.frame(
+    Chemical = c("Silica"),
+    dtxsid_Chemical = c("DTXSID5000001"),
+    dtxsid_CAS = c("DTXSID5000002"),
+    preferredName_Chemical = c("Silica"),
+    preferredName_CAS = c("Silica gel"),
+    rank_Chemical = c(5L),
+    rank_CAS = c(5L),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  enrichment_cache <- tibble::tibble(
+    dtxsid = c("DTXSID5000001", "DTXSID5000002"),
+    synonyms = c(
+      "Silica|Silicon Dioxide|Quartz", # "Silica" -> score 1.0 (before rank bonus)
+      "Silica gel|Silica|SiO2" # also contains "Silica" -> also near 1.0
+    ),
+    casrn = c(NA_character_, NA_character_),
+    molecular_formula = c(NA_character_, NA_character_),
+    molecular_weight = c(NA_real_, NA_real_)
+  )
+  column_tags <- list(Chemical = "Name")
+
+  result <- classify_auto_resolve(df, enrichment_cache, dtxsid_cols, column_tags)
+
+  # Both candidates score ~1.0 -> gap < 0.15 -> suggested, not auto_resolved
+  expect_equal(result$consensus_status[1], "suggested")
+  expect_false(isTRUE(result$.pinned[1]))
+})
+
+test_that("classify_auto_resolve: pinned disagree rows are skipped", {
+  fix <- build_auto_resolve_fixture()
+  # Pin row 1 before classification
+  fix$df$.pinned <- c(TRUE, FALSE)
+  result <- classify_auto_resolve(
+    fix$df,
+    fix$enrichment_cache,
+    fix$dtxsid_cols,
+    fix$column_tags
+  )
+
+  # Pinned row 1 must remain "disagree" (not reclassified)
+  expect_equal(result$consensus_status[1], "disagree")
+})
+
+test_that("classify_auto_resolve: non-disagree rows are skipped", {
+  df <- data.frame(
+    Chemical = c("Toluene", "Ethanol", "Silica"),
+    dtxsid_Chemical = c("DTXSID7021360", "DTXSID9020584", "DTXSID5000001"),
+    dtxsid_CAS = c("DTXSID7021360", NA_character_, "DTXSID9000001"),
+    preferredName_Chemical = c("Toluene", "Ethanol", "Silica"),
+    preferredName_CAS = c("Toluene", NA_character_, "Estradiol"),
+    rank_Chemical = c(1L, 1L, 5L),
+    rank_CAS = c(1L, NA_integer_, 5L),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+  # Row 1: agree, Row 2: single, Row 3: disagree
+
+  enrichment_cache <- tibble::tibble(
+    dtxsid = c("DTXSID5000001", "DTXSID9000001"),
+    synonyms = c("Silica gel|Silica|Quartz", NA_character_),
+    casrn = rep(NA_character_, 2),
+    molecular_formula = rep(NA_character_, 2),
+    molecular_weight = rep(NA_real_, 2)
+  )
+  column_tags <- list(Chemical = "Name")
+
+  result <- classify_auto_resolve(df, enrichment_cache, dtxsid_cols, column_tags)
+
+  expect_equal(result$consensus_status[1], "agree")
+  expect_equal(result$consensus_status[2], "single")
+  # Row 3 (disagree) may change, rows 1-2 must not
+})
+
+# ============================================================================
+# Test Group 18: accept_all_suggestions
+# ============================================================================
+
+test_that("accept_all_suggestions: resolves all suggested rows", {
+  fix <- build_auto_resolve_fixture()
+  classified <- classify_auto_resolve(
+    fix$df,
+    fix$enrichment_cache,
+    fix$dtxsid_cols,
+    fix$column_tags
+  )
+
+  # Get suggested rows before bulk-accept
+  suggested_before <- which(classified$consensus_status == "suggested")
+  expect_true(length(suggested_before) > 0)
+
+  result <- accept_all_suggestions(classified, fix$dtxsid_cols)
+
+  # All previously-suggested rows now pinned with bulk-accept method
+  for (i in suggested_before) {
+    expect_true(isTRUE(result$.pinned[i]))
+    expect_equal(result$.resolution_method[i], "bulk-accept")
+    expect_false(is.na(result$consensus_dtxsid[i]))
+  }
+})
+
+test_that("accept_all_suggestions: skips pinned rows", {
+  fix <- build_auto_resolve_fixture()
+  classified <- classify_auto_resolve(
+    fix$df,
+    fix$enrichment_cache,
+    fix$dtxsid_cols,
+    fix$column_tags
+  )
+
+  # Manually pin the suggested row before bulk-accept
+  suggested_idx <- which(classified$consensus_status == "suggested")
+  if (length(suggested_idx) > 0) {
+    orig_dtxsid <- classified$consensus_dtxsid[suggested_idx[1]]
+    classified$.pinned[suggested_idx[1]] <- TRUE
+    # Clear consensus_dtxsid to verify it stays unchanged
+    classified$consensus_dtxsid[suggested_idx[1]] <- NA_character_
+
+    result <- accept_all_suggestions(classified, fix$dtxsid_cols)
+
+    # Pre-pinned row should not have been resolved (consensus_dtxsid still NA)
+    expect_true(is.na(result$consensus_dtxsid[suggested_idx[1]]))
+    # resolution_method should NOT be "bulk-accept" (row was skipped)
+    expect_false(isTRUE(result$.resolution_method[suggested_idx[1]] == "bulk-accept"))
+  }
+})
+
+# ============================================================================
+# Test Group 19: resolve_row with auto_resolved / suggested statuses
+# ============================================================================
+
+test_that("resolve_row: accepts auto_resolved status for override", {
+  df <- data.frame(
+    Chemical = c("Silica"),
+    dtxsid_Chemical = c("DTXSID5000001"),
+    dtxsid_CAS = c("DTXSID9000001"),
+    preferredName_Chemical = c("Silica"),
+    preferredName_CAS = c("Estradiol"),
+    rank_Chemical = c(5L),
+    rank_CAS = c(5L),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+  df$consensus_status[1] <- "auto_resolved"
+  df$consensus_dtxsid[1] <- "DTXSID5000001"
+  df$.pinned <- FALSE
+
+  # Override the auto-resolved row with a manual pick
+  result <- resolve_row(df, 1L, "dtxsid_CAS", dtxsid_cols)
+
+  expect_equal(result$.resolution_method[1], "manual")
+  expect_equal(result$consensus_dtxsid[1], "DTXSID9000001")
+  expect_true(isTRUE(result$.pinned[1]))
+})
+
+test_that("resolve_row: accepts suggested status for manual pick", {
+  df <- data.frame(
+    Chemical = c("Silica"),
+    dtxsid_Chemical = c("DTXSID5000001"),
+    dtxsid_CAS = c("DTXSID9000001"),
+    preferredName_Chemical = c("Silica"),
+    preferredName_CAS = c("Estradiol"),
+    rank_Chemical = c(5L),
+    rank_CAS = c(5L),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+  df$consensus_status[1] <- "suggested"
+  df$.pinned <- FALSE
+
+  result <- resolve_row(df, 1L, "dtxsid_Chemical", dtxsid_cols)
+
+  expect_equal(result$.resolution_method[1], "manual")
+  expect_equal(result$consensus_dtxsid[1], "DTXSID5000001")
+  expect_true(isTRUE(result$.pinned[1]))
+})
+
+# ============================================================================
+# Test Group 20: get_resolution_options with auto_resolved / suggested statuses
+# ============================================================================
+
+test_that("get_resolution_options: returns candidates for auto_resolved rows", {
+  df <- data.frame(
+    Chemical = c("Silica"),
+    dtxsid_Chemical = c("DTXSID5000001"),
+    dtxsid_CAS = c("DTXSID9000001"),
+    preferredName_Chemical = c("Silica"),
+    preferredName_CAS = c("Estradiol"),
+    rank_Chemical = c(1L),
+    rank_CAS = c(5L),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+  df$consensus_status[1] <- "auto_resolved"
+
+  options <- get_resolution_options(df, 1L, dtxsid_cols)
+
+  expect_true(length(options) > 0)
+  # Should include both dtxsid columns with non-NA values
+  expect_true("dtxsid_Chemical" %in% names(options))
+  expect_true("dtxsid_CAS" %in% names(options))
+})
+
+test_that("get_resolution_options: returns candidates for suggested rows", {
+  df <- data.frame(
+    Chemical = c("Silica"),
+    dtxsid_Chemical = c("DTXSID5000001"),
+    dtxsid_CAS = c("DTXSID9000001"),
+    preferredName_Chemical = c("Silica"),
+    preferredName_CAS = c("Estradiol"),
+    rank_Chemical = c(1L),
+    rank_CAS = c(5L),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+  df$consensus_status[1] <- "suggested"
+
+  options <- get_resolution_options(df, 1L, dtxsid_cols)
+
+  expect_true(length(options) > 0)
+  expect_true("dtxsid_Chemical" %in% names(options))
+  expect_true("dtxsid_CAS" %in% names(options))
+})
