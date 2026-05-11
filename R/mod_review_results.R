@@ -5,7 +5,7 @@
 recalc_consensus_summary <- function(df) {
   list(
     n_agree = sum(df$consensus_status == "agree", na.rm = TRUE),
-    n_disagree = sum(df$consensus_status == "disagree" & !isTRUE(df$.pinned), na.rm = TRUE),
+    n_disagree = sum(df$consensus_status == "disagree" & !(!is.na(df$.pinned) & df$.pinned), na.rm = TRUE),
     n_agree_caveat = sum(df$consensus_status == "agree_caveat", na.rm = TRUE),
     n_single = sum(df$consensus_status == "single", na.rm = TRUE),
     n_error = sum(df$consensus_status == "error", na.rm = TRUE),
@@ -1752,9 +1752,9 @@ mod_review_results_server <- function(id, data_store) {
       tryCatch(
         {
           # Count disagree rows before
+          pinned_before <- !is.na(data_store$resolution_state$.pinned) & data_store$resolution_state$.pinned
           before_count <- sum(
-            data_store$resolution_state$consensus_status == "disagree" &
-              !isTRUE(data_store$resolution_state$.pinned),
+            data_store$resolution_state$consensus_status == "disagree" & !pinned_before,
             na.rm = TRUE
           )
 
@@ -1769,9 +1769,9 @@ mod_review_results_server <- function(id, data_store) {
           data_store$resolution_state <- updated_df
 
           # Count disagree rows after
+          pinned_after <- !is.na(updated_df$.pinned) & updated_df$.pinned
           after_count <- sum(
-            updated_df$consensus_status == "disagree" &
-              !isTRUE(updated_df$.pinned),
+            updated_df$consensus_status == "disagree" & !pinned_after,
             na.rm = TRUE
           )
 
