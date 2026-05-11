@@ -46,7 +46,7 @@ detect_data_start_heuristic <- function(df, min_filled_ratio = 0.7, min_cols = 3
     dplyr::filter(
       filled_cells >= min_cols,
       fill_ratio >= min_filled_ratio,
-      unique_ratio > 0.3  # Avoid rows with all same values
+      unique_ratio > 0.3 # Avoid rows with all same values
     )
 
   if (nrow(candidate_rows) == 0) {
@@ -55,7 +55,9 @@ detect_data_start_heuristic <- function(df, min_filled_ratio = 0.7, min_cols = 3
       dplyr::slice_max(fill_ratio, n = 1) %>%
       dplyr::pull(row_num)
 
-    if (length(best_row) == 0) best_row <- 1
+    if (length(best_row) == 0) {
+      best_row <- 1
+    }
 
     return(list(
       header_row = best_row,
@@ -98,7 +100,7 @@ detect_data_start_heuristic <- function(df, min_filled_ratio = 0.7, min_cols = 3
 
   return(list(
     header_row = header_row,
-    data_start_row = if (header_row == data_start) data_start else data_start,
+    data_start_row = header_row + 1L,
     metadata_rows = if (header_row > 1) seq_len(header_row - 1) else integer(0),
     method = "heuristic",
     confidence = confidence
@@ -124,15 +126,46 @@ detect_pattern_based <- function(df) {
   # Common header keywords (case-insensitive) - Chemistry focused
   header_indicators <- c(
     # General
-    "name", "id", "date", "type", "value", "code",
-    "description", "amount", "status", "category", "number",
+    "name",
+    "id",
+    "date",
+    "type",
+    "value",
+    "code",
+    "description",
+    "amount",
+    "status",
+    "category",
+    "number",
     # Chemistry specific
-    "chemical", "cas", "formula", "molecular", "structure",
-    "compound", "substance", "reagent", "solvent",
-    "hazard", "safety", "ghs", "sds", "msds",
-    "quantity", "qty", "mass", "volume", "concentration",
-    "purity", "grade", "supplier", "manufacturer",
-    "storage", "location", "expiry", "batch", "lot"
+    "chemical",
+    "cas",
+    "formula",
+    "molecular",
+    "structure",
+    "compound",
+    "substance",
+    "reagent",
+    "solvent",
+    "hazard",
+    "safety",
+    "ghs",
+    "sds",
+    "msds",
+    "quantity",
+    "qty",
+    "mass",
+    "volume",
+    "concentration",
+    "purity",
+    "grade",
+    "supplier",
+    "manufacturer",
+    "storage",
+    "location",
+    "expiry",
+    "batch",
+    "lot"
   )
 
   # Score each row based on keyword matches
@@ -218,7 +251,7 @@ detect_by_type_consistency <- function(df, scan_rows = 50) {
       col_data_clean <- col_data[!is.na(col_data)]
 
       if (length(col_data_clean) < 2) {
-        return(0.5)  # Neutral score for columns with too few values
+        return(0.5) # Neutral score for columns with too few values
       }
 
       # Check if column appears to be numeric
@@ -346,23 +379,15 @@ extract_clean_data <- function(raw_df, detection) {
     col_names <- as.character(raw_df[header_row, ])
 
     # Handle empty or NA column names
-    col_names <- ifelse(is.na(col_names) | col_names == "",
-                        paste0("Column_", seq_along(col_names)),
-                        col_names)
+    col_names <- ifelse(is.na(col_names) | col_names == "", paste0("Column_", seq_along(col_names)), col_names)
   } else {
     col_names <- names(raw_df)
   }
 
   # Extract data rows
   if (data_start_row <= nrow(raw_df)) {
-    if (header_row == data_start_row) {
-      # No separate header row, use existing column names
-      clean_data <- raw_df
-    } else {
-      # Extract data starting from data_start_row
-      clean_data <- raw_df[data_start_row:nrow(raw_df), , drop = FALSE]
-      names(clean_data) <- col_names
-    }
+    clean_data <- raw_df[data_start_row:nrow(raw_df), , drop = FALSE]
+    names(clean_data) <- col_names
   } else {
     # No data rows, return empty tibble with column names
     clean_data <- tibble::tibble()
