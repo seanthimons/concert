@@ -138,7 +138,7 @@ Plans:
 **Plans**: 3 plans
 Plans:
 - [x] 50-01-PLAN.md -- Backend classification and resolution functions (classify_auto_resolve, accept_all_suggestions, extended consensus functions + tests)
-- [ ] 50-02-PLAN.md -- Pipeline wiring and UI integration (status chips, modal suggestion highlight, bulk accept, value boxes)
+- [x] 50-02-PLAN.md -- Pipeline wiring and UI integration (status chips, modal suggestion highlight, bulk accept, value boxes)
 - [ ] 50-03-PLAN.md -- Export extensions and smoke test (resolution audit columns, summary counts, cold boot verification)
 **UI hint**: yes
 
@@ -200,6 +200,6 @@ Plans:
 | 47. Pipeline Reordering, Threshold Control & Starts-With Toggle | v2.2 | 2/2 | Complete | 2026-05-07 |
 | 48. WQX Resolution UI | v2.2 | 5/5 | Complete | 2026-05-08 |
 | 49. Conflict Scoring Engine | v2.3 | 2/2 | Complete    | 2026-05-08 |
-| 50. Auto-Resolve & Suggest | v2.3 | 1/3 | In Progress|  |
+| 50. Auto-Resolve & Suggest | v2.3 | 2/3 | In Progress|  |
 | 51. Row Flagging | v2.3 | 0/? | Not started | - |
 | 52. Detection Threshold Wiring | v2.3 | 0/? | Not started | - |
