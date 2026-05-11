@@ -105,7 +105,7 @@
 **Milestone Goal:** Improve curation pipeline accuracy with automated conflict scoring, explicit user flagging, and configurable detection sensitivity.
 
 - [x] **Phase 49: Conflict Scoring Engine** - Prototype and implement Jaro-Winkler-based similarity scoring for name-vs-CAS disagreements using CompTox synonym and rank data (completed 2026-05-08)
-- [ ] **Phase 50: Auto-Resolve & Suggest** - Consume scores to auto-resolve clear mismatches and surface a ranked best-match suggestion for ambiguous cases
+- [x] **Phase 50: Auto-Resolve & Suggest** - Consume scores to auto-resolve clear mismatches and surface a ranked best-match suggestion for ambiguous cases (completed 2026-05-11)
 - [ ] **Phase 51: Row Flagging** - Add BAD/FOLLOW-UP/VERIFIED flag labels to the resolution UI with batch flagging and export persistence
 - [ ] **Phase 52: Detection Threshold Wiring** - Wire threshold parameters through `detect_data_start()` and both call sites in `mod_file_upload.R`
 
@@ -139,7 +139,7 @@ Plans:
 Plans:
 - [x] 50-01-PLAN.md -- Backend classification and resolution functions (classify_auto_resolve, accept_all_suggestions, extended consensus functions + tests)
 - [x] 50-02-PLAN.md -- Pipeline wiring and UI integration (status chips, modal suggestion highlight, bulk accept, value boxes)
-- [ ] 50-03-PLAN.md -- Export extensions and smoke test (resolution audit columns, summary counts, cold boot verification)
+- [x] 50-03-PLAN.md -- Export extensions and smoke test (resolution audit columns, summary counts, cold boot verification)
 **UI hint**: yes
 
 ### Phase 51: Row Flagging
@@ -200,6 +200,6 @@ Plans:
 | 47. Pipeline Reordering, Threshold Control & Starts-With Toggle | v2.2 | 2/2 | Complete | 2026-05-07 |
 | 48. WQX Resolution UI | v2.2 | 5/5 | Complete | 2026-05-08 |
 | 49. Conflict Scoring Engine | v2.3 | 2/2 | Complete    | 2026-05-08 |
-| 50. Auto-Resolve & Suggest | v2.3 | 2/3 | In Progress|  |
+| 50. Auto-Resolve & Suggest | v2.3 | 3/3 | Complete   | 2026-05-11 |
 | 51. Row Flagging | v2.3 | 0/? | Not started | - |
 | 52. Detection Threshold Wiring | v2.3 | 0/? | Not started | - |
