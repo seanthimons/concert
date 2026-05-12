@@ -219,11 +219,35 @@ dedup_step <- function(step_fn, df, ..., dedup_cols, uniqueness_threshold = 0.5)
   # Run step on unique slice only
   result <- step_fn(df_unique, ...)
 
-  # Remap cleaned_data: for each parent row, copy the cleaned values from its
-  # corresponding unique-slice position (vectorized via match)
+  # Row-expanding step guard: if the step changed the row count (e.g.,
+
+  # expand_isotope_shortcodes), dedup can't safely broadcast back — fall through
+  # to running the step on the full dataframe instead.
+  if (nrow(result$cleaned_data) != nrow(df_unique)) {
+    return(step_fn(df, ...))
+  }
+
+  # Remap cleaned_data: broadcast only the columns that the step actually changed
+  # or added back into the original df, preserving all non-key columns (state,
+  # value, unit, etc.) per original parent row.
   key_to_unique_idx <- match(key_vec, unique_keys)
-  df_remapped <- result$cleaned_data[key_to_unique_idx, , drop = FALSE]
-  rownames(df_remapped) <- NULL
+
+  orig_col_names <- names(df_unique)
+  result_col_names <- names(result$cleaned_data)
+  new_cols <- setdiff(result_col_names, orig_col_names)
+
+  changed_cols <- Filter(
+    function(col) !identical(df_unique[[col]], result$cleaned_data[[col]]),
+    intersect(orig_col_names, result_col_names)
+  )
+
+  cols_to_broadcast <- union(changed_cols, new_cols)
+
+  df_remapped <- df
+
+  for (col in cols_to_broadcast) {
+    df_remapped[[col]] <- result$cleaned_data[[col]][key_to_unique_idx]
+  }
 
   # Remap audit trail: expand slice row IDs to all matching parent rows
   remapped_audit <- remap_audit_to_parent(result$audit_trail, parent_map)
@@ -359,7 +383,7 @@ precheck_normalize_cas <- function(df, tag_map) {
     est_changes <- est_changes + as.integer(sum(unformatted | placeholders | non_cas_format, na.rm = TRUE))
   }
   # Always recommend when CASRN columns are tagged (validation catches check digit errors)
-  has_cas_data <- any(vapply(cas_cols, function(col) any(!is.na(df[[col]])), logical(1)))
+  has_cas_data <- any(vapply(cas_cols, function(col) !all(is.na(df[[col]])), logical(1)))
   list(should_run = has_cas_data, est_changes = est_changes)
 }
 
@@ -580,7 +604,7 @@ precheck_harmonize_media <- function(df, media_cols, media_map = NULL) {
 #' @export
 inject_row_lineage <- function(df) {
   df %>%
-    dplyr::mutate(original_row_id = 1:nrow(df), .before = 1)
+    dplyr::mutate(original_row_id = seq_len(nrow(df)), .before = 1)
 }
 
 #' Normalize CAS fields using ComptoxR
@@ -733,7 +757,7 @@ rescue_cas_from_text <- function(df, tag_map) {
     }
 
     # Check if any non-NA values were extracted
-    if (any(!is.na(extracted_cas))) {
+    if (!all(is.na(extracted_cas))) {
       # Create new column name
       new_col_name <- paste0("cas_extract_", col_name)
 
@@ -1261,7 +1285,7 @@ strip_reference_terms <- function(df, name_cols, strip_terms_tbl) {
 
   # Filter to active terms
   active_terms <- strip_terms_tbl %>%
-    dplyr::filter(active == TRUE)
+    dplyr::filter(active)
 
   # Skip if no active terms
   if (nrow(active_terms) == 0) {
@@ -1438,7 +1462,7 @@ split_synonyms <- function(df, name_cols, tag_map) {
     # Pre-compute splits only for rows that might split
     split_indices <- which(might_split)
     split_results <- lapply(col_values[split_indices], split_one_name)
-    split_counts <- vapply(split_results, length, integer(1))
+    split_counts <- lengths(split_results)
 
     # Identify which rows actually split (>1 part)
     actually_splits <- split_counts > 1
@@ -1717,7 +1741,7 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
 
   # Filter to active entries only
   active_refs <- reference_list %>%
-    dplyr::filter(active == TRUE)
+    dplyr::filter(active)
 
   # Skip if no active references
   if (nrow(active_refs) == 0) {
@@ -2621,6 +2645,7 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
 
   df_result <- df
   audit_rows <- list()
+  local_changed_idx <- integer(0)
 
   if (!"cleaning_flag" %in% names(df_result)) {
     df_result$cleaning_flag <- NA_character_
@@ -2751,7 +2776,7 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
     changed_mask <- eligible & (vals != original_vals)
     if (any(changed_mask)) {
       changed_idx <- which(changed_mask)
-      # Determine reason per row (shortcode vs normalization)
+      local_changed_idx <- union(local_changed_idx, changed_idx)
       reasons <- ifelse(
         original_vals[changed_idx] != vals[changed_idx] &
           grepl("[a-z]\\d", original_vals[changed_idx], ignore.case = TRUE),
@@ -2759,8 +2784,11 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
         paste0("Isotope form normalized in ", col_name)
       )
 
-      # Use original_row_id if available (post-synonym-split dataframes have expanded rows)
-      rids <- if ("original_row_id" %in% names(df_result)) df_result$original_row_id[changed_idx] else changed_idx
+      rids <- if ("original_row_id" %in% names(df_result)) {
+        df_result$original_row_id[changed_idx]
+      } else {
+        changed_idx
+      }
       audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
         row_id = as.integer(rids),
         field = col_name,
@@ -2775,11 +2803,7 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
   audit_trail <- if (length(audit_rows) == 0) empty_audit else dplyr::bind_rows(audit_rows)
 
   # ---- Flag isotope-matched rows and populate isotope_dtxsid ----
-  if (nrow(audit_trail) > 0) {
-    # Rows that were changed by isotope expansion (any column)
-    changed_rows <- unique(audit_trail$row_id)
-
-    # Build canonical->dtxsid map from the lookup (only entries with non-NA DTXSID)
+  if (length(local_changed_idx) > 0) {
     if ("dtxsid" %in% names(lookup)) {
       dtxsid_map <- stats::setNames(lookup$dtxsid, lookup$canonical)
       dtxsid_map <- dtxsid_map[!is.na(dtxsid_map)]
@@ -2787,13 +2811,11 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
       dtxsid_map <- character(0)
     }
 
-    # Initialize isotope_dtxsid column if needed
     if (!"isotope_dtxsid" %in% names(df_result)) {
       df_result$isotope_dtxsid <- NA_character_
     }
 
-    for (ridx in changed_rows) {
-      # Set cleaning_flag
+    for (ridx in local_changed_idx) {
       existing_flag <- df_result$cleaning_flag[ridx]
       df_result$cleaning_flag[ridx] <- if (is.na(existing_flag)) {
         "isotope_match"
@@ -2801,7 +2823,6 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
         paste0(existing_flag, "; isotope_match")
       }
 
-      # Try to resolve DTXSID from expanded canonical name
       if (length(dtxsid_map) > 0) {
         for (col_name in name_cols) {
           if (!col_name %in% names(df_result)) {
