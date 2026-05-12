@@ -1,6 +1,6 @@
-beans:
+﻿beans:
     path: .beans
-    prefix: chemreg-
+    prefix: concert-
     id_length: 4
     default_status: todo
     default_type: task

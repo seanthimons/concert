@@ -1,11 +1,11 @@
 # curate_dataset.R
 # Portable cleaning + curation + harmonization script
 #
-# Sources ChemReg's pure-logic files to get the full pipeline.
+# Sources CONCERT's pure-logic files to get the full pipeline.
 # No Shiny dependency — runs in any R session.
 #
 # Usage:
-#   1. Set CHEMREG_ROOT to wherever you cloned/copied chemreg
+#   1. Set CONCERT_ROOT to wherever you cloned/copied concert
 #   2. Define your tag_map (which columns are Name, CASRN, Other)
 #   3. Load your dataframe as `raw_df`
 #   4. Fill in manual annotations in Section 5
@@ -23,14 +23,14 @@ library(tibble)
 library(purrr)
 library(ComptoxR)
 
-# -- Path to chemreg repo (adjust for your machine) --
-CHEMREG_ROOT <- here::here()  # works if you're inside the repo; otherwise hardcode
+# -- Path to concert repo (adjust for your machine) --
+CONCERT_ROOT <- here::here()  # works if you're inside the repo; otherwise hardcode
 
 # Source the 4 pure-logic files
-source(file.path(CHEMREG_ROOT, "R", "cleaning_pipeline.R"))
-source(file.path(CHEMREG_ROOT, "R", "cleaning_reference.R"))
-source(file.path(CHEMREG_ROOT, "R", "curation.R"))
-source(file.path(CHEMREG_ROOT, "R", "consensus.R"))
+source(file.path(CONCERT_ROOT, "R", "cleaning_pipeline.R"))
+source(file.path(CONCERT_ROOT, "R", "cleaning_reference.R"))
+source(file.path(CONCERT_ROOT, "R", "curation.R"))
+source(file.path(CONCERT_ROOT, "R", "consensus.R"))
 
 # ============================================================================
 # 1. INPUT DATA
@@ -78,7 +78,7 @@ message("=== CLEANING ===")
 # Load reference lists (stop words, block patterns, strip terms)
 # Uses disk cache in data/reference_cache/ — created on first run
 ref_lists <- load_all_reference_lists(
-  cache_dir = file.path(CHEMREG_ROOT, "data", "reference_cache")
+  cache_dir = file.path(CONCERT_ROOT, "data", "reference_cache")
 )
 
 # Run the full 19-step cleaning pipeline

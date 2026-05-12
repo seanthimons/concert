@@ -176,10 +176,10 @@ test_that("QC metric handles missing consensus_dtxsid column", {
 # --- load_corrections integration test ---
 
 test_that("load_corrections returns correct tibble structure", {
-  cache_dir <- system.file("extdata", "reference_cache", package = "chemreg")
-  skip_if(cache_dir == "", message = "chemreg not installed as package")
+  cache_dir <- system.file("extdata", "reference_cache", package = "concert")
+  skip_if(cache_dir == "", message = "concert not installed as package")
   skip_if_not(exists("load_corrections"),
-              message = "load_corrections not exported from installed chemreg package")
+              message = "load_corrections not exported from installed concert package")
   result <- load_corrections(cache_dir)
   expect_s3_class(result, "tbl_df")
   expect_equal(names(result), c("pattern", "replacement"))

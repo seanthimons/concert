@@ -531,7 +531,7 @@ observeEvent(input$rerun_qc, {
 
 ### Primary (HIGH confidence)
 - ComptoxR package (installed and verified): clean_unicode() function with 157-entry unicode_map
-- ChemReg codebase: R/cleaning_pipeline.R (lines 28-32, 98), R/modules/mod_clean_data.R (line 98), R/modules/mod_review_results.R (value box pattern, DT formatting)
+- CONCERT codebase: R/cleaning_pipeline.R (lines 28-32, 98), R/modules/mod_clean_data.R (line 98), R/modules/mod_review_results.R (value box pattern, DT formatting)
 - Phase 11 implementation: ComptoxR::as_cas() usage pattern (R/cleaning_pipeline.R:164)
 - Phase 13 implementation: BLOCK/WARN flag taxonomy and DT conditional formatting (R/modules/mod_clean_data.R:700-714)
 - Phase 14 implementation: Multi-sheet export pattern (R/export_helpers.R)

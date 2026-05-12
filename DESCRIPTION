@@ -1,11 +1,12 @@
-Package: chemreg
-Title: Chemical Inventory Upload, Cleaning, and Curation
+Package: concert
+Title: Chemical Ontology and Nomenclature Crosswalk Tools
 Version: 0.1.0
 Authors@R: person("Sean", "Thimons",
     email = "thimons.sean@gmail.com",
     role = c("aut", "cre"))
-Description: Upload, clean, and validate chemical inventory data with
-    intelligent frontmatter detection and CompTox API curation.
+Description: Upload, clean, validate, and translate chemical regulatory and
+    benchmark datasets with intelligent frontmatter detection, identifier
+    curation, unit harmonization, and ToxVal-compatible exports.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

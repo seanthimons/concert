@@ -43,6 +43,6 @@ or NULL (default). When NULL, Sheet 8 contains a placeholder note row.}
 Named list of 8 data frames with sheet names as keys
 }
 \description{
-Converts ChemReg pipeline state into a named list of 8 data frames ready
+Converts CONCERT pipeline state into a named list of 8 data frames ready
 for Excel export via writexl::write_xlsx().
 }

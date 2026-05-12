@@ -19,11 +19,11 @@ library(dplyr)
 library(bench)
 library(readr)
 
-CHEMREG_ROOT <- here::here()
+CONCERT_ROOT <- here::here()
 
-source(file.path(CHEMREG_ROOT, "R", "cleaning_pipeline.R"))
-source(file.path(CHEMREG_ROOT, "R", "cleaning_reference.R"))
-source(file.path(CHEMREG_ROOT, "R", "unit_harmonizer.R"))
+source(file.path(CONCERT_ROOT, "R", "cleaning_pipeline.R"))
+source(file.path(CONCERT_ROOT, "R", "cleaning_reference.R"))
+source(file.path(CONCERT_ROOT, "R", "unit_harmonizer.R"))
 
 stopifnot(
   "bench package is required -- run: pak::pak('bench')" = requireNamespace("bench", quietly = TRUE),
@@ -36,7 +36,7 @@ stopifnot(
 # 1. INPUT DATA
 # ============================================================================
 
-bench_dir <- file.path(CHEMREG_ROOT, "data", "benchmark")
+bench_dir <- file.path(CONCERT_ROOT, "data", "benchmark")
 dir.create(bench_dir, showWarnings = FALSE, recursive = TRUE)
 
 bench_file <- file.path(bench_dir, "detections.csv")
@@ -78,7 +78,7 @@ message(sprintf(
 # Load reference lists (includes unit_map at ref_lists$unit_map)
 ref_lists <- tryCatch(
   load_all_reference_lists(
-    cache_dir = file.path(CHEMREG_ROOT, "inst", "extdata")
+    cache_dir = file.path(CONCERT_ROOT, "inst", "extdata")
   ),
   error = function(e) {
     message("  Warning: reference lists not available, using NULL -- ", conditionMessage(e))
@@ -194,7 +194,7 @@ unit_map <- if (!is.null(ref_lists) && !is.null(ref_lists$unit_map)) {
 } else {
   tryCatch(
     {
-      load_unit_map(file.path(CHEMREG_ROOT, "inst", "extdata"))
+      load_unit_map(file.path(CONCERT_ROOT, "inst", "extdata"))
     },
     error = function(e) {
       message("  Warning: unit_map not available; skipping harmonization benchmark")
@@ -352,7 +352,7 @@ bench_version <- tryCatch(
 )
 
 md_lines <- c(
-  "# Benchmark Results: ChemReg Pipeline",
+  "# Benchmark Results: CONCERT Pipeline",
   "",
   sprintf("_Generated: %s_", run_date),
   sprintf("_R version: %s | bench version: %s_", r_version, bench_version),
@@ -427,7 +427,7 @@ md_lines <- c(
   ""
 )
 
-docs_dir <- file.path(CHEMREG_ROOT, "docs")
+docs_dir <- file.path(CONCERT_ROOT, "docs")
 dir.create(docs_dir, showWarnings = FALSE, recursive = TRUE)
 writeLines(md_lines, file.path(docs_dir, "benchmark_results.md"))
 message("  Markdown summary written to docs/benchmark_results.md")

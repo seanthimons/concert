@@ -1,8 +1,8 @@
-# ChemReg Shiny Data Upload & Preview Application
+# CONCERT Shiny Data Upload & Preview Application
 # Upload CSV/XLSX files with intelligent frontmatter detection
 
 # Load Shiny UI packages (required for DSL-style UI code)
-# Other packages come from chemreg namespace via Imports
+# Other packages come from concert namespace via Imports
 library(shiny)
 library(bslib)
 library(bsicons)
@@ -12,8 +12,8 @@ library(shinyjs)
 
 # Load reference lists (cached locally for fast startup)
 # Uses system.file() for installed package access
-reference_lists <- chemreg::load_all_reference_lists(
-  system.file("extdata", "reference_cache", package = "chemreg")
+reference_lists <- concert::load_all_reference_lists(
+  system.file("extdata", "reference_cache", package = "concert")
 )
 
 # Application configuration
@@ -49,13 +49,13 @@ ui <- page_sidebar(
   ),
 
   # Title
-  title = "ChemReg Data Upload & Preview",
+  title = "CONCERT Data Upload & Preview",
 
   # Sidebar — delegated to upload module
   sidebar = sidebar(
     id = "main_sidebar",
     width = 300,
-    chemreg::mod_file_upload_ui("upload"),
+    concert::mod_file_upload_ui("upload"),
     hr(),
     h6("Import Configuration", class = "text-muted"),
     fileInput(
@@ -63,9 +63,9 @@ ui <- page_sidebar(
       label = NULL,
       accept = ".xlsx",
       buttonLabel = "Browse...",
-      placeholder = "ChemReg export (.xlsx)"
+      placeholder = "CONCERT export (.xlsx)"
     ),
-    helpText("Optional: restore reference lists from a previous ChemReg export", class = "small")
+    helpText("Optional: restore reference lists from a previous CONCERT export", class = "small")
   ),
 
   # Main Content — module UIs in tabs
@@ -75,44 +75,44 @@ ui <- page_sidebar(
       "Data Preview",
       value = "data_preview",
       icon = bsicons::bs_icon("table"),
-      chemreg::mod_data_preview_ui("preview")
+      concert::mod_data_preview_ui("preview")
     ),
     nav_panel(
       "Detection Info",
       value = "detection_info",
       icon = bsicons::bs_icon("search"),
-      chemreg::mod_detection_info_ui("detection")
+      concert::mod_detection_info_ui("detection")
     ),
-    nav_panel("Raw Data", value = "raw_data", icon = bsicons::bs_icon("file-text"), chemreg::mod_raw_data_ui("raw")),
+    nav_panel("Raw Data", value = "raw_data", icon = bsicons::bs_icon("file-text"), concert::mod_raw_data_ui("raw")),
     nav_panel(
       "Tag Columns",
       value = "tag_columns",
       icon = bsicons::bs_icon("tags"),
-      chemreg::mod_tag_columns_ui("tags")
+      concert::mod_tag_columns_ui("tags")
     ),
     nav_panel(
       "Clean Data",
       value = "clean_data",
       icon = bsicons::bs_icon("magic"),
-      chemreg::mod_clean_data_ui("cleaning")
+      concert::mod_clean_data_ui("cleaning")
     ),
     nav_panel(
       "Run Curation",
       value = "run_curation_tab",
       icon = bsicons::bs_icon("play-circle"),
-      chemreg::mod_run_curation_ui("curation")
+      concert::mod_run_curation_ui("curation")
     ),
     nav_panel(
       "Harmonize",
       value = "harmonize_tab",
       icon = bsicons::bs_icon("sliders"),
-      chemreg::mod_harmonize_ui("harmonize")
+      concert::mod_harmonize_ui("harmonize")
     ),
     nav_panel(
       "Review Results",
       value = "review_results",
       icon = bsicons::bs_icon("clipboard-check"),
-      chemreg::mod_review_results_ui("results")
+      concert::mod_review_results_ui("results")
     )
   )
 )
@@ -175,11 +175,11 @@ server <- function(input, output, session) {
     shiny::req(input$config_import)
 
     # Parse the uploaded file
-    parsed <- chemreg::parse_chemreg_export(input$config_import$datapath)
+    parsed <- concert::parse_concert_export(input$config_import$datapath)
 
     if (is.null(parsed)) {
       shiny::showNotification(
-        "Not a valid ChemReg export file. Upload a file exported from ChemReg with Pipeline Config sheet.",
+        "Not a valid CONCERT export file. Upload a file exported from CONCERT with Pipeline Config sheet.",
         type = "warning",
         duration = 5
       )
@@ -191,8 +191,8 @@ server <- function(input, output, session) {
 
     # Show confirmation modal
     shiny::showModal(shiny::modalDialog(
-      title = "ChemReg Export Detected",
-      shiny::p("This file contains configuration data from a previous ChemReg session."),
+      title = "CONCERT Export Detected",
+      shiny::p("This file contains configuration data from a previous CONCERT session."),
       shiny::p("Select what you want to import:"),
       shiny::checkboxInput("restore_ref_lists", "Restore reference lists", value = TRUE),
       shiny::checkboxInput("restore_col_tags", "Restore column tags", value = TRUE),
@@ -221,7 +221,7 @@ server <- function(input, output, session) {
     if (restore_refs) {
       tryCatch(
         {
-          data_store$reference_lists <- chemreg::merge_reference_lists(
+          data_store$reference_lists <- concert::merge_reference_lists(
             data_store$reference_lists,
             imported_config()$reference_lists
           )
@@ -379,7 +379,7 @@ server <- function(input, output, session) {
     data_store$column_tags,
     {
       # Compare with previous state
-      if (chemreg::detect_tag_changes(data_store$prev_chemical_tags, data_store$column_tags)) {
+      if (concert::detect_tag_changes(data_store$prev_chemical_tags, data_store$column_tags)) {
         reset_chemical_downstream()
       }
       data_store$prev_chemical_tags <- data_store$column_tags
@@ -390,7 +390,7 @@ server <- function(input, output, session) {
   shiny::observeEvent(
     data_store$numeric_tags,
     {
-      if (chemreg::detect_tag_changes(data_store$prev_numeric_tags, data_store$numeric_tags)) {
+      if (concert::detect_tag_changes(data_store$prev_numeric_tags, data_store$numeric_tags)) {
         reset_numeric_downstream()
       }
       data_store$prev_numeric_tags <- data_store$numeric_tags
@@ -405,28 +405,28 @@ server <- function(input, output, session) {
   })
 
   # --- Initialize Modules ---
-  upload_result <- chemreg::mod_file_upload_server("upload", data_store, reset_all_downstream)
+  upload_result <- concert::mod_file_upload_server("upload", data_store, reset_all_downstream)
 
   preview_rows <- upload_result$preview_rows
-  chemreg::mod_data_preview_server("preview", data_store, preview_rows)
-  chemreg::mod_detection_info_server("detection", data_store)
-  chemreg::mod_raw_data_server("raw", data_store)
+  concert::mod_data_preview_server("preview", data_store, preview_rows)
+  concert::mod_detection_info_server("detection", data_store)
+  concert::mod_raw_data_server("raw", data_store)
 
-  chemreg::mod_clean_data_server("cleaning", data_store, on_cleaning_complete = function() {
+  concert::mod_clean_data_server("cleaning", data_store, on_cleaning_complete = function() {
     show_tab_with_pulse("run_curation_tab")
   })
 
-  chemreg::mod_tag_columns_server("tags", data_store, on_tags_applied = function() {
+  concert::mod_tag_columns_server("tags", data_store, on_tags_applied = function() {
     show_tab_with_pulse("clean_data")
     bslib::nav_hide("main_tabs", target = "run_curation_tab", session = session)
     bslib::nav_hide("main_tabs", target = "review_results", session = session)
   })
 
-  chemreg::mod_run_curation_server("curation", data_store, on_curation_complete = function() {
+  concert::mod_run_curation_server("curation", data_store, on_curation_complete = function() {
     show_tab_with_pulse("review_results")
 
     # Auto-run post-curation QC
-    qc_results <- chemreg::perform_unicode_qc(data_store$resolution_state)
+    qc_results <- concert::perform_unicode_qc(data_store$resolution_state)
     data_store$qc_results <- qc_results
     if (qc_results$rows_with_non_ascii > 0) {
       shiny::showNotification(
@@ -437,9 +437,9 @@ server <- function(input, output, session) {
     }
   })
 
-  chemreg::mod_harmonize_server("harmonize", data_store)
+  concert::mod_harmonize_server("harmonize", data_store)
 
-  chemreg::mod_review_results_server("results", data_store)
+  concert::mod_review_results_server("results", data_store)
 }
 
 # Run application

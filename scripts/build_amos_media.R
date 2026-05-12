@@ -19,7 +19,7 @@
 # 0. CONFIGURATION
 # ============================================================================
 
-CHEMREG_ROOT <- here::here()
+CONCERT_ROOT <- here::here()
 
 stopifnot(
   "ComptoxR package is required" = requireNamespace("ComptoxR", quietly = TRUE),
@@ -29,7 +29,7 @@ stopifnot(
 )
 
 # Load curated ENVO subset built in Plan 01
-curated_path <- file.path(CHEMREG_ROOT, "inst", "extdata", "reference_cache", "amos_media.rds")
+curated_path <- file.path(CONCERT_ROOT, "inst", "extdata", "reference_cache", "amos_media.rds")
 stopifnot("Curated ENVO subset must exist (run Plan 01 first)" = file.exists(curated_path))
 
 curated_media <- readRDS(curated_path)
@@ -306,7 +306,7 @@ message(sprintf(
 # 6. WRITE CACHE + COVERAGE REPORT (AMOS-02)
 # ============================================================================
 
-cache_path <- file.path(CHEMREG_ROOT, "inst", "extdata", "reference_cache", "amos_media.rds")
+cache_path <- file.path(CONCERT_ROOT, "inst", "extdata", "reference_cache", "amos_media.rds")
 saveRDS(enriched_media, cache_path)
 message(sprintf("  Cache written: %s (%d term mappings)", basename(cache_path), nrow(enriched_media)))
 

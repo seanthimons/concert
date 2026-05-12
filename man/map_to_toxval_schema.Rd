@@ -37,7 +37,7 @@ Tibble with 56 ToxVal columns including:
 }
 }
 \description{
-Transforms ChemReg's curated and harmonized data into the 56-column
+Transforms CONCERT's curated and harmonized data into the 56-column
 ToxVal-compatible format with typed NAs and *_original audit columns.
 }
 \examples{

@@ -6,7 +6,7 @@
 
 ## Summary
 
-Multi-sheet Excel export/import for Shiny applications is a well-established pattern with mature tooling in the R ecosystem. The `writexl` package provides zero-dependency, fast Excel writing suitable for the existing ChemReg stack. Re-import requires parsing sheet names, detecting ChemReg exports via marker fields, and presenting user confirmation modals before state restoration.
+Multi-sheet Excel export/import for Shiny applications is a well-established pattern with mature tooling in the R ecosystem. The `writexl` package provides zero-dependency, fast Excel writing suitable for the existing CONCERT stack. Re-import requires parsing sheet names, detecting CONCERT exports via marker fields, and presenting user confirmation modals before state restoration.
 
 **Primary recommendation:** Extend the existing `writexl::write_xlsx()` call in `mod_review_results.R` from 3 sheets to 7 sheets, add a sidebar `fileInput()` for config import, and use `readxl::excel_sheets()` + `readxl::read_excel()` for selective sheet reading with `modalDialog()` confirmation.
 
@@ -26,14 +26,14 @@ Multi-sheet Excel export/import for Shiny applications is a well-established pat
   4. **Cleaning Audit** — full per-row audit trail (row_id, field, step, original_value, new_value, reason)
   5. **Reference Lists** — combined single sheet with `type` column (functional_category/stop_word/block_pattern) + term, source, active columns (matches Phase 13 CSV upload format)
   6. **Column Tags** — existing Sheet 3 (column name → tag type mapping)
-  7. **Pipeline Config** — app version, export timestamp, detection method, pipeline steps run, file info, `chemreg_export: true` marker
+  7. **Pipeline Config** — app version, export timestamp, detection method, pipeline steps run, file info, `concert_export: true` marker
 
 **Re-Import: Config Transfer to New Datasets**
 - Primary use case: carry reference lists and settings from a previous dataset to a NEW dataset (not session restore)
 - No session restore — user always re-runs cleaning/curation on the new data
 - Dedicated config import control in the **sidebar/upload area** (separate from main file upload)
-- On config import: read Pipeline Config sheet, detect `chemreg_export` marker, load reference lists and column tags
-- Confirmation modal with opt-out: "ChemReg export detected. Restore reference lists and column tags?" with checkboxes for each (default: restore all)
+- On config import: read Pipeline Config sheet, detect `concert_export` marker, load reference lists and column tags
+- Confirmation modal with opt-out: "CONCERT export detected. Restore reference lists and column tags?" with checkboxes for each (default: restore all)
 - Imported reference lists merge with existing (user additions tagged as source = `imported`)
 
 **Export Placement & Trigger**
@@ -57,7 +57,7 @@ Multi-sheet Excel export/import for Shiny applications is a well-established pat
 - Exact confirmation modal layout and wording
 - Pipeline Config sheet key-value format
 - Whether to add sheet tab colors or formatting (writexl limitations may constrain this)
-- Error handling for malformed ChemReg exports on import
+- Error handling for malformed CONCERT exports on import
 
 ### Deferred Ideas (OUT OF SCOPE)
 
@@ -71,8 +71,8 @@ None — discussion stayed within phase scope
 | ID | Description | Research Support |
 |----|-------------|-----------------|
 | EXPO-01 | User can export a multi-sheet Excel file containing curated data, cleaning audit trail, reference list state, and pipeline configuration | writexl supports multi-sheet export via named list; 7 sheets fits well within Excel limits; all required data available in data_store reactiveValues |
-| EXPO-02 | User can re-import a ChemReg export and see a confirmation modal offering to restore embedded reference lists and pipeline state | readxl can detect sheet names and read specific sheets; modalDialog() supports checkboxes for user choice; import logic can merge reference lists into data_store$reference_lists |
-| EXPO-03 | User can see the multi-sheet export serve as both a standalone audit document and a ChemReg re-entry point | Including Raw Data + Cleaning Audit + Pipeline Config sheets makes export self-documenting; chemreg_export marker in Pipeline Config enables detection; round-trip format matches Phase 13 CSV upload structure |
+| EXPO-02 | User can re-import a CONCERT export and see a confirmation modal offering to restore embedded reference lists and pipeline state | readxl can detect sheet names and read specific sheets; modalDialog() supports checkboxes for user choice; import logic can merge reference lists into data_store$reference_lists |
+| EXPO-03 | User can see the multi-sheet export serve as both a standalone audit document and a CONCERT re-entry point | Including Raw Data + Cleaning Audit + Pipeline Config sheets makes export self-documenting; concert_export marker in Pipeline Config enables detection; round-trip format matches Phase 13 CSV upload structure |
 
 </phase_requirements>
 
@@ -81,8 +81,8 @@ None — discussion stayed within phase scope
 ### Core
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
-| writexl | 1.5+ | Write multi-sheet Excel files | Zero dependencies, fast, portable across platforms; already in ChemReg dependencies |
-| readxl | 1.4+ | Read Excel files and detect sheet names | Tidyverse-aligned, handles XLSX/XLS formats; already in ChemReg dependencies |
+| writexl | 1.5+ | Write multi-sheet Excel files | Zero dependencies, fast, portable across platforms; already in CONCERT dependencies |
+| readxl | 1.4+ | Read Excel files and detect sheet names | Tidyverse-aligned, handles XLSX/XLS formats; already in CONCERT dependencies |
 | shiny | 1.9+ | Modal dialogs and file input | Core Shiny UI components for confirmation modals and file uploads |
 
 ### Supporting
@@ -94,13 +94,13 @@ None — discussion stayed within phase scope
 ### Alternatives Considered
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| writexl | openxlsx2 | openxlsx2 supports formatting/styling but adds Java dependency; ChemReg exports are data-centric audit documents, not formatted reports |
+| writexl | openxlsx2 | openxlsx2 supports formatting/styling but adds Java dependency; CONCERT exports are data-centric audit documents, not formatted reports |
 | readxl | rio::import_list() | rio can read all sheets at once but adds dependency and loads entire workbook into memory; selective sheet reading more efficient for config import |
 | modalDialog() | shinyWidgets::ask_confirmation() | ask_confirmation() provides richer UI but adds dependency; base Shiny modal sufficient for checkbox confirmation |
 
 **Installation:**
 ```bash
-# Already in ChemReg dependencies (no new packages needed)
+# Already in CONCERT dependencies (no new packages needed)
 # writexl, readxl, shiny, dplyr, tibble all present in load_packages.R
 ```
 
@@ -128,7 +128,7 @@ writexl::write_xlsx(
 **When to use:** Exporting multiple related tables that form a cohesive audit trail or analysis package
 **Example:**
 ```r
-# Source: writexl documentation + existing ChemReg mod_review_results.R:828
+# Source: writexl documentation + existing CONCERT mod_review_results.R:828
 output$download_curated <- downloadHandler(
   filename = function() {
     paste0(file_base, "_curated_", format(Sys.Date(), "%Y%m%d"), ".xlsx")
@@ -156,9 +156,9 @@ output$download_curated <- downloadHandler(
 
     # Pipeline config metadata
     config_df <- tibble::tibble(
-      key = c("chemreg_export", "app_version", "export_timestamp", "detection_method",
+      key = c("concert_export", "app_version", "export_timestamp", "detection_method",
               "file_name", "file_size", "pipeline_steps_run"),
-      value = c("true", packageVersion("ChemReg"), as.character(Sys.time()),
+      value = c("true", packageVersion("CONCERT"), as.character(Sys.time()),
                 data_store$detection$method, data_store$file_info$name,
                 data_store$file_info$size, paste(names(data_store$cleaning_audit$step), collapse = "|"))
     )
@@ -190,18 +190,18 @@ import_config <- function(file_path) {
   # Detect sheet names
   sheet_names <- readxl::excel_sheets(file_path)
 
-  # Check for Pipeline Config sheet (ChemReg export marker)
+  # Check for Pipeline Config sheet (CONCERT export marker)
   if (!("Pipeline Config" %in% sheet_names)) {
-    return(NULL)  # Not a ChemReg export
+    return(NULL)  # Not a CONCERT export
   }
 
   # Read Pipeline Config sheet
   config_df <- readxl::read_excel(file_path, sheet = "Pipeline Config")
 
-  # Check for chemreg_export marker
-  is_chemreg <- any(config_df$key == "chemreg_export" & config_df$value == "true")
+  # Check for concert_export marker
+  is_concert <- any(config_df$key == "concert_export" & config_df$value == "true")
 
-  if (!is_chemreg) {
+  if (!is_concert) {
     return(NULL)
   }
 
@@ -222,7 +222,7 @@ import_config <- function(file_path) {
 **When to use:** Operations that modify app state based on external data (imports, resets, cascades)
 **Example:**
 ```r
-# Source: Mastering Shiny Ch. 8 User Feedback + existing ChemReg re-upload pattern
+# Source: Mastering Shiny Ch. 8 User Feedback + existing CONCERT re-upload pattern
 observeEvent(input$config_upload, {
   req(input$config_upload)
 
@@ -230,14 +230,14 @@ observeEvent(input$config_upload, {
   config_data <- import_config(input$config_upload$datapath)
 
   if (is.null(config_data)) {
-    showNotification("Not a valid ChemReg export file", type = "error")
+    showNotification("Not a valid CONCERT export file", type = "error")
     return()
   }
 
   # Show confirmation modal with checkboxes
   showModal(modalDialog(
-    title = "ChemReg Export Detected",
-    p("This file contains reference lists and column tags from a previous ChemReg session."),
+    title = "CONCERT Export Detected",
+    p("This file contains reference lists and column tags from a previous CONCERT session."),
     p("Select what to restore:"),
     checkboxInput(NS(id, "restore_ref_lists"), "Restore reference lists", value = TRUE),
     checkboxInput(NS(id, "restore_col_tags"), "Restore column tags", value = TRUE),
@@ -355,17 +355,17 @@ content = function(file) {
 **How to avoid:** Use singular type values in export ("functional_category", "stop_word", "block_pattern") to match Phase 13 format; convert to plural keys only in data_store merge logic
 **Warning signs:** Import fails silently or creates new empty reference list instead of merging with existing
 
-### Pitfall 3: Missing chemreg_export Marker Detection
+### Pitfall 3: Missing concert_export Marker Detection
 **What goes wrong:** Regular Excel files uploaded to config import trigger errors instead of graceful rejection
-**Why it happens:** Assuming Pipeline Config sheet exists without checking for `chemreg_export: true` marker row
-**How to avoid:** Two-stage validation: (1) check if "Pipeline Config" sheet exists, (2) check if `chemreg_export` key has value `"true"` (as character, not logical)
-**Warning signs:** User uploads random Excel file and sees "Error in filter: object 'key' not found" instead of "Not a ChemReg export" message
+**Why it happens:** Assuming Pipeline Config sheet exists without checking for `concert_export: true` marker row
+**How to avoid:** Two-stage validation: (1) check if "Pipeline Config" sheet exists, (2) check if `concert_export` key has value `"true"` (as character, not logical)
+**Warning signs:** User uploads random Excel file and sees "Error in filter: object 'key' not found" instead of "Not a CONCERT export" message
 
 ### Pitfall 4: Raw Data Column Count Explosion
 **What goes wrong:** Raw data sheet hits 16,384 column limit due to merged cell artifacts or wide-format source files
 **Why it happens:** Some chemical inventory exports from LIMS systems have hundreds of metadata columns
 **How to avoid:** Validate `data_store$raw` column count before export; consider dropping empty columns with `janitor::remove_empty("cols")` before writing Raw Data sheet
-**Warning signs:** Export fails with "too many columns" error for files that loaded successfully into ChemReg
+**Warning signs:** Export fails with "too many columns" error for files that loaded successfully into CONCERT
 
 ### Pitfall 5: Audit Trail Sheet Size Underestimation
 **What goes wrong:** Cleaning audit trail exceeds 1M row limit for datasets with many synonym splits
@@ -381,11 +381,11 @@ content = function(file) {
 
 ## Code Examples
 
-Verified patterns from official sources and existing ChemReg codebase:
+Verified patterns from official sources and existing CONCERT codebase:
 
 ### Multi-Sheet Export (Extending mod_review_results.R:773-837)
 ```r
-# Source: Existing ChemReg mod_review_results.R + writexl documentation
+# Source: Existing CONCERT mod_review_results.R + writexl documentation
 output$download_curated <- downloadHandler(
   filename = function() {
     file_base <- if (!is.null(data_store$file_info)) {
@@ -464,7 +464,7 @@ output$download_curated <- downloadHandler(
     # NEW Sheet 7: Pipeline Config
     config_df <- tibble::tibble(
       key = c(
-        "chemreg_export",
+        "concert_export",
         "app_version",
         "export_timestamp",
         "detection_method",
@@ -475,7 +475,7 @@ output$download_curated <- downloadHandler(
       ),
       value = as.character(c(
         "true",
-        "1.3.0",  # Hardcode or use packageVersion() if ChemReg becomes package
+        "1.3.0",  # Hardcode or use packageVersion() if CONCERT becomes package
         format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
         data_store$detection$method %||% "unknown",
         data_store$detection$confidence %||% "unknown",
@@ -504,7 +504,7 @@ output$download_curated <- downloadHandler(
 
 ### Config Import with Modal Confirmation (app.R sidebar addition)
 ```r
-# Source: Mastering Shiny Ch. 8 + existing ChemReg re-upload pattern
+# Source: Mastering Shiny Ch. 8 + existing CONCERT re-upload pattern
 # Add to app.R sidebar after mod_file_upload_ui()
 
 # In UI sidebar definition:
@@ -518,7 +518,7 @@ sidebar = sidebar(
   h5("Import Configuration"),
   fileInput(
     "config_import",
-    "Upload ChemReg Export",
+    "Upload CONCERT Export",
     accept = ".xlsx",
     buttonLabel = "Browse...",
     placeholder = "Optional: restore previous settings"
@@ -532,7 +532,7 @@ imported_config <- reactiveVal(NULL)
 observeEvent(input$config_import, {
   req(input$config_import)
 
-  # Read uploaded file and detect ChemReg export
+  # Read uploaded file and detect CONCERT export
   tryCatch({
     file_path <- input$config_import$datapath
 
@@ -540,17 +540,17 @@ observeEvent(input$config_import, {
     sheet_names <- readxl::excel_sheets(file_path)
 
     if (!("Pipeline Config" %in% sheet_names)) {
-      showNotification("Not a ChemReg export (missing Pipeline Config sheet)", type = "warning")
+      showNotification("Not a CONCERT export (missing Pipeline Config sheet)", type = "warning")
       return()
     }
 
     # Read Pipeline Config and verify marker
     config_df <- readxl::read_excel(file_path, sheet = "Pipeline Config")
 
-    is_chemreg <- any(config_df$key == "chemreg_export" & config_df$value == "true")
+    is_concert <- any(config_df$key == "concert_export" & config_df$value == "true")
 
-    if (!is_chemreg) {
-      showNotification("Not a ChemReg export (missing chemreg_export marker)", type = "warning")
+    if (!is_concert) {
+      showNotification("Not a CONCERT export (missing concert_export marker)", type = "warning")
       return()
     }
 
@@ -567,8 +567,8 @@ observeEvent(input$config_import, {
 
     # Show confirmation modal
     showModal(modalDialog(
-      title = "ChemReg Export Detected",
-      p("This file contains reference lists and column tags from a previous ChemReg session."),
+      title = "CONCERT Export Detected",
+      p("This file contains reference lists and column tags from a previous CONCERT session."),
       p("Select what to restore:"),
       checkboxInput("restore_ref_lists", "Restore reference lists", value = TRUE),
       checkboxInput("restore_col_tags", "Restore column tags", value = TRUE),
@@ -713,8 +713,8 @@ validate_excel_size <- function(df, sheet_name = "Sheet") {
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|-------------|
 | EXPO-01 | Multi-sheet Excel file written with 7 sheets containing correct data | unit | `Rscript -e "testthat::test_file('tests/test_export_import.R', filter = 'multi-sheet export')"` | ❌ Wave 0 |
-| EXPO-02 | ChemReg export detected on import, modal shown, reference lists merged correctly | unit | `Rscript -e "testthat::test_file('tests/test_export_import.R', filter = 'config import')"` | ❌ Wave 0 |
-| EXPO-03 | Export includes Raw Data, Cleaning Audit, Pipeline Config sheets with chemreg_export marker | unit | `Rscript -e "testthat::test_file('tests/test_export_import.R', filter = 'audit document')"` | ❌ Wave 0 |
+| EXPO-02 | CONCERT export detected on import, modal shown, reference lists merged correctly | unit | `Rscript -e "testthat::test_file('tests/test_export_import.R', filter = 'config import')"` | ❌ Wave 0 |
+| EXPO-03 | Export includes Raw Data, Cleaning Audit, Pipeline Config sheets with concert_export marker | unit | `Rscript -e "testthat::test_file('tests/test_export_import.R', filter = 'audit document')"` | ❌ Wave 0 |
 
 ### Sampling Rate
 - **Per task commit:** `Rscript -e "testthat::test_file('tests/test_export_import.R')"`
@@ -724,9 +724,9 @@ validate_excel_size <- function(df, sheet_name = "Sheet") {
 ### Wave 0 Gaps
 - [ ] `tests/test_export_import.R` — covers EXPO-01, EXPO-02, EXPO-03
   - Test multi-sheet export creates 7 sheets with correct names
-  - Test Pipeline Config sheet contains chemreg_export marker
+  - Test Pipeline Config sheet contains concert_export marker
   - Test Reference Lists sheet has correct type column format
-  - Test config import detects ChemReg exports and rejects non-ChemReg files
+  - Test config import detects CONCERT exports and rejects non-CONCERT files
   - Test reference list merge preserves existing + imported entries
   - Test column tags import converts tibble to named list correctly
   - Test Excel size validation blocks oversized exports
@@ -743,7 +743,7 @@ validate_excel_size <- function(df, sheet_name = "Sheet") {
 - [Excel specifications and limits - Microsoft Support](https://support.microsoft.com/en-us/office/excel-specifications-and-limits-1672b34d-7043-467e-8e27-269d656771c3) - Official XLSX format limits (1,048,576 rows × 16,384 columns)
 - [readxl: Read Excel Files](https://readxl.tidyverse.org/) - Sheet name detection and selective reading
 - [Mastering Shiny Chapter 8: User feedback](https://mastering-shiny.org/action-feedback.html) - Modal dialog patterns
-- Existing ChemReg codebase - `mod_review_results.R:773-837` (3-sheet export), `app.R:118-127` (data_store structure), `R/cleaning_reference.R` (reference list tibble format)
+- Existing CONCERT codebase - `mod_review_results.R:773-837` (3-sheet export), `app.R:118-127` (data_store structure), `R/cleaning_reference.R` (reference list tibble format)
 
 ### Secondary (MEDIUM confidence)
 - [R: How to Export Data Frames to Multiple Excel Sheets - Statology](https://www.statology.org/r-export-to-excel-multiple-sheets/) - Multi-sheet export code examples

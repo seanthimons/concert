@@ -18,14 +18,17 @@ curate_headless(
   corrections = NULL,
   media = NULL,
   wqx_threshold = 0.85,
-  starts_with = FALSE
+  starts_with = FALSE,
+  write_files = TRUE,
+  source_name = NULL
 )
 }
 \arguments{
 \item{input_path}{Character. Path to the input file (CSV, XLSX, or XLS).}
 
 \item{output_path}{Character. Path for the output XLSX file. Parent
-directories are created automatically if they do not exist.}
+directories are created automatically if they do not exist. Required when
+\code{write_files = TRUE}; ignored when \code{write_files = FALSE}.}
 
 \item{tag_map}{Named list mapping cleaned column names to tag roles. Keys
 must match column names \emph{after} \code{janitor::clean_names()} normalization.
@@ -64,6 +67,13 @@ corrections, or NULL (default) to load from package cache.}
 
 \item{media}{Character. Media context for ppb/ppm routing: "aqueous", "air",
 or "solid". NULL (default) uses aqueous assumption.}
+
+\item{write_files}{Logical. If TRUE (default), writes XLSX and optional
+parquet/CSV outputs. If FALSE, runs fully in memory and returns the same
+list without requiring or creating output files.}
+
+\item{source_name}{Optional dataset identifier for ToxVal \code{source}. Defaults
+to the input filename stem.}
 }
 \value{
 Invisibly returns a list:
@@ -84,7 +94,7 @@ Invisibly returns a list:
 }
 }
 \description{
-Runs the complete ChemReg curation pipeline — file read, frontmatter
+Runs the complete CONCERT curation pipeline — file read, frontmatter
 detection, cleaning, CompTox API search, consensus classification, and
 8-sheet XLSX export — from a single R script call with no Shiny session
 required. When harmonize=TRUE, additionally runs the numeric parsing, unit

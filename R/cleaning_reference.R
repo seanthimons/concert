@@ -613,7 +613,7 @@ load_wqx_dictionary <- function(cache_dir) {
 #' @export
 refresh_wqx_cache <- function(cache_dir = NULL) {
   if (is.null(cache_dir)) {
-    cache_dir <- system.file("extdata", "reference_cache", package = "chemreg")
+    cache_dir <- system.file("extdata", "reference_cache", package = "concert")
   }
   cache_path <- file.path(cache_dir, "wqx_dictionary.rds")
   if (file.exists(cache_path)) {

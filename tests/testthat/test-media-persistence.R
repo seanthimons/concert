@@ -66,7 +66,7 @@ test_that("load_media_map returns 0-row typed tibble when both user RDS and AMOS
     # Temporarily stub get_media_table to return NULL
     local_mocked_bindings(
       get_media_table = function() NULL,
-      .package = "chemreg"
+      .package = "concert"
     )
     result <- load_media_map(getwd())
 
@@ -87,7 +87,7 @@ test_that("load_media_map prepends user rows before AMOS rows", {
 
     local_mocked_bindings(
       get_media_table = function() make_amos_tbl(),
-      .package = "chemreg"
+      .package = "concert"
     )
     result <- load_media_map(getwd())
 
@@ -106,7 +106,7 @@ test_that("load_media_map user entry for 'freshwater' suppresses AMOS entry for 
 
     local_mocked_bindings(
       get_media_table = function() make_amos_tbl(),
-      .package = "chemreg"
+      .package = "concert"
     )
     result <- load_media_map(getwd())
 
@@ -131,7 +131,7 @@ test_that("load_media_map round-trip: write user RDS, load_media_map includes us
 
     local_mocked_bindings(
       get_media_table = function() make_amos_tbl(),
-      .package = "chemreg"
+      .package = "concert"
     )
     result <- load_media_map(getwd())
 
@@ -155,7 +155,7 @@ test_that("load_media_map backfills canonical_term from canonical when user RDS 
 
     local_mocked_bindings(
       get_media_table = function() make_amos_tbl(),
-      .package = "chemreg"
+      .package = "concert"
     )
     result <- load_media_map(getwd())
 

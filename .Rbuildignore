@@ -1,4 +1,4 @@
-^\.planning$
+﻿^\.planning$
 ^\.claude$
 ^tests$
 ^scripts$
@@ -7,7 +7,7 @@
 ^.*\.csv$
 ^.*\.log$
 ^.*\.Rproj\.user$
-^chemreg\.Rproj$
+^concert\.Rproj$
 ^load_packages\.R$
 ^checkpoint\.R$
 ^app\.R$

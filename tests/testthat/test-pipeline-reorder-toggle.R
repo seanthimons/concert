@@ -100,7 +100,7 @@ with_pipeline_mocks <- function(
   mock_sw = empty_sw,
   code
 ) {
-  ns <- asNamespace("chemreg")
+  ns <- asNamespace("concert")
   fns <- c(
     "search_exact",
     "validate_and_lookup_cas",

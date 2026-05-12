@@ -72,7 +72,7 @@ harmonize_media <- function(raw_media, orig_row_id = seq_along(raw_media)) {
 **Internal cache loader pattern** (`R/unit_harmonizer.R` lines 39-46):
 ```r
 get_media_table <- function() {
-  path <- system.file("extdata/reference_cache/amos_media.rds", package = "chemreg")
+  path <- system.file("extdata/reference_cache/amos_media.rds", package = "concert")
   if (nzchar(path) && file.exists(path)) {
     readRDS(path)
   } else {
@@ -153,9 +153,9 @@ stopifnot(
 
 **here::here() root + source pattern** (`scripts/benchmark_pipeline.R` lines 22-26):
 ```r
-CHEMREG_ROOT <- here::here()
+CONCERT_ROOT <- here::here()
 
-source(file.path(CHEMREG_ROOT, "R", "media_harmonizer.R"))
+source(file.path(CONCERT_ROOT, "R", "media_harmonizer.R"))
 ```
 
 **Paginated API extraction pattern** (referenced in `.planning/research/STACK.md`):
@@ -183,7 +183,7 @@ message(sprintf("  Fetched %d AMOS method records", nrow(amos_raw)))
 # N. WRITE CACHE + COVERAGE REPORT
 # ============================================================================
 message("=== WRITING CACHE ===")
-cache_path <- file.path(CHEMREG_ROOT, "inst", "extdata", "reference_cache", "amos_media.rds")
+cache_path <- file.path(CONCERT_ROOT, "inst", "extdata", "reference_cache", "amos_media.rds")
 saveRDS(media_map, cache_path)
 message(sprintf("  Cache written: %s (%d term mappings)", basename(cache_path), nrow(media_map)))
 
@@ -512,7 +512,7 @@ expanded_curated$media <- data_store$media_results$media_category[
 **Source:** `R/unit_harmonizer.R` lines 39-46 (`get_unit_synonyms()`)
 **Apply to:** `R/media_harmonizer.R` internal `get_media_table()`
 
-All reference data loaded via `system.file("extdata/reference_cache/<file>.rds", package = "chemreg")`. Returns `NULL` if not found (graceful degradation).
+All reference data loaded via `system.file("extdata/reference_cache/<file>.rds", package = "concert")`. Returns `NULL` if not found (graceful degradation).
 
 ### `tryCatch()` Stage Error Handling
 **Source:** `R/mod_harmonize.R` lines 452-501 (date stage tryCatch block)

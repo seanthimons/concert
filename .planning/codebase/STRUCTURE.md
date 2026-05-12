@@ -5,7 +5,7 @@
 ## Directory Layout
 
 ```
-chemreg/
+concert/
 ├── app.R                          # Main Shiny application (UI + server, 1127 lines)
 ├── load_packages.R                # Package installation and initialization
 ├── air.toml                       # Air code formatter configuration

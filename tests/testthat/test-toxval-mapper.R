@@ -24,7 +24,7 @@ harmonized_fixture <- tibble::tibble(
 # ============================================================================
 
 test_that("load_toxval_schema returns 0-row tibble with 56 columns", {
- cache_dir <- system.file("extdata/reference_cache", package = "chemreg")
+ cache_dir <- system.file("extdata/reference_cache", package = "concert")
  schema <- load_toxval_schema(cache_dir)
 
  expect_true(tibble::is_tibble(schema))
@@ -33,7 +33,7 @@ test_that("load_toxval_schema returns 0-row tibble with 56 columns", {
 })
 
 test_that("toxval schema column names match ToxVal database order", {
- cache_dir <- system.file("extdata/reference_cache", package = "chemreg")
+ cache_dir <- system.file("extdata/reference_cache", package = "concert")
  schema <- load_toxval_schema(cache_dir)
 
  expected_cols <- c(
@@ -64,7 +64,7 @@ test_that("toxval schema column names match ToxVal database order", {
 })
 
 test_that("toxval schema has correct column types", {
- cache_dir <- system.file("extdata/reference_cache", package = "chemreg")
+ cache_dir <- system.file("extdata/reference_cache", package = "concert")
  schema <- load_toxval_schema(cache_dir)
 
  types <- vapply(schema, typeof, "")
@@ -102,7 +102,7 @@ test_that("toxval schema has correct column types", {
 })
 
 test_that("toxval schema has no logical columns (no bare NAs)", {
- cache_dir <- system.file("extdata/reference_cache", package = "chemreg")
+ cache_dir <- system.file("extdata/reference_cache", package = "concert")
  schema <- load_toxval_schema(cache_dir)
 
  types <- vapply(schema, typeof, "")
@@ -125,7 +125,7 @@ test_that("map_to_toxval_schema returns 56-column tibble", {
 })
 
 test_that("map_to_toxval_schema column order matches schema", {
- cache_dir <- system.file("extdata/reference_cache", package = "chemreg")
+ cache_dir <- system.file("extdata/reference_cache", package = "concert")
  schema <- load_toxval_schema(cache_dir)
  result <- map_to_toxval_schema(curated_fixture, harmonized_fixture)
 
@@ -138,6 +138,59 @@ test_that("dtxsid, casrn, name populated from curated_data", {
  expect_equal(result$dtxsid, curated_fixture$dtxsid)
  expect_equal(result$casrn, curated_fixture$casrn)
  expect_equal(result$name, curated_fixture$name)
+})
+
+test_that("consensus_dtxsid takes precedence over bare dtxsid", {
+ curated <- dplyr::mutate(curated_fixture, consensus_dtxsid = c("DTXSID999", NA_character_))
+ result <- map_to_toxval_schema(curated, harmonized_fixture)
+
+ expect_equal(result$dtxsid, c("DTXSID999", "DTXSID2021731"))
+})
+
+test_that("range-expanded harmonized rows align through orig_row_id", {
+ harmonized <- tibble::tibble(
+   orig_row_id = c(1L, 1L, 2L),
+   orig_unit = c("ug/L", "ug/L", "mg/L"),
+   harmonized_value = c(0.0005, 0.001, 10),
+   harmonized_unit = c("mg/L", "mg/L", "mg/L"),
+   conversion_factor = c(0.001, 0.001, 1),
+   unit_flag = c("", "", "")
+ )
+
+ result <- map_to_toxval_schema(curated_fixture, harmonized)
+
+ expect_equal(nrow(result), 3)
+ expect_equal(result$name, c("Benzene", "Benzene", "Nickel"))
+ expect_equal(result$qualifier, c("<", "<", ""))
+})
+
+test_that("SSWQS metadata passes through when present", {
+ curated <- dplyr::mutate(
+   curated_fixture,
+   source = "EPA SSWQS",
+   sub_source = c("CA", "OR"),
+   source_url = "https://example.test",
+   toxval_subtype = "chronic",
+   study_type = "Media Exposure Guidelines",
+   media = "water",
+   species_common = "Human",
+   latin_name = "Homo sapiens",
+   risk_assessment_class = "Water",
+   qc_status = "needs_review",
+   qc_category = "ambiguous",
+   year = c(2024, 2025)
+ )
+
+ result <- map_to_toxval_schema(curated, harmonized_fixture, source_name = "EPA SSWQS")
+
+ expect_equal(result$source, rep("EPA SSWQS", 2))
+ expect_equal(result$sub_source, c("CA", "OR"))
+ expect_equal(result$source_url, rep("https://example.test", 2))
+ expect_equal(result$toxval_subtype, rep("chronic", 2))
+ expect_equal(result$media, rep("water", 2))
+ expect_equal(result$qc_status, rep("needs_review", 2))
+ expect_equal(result$qc_category, rep("ambiguous", 2))
+ expect_equal(result$year, c(2024, 2025))
 })
 
 test_that("toxval_numeric, toxval_units populated from harmonized_data", {

@@ -324,7 +324,7 @@
 - Placeholder-based protection (`@@@`, `%%%`) for IUPAC comma patterns in synonym splitting
 - `icon()` wrapper instead of `bsicons::bs_icon()` for actionButton icons (Shiny's validateIcon check)
 - Provenance tibble format `(term, source, active)` for reference list tracking
-- Two-stage ChemReg export detection (sheet presence → marker validation)
+- Two-stage CONCERT export detection (sheet presence → marker validation)
 - Smoke test as mandatory post-UI-change verification step
 
 ### Key Lessons

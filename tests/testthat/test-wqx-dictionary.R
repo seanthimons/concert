@@ -25,7 +25,7 @@ test_that("load_wqx_dictionary returns cached tibble when RDS exists", {
         build_called <<- TRUE
         mock_wqx
       },
-      .package = "chemreg"
+      .package = "concert"
     )
 
     result <- load_wqx_dictionary(cache_dir = ".")
@@ -42,7 +42,7 @@ test_that("load_wqx_dictionary calls build when cache is absent", {
 
     testthat::local_mocked_bindings(
       .build_wqx_dictionary = function() mock_wqx,
-      .package = "chemreg"
+      .package = "concert"
     )
 
     result <- load_wqx_dictionary(cache_dir = ".")
@@ -69,7 +69,7 @@ test_that("refresh_wqx_cache overwrites existing RDS", {
 
     testthat::local_mocked_bindings(
       .build_wqx_dictionary = function() new_mock,
-      .package = "chemreg"
+      .package = "concert"
     )
 
     result <- refresh_wqx_cache(cache_dir = ".")

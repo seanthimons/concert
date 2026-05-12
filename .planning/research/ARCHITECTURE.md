@@ -1,4 +1,4 @@
-# Architecture Research: ChemReg v2.0 Pipeline Performance & Date/Media Harmonization
+# Architecture Research: CONCERT v2.0 Pipeline Performance & Date/Media Harmonization
 
 **Domain:** R/Shiny chemical data curation pipeline — v2.0 integration patterns
 **Researched:** 2026-04-24
@@ -492,6 +492,6 @@ Build in this order to avoid integration blockers:
 
 ---
 
-*Architecture research for: ChemReg v2.0 Pipeline Performance & Date/Media Harmonization*
+*Architecture research for: CONCERT v2.0 Pipeline Performance & Date/Media Harmonization*
 *Researched: 2026-04-24*
 *Confidence: HIGH — based on direct code inspection of all relevant source files*

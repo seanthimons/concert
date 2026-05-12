@@ -2,9 +2,9 @@
 # Internal extraction functions for building unit conversion tables from ECOTOX/ToxVal/SSWQS.
 #
 # NOTE: These functions require DBI, duckdb, and arrow packages which are NOT
-# in chemreg's Imports (too heavy for one-time build functions). Install manually:
+# in concert's Imports (too heavy for one-time build functions). Install manually:
 #   pak::pak(c("DBI", "duckdb", "arrow"))
-# Then run via: chemreg:::build_unit_conversion_table(...)
+# Then run via: concert:::build_unit_conversion_table(...)
 #
 # These functions are INTERNAL (not exported) - one-time data build step.
 # Users consume the pre-built .rds files, not these extraction functions.

@@ -151,59 +151,59 @@ The modularization is complete and correct.
 
 ```bash
 # Count module files
-ls C:/Users/sxthi/Documents/chemreg/R/modules/*.R | wc -l
+ls C:/Users/sxthi/Documents/concert/R/modules/*.R | wc -l
 # 7 ✓
 
 # Check app.R line count
-wc -l C:/Users/sxthi/Documents/chemreg/app.R
+wc -l C:/Users/sxthi/Documents/concert/app.R
 # 203 ✓ (target: <500)
 
 # Verify NS() and moduleServer() in all modules
-for module in C:/Users/sxthi/Documents/chemreg/R/modules/mod_*.R; do
+for module in C:/Users/sxthi/Documents/concert/R/modules/mod_*.R; do
   grep -c "NS(id)" "$module"
   grep -c "moduleServer" "$module"
 done
 # All return 1 for each pattern ✓
 
 # Verify function signatures
-for module in C:/Users/sxthi/Documents/chemreg/R/modules/mod_*.R; do
+for module in C:/Users/sxthi/Documents/concert/R/modules/mod_*.R; do
   grep "^mod_.*_ui.*<-.*function\|^mod_.*_server.*<-.*function" "$module" | head -2
 done
 # All modules have both UI and server functions ✓
 
 # Count module function calls in app.R
-grep -c "mod_.*_server\|mod_.*_ui" C:/Users/sxthi/Documents/chemreg/app.R
+grep -c "mod_.*_server\|mod_.*_ui" C:/Users/sxthi/Documents/concert/app.R
 # 14 (7 UI + 7 server) ✓
 
 # Verify key link: mod_file_upload → file_handlers
 grep -n "validate_file\|safely_read_file\|extract_clean_data" \
-  C:/Users/sxthi/Documents/chemreg/R/modules/mod_file_upload.R
+  C:/Users/sxthi/Documents/concert/R/modules/mod_file_upload.R
 # Found at lines 121, 143, 173, 329 ✓
 
 # Verify key link: mod_run_curation → curation.R
 grep -n "run_curation_pipeline" \
-  C:/Users/sxthi/Documents/chemreg/R/modules/mod_run_curation.R
+  C:/Users/sxthi/Documents/concert/R/modules/mod_run_curation.R
 # Found at line 152 ✓
 
 # Verify key link: mod_review_results → consensus.R
 grep -n "recalc_consensus_summary" \
-  C:/Users/sxthi/Documents/chemreg/R/modules/mod_review_results.R
+  C:/Users/sxthi/Documents/concert/R/modules/mod_review_results.R
 # Found at lines 5 (definition), 632, 723, 758, 1008 (calls) ✓
 
 # Verify module tests exist
 grep -c "test_that.*mod_.*_server" \
-  C:/Users/sxthi/Documents/chemreg/tests/test_modules_render.R
+  C:/Users/sxthi/Documents/concert/tests/test_modules_render.R
 # 7 ✓
 
 # Scan for anti-patterns (TODO/FIXME/placeholder)
-for module in C:/Users/sxthi/Documents/chemreg/R/modules/mod_*.R; do
+for module in C:/Users/sxthi/Documents/concert/R/modules/mod_*.R; do
   grep -n "TODO\|FIXME\|XXX\|HACK\|PLACEHOLDER\|placeholder\|coming soon" "$module"
 done
 # Only found: mod_file_upload.R line 25 "placeholder = 'No file selected'"
 # This is legitimate UI label text, not a code stub ✓
 
 # Scan for empty implementations
-for module in C:/Users/sxthi/Documents/chemreg/R/modules/mod_*.R; do
+for module in C:/Users/sxthi/Documents/concert/R/modules/mod_*.R; do
   grep -n "return null\|return {}\|return \[\]\|=> {}" "$module" -i
 done
 # Only found: documented NULL returns in roxygen comments ✓

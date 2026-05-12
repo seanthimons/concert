@@ -1,6 +1,6 @@
 #' Run the full curation pipeline headlessly (without Shiny UI)
 #'
-#' Runs the complete ChemReg curation pipeline — file read, frontmatter
+#' Runs the complete CONCERT curation pipeline — file read, frontmatter
 #' detection, cleaning, CompTox API search, consensus classification, and
 #' 8-sheet XLSX export — from a single R script call with no Shiny session
 #' required. When harmonize=TRUE, additionally runs the numeric parsing, unit
@@ -9,7 +9,8 @@
 #'
 #' @param input_path Character. Path to the input file (CSV, XLSX, or XLS).
 #' @param output_path Character. Path for the output XLSX file. Parent
-#'   directories are created automatically if they do not exist.
+#'   directories are created automatically if they do not exist. Required when
+#'   `write_files = TRUE`; ignored when `write_files = FALSE`.
 #' @param tag_map Named list mapping cleaned column names to tag roles. Keys
 #'   must match column names *after* `janitor::clean_names()` normalization.
 #'   Values are one of `"Name"`, `"CASRN"`, `"Other"`, `"Result"`, `"Unit"`,
@@ -39,6 +40,11 @@
 #'   corrections, or NULL (default) to load from package cache.
 #' @param media Character. Media context for ppb/ppm routing: "aqueous", "air",
 #'   or "solid". NULL (default) uses aqueous assumption.
+#' @param write_files Logical. If TRUE (default), writes XLSX and optional
+#'   parquet/CSV outputs. If FALSE, runs fully in memory and returns the same
+#'   list without requiring or creating output files.
+#' @param source_name Optional dataset identifier for ToxVal `source`. Defaults
+#'   to the input filename stem.
 #'
 #' @return Invisibly returns a list:
 #'   \describe{
@@ -74,7 +80,9 @@ curate_headless <- function(
   corrections = NULL,
   media = NULL,
   wqx_threshold = 0.85,
-  starts_with = FALSE
+  starts_with = FALSE,
+  write_files = TRUE,
+  source_name = NULL
 ) {
   # skip_flags reserved for future use; isotope_match skip is handled internally by run_curation_pipeline()
 
@@ -95,6 +103,10 @@ curate_headless <- function(
       ))
     }
 
+    if (write_files && (is.null(output_path) || !nzchar(output_path))) {
+      stop("curate_headless: output_path is required when write_files = TRUE.")
+    }
+
     # ------------------------------------------------------------------
     # Step 1b: Validate format parameter
     # ------------------------------------------------------------------
@@ -109,7 +121,7 @@ curate_headless <- function(
     # Step 2: Load reference lists
     # ------------------------------------------------------------------
     if (is.null(reference_lists)) {
-      cache_dir <- system.file("extdata", "reference_cache", package = "chemreg")
+      cache_dir <- system.file("extdata", "reference_cache", package = "concert")
       reference_lists <- load_all_reference_lists(cache_dir)
     } else {
       expected <- c("stop_words", "functional_categories", "block_patterns", "strip_terms", "isotope_lookup")
@@ -195,13 +207,13 @@ curate_headless <- function(
       # Load unit_map from cache if not provided
       cache_dir_ref <- NULL
       if (is.null(unit_map)) {
-        cache_dir_ref <- system.file("extdata", "reference_cache", package = "chemreg")
+        cache_dir_ref <- system.file("extdata", "reference_cache", package = "concert")
         unit_map <- load_unit_map(cache_dir_ref)
       }
       # Load corrections from cache if not provided
       if (is.null(corrections)) {
         if (is.null(cache_dir_ref)) {
-          cache_dir_ref <- system.file("extdata", "reference_cache", package = "chemreg")
+          cache_dir_ref <- system.file("extdata", "reference_cache", package = "concert")
         }
         corrections <- load_corrections(cache_dir_ref)
       }
@@ -291,6 +303,7 @@ curate_headless <- function(
             unit_map = unit_map,
             media = media_for_harmonize
           )
+          harmonize_tibble$orig_row_id <- parse_tibble$orig_row_id
         } else {
           # No Unit column -- placeholder harmonize output with NA units
           harmonize_tibble <- tibble::tibble(
@@ -370,7 +383,7 @@ curate_headless <- function(
       toxval_tibble <- map_to_toxval_schema(
         curated_data = input_df,
         harmonized_data = harmonize_tibble,
-        source_name = tools::file_path_sans_ext(basename(input_path))
+        source_name = source_name %||% tools::file_path_sans_ext(basename(input_path))
       )
       message(sprintf("[headless] ToxVal schema: %d rows x %d columns", nrow(toxval_tibble), ncol(toxval_tibble)))
     }
@@ -383,27 +396,29 @@ curate_headless <- function(
       size = file.info(input_path)$size
     )
 
-    sheets <- build_export_sheets(
-      raw = raw_df,
-      resolution_state = resolution_state,
-      consensus_summary = pipeline_result$consensus_summary,
-      cleaning_audit = cleaning_result$audit_trail,
-      reference_lists = reference_lists,
-      column_tags = merged_tags,
-      detection = detection,
-      file_info = file_info,
-      toxval_output = toxval_tibble
-    )
+    if (write_files) {
+      sheets <- build_export_sheets(
+        raw = raw_df,
+        resolution_state = resolution_state,
+        consensus_summary = pipeline_result$consensus_summary,
+        cleaning_audit = cleaning_result$audit_trail,
+        reference_lists = reference_lists,
+        column_tags = merged_tags,
+        detection = detection,
+        file_info = file_info,
+        toxval_output = toxval_tibble
+      )
 
-    fs::dir_create(dirname(output_path), recurse = TRUE)
-    writexl::write_xlsx(sheets, output_path)
+      fs::dir_create(dirname(output_path), recurse = TRUE)
+      writexl::write_xlsx(sheets, output_path)
 
-    message(sprintf("[headless] Output written to: %s", output_path))
+      message(sprintf("[headless] Output written to: %s", output_path))
+    }
 
     # ------------------------------------------------------------------
     # Step 9b: Write parquet/CSV (when harmonize = TRUE, per D-07)
     # ------------------------------------------------------------------
-    if (harmonize) {
+    if (harmonize && write_files) {
       toxval_base <- sub("\\.xlsx$", "", output_path, ignore.case = TRUE)
 
       if (format %in% c("parquet", "both")) {
@@ -425,7 +440,8 @@ curate_headless <- function(
       invisible(list(
         data = toxval_tibble,
         audit_trail = cleaning_result$audit_trail,
-        harmonize_audit = harmonize_audit_tibble
+        harmonize_audit = harmonize_audit_tibble,
+        curated_data = input_df
       ))
     } else {
       invisible(list(data = resolution_state, audit_trail = cleaning_result$audit_trail))

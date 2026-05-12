@@ -6,7 +6,7 @@
 <domain>
 ## Phase Boundary
 
-Users can export complete pipeline state as a multi-sheet Excel workbook from Review Results and import reference lists/config from a previous ChemReg export into a new dataset via a dedicated sidebar control. No post-curation QC (Phase 15), no new cleaning steps.
+Users can export complete pipeline state as a multi-sheet Excel workbook from Review Results and import reference lists/config from a previous CONCERT export into a new dataset via a dedicated sidebar control. No post-curation QC (Phase 15), no new cleaning steps.
 
 </domain>
 
@@ -22,14 +22,14 @@ Users can export complete pipeline state as a multi-sheet Excel workbook from Re
   4. **Cleaning Audit** — full per-row audit trail (row_id, field, step, original_value, new_value, reason)
   5. **Reference Lists** — combined single sheet with `type` column (functional_category/stop_word/block_pattern) + term, source, active columns (matches Phase 13 CSV upload format)
   6. **Column Tags** — existing Sheet 3 (column name → tag type mapping)
-  7. **Pipeline Config** — app version, export timestamp, detection method, pipeline steps run, file info, `chemreg_export: true` marker
+  7. **Pipeline Config** — app version, export timestamp, detection method, pipeline steps run, file info, `concert_export: true` marker
 
 ### Re-Import: Config Transfer to New Datasets
 - Primary use case: carry reference lists and settings from a previous dataset to a NEW dataset (not session restore)
 - No session restore — user always re-runs cleaning/curation on the new data
 - Dedicated config import control in the **sidebar/upload area** (separate from main file upload)
-- On config import: read Pipeline Config sheet, detect `chemreg_export` marker, load reference lists and column tags
-- Confirmation modal with opt-out: "ChemReg export detected. Restore reference lists and column tags?" with checkboxes for each (default: restore all)
+- On config import: read Pipeline Config sheet, detect `concert_export` marker, load reference lists and column tags
+- Confirmation modal with opt-out: "CONCERT export detected. Restore reference lists and column tags?" with checkboxes for each (default: restore all)
 - Imported reference lists merge with existing (user additions tagged as source = `imported`)
 
 ### Export Placement & Trigger
@@ -52,7 +52,7 @@ Users can export complete pipeline state as a multi-sheet Excel workbook from Re
 - Exact confirmation modal layout and wording
 - Pipeline Config sheet key-value format
 - Whether to add sheet tab colors or formatting (writexl limitations may constrain this)
-- Error handling for malformed ChemReg exports on import
+- Error handling for malformed CONCERT exports on import
 
 </decisions>
 
@@ -86,7 +86,7 @@ Users can export complete pipeline state as a multi-sheet Excel workbook from Re
 - The combined Reference Lists sheet with `type` column creates a round-trip: export → edit in Excel → re-import via Phase 13 CSV upload OR via config import
 - Config import in sidebar keeps it discoverable but not confused with main data upload
 - Including raw data in the export makes it a standalone audit document — someone reviewing the export can see the full journey from input to output without needing the original file
-- The `chemreg_export: true` marker in Pipeline Config sheet is the detection mechanism — simple and reliable
+- The `concert_export: true` marker in Pipeline Config sheet is the detection mechanism — simple and reliable
 
 </specifics>
 

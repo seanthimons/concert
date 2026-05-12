@@ -9,7 +9,7 @@
 ### Pitfall 1: Synonym Splitting Breaking IUPAC Names
 
 **What goes wrong:**
-Comma-based synonym splitting (`"xylene, dimethylbenzene"`) falsely splits IUPAC names that use commas for locant separation (`"butane, 2,2-dimethyl"`) or stereochemical notation (`"(1R,3R;1R,3S)-compound"`). The live ChemReg dataset has 1,000+ rows with comma-separated synonyms but also contains inverted IUPAC names where the comma is syntactically significant.
+Comma-based synonym splitting (`"xylene, dimethylbenzene"`) falsely splits IUPAC names that use commas for locant separation (`"butane, 2,2-dimethyl"`) or stereochemical notation (`"(1R,3R;1R,3S)-compound"`). The live CONCERT dataset has 1,000+ rows with comma-separated synonyms but also contains inverted IUPAC names where the comma is syntactically significant.
 
 **Why it happens:**
 IUPAC allows two naming forms: `"2,2-dimethylbutane"` (canonical) and `"butane, 2,2-dimethyl"` (inverted). The inverted form looks identical to a synonym list ([IUPAC nomenclature](https://en.wikipedia.org/wiki/IUPAC_nomenclature_of_organic_chemistry)). Commas also appear in digit-comma-digit patterns (`1,4-dioxane`) and parenthetical stereochemistry descriptors. Naive splitting on all commas destroys these names.
@@ -141,14 +141,14 @@ Phase 2 (CAS-RN Pipeline) P2.1 onward. Every function that calls `append_comment
 ### Pitfall 6: Re-Import Detection Overwriting User Edits
 
 **What goes wrong:**
-User uploads ChemReg export, app detects embedded state (column tags, pipeline config, reference lists), auto-restores everything. User had edited stop-word list in Excel before re-upload intending to use custom list, but app ignores the Excel edits and loads the embedded reference lists from hidden metadata sheet. User re-tags columns with different mappings, runs curation, then clicks "Re-upload file" to fix a data issue — app resets tags to original embedded state, wiping out the new tag configuration.
+User uploads CONCERT export, app detects embedded state (column tags, pipeline config, reference lists), auto-restores everything. User had edited stop-word list in Excel before re-upload intending to use custom list, but app ignores the Excel edits and loads the embedded reference lists from hidden metadata sheet. User re-tags columns with different mappings, runs curation, then clicks "Re-upload file" to fix a data issue — app resets tags to original embedded state, wiping out the new tag configuration.
 
 **Why it happens:**
 Re-import detection is designed to preserve state across sessions, but the feature doesn't distinguish between "initial load of previous export" vs. "re-upload after user made external changes" vs. "re-upload after user made in-app changes." State restoration logic in `observeEvent(input$file_upload)` reads embedded metadata and immediately calls `updateSelectInput()` / `data_store$tags <- embedded_tags`, overwriting any in-session user modifications. The [Shiny file input documentation](https://recology.info/2024/03/shiny-file-inputs/) notes that file input resets when user uploads a new file, but doesn't address state collision between embedded metadata and current reactive state ([R-bloggers on state restoration](https://www.r-bloggers.com/2019/06/shiny-application-with-modules-saving-and-restoring-from-rds/)).
 
 **How to avoid:**
 1. **Detect state divergence**: Before auto-restoring, compare embedded state vs. current `data_store` state. If current state is non-default (tags exist, reference lists modified), show modal: "This file contains previous settings. Restore them or keep current settings?"
-2. **Explicit "Load State" button**: Don't auto-restore — show notification "This file was exported from ChemReg. Click 'Restore Settings' to load column tags and reference lists." Let user decide
+2. **Explicit "Load State" button**: Don't auto-restore — show notification "This file was exported from CONCERT. Click 'Restore Settings' to load column tags and reference lists." Let user decide
 3. **Track modification timestamps**: Embed `exported_at` timestamp in metadata sheet. If re-uploading a file exported 5 minutes ago but user has made 20 reference list edits since, prioritize in-session edits
 4. **Show state diff preview**: Modal shows side-by-side comparison: "Embedded tags: CAS → col_A, Name → col_B | Current tags: CAS → col_C, Name → col_D"
 5. **Preserve external edits**: If user edited the data sheet in Excel (added rows, changed values), detect this by comparing row counts / checksums, and don't restore old state — treat as new upload
@@ -228,7 +228,7 @@ v1.3 Design Phase — before Phase 1 implementation. Define flag taxonomy docume
 |---------|------|------------|
 | Embedding CompTox API key in exported Excel metadata sheet | API key visible to anyone opening the file, potential quota abuse if key is extracted and reused | Never export API keys. Instead, export API call results (DTXSIDs, names, CAS) as data. Embed only non-sensitive config: pipeline step flags, reference list versions, thresholds. If API key is needed for re-curation, require user to re-enter it in app. |
 | Allowing arbitrary sheet names in Excel export from user input | Malicious user provides sheet name with formula injection payload (`=cmd|'/c calc'!A1`), Excel executes on open | Sanitize all user-provided strings before using as sheet names: strip `=+-@`, limit to alphanumeric + underscore + hyphen, max 31 chars. Use `make.names()` + whitelist regex: `str_replace_all(name, "[^A-Za-z0-9_-]", "_")`. |
-| Trusting embedded metadata in re-imported ChemReg exports without validation | User manually edits metadata sheet, embeds malicious R code in serialized reference list, `readRDS()` executes code on load | Never use `readRDS()` on user-provided data. Store reference lists as plain CSV in metadata sheet (not serialized R objects). Validate all loaded metadata against schema before applying: check column names, data types, value ranges. If validation fails, discard embedded state and treat as fresh upload. |
+| Trusting embedded metadata in re-imported CONCERT exports without validation | User manually edits metadata sheet, embeds malicious R code in serialized reference list, `readRDS()` executes code on load | Never use `readRDS()` on user-provided data. Store reference lists as plain CSV in metadata sheet (not serialized R objects). Validate all loaded metadata against schema before applying: check column names, data types, value ranges. If validation fails, discard embedded state and treat as fresh upload. |
 | Displaying raw user-uploaded data in DT without sanitization | User uploads CSV with `<script>alert('XSS')</script>` in chemical name field, DT renders HTML, script executes in browser | Use `escape = TRUE` in `DT::datatable()` (default in newer versions, but verify). Never set `escape = FALSE` on user-provided columns. Only use `escape = FALSE` for app-generated HTML like resolution dropdowns on known-safe column. |
 
 ## UX Pitfalls
@@ -237,7 +237,7 @@ v1.3 Design Phase — before Phase 1 implementation. Define flag taxonomy docume
 |---------|-------------|-----------------|
 | Showing all 21 pre-curation steps in progress bar with technical function names | User sees "Canonicalizing strings (step 3/21)" and doesn't understand what's happening or why it's slow | Group steps into 5-6 user-facing stages: "Fixing encoding issues", "Cleaning chemical names", "Validating CAS numbers", "Checking reference databases", "Finalizing". Show stage name + progress within stage. |
 | Flagging 40% of uploaded rows with 5+ different flag types | User overwhelmed, doesn't know where to start, abandons workflow ("flag fatigue") | Default view: show only BLOCKING flags (must fix to proceed). Collapsible sections for WARNING flags (grouped by type: "15 functional categories", "8 formulas") and INFO flags (post-curation only). Provide "Accept all warnings" bulk action. [Guidelines on inline validation](https://www.smashingmagazine.com/2022/09/inline-validation-web-forms-ux/) |
-| Re-import state restoration without explanation | App auto-fills column tags and reference lists when user uploads file, no indication why or how to undo | Show prominent notification: "This file was previously exported from ChemReg. Column tags and settings have been restored. [Undo] [Dismiss]". Undo button clears embedded state and treats as fresh upload. Notification persists until dismissed. |
+| Re-import state restoration without explanation | App auto-fills column tags and reference lists when user uploads file, no indication why or how to undo | Show prominent notification: "This file was previously exported from CONCERT. Column tags and settings have been restored. [Undo] [Dismiss]". Undo button clears embedded state and treats as fresh upload. Notification persists until dismissed. |
 | DT editable reference list with no save confirmation | User edits 10 rows in stop-word table, accidentally navigates away from tab, edits lost because no "Apply" was clicked | Add "You have unsaved changes" warning if user navigates away from reference list tab with uncommitted edits. Show visual indicator (orange dot on tab title) when edits are staged but not applied. Require explicit "Apply Changes" or "Discard" action. |
 | Excel export completing silently with truncated data | User downloads file, Excel opens with `#####` in columns or missing columns, no indication that data was truncated | Before export, check limits. If exceeded, show modal: "Your data is too large for Excel format (50 columns, 16k limit is 16,384). Truncated columns saved to 'Additional_Data.csv'. [Download Both] [Cancel]". Alternatively, offer CSV export for datasets exceeding limits. |
 | Progress bar stuck at 95% for 30 seconds during API calls | User thinks app crashed, kills browser tab, loses work | Use detailed progress messages: "Validating chemicals with CompTox API... 145/200 completed (estimated 25 seconds remaining)". If API call batch is slow, show per-item progress, not just overall bar. For post-curation enrichment, show "Optional step — may take 1-2 minutes" with Skip button. |
@@ -276,7 +276,7 @@ v1.3 Design Phase — before Phase 1 implementation. Define flag taxonomy docume
 | App.R crossing 3,000 lines | **Before Phase 1 (refactor first)** | Extract 6 existing tabs into modules. Verify `app.R` <500 lines. Create `tests/testthat/test-modules.R` with `testServer()` cases for each module. Check all existing UI still renders. |
 | Progress tracking lies | Phase 1 (P1.1) + Phase 6 (P6.1) | Benchmark all steps on 1,000-row test dataset. Calculate weights. Verify progress bar doesn't pause >5 seconds on any step. Test with slow API endpoint (throttled CompTox sandbox). |
 | Audit trail Excel limits | Phase 1 (P1.1 audit infrastructure) + Phase 6 (P6.4 export) | Create test dataset with 50-step transformation history per row. Verify export succeeds. Open in Excel, verify no truncation. Check file size <50MB for 1,000 rows. |
-| Re-import overwriting edits | Phase 1 (P1.1 state management) | Upload ChemReg export. Edit tags and reference lists in app. Re-upload same file. Verify modal appears with state conflict options. Test "keep current" preserves in-app edits. |
+| Re-import overwriting edits | Phase 1 (P1.1 state management) | Upload CONCERT export. Edit tags and reference lists in app. Re-upload same file. Verify modal appears with state conflict options. Test "keep current" preserves in-app edits. |
 | Flag behavior confusion | **v1.3 Design Phase** + Phase 1 (P1.1 flag taxonomy) | Define BLOCKING/WARNING/INFO in design doc. Implement 3-color badge system. User testing: "Which flags must you fix before curation?" Verify 80%+ correct answer rate. Test with 15+ flag interpretation scenarios. |
 
 ## Sources
@@ -330,10 +330,10 @@ v1.3 Design Phase — before Phase 1 implementation. Define flag taxonomy docume
 
 # v1.9 Pitfalls: Numeric Parsing, Unit Harmonization, Schema Mapping
 
-**Domain:** Adding numeric result parsing, unit harmonization, and ToxVal schema output to existing ChemReg R package
+**Domain:** Adding numeric result parsing, unit harmonization, and ToxVal schema output to existing CONCERT R package
 **Milestone:** v1.9 Number and Unit Coercion Harmonization
 **Researched:** 2026-04-14
-**Sources:** sswqs_curation.R (EPA production script, HIGH confidence), ecotox_build.R (ComptoxR unit tables, HIGH confidence), PROJECT.md (ChemReg architecture, HIGH confidence)
+**Sources:** sswqs_curation.R (EPA production script, HIGH confidence), ecotox_build.R (ComptoxR unit tables, HIGH confidence), PROJECT.md (CONCERT architecture, HIGH confidence)
 
 ---
 
@@ -423,7 +423,7 @@ cleaned_unit %in% c("mg/kg fish tissue", "mg/kg wet weight") ~ "mg/kg (wet weigh
 ```
 These require explicit enumeration — they cannot be derived algorithmically from the base table.
 
-**Consequences:** Benchmark values in compound units export with wrong or mismatched unit labels. The unit-value mismatch is invisible in ChemReg but causes schema validation failures at database load time.
+**Consequences:** Benchmark values in compound units export with wrong or mismatched unit labels. The unit-value mismatch is invisible in CONCERT but causes schema validation failures at database load time.
 
 **Prevention:**
 - Implement two-tier lookup: (1) exact match on full string; (2) decompose `numerator/denominator` and look up components separately.
@@ -461,9 +461,9 @@ The schema contains both a double (`toxval_numeric`) and a character (`toxval_nu
 
 ### v1.9 Pitfall 6: `_original` Audit Columns Contaminated by Pre-Capture Cleaning
 
-**What goes wrong:** If pipeline cleaning steps (comma removal, whitespace trimming) run BEFORE the `result_original` capture, the `_original` column contains a partially-cleaned value rather than the source cell value. QC review against the uploaded spreadsheet then fails because the "original" in ChemReg does not match what the user sees in their file.
+**What goes wrong:** If pipeline cleaning steps (comma removal, whitespace trimming) run BEFORE the `result_original` capture, the `_original` column contains a partially-cleaned value rather than the source cell value. QC review against the uploaded spreadsheet then fails because the "original" in CONCERT does not match what the user sees in their file.
 
-**Evidence from sswqs_curation.R (lines 764–773):** The sswqs script deliberately cleans commas and whitespace BEFORE `rename(orig_result = result)`. This was intentional for SSWQS — commas in numbers are formatting artifacts. However, for ChemReg's user-uploaded files, qualifier symbols (`<`, `>`, `~`), chiral designations, and range hyphens must NOT be stripped before capture.
+**Evidence from sswqs_curation.R (lines 764–773):** The sswqs script deliberately cleans commas and whitespace BEFORE `rename(orig_result = result)`. This was intentional for SSWQS — commas in numbers are formatting artifacts. However, for CONCERT's user-uploaded files, qualifier symbols (`<`, `>`, `~`), chiral designations, and range hyphens must NOT be stripped before capture.
 
 **Consequences:** `_original` audit column does not reflect the uploaded spreadsheet. Post-curation QC comparison against source data fails.
 
@@ -511,7 +511,7 @@ The schema contains both a double (`toxval_numeric`) and a character (`toxval_nu
 
 ### v1.9 Pitfall 9: Cascade Reset Not Extended for New Column Tag Types
 
-**What goes wrong:** ChemReg's existing cascade reset invalidates curation when column tags change. Adding new tag types (Result, Unit, Duration, Qualifier) without wiring them into the same `observeEvent` chain means a user can re-tag a unit column after running harmonization without the harmonized output being cleared.
+**What goes wrong:** CONCERT's existing cascade reset invalidates curation when column tags change. Adding new tag types (Result, Unit, Duration, Qualifier) without wiring them into the same `observeEvent` chain means a user can re-tag a unit column after running harmonization without the harmonized output being cleared.
 
 **Evidence from PROJECT.md (line 171):** "Cascade reset on tag changes: Strict invalidation prevents stale curation results."
 
@@ -556,7 +556,7 @@ The schema mapper assumes `parsed_value` is already in the intermediate harmoniz
 **Prevention:**
 - Apply a narrative pre-filter before numeric parsing using regex on known signal phrases (`"\\bsee\\b|\\bwithin\\b|\\busing\\b|\\bmore\\b|\\bnot\\b"`).
 - Surface filtered rows in the UI as "non-parsable" rather than silently dropping them.
-- Allow the narrative filter pattern list to be user-configurable as a reference list (consistent with ChemReg's existing reference list pattern).
+- Allow the narrative filter pattern list to be user-configurable as a reference list (consistent with CONCERT's existing reference list pattern).
 
 **Phase address:** Numeric result parser phase.
 
@@ -589,7 +589,7 @@ The schema mapper assumes `parsed_value` is already in the intermediate harmoniz
 
 ---
 
-## Integration Pitfalls (Adding v1.9 to Existing v1.8 ChemReg)
+## Integration Pitfalls (Adding v1.9 to Existing v1.8 CONCERT)
 
 These pitfalls are specific to adding numeric/unit/schema features to a v1.8 codebase with 953 passing tests, 8 active Shiny modules, and a `curate_headless()` public API.
 
@@ -640,13 +640,13 @@ The numeric parsing and unit harmonization features touch none of the existing `
 
 - `C:/Users/sxthi/Documents/curation/epa/sswqs/sswqs_curation.R` — EPA production benchmark curation script; direct evidence for P1, P2, P4, P6, P7, P8, P10 (HIGH confidence — production code)
 - `C:/Users/sxthi/Documents/ComptoxR/inst/ecotox/ecotox_build.R` — Unit conversion table and duration dictionary; direct evidence for P3, P4, P12 (HIGH confidence — production code)
-- `C:/Users/sxthi/Documents/chemreg/.planning/PROJECT.md` — Architecture constraints and key decisions log; evidence for INT-1 through INT-4 and P9 (HIGH confidence — authoritative project document)
+- `C:/Users/sxthi/Documents/concert/.planning/PROJECT.md` — Architecture constraints and key decisions log; evidence for INT-1 through INT-4 and P9 (HIGH confidence — authoritative project document)
 
 ---
 
 # v2.0 Pitfalls: Dedup-Remap Architecture, Short-Circuit Evaluation, Date/Duration Parsing, Media Harmonization
 
-**Domain:** Adding performance optimization + date/duration parsing + media harmonization to existing ChemReg R package
+**Domain:** Adding performance optimization + date/duration parsing + media harmonization to existing CONCERT R package
 **Milestone:** v2.0 Pipeline Performance & Date/Media Harmonization
 **Researched:** 2026-04-24
 **Confidence:** HIGH (codebase read + authoritative sources)
@@ -860,7 +860,7 @@ The AMOS corpus is fetched via `ComptoxR::chemi_amos_method_pagination()` and ca
 
 ---
 
-## Integration Pitfalls (v2.0 into Existing v1.9 ChemReg)
+## Integration Pitfalls (v2.0 into Existing v1.9 CONCERT)
 
 ### v2.0 INT-1: Short-Circuit Layer Must Not Skip `inject_row_lineage`
 
@@ -934,8 +934,8 @@ Each step migrated to the dedup path is a potential regression. Do not batch-mig
 
 ## Sources (v2.0)
 
-- ChemReg codebase `R/cleaning_pipeline.R` — `build_audit_trail`, `run_cleaning_pipeline`, `inject_row_lineage` implementation (HIGH confidence — read directly)
-- ChemReg codebase `R/unit_harmonizer.R` — ppb/ppm media routing, `harmonize_units` API (HIGH confidence — read directly)
+- CONCERT codebase `R/cleaning_pipeline.R` — `build_audit_trail`, `run_cleaning_pipeline`, `inject_row_lineage` implementation (HIGH confidence — read directly)
+- CONCERT codebase `R/unit_harmonizer.R` — ppb/ppm media routing, `harmonize_units` API (HIGH confidence — read directly)
 - [lubridate duration reference](https://lubridate.tidyverse.org/reference/duration.html) — "m" = months vs minutes, fractional support, ISO 8601 parsing
 - [lubridate parse dates reference](https://lubridate.tidyverse.org/reference/ymd.html) — silent format inference, `lubridate.verbose` option
 - [datefixR documentation](https://docs.ropensci.org/datefixR/) — DMY default assumption, error reporting for ambiguous inputs

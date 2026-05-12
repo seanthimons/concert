@@ -42,7 +42,7 @@ metrics:
 
 The script follows the `curate_dataset.R` pattern exactly (section headers, `message()` progress, `stopifnot()` guards). Sections 0-10:
 
-- **Section 0:** Configuration — `library()`, `CHEMREG_ROOT`, `source()` for cleaning_pipeline, cleaning_reference, unit_harmonizer
+- **Section 0:** Configuration — `library()`, `CONCERT_ROOT`, `source()` for cleaning_pipeline, cleaning_reference, unit_harmonizer
 - **Section 1:** Input data — auto-detects first CSV/XLSX in `data/benchmark/`, enforces >= 100K row guard
 - **Section 2:** Tag map and reference lists — auto-detects "name/chemical/compound/substance" columns as Name; excludes CASRN to avoid network calls per D-06; loads `ref_lists` via `load_all_reference_lists(inst/extdata)`
 - **Section 3:** Pre-generate subsets — `set.seed(42)` + `dplyr::slice_sample()` for 1K, 10K, 100K outside any bench call (Pitfall 2)

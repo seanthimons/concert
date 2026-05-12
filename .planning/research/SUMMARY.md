@@ -1,4 +1,4 @@
-# Research Summary: ChemReg v2.0
+# Research Summary: CONCERT v2.0
 
 **Milestone:** v2.0 Pipeline Performance & Date/Media Harmonization
 **Synthesized:** 2026-04-24

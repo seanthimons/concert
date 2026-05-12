@@ -1,22 +1,26 @@
-# CLAUDE.md
+﻿# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-ChemReg is a Shiny application for uploading, cleaning, and validating chemical inventory data with intelligent frontmatter detection. It automatically detects where actual data begins in messy CSV/XLSX files, filtering out report headers, metadata, and other frontmatter.
+CONCERT is a Shiny application for uploading, cleaning, and validating chemical inventory data with intelligent frontmatter detection. It automatically detects where actual data begins in messy CSV/XLSX files, filtering out report headers, metadata, and other frontmatter.
 
 ## Development Commands
 
 ### Running the Application
 
 ```r
-# Start the Shiny app
-shiny::runApp()
+# Start the Shiny app (package-style entry point)
+devtools::load_all()
+concert::run_app()
 
-# Or from command line (useful for live reload during development)
-Rscript -e "shiny::runApp('app.R')"
+# Or from command line
+Rscript -e "devtools::load_all(); concert::run_app(port = 3838, launch.browser = FALSE)"
 ```
+
+The app lives in `inst/app/app.R` and is launched via `run_app()` in `R/run_app.R`.
+There is no top-level `app.R` â€” always use `run_app()` or `shiny::runApp("inst/app")`.
 
 ### Package Management
 
@@ -39,7 +43,7 @@ testthat::test_dir("tests")
 source("tests/test_data_detection.R")
 ```
 
-**Shiny cold boot test is mandatory.** After any change that touches the Shiny app (UI modules, server logic, reactive state, app.R), verify the app starts cleanly from a fresh R session (`chemreg::run_app()`) before considering the work done. This catches missing imports, load-order issues, and broken reactive wiring that unit tests won't surface.
+**Shiny cold boot test is mandatory.** After any change that touches the Shiny app (UI modules, server logic, reactive state, app.R), verify the app starts cleanly from a fresh R session (`concert::run_app()`) before considering the work done. This catches missing imports, load-order issues, and broken reactive wiring that unit tests won't surface.
 
 ### Code Formatting
 
@@ -125,23 +129,23 @@ git push -u origin feature/pattern-detection-improvements
 
 ### Core Application Structure
 
-**app.R** (Main Entry Point)
+**inst/app/app.R** (Main Entry Point, launched via `R/run_app.R`)
 - Shiny UI/Server definition using `bslib` page_sidebar layout
 - Three main tabs: Data Preview, Detection Info, Raw Data
 - Reactive data store pattern for state management
 - File upload with 50MB limit (configurable via `options(shiny.maxRequestSize)`)
 
 **Data Flow:**
-1. File Upload → Validation (`validate_file`)
-2. Raw Read → Multiple fallback strategies (`safely_read_file`)
-3. Frontmatter Detection → Ensemble of 3 algorithms (`detect_data_start`)
-4. Data Extraction → Clean headers and rows (`extract_clean_data`)
-5. Post-processing → Merged cell handling, janitor cleaning (`handle_merged_cells`)
+1. File Upload â†’ Validation (`validate_file`)
+2. Raw Read â†’ Multiple fallback strategies (`safely_read_file`)
+3. Frontmatter Detection â†’ Ensemble of 3 algorithms (`detect_data_start`)
+4. Data Extraction â†’ Clean headers and rows (`extract_clean_data`)
+5. Post-processing â†’ Merged cell handling, janitor cleaning (`handle_merged_cells`)
 
 ### Helper Modules
 
 **R/file_handlers.R**
-- `safely_read_file()`: Multi-strategy file reading (rio → readxl/readr fallbacks)
+- `safely_read_file()`: Multi-strategy file reading (rio â†’ readxl/readr fallbacks)
 - `validate_file()`: Pre-upload validation (extension, size checks)
 - `calculate_smart_preview_rows()`: Dynamic preview sizing based on file size
 - `format_file_size()`: Human-readable file size formatting
@@ -208,7 +212,7 @@ After detection, data goes through:
 ## Key Configuration Points
 
 ### File Upload Limits
-In `app.R`, line 12-14:
+In `inst/app/app.R`:
 ```r
 options(shiny.maxRequestSize = 50 * 1024^2)  # 50MB default
 ```
@@ -221,9 +225,9 @@ In `R/data_detection.R`:
 
 ### Preview Defaults
 In `R/file_handlers.R`, `calculate_smart_preview_rows()` (lines 102-112):
-- ≤100 rows → preview 50
-- ≤1000 rows → preview 25
-- >1000 rows → preview 10
+- â‰¤100 rows â†’ preview 50
+- â‰¤1000 rows â†’ preview 25
+- >1000 rows â†’ preview 10
 
 ## Testing Structure
 
@@ -276,7 +280,7 @@ The `load_packages.R` script:
 
 1. Add extension to `validate_file()` allowed_extensions (R/file_handlers.R:134)
 2. Add fallback reading strategy in `safely_read_file()` (R/file_handlers.R:10)
-3. Update fileInput accept parameter in app.R:45
+3. Update fileInput accept parameter in inst/app/app.R
 
 ### Common Chemistry Keywords
 
@@ -288,7 +292,7 @@ The pattern matcher recognizes (R/data_detection.R:125-136):
 
 ### UI Theme Customization
 
-The app uses bslib with Flatly bootswatch theme (app.R:22-26):
+The app uses bslib with Flatly bootswatch theme (inst/app/app.R):
 ```r
 theme = bs_theme(
   version = 5,
@@ -308,9 +312,9 @@ The codebase uses consistent error handling:
 
 ## R Performance Patterns
 
-The cleaning pipeline processes datasets with 100k+ rows. Avoid these anti-patterns that cause O(n²) or worse performance:
+The cleaning pipeline processes datasets with 100k+ rows. Avoid these anti-patterns that cause O(nÂ²) or worse performance:
 
-### Growing-List Pattern (O(n²) memory allocation)
+### Growing-List Pattern (O(nÂ²) memory allocation)
 
 **BAD** - List grows inside loop, causing repeated memory reallocation:
 ```r
@@ -333,7 +337,7 @@ for (col_name in cols) {
 tibble::tibble(row_id = all_row_ids, value = all_values)
 ```
 
-### Regex Compilation Inside Loops (O(n×m) compilation overhead)
+### Regex Compilation Inside Loops (O(nÃ—m) compilation overhead)
 
 **BAD** - Regex compiled on every iteration:
 ```r

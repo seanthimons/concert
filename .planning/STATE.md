@@ -14,7 +14,7 @@ progress:
   percent: 40
 ---
 
-# Project State: ChemReg
+# Project State: CONCERT
 
 **Last Updated:** 2026-05-08
 **Milestone:** v2.3 Curation Intelligence
@@ -77,7 +77,7 @@ None.
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
 | Date/Duration | DFUT-01/02/03: Date/duration ranges + step timing | Future milestone | v2.0 |
-| Tests | Phase 47 stale test fixes from Phases 37-41 | Tracked as bean chemreg-mtpo | v2.1 |
+| Tests | Phase 47 stale test fixes from Phases 37-41 | Tracked as bean concert-mtpo | v2.1 |
 
 ---
 

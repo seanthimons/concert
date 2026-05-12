@@ -14,7 +14,7 @@
 #'   media_category, source, fetch_timestamp; or NULL.
 #' @keywords internal
 get_media_table <- function() {
-  path <- system.file("extdata/reference_cache/amos_media.rds", package = "chemreg")
+  path <- system.file("extdata/reference_cache/amos_media.rds", package = "concert")
   if (nzchar(path) && file.exists(path)) {
     readRDS(path)
   } else {

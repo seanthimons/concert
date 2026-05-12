@@ -1,11 +1,11 @@
-# Export Helper Functions for ChemReg Multi-Sheet Excel Export
+# Export Helper Functions for CONCERT Multi-Sheet Excel Export
 #
-# This module provides functions to build 8-sheet Excel exports from ChemReg
+# This module provides functions to build 8-sheet Excel exports from CONCERT
 # pipeline state and validate Excel file size limits.
 
 #' Build Export Sheets
 #'
-#' Converts ChemReg pipeline state into a named list of 8 data frames ready
+#' Converts CONCERT pipeline state into a named list of 8 data frames ready
 #' for Excel export via writexl::write_xlsx().
 #'
 #' @param raw Original uploaded data frame
@@ -135,7 +135,7 @@ build_export_sheets <- function(
 
   config_sheet <- tibble::tibble(
     key = c(
-      "chemreg_export",
+      "concert_export",
       "app_version",
       "export_timestamp",
       "detection_method",
@@ -146,7 +146,7 @@ build_export_sheets <- function(
     ),
     value = c(
       "true",
-      as.character(packageVersion("base")), # Placeholder for ChemReg version
+      as.character(packageVersion("base")), # Placeholder for CONCERT version
       format(Sys.time(), "%Y-%m-%d %H:%M:%S UTC", tz = "UTC"),
       detection$method %||% "unknown",
       as.character(detection$confidence %||% "N/A"),

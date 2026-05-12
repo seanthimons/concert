@@ -59,7 +59,7 @@ updated: 2026-04-29
 ## Eliminated
 
 - File reading differences: both files parse to identical raw structure with col_names=FALSE
-- Package install staleness: installed chemreg package and source functions behave identically
+- Package install staleness: installed concert package and source functions behave identically
 - Encoding or delimiter issues: UTF-8, comma-delimited, reads cleanly on both files
 
 ## Resolution

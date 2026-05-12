@@ -1,0 +1,32 @@
+Chemical Name,CAS Number,Notes
+Acetone,67-64-1,Agree: name and CAS match perfectly
+Ethanol,64-17-5,Agree: name and CAS match perfectly
+Benzene,71-43-2,Agree: name and CAS match perfectly
+silica substrate,50-28-2,Disagree: partial silica match vs Estradiol CAS - ambiguous enough to need human review
+Silica,14808-60-7,Auto-resolve: Silica matches silica dioxide strongly
+Toluene,108-88-3,Agree: name and CAS match perfectly
+Methanol,67-56-1,Agree: name and CAS match perfectly
+Phenol,108-95-2,Agree: name and CAS match perfectly
+Isopropanol,67-63-0,Agree: 2-propanol synonym match
+Formaldehyde,50-00-0,Agree: name and CAS match
+Naphthalene,91-20-3,Agree: name and CAS match
+Acetone,71-43-2,Disagree: Acetone name vs Benzene CAS - should suggest Acetone
+Ethanol,108-88-3,Disagree: Ethanol name vs Toluene CAS - should suggest Ethanol
+Silica gel,7631-86-9,Auto-resolve: strong synonym match for silica
+Propan-2-one,67-64-1,Auto-resolve: propan-2-one is IUPAC for acetone
+Methylbenzene,108-88-3,Auto-resolve: methylbenzene is synonym for toluene
+Dimethyl ketone,67-64-1,Suggest: dimethyl ketone is a synonym for acetone but less exact
+Grain alcohol,64-17-5,Suggest: grain alcohol is a common name for ethanol
+Carbolic acid,108-95-2,Suggest: carbolic acid is old name for phenol
+Wood alcohol,67-56-1,Suggest: wood alcohol is common name for methanol
+Muriatic acid,7647-01-0,Suggest: muriatic acid is common name for hydrochloric acid
+XYZ Unknown Compound,99999-99-9,Low score: no match expected - stays disagree
+Fake Chemical Alpha,12345-67-8,Low score: no match expected - stays disagree
+Nonexistent Reagent 42,,Low score: no match expected - stays disagree
+Glycerol,56-81-5,Agree: name and CAS match perfectly
+Urea,57-13-6,Agree: name and CAS match perfectly
+Pyridine,110-86-1,Agree: name and CAS match perfectly
+Caffeine,58-08-2,Agree: name and CAS match perfectly
+Aspirin,50-78-2,Agree: name and CAS match perfectly
+Chloroform,67-66-3,Agree: name and CAS match perfectly
+Aniline,62-53-3,Agree: name and CAS match perfectly

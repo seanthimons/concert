@@ -1,4 +1,4 @@
 library(testthat)
-library(chemreg)
+library(concert)
 
-test_check("chemreg")
+test_check("concert")

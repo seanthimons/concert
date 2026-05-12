@@ -83,7 +83,7 @@ test_that("parquet round-trip: no logical columns after read", {
 })
 
 test_that("parquet round-trip: zero-row tibble produces valid parquet", {
-  cache_dir <- system.file("extdata/reference_cache", package = "chemreg")
+  cache_dir <- system.file("extdata/reference_cache", package = "concert")
   empty_schema <- load_toxval_schema(cache_dir)
 
   temp_file <- tempfile(fileext = ".parquet")

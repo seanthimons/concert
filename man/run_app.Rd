@@ -2,7 +2,7 @@
 % Please edit documentation in R/run_app.R
 \name{run_app}
 \alias{run_app}
-\title{Launch the ChemReg Shiny Application}
+\title{Launch the CONCERT Shiny Application}
 \usage{
 run_app(...)
 }
@@ -15,7 +15,7 @@ Invisible \code{NULL}. The function is called for its side effect
 of launching the Shiny application.
 }
 \description{
-Launches the ChemReg Shiny app for chemical inventory upload, cleaning,
+Launches the CONCERT Shiny app for chemical inventory upload, cleaning,
 and curation. The app provides a full workflow from file upload through
 CompTox API curation with audit trail export.
 }
