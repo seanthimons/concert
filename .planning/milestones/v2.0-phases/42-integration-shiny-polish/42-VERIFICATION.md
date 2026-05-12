@@ -208,7 +208,7 @@ The automated checks confirm all code is in place and wired correctly. Five beha
 
 **Test:** Save a user media mapping, stop the app, restart, re-upload the same file, run harmonization. Verify the user mapping is still in the Media Classification table and is applied (term appears as matched).
 **Expected:** user_media_map.rds written to `inst/extdata/reference_cache/`. After restart, `load_media_map()` loads user RDS and prepends user rows. Next harmonization run uses the merged map.
-**Why human:** `system.file("extdata/reference_cache", package = "chemreg")` returns empty string if package is not installed (dev mode with `devtools::load_all()` may or may not resolve this). RDS persistence path needs manual verification in the actual deployment context.
+**Why human:** `system.file("extdata/reference_cache", package = "concert")` returns empty string if package is not installed (dev mode with `devtools::load_all()` may or may not resolve this). RDS persistence path needs manual verification in the actual deployment context.
 
 ---
 

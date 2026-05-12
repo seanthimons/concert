@@ -52,9 +52,9 @@ created: 2026-03-07
 
 - [ ] `tests/test_export_import.R` — stubs for EXPO-01, EXPO-02, EXPO-03
   - Multi-sheet export creates 7 sheets with correct names
-  - Pipeline Config sheet contains chemreg_export marker
+  - Pipeline Config sheet contains concert_export marker
   - Reference Lists sheet has correct type column format
-  - Config import detects ChemReg exports and rejects non-ChemReg files
+  - Config import detects CONCERT exports and rejects non-CONCERT files
   - Reference list merge preserves existing + imported entries
   - Excel size validation blocks oversized exports
 - [ ] `tests/test_excel_validation.R` — covers validate_excel_size() edge cases
@@ -69,7 +69,7 @@ created: 2026-03-07
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Modal dialog renders correctly on import | EXPO-02 | Shiny UI modal requires browser context | Upload a ChemReg export file, verify modal appears with checkboxes for reference lists and pipeline state |
+| Modal dialog renders correctly on import | EXPO-02 | Shiny UI modal requires browser context | Upload a CONCERT export file, verify modal appears with checkboxes for reference lists and pipeline state |
 | Exported Excel opens cleanly in Excel/LibreOffice | EXPO-03 | Requires desktop application | Open exported .xlsx in Excel, verify all 7 sheets are readable and properly formatted |
 | Smoke test: app starts without error | ALL | Full Shiny startup check | Run `shiny::runApp('app.R')`, verify "Listening on" message and no console errors |
 

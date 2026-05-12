@@ -14,21 +14,21 @@
 # 1. SETUP
 # ============================================================================
 
-CHEMREG_ROOT <- here::here()
+CONCERT_ROOT <- here::here()
 
-source(file.path(CHEMREG_ROOT, "R", "cleaning_reference.R"))
-source(file.path(CHEMREG_ROOT, "R", "wqx_matching.R"))
+source(file.path(CONCERT_ROOT, "R", "cleaning_reference.R"))
+source(file.path(CONCERT_ROOT, "R", "wqx_matching.R"))
 
 # ============================================================================
 # 2. PREREQUISITE GUARDS
 # ============================================================================
 
-cache_path <- file.path(CHEMREG_ROOT, "inst", "extdata", "reference_cache", "wqx_dictionary.rds")
+cache_path <- file.path(CONCERT_ROOT, "inst", "extdata", "reference_cache", "wqx_dictionary.rds")
 stopifnot(
   "wqx_dictionary.rds not found -- run scripts/build_wqx_dictionary.R first" = file.exists(cache_path)
 )
 
-train_path <- file.path(CHEMREG_ROOT, "detections_uat_sample_50.csv")
+train_path <- file.path(CONCERT_ROOT, "detections_uat_sample_50.csv")
 stopifnot(
   "detections_uat_sample_50.csv not found in repo root" = file.exists(train_path)
 )
@@ -37,7 +37,7 @@ stopifnot(
 # 3. LOAD DICTIONARY
 # ============================================================================
 
-cache_dir <- file.path(CHEMREG_ROOT, "inst", "extdata", "reference_cache")
+cache_dir <- file.path(CONCERT_ROOT, "inst", "extdata", "reference_cache")
 dict <- load_wqx_dictionary(cache_dir)
 message(sprintf(
   "Dictionary loaded: %d rows (%d canonical, %d alias)",

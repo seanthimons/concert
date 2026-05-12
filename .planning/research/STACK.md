@@ -1,6 +1,6 @@
 # Technology Stack
 
-**Project:** ChemReg v2.0 — Pipeline Performance & Date/Media Harmonization
+**Project:** CONCERT v2.0 — Pipeline Performance & Date/Media Harmonization
 **Researched:** 2026-04-24
 **Scope:** NEW additions only for v2.0. The existing stack (R/Shiny, bslib, shinyjs, DT, reactable,
 ComptoxR, rio, readxl, writexl, reactable.extras, stringr, stringi, dplyr, purrr, tidyr, tibble,
@@ -363,7 +363,7 @@ A tibble of ~7500 AMOS method records with media classification applied. Schema:
 | `year` | integer | AMOS API |
 | `source` | character | AMOS API |
 
-Loaded once per session via `system.file("extdata", "amos_methods_cache.rds", package = "chemreg")`.
+Loaded once per session via `system.file("extdata", "amos_methods_cache.rds", package = "concert")`.
 Refreshed by running `scripts/refresh_amos_cache.R` manually (requires API key).
 
 The duration conversion table is in the existing `inst/extdata/unit_table.csv` (151 rows) —
@@ -377,7 +377,7 @@ add the 10 duration rows there rather than creating a separate file.
 |--------|------|------------|
 | `ComptoxR/inst/ecotox/ecotox_build.R` lines 465–474 | Direct code read | HIGH |
 | `ComptoxR::chemi_amos_method_pagination` formals inspection | Runtime verification | HIGH |
-| `chemreg/DESCRIPTION` | Direct file read | HIGH |
+| `concert/DESCRIPTION` | Direct file read | HIGH |
 | `packageVersion('lubridate')` → 1.9.4 | Runtime verification | HIGH |
 | `packageVersion('microbenchmark')` → 1.5.0 | Runtime verification | HIGH |
 | Dedup benchmark: 5089 uniques / 100K rows → 5.5x speedup | Local benchmark | HIGH |
@@ -389,5 +389,5 @@ add the 10 duration rows there rather than creating a separate file.
 | bench vs microbenchmark comparison | bench.r-lib.org + cran.r-project.org | HIGH |
 
 ---
-*Stack research for: ChemReg v2.0 Pipeline Performance & Date/Media Harmonization*
+*Stack research for: CONCERT v2.0 Pipeline Performance & Date/Media Harmonization*
 *Researched: 2026-04-24*

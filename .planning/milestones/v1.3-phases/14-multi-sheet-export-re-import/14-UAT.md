@@ -22,19 +22,19 @@ expected: Upload a CSV file, run through the curation pipeline, go to Review Res
 result: pass
 
 ### 3. Pipeline Config Marker
-expected: Open the exported .xlsx file, go to the "Pipeline Config" sheet. It contains a row with chemreg_export = TRUE and a timestamp.
+expected: Open the exported .xlsx file, go to the "Pipeline Config" sheet. It contains a row with concert_export = TRUE and a timestamp.
 result: pass
 
 ### 4. Config Import Control Visible
 expected: In the sidebar, below the main file upload, there is an "Import Configuration" section with a file input that accepts .xlsx files and help text explaining it restores settings from a previous export.
 result: pass
 
-### 5. Valid ChemReg Export Import
-expected: Upload a previously exported ChemReg .xlsx file via the config import control. A modal dialog appears with checkboxes for "Reference Lists" and "Column Tags", allowing selective import. Clicking confirm applies the selected items.
+### 5. Valid CONCERT Export Import
+expected: Upload a previously exported CONCERT .xlsx file via the config import control. A modal dialog appears with checkboxes for "Reference Lists" and "Column Tags", allowing selective import. Clicking confirm applies the selected items.
 result: pass
 
-### 6. Non-ChemReg File Rejection
-expected: Upload a regular (non-ChemReg) .xlsx file via the config import control. A warning notification appears indicating the file is not a valid ChemReg export. No modal appears.
+### 6. Non-CONCERT File Rejection
+expected: Upload a regular (non-CONCERT) .xlsx file via the config import control. A warning notification appears indicating the file is not a valid CONCERT export. No modal appears.
 result: pass
 
 ## Summary

@@ -234,7 +234,7 @@ observeEvent(input$save_media_mapping, {
 
   # Persist user rows only
   user_rows <- data_store$media_map_working[data_store$media_map_working$source == "user", ]
-  cache_path <- system.file("extdata/reference_cache", package = "chemreg")
+  cache_path <- system.file("extdata/reference_cache", package = "concert")
   saveRDS(user_rows, file.path(cache_path, "user_media_map.rds"), compress = FALSE)
 
   removeModal()

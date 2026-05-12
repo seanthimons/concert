@@ -1,8 +1,8 @@
-# ChemReg
+# CONCERT
 
 ## What This Is
 
-A Shiny application and R package for curating chemical regulatory and benchmark data. Originally built for inventory curation (compound identification via DTXSID consensus), ChemReg is expanding to handle benchmark/regulatory datasets with numeric criteria, units, and exposure metadata. Users upload messy CSV/XLSX files, the app detects frontmatter, cleans chemical identifiers, harmonizes numeric values and units, and exports toxval-schema-compatible datasets for integration with local toxicological databases.
+A Shiny application and R package for curating chemical regulatory and benchmark data. Originally built for inventory curation (compound identification via DTXSID consensus), CONCERT is expanding to handle benchmark/regulatory datasets with numeric criteria, units, and exposure metadata. Users upload messy CSV/XLSX files, the app detects frontmatter, cleans chemical identifiers, harmonizes numeric values and units, and exports toxval-schema-compatible datasets for integration with local toxicological databases.
 
 ## Core Value
 
@@ -77,7 +77,7 @@ Users can go from messy regulatory/benchmark data files to validated, harmonized
 - ✓ Shiny app relocated to inst/app/app.R with run_app() launcher — v1.8 Phase 26
 - ✓ Reference cache relocated to inst/extdata/reference_cache/ with system.file() access — v1.8 Phase 26
 - ✓ 16 module functions exported to NAMESPACE — v1.8 Phase 26
-- ✓ DESCRIPTION + NAMESPACE scaffolding with devtools::install() + library(chemreg) working — v1.8 Phase 24
+- ✓ DESCRIPTION + NAMESPACE scaffolding with devtools::install() + library(concert) working — v1.8 Phase 24
 - ✓ Zero bare library() calls in R/*.R source files, devtools::check() passes — v1.8 Phase 25
 - ✓ curate_headless() exported for scripting the full pipeline without Shiny UI — v1.8 Phase 27
 - ✓ tests/testthat/ standard structure with 953 passing tests — v1.8 Phase 28
@@ -138,12 +138,12 @@ Users can go from messy regulatory/benchmark data files to validated, harmonized
 **Shipped:** v2.2 WQX Pipeline Refinement (2026-05-08)
 **Active:** v2.3 Curation Intelligence
 
-ChemReg is a proper R package with full compound curation, numeric/unit/duration/date/media harmonization, WQX parameter matching with interactive resolution, and ToxVal schema output. Installed via `devtools::install()`, used interactively via `chemreg::run_app()` or headlessly via `chemreg::curate_headless()`.
+CONCERT is a proper R package with full compound curation, numeric/unit/duration/date/media harmonization, WQX parameter matching with interactive resolution, and ToxVal schema output. Installed via `devtools::install()`, used interactively via `concert::run_app()` or headlessly via `concert::curate_headless()`.
 
 **Package capabilities:**
-- `library(chemreg)` loads 72+ exported functions
-- `chemreg::run_app()` launches the Shiny app from `inst/app/`
-- `chemreg::curate_headless(input, output, tag_map, harmonize=TRUE)` runs full pipeline including harmonization
+- `library(concert)` loads 72+ exported functions
+- `concert::run_app()` launches the Shiny app from `inst/app/`
+- `concert::curate_headless(input, output, tag_map, harmonize=TRUE)` runs full pipeline including harmonization
 - Numeric result parsing: scientific notation, ranges, qualifiers, Fortran exponents
 - Unit harmonization via `units` package with domain registrations, molarity/ppb context routing
 - Duration conversion with hours as base unit and "m" ambiguity flagging
@@ -188,7 +188,7 @@ The app has 9 top-level tabs: Data Preview, Detection Info, Raw Data, Clean Data
 
 Key files:
 - `inst/app/app.R` — orchestration-only UI/server
-- `R/run_app.R` — exported launcher function `chemreg::run_app()`
+- `R/run_app.R` — exported launcher function `concert::run_app()`
 - `R/curate_headless.R` — headless pipeline entry point `curate_headless()`
 - `R/mod_*.R` — 9 Shiny modules with @export tags (including mod_harmonize.R)
 - `R/curation.R` — curation pipeline orchestrator with enrichment

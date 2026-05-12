@@ -15,7 +15,7 @@
 
 **D-02 (UIPOL-02):** Remove the explicit `elementId = table_id` from the reactable call at `R/modules/mod_review_results.R:758`. The `Reactable.setFilter()` JS calls in the filter dropdowns must be updated to use the auto-generated Shiny output ID instead of the manually set `elementId`.
 
-**D-03 (UIPOL-03):** Runtime tracing needed to identify the exact jsonlite warning call site. Fix is either converting named vectors to named lists in ChemReg code, or a package update. No `jsonlite` calls exist directly in `R/`.
+**D-03 (UIPOL-03):** Runtime tracing needed to identify the exact jsonlite warning call site. Fix is either converting named vectors to named lists in CONCERT code, or a package update. No `jsonlite` calls exist directly in `R/`.
 
 ### Claude's Discretion
 
@@ -49,7 +49,7 @@ Phase 22 is a three-fix polish pass on `mod_review_results.R`. All three fixes a
 
 **UIPOL-02** requires removing `elementId = table_id` from the `reactable()` call (line 758) and updating the three `Reactable.setFilter(table_id, ...)` JavaScript calls in the filter dropdowns. The key insight is that Shiny already assigns the correct namespaced ID to the widget via its output binding — the output ID is `session$ns("curation_table")` (the module namespace uses `"-"` as separator in HTML, e.g. `review_results-curation_table`). The existing `table_id` variable already equals `session$ns("curation_table")`, which IS the correct Shiny-managed ID for `Reactable.setFilter`. So the Shiny output ID and the `table_id` variable are the same value — removing `elementId` does not break the JS filter calls; they keep using `table_id` as the string.
 
-**UIPOL-03** is the most complex. Root cause confirmed via code inspection: `shiny:::toJSON` (which all Shiny output serialization goes through) internally calls `jsonlite::toJSON(..., keep_vec_names=TRUE)`. This triggers a deprecation warning in jsonlite 2.0.0 whenever it receives a named R vector (as opposed to a named list). The warning fires at Shiny's output serialization layer — not from ChemReg's own jsonlite calls (there are none in `R/`). The fix direction is to ensure that any named character/integer vector that flows into a Shiny reactive output is converted to an unnamed vector or a named list before reaching serialization. Two confirmed patterns in `mod_review_results.R` trigger this path: `unlist(column_tags)` (line 1129 context), and any named vector used in reactive output expressions. The safest targeted fix is wrapping named vectors in `as.list()` or `unname()` before passing them through Shiny outputs.
+**UIPOL-03** is the most complex. Root cause confirmed via code inspection: `shiny:::toJSON` (which all Shiny output serialization goes through) internally calls `jsonlite::toJSON(..., keep_vec_names=TRUE)`. This triggers a deprecation warning in jsonlite 2.0.0 whenever it receives a named R vector (as opposed to a named list). The warning fires at Shiny's output serialization layer — not from CONCERT's own jsonlite calls (there are none in `R/`). The fix direction is to ensure that any named character/integer vector that flows into a Shiny reactive output is converted to an unnamed vector or a named list before reaching serialization. Two confirmed patterns in `mod_review_results.R` trigger this path: `unlist(column_tags)` (line 1129 context), and any named vector used in reactive output expressions. The safest targeted fix is wrapping named vectors in `as.list()` or `unname()` before passing them through Shiny outputs.
 
 **Primary recommendation:** Implement all three fixes in `R/modules/mod_review_results.R` in a single wave. UIPOL-01 and UIPOL-02 are trivial. UIPOL-03 requires runtime tracing inside a live Shiny session to catch every named vector that flows to a browser output, then converting each to `as.list()`.
 
@@ -173,7 +173,7 @@ x <- unname(named_vector)           # unnamed - safe
 
 **Fix strategy:**
 
-The CONTEXT.md says to use `withCallingHandlers` or `options(warn=2)` to trace the exact call site at runtime. The pattern in ChemReg that is most likely to trigger this:
+The CONTEXT.md says to use `withCallingHandlers` or `options(warn=2)` to trace the exact call site at runtime. The pattern in CONCERT that is most likely to trigger this:
 
 1. **`unlist(queue)` at mod_review_results.R line 1129** — `queue` is a named list; `unlist()` preserves names, producing a named vector. If this value is later passed to a Shiny output context, it will trigger the warning. Fix: `unname(unlist(queue))`.
 
@@ -232,9 +232,9 @@ withCallingHandlers(
 **How to avoid:** After setting `wrap=TRUE`, test with actual data. If headers are too tall, add `headerStyle = list(whiteSpace = "normal", fontSize = "0.85em")` to `defaultColDef`.
 **Warning signs:** Header row height > 3 lines for any column.
 
-### Pitfall 4: Thinking the jsonlite warning is from ChemReg's own toJSON calls
+### Pitfall 4: Thinking the jsonlite warning is from CONCERT's own toJSON calls
 **What goes wrong:** Developer greps for `toJSON` in `R/` and finds only `PW_ChemicalCuration.R:55` — concludes it's unrelated to curation module and searches elsewhere.
-**Why it happens:** The actual call chain is: `Shiny output serialization → shiny:::toJSON → jsonlite::toJSON(keep_vec_names=TRUE)`. ChemReg doesn't call jsonlite directly — Shiny does, on ChemReg's data.
+**Why it happens:** The actual call chain is: `Shiny output serialization → shiny:::toJSON → jsonlite::toJSON(keep_vec_names=TRUE)`. CONCERT doesn't call jsonlite directly — Shiny does, on CONCERT's data.
 **How to avoid:** Understand that any named vector stored in `data_store$*` or returned from `output$X` can trigger this.
 
 ---
@@ -334,7 +334,7 @@ withCallingHandlers(
 
 1. **Are there named vector sites beyond mod_review_results.R line 1129?**
    - What we know: `shiny:::toJSON` triggers for any named vector in a Shiny output
-   - What's unclear: The full set of ChemReg named vectors flowing through Shiny outputs
+   - What's unclear: The full set of CONCERT named vectors flowing through Shiny outputs
    - Recommendation: Use `options(warn=2)` runtime trace during implementation to enumerate all sites before declaring fix complete
 
 2. **Does `wrap = TRUE` affect all tables or just the review results table?**

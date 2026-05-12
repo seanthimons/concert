@@ -253,14 +253,14 @@ Speedup factor at 100K: {X}x (cleaning), {Y}x (harmonization)
 library(dplyr)
 library(bench)
 
-CHEMREG_ROOT <- here::here()
-source(file.path(CHEMREG_ROOT, "R", "cleaning_pipeline.R"))
-source(file.path(CHEMREG_ROOT, "R", "unit_harmonizer.R"))
+CONCERT_ROOT <- here::here()
+source(file.path(CONCERT_ROOT, "R", "cleaning_pipeline.R"))
+source(file.path(CONCERT_ROOT, "R", "unit_harmonizer.R"))
 # ... other R/ sources as needed
 
 # ---- Load benchmark data ----
 bench_files <- list.files(
-  file.path(CHEMREG_ROOT, "data", "benchmark"),
+  file.path(CONCERT_ROOT, "data", "benchmark"),
   pattern = "\\.(csv|xlsx)$", full.names = TRUE
 )
 stopifnot("No benchmark data found in data/benchmark/" = length(bench_files) > 0)
@@ -304,7 +304,7 @@ cleaning_results <- bench::press(
 # ---- Save raw results ----
 readr::write_csv(
   dplyr::select(cleaning_results, n, use_dedup, median, mem_alloc),
-  file.path(CHEMREG_ROOT, "data", "benchmark", "results.csv")
+  file.path(CONCERT_ROOT, "data", "benchmark", "results.csv")
 )
 
 # ---- Write Markdown summary ----

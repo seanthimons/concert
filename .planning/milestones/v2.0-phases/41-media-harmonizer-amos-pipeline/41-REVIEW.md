@@ -144,8 +144,8 @@ harmonize_audit_tibble <- tibble::tibble(
 **Fix:** Add to Section 3 of `test-media-pipeline-wiring.R`:
 ```r
 test_that("harmonize_units respects scalar media= parameter for ppb routing (tier-2 cascade)", {
-  unit_map <- chemreg:::load_unit_map(
-    system.file("extdata", "reference_cache", package = "chemreg")
+  unit_map <- concert:::load_unit_map(
+    system.file("extdata", "reference_cache", package = "concert")
   )
   result <- harmonize_units(
     values  = c(1000, 500),

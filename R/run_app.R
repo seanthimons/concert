@@ -1,6 +1,6 @@
-#' Launch the ChemReg Shiny Application
+#' Launch the CONCERT Shiny Application
 #'
-#' Launches the ChemReg Shiny app for chemical inventory upload, cleaning,
+#' Launches the CONCERT Shiny app for chemical inventory upload, cleaning,
 #' and curation. The app provides a full workflow from file upload through
 #' CompTox API curation with audit trail export.
 #'
@@ -21,11 +21,11 @@
 #'
 #' @export
 run_app <- function(...) {
-  app_dir <- system.file("app", package = "chemreg")
+  app_dir <- system.file("app", package = "concert")
 
   if (app_dir == "") {
     stop(
-      "Could not find app directory. Is chemreg installed?",
+      "Could not find app directory. Is concert installed?",
       call. = FALSE
     )
   }

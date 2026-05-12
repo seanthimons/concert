@@ -213,21 +213,21 @@ tier_labels <- c(
 
 ## Info
 
-### IN-01: `app_version` in export config sheet always reports base R version, not chemreg version
+### IN-01: `app_version` in export config sheet always reports base R version, not concert version
 
 **File:** `R/export_helpers.R:137`
 
 **Issue:** `as.character(packageVersion("base"))` is used as a placeholder with an inline comment
-`# Placeholder for ChemReg version`. Every exported Excel file's `Pipeline Config` sheet will show
+`# Placeholder for CONCERT version`. Every exported Excel file's `Pipeline Config` sheet will show
 the base R version (e.g., `"4.5.1"`) as the app version. This is silently wrong data in a
 permanent export artifact.
 
 **Fix:**
 ```r
-# If chemreg has a DESCRIPTION version:
-tryCatch(as.character(packageVersion("chemreg")), error = function(e) "unknown")
+# If concert has a DESCRIPTION version:
+tryCatch(as.character(packageVersion("concert")), error = function(e) "unknown")
 ```
-Or define a package-level constant `CHEMREG_VERSION <- "0.x.y"` and reference it here.
+Or define a package-level constant `CONCERT_VERSION <- "0.x.y"` and reference it here.
 
 ### IN-02: `deduplicate_tagged_columns` is not exported
 
@@ -235,7 +235,7 @@ Or define a package-level constant `CHEMREG_VERSION <- "0.x.y"` and reference it
 
 **Issue:** `deduplicate_tagged_columns` lacks an `@export` roxygen tag. It is part of the public
 pipeline contract (called by `run_curation_pipeline` and `get_dedup_preview`) and would be useful
-for testing or scripted use outside the Shiny app. The function is reachable only via `chemreg:::`.
+for testing or scripted use outside the Shiny app. The function is reachable only via `concert:::`.
 
 **Fix:** Add `#' @export` to the roxygen block above `deduplicate_tagged_columns`.
 

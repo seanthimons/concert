@@ -12,10 +12,10 @@
 # This replicates the cleaning logic in .build_wqx_dictionary() (R/cleaning_reference.R)
 # but reads from local files instead of downloading from EPA.
 
-CHEMREG_ROOT <- here::here()
+CONCERT_ROOT <- here::here()
 
 # --- Read and clean Characteristic.csv (canonical names) ---
-char_path <- file.path(CHEMREG_ROOT, "Characteristic.csv")
+char_path <- file.path(CONCERT_ROOT, "Characteristic.csv")
 stopifnot(file.exists(char_path))
 
 char_tbl <- readr::read_csv(char_path, show_col_types = FALSE) |>
@@ -34,7 +34,7 @@ char_tbl <- readr::read_csv(char_path, show_col_types = FALSE) |>
 message(sprintf("Canonical rows: %d", nrow(char_tbl)))
 
 # --- Read and clean Characteristic Alias.csv (alias mappings) ---
-alias_path <- file.path(CHEMREG_ROOT, "Characteristic Alias.csv")
+alias_path <- file.path(CONCERT_ROOT, "Characteristic Alias.csv")
 stopifnot(file.exists(alias_path))
 
 kept_alias_types <- c(
@@ -80,7 +80,7 @@ stopifnot(
   nrow(result) >= 120000
 )
 
-cache_path <- file.path(CHEMREG_ROOT, "inst", "extdata", "reference_cache", "wqx_dictionary.rds")
+cache_path <- file.path(CONCERT_ROOT, "inst", "extdata", "reference_cache", "wqx_dictionary.rds")
 fs::dir_create(dirname(cache_path), recurse = TRUE)
 saveRDS(result, cache_path, compress = FALSE)
 message(sprintf("Built wqx_dictionary.rds: %d rows written to %s", nrow(result), cache_path))

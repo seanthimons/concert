@@ -36,7 +36,7 @@
 
 **Known gaps:**
 
-- Phase 47 (stale test fixes from Phases 37-41) deferred — tracked as bean `chemreg-mtpo`
+- Phase 47 (stale test fixes from Phases 37-41) deferred — tracked as bean `concert-mtpo`
 
 **UAT:** All 4 phases verified (43: 7/7, 44: 9/9, 45: 9/9, 46: 4/4). Human sign-off on match quality and UI display approved 2026-05-06.
 
@@ -74,9 +74,9 @@
 
 **Key accomplishments:**
 
-- DESCRIPTION/NAMESPACE/LICENSE scaffolding with `devtools::install()` and `library(chemreg)` fully working
+- DESCRIPTION/NAMESPACE/LICENSE scaffolding with `devtools::install()` and `library(concert)` fully working
 - Zero bare `library()` calls in R/*.R source files; `devtools::check()` passes with 0 errors
-- Shiny app relocated to `inst/app/app.R` with `chemreg::run_app()` launcher function
+- Shiny app relocated to `inst/app/app.R` with `concert::run_app()` launcher function
 - Reference cache relocated to `inst/extdata/reference_cache/` with `system.file()` access
 - `curate_headless(input, output, tag_map)` exported function wires entire pipeline for scripting without Shiny UI
 - Test suite migrated to standard `tests/testthat/` structure; `devtools::test()` passes with 953 tests (0 failures, 0 errors)

@@ -43,7 +43,7 @@ Phase 12 implements chemical name cleaning operations: parenthetical stripping, 
 - Functional category filtering — Phase 13
 - Food name filtering — Phase 13
 - Stop word filtering — Phase 13
-- Upstream improvements to ComptoxR::extract_formulas() — separate from ChemReg phases
+- Upstream improvements to ComptoxR::extract_formulas() — separate from CONCERT phases
 </user_constraints>
 
 <phase_requirements>

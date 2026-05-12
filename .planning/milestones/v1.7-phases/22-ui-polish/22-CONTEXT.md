@@ -20,7 +20,7 @@ Fix column header truncation in Review Results reactable table, remove the expli
 - **D-02:** Remove the explicit `elementId = table_id` from the reactable call at `R/modules/mod_review_results.R:758`. The namespace-based `table_id` is currently used by JavaScript filter functions (`Reactable.setFilter`) — those references need to be updated to use the auto-generated widget ID or an alternative approach.
 
 ### jsonlite Deprecation Warning (UIPOL-03)
-- **D-03:** The jsonlite warning does not originate from ChemReg code directly — no `jsonlite` calls exist in `R/`. The warning comes from a dependency (likely reactable, htmlwidgets, or rhandsontable) passing a named vector where a named list is now required. Runtime tracing (`options(warn = 2)` or `withCallingHandlers`) needed to identify the exact call site and determine whether the fix is in ChemReg code (converting a named vector to a list before passing it downstream) or requires a package update.
+- **D-03:** The jsonlite warning does not originate from CONCERT code directly — no `jsonlite` calls exist in `R/`. The warning comes from a dependency (likely reactable, htmlwidgets, or rhandsontable) passing a named vector where a named list is now required. Runtime tracing (`options(warn = 2)` or `withCallingHandlers`) needed to identify the exact call site and determine whether the fix is in CONCERT code (converting a named vector to a list before passing it downstream) or requires a package update.
 
 ### Claude's Discretion
 - Approach for tracing the jsonlite warning source (runtime debugging vs. package version check)

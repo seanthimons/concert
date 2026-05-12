@@ -164,7 +164,7 @@ test_that("Sheet 8 ToxVal Output contains data when toxval_output provided", {
   td <- create_test_data()
 
   # Minimal 56-column fixture (use load_toxval_schema for template)
-  cache_dir <- system.file("extdata/reference_cache", package = "chemreg")
+  cache_dir <- system.file("extdata/reference_cache", package = "concert")
   schema <- load_toxval_schema(cache_dir)
   # Create 1-row toxval tibble from schema
   toxval_row <- as.list(schema)
@@ -234,7 +234,7 @@ test_that("Summary has Metric and Value columns with correct row count", {
 
   expect_true("Metric" %in% names(summary))
   expect_true("Value" %in% names(summary))
-  expect_equal(nrow(summary), 9) # 8 consensus metrics + match rate
+  expect_equal(nrow(summary), 11) # 10 consensus metrics + match rate
 
   # Check that Total Rows metric is present
   expect_true("Total Rows" %in% summary$Metric)
@@ -338,7 +338,7 @@ test_that("NULL cleaning_audit produces empty Cleaning Audit sheet (0 rows, corr
 
 # ===== Test Suite: audit document =====
 
-test_that("Pipeline Config contains chemreg_export key with value 'true'", {
+test_that("Pipeline Config contains concert_export key with value 'true'", {
   test_data <- create_test_data()
 
   sheets <- build_export_sheets(
@@ -354,11 +354,11 @@ test_that("Pipeline Config contains chemreg_export key with value 'true'", {
 
   config <- sheets[["Pipeline Config"]]
 
-  chemreg_value <- config %>%
-    dplyr::filter(key == "chemreg_export") %>%
+  concert_value <- config %>%
+    dplyr::filter(key == "concert_export") %>%
     dplyr::pull(value)
 
-  expect_equal(chemreg_value, "true")
+  expect_equal(concert_value, "true")
 })
 
 test_that("Pipeline Config contains export_timestamp key", {
@@ -419,8 +419,8 @@ test_that("Error messages include sheet name", {
 
 # ===== Test Suite: config import =====
 
-test_that("parse_chemreg_export on valid export returns non-NULL with 3 elements", {
-  # Create a temp ChemReg export file
+test_that("parse_concert_export on valid export returns non-NULL with 3 elements", {
+  # Create a temp CONCERT export file
   test_data <- create_test_data()
 
   sheets <- build_export_sheets(
@@ -438,7 +438,7 @@ test_that("parse_chemreg_export on valid export returns non-NULL with 3 elements
   writexl::write_xlsx(sheets, temp_file)
 
   # Parse it back
-  result <- parse_chemreg_export(temp_file)
+  result <- parse_concert_export(temp_file)
 
   expect_type(result, "list")
   expect_length(result, 3)
@@ -450,12 +450,12 @@ test_that("parse_chemreg_export on valid export returns non-NULL with 3 elements
   unlink(temp_file)
 })
 
-test_that("parse_chemreg_export on regular Excel file returns NULL", {
+test_that("parse_concert_export on regular Excel file returns NULL", {
   # Create a regular Excel file without Pipeline Config sheet
   regular_file <- tempfile(fileext = ".xlsx")
   writexl::write_xlsx(list("Sheet1" = mtcars), regular_file)
 
-  result <- parse_chemreg_export(regular_file)
+  result <- parse_concert_export(regular_file)
 
   expect_null(result)
 
@@ -463,9 +463,9 @@ test_that("parse_chemreg_export on regular Excel file returns NULL", {
   unlink(regular_file)
 })
 
-test_that("parse_chemreg_export on non-existent file returns NULL with warning", {
+test_that("parse_concert_export on non-existent file returns NULL with warning", {
   expect_warning(
-    result <- parse_chemreg_export("/nonexistent/file.xlsx"),
+    result <- parse_concert_export("/nonexistent/file.xlsx"),
     regexp = "Failed to parse"
   )
 

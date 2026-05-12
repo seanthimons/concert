@@ -1,4 +1,4 @@
-# Requirements: ChemReg
+# Requirements: CONCERT
 
 **Defined:** 2026-05-08
 **Core Value:** Users can go from messy regulatory/benchmark data files to validated, harmonized, toxval-compatible datasets in one workflow.

@@ -130,7 +130,7 @@ Order within name cleaning (runs AFTER Phase 10 unicode/trim and Phase 11 CAS pi
 - Functional category filtering — Phase 13
 - Food name filtering — Phase 13
 - Stop word filtering — Phase 13
-- Upstream improvements to ComptoxR::extract_formulas() — separate from ChemReg phases
+- Upstream improvements to ComptoxR::extract_formulas() — separate from CONCERT phases
 
 </deferred>
 

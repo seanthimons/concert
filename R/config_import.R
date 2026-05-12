@@ -1,20 +1,20 @@
-# Config Import Functions for ChemReg Export Re-import
+# Config Import Functions for CONCERT Export Re-import
 #
-# This module provides functions to detect and parse ChemReg exports,
+# This module provides functions to detect and parse CONCERT exports,
 # allowing users to restore reference lists and column tags from previous
 # export files.
 
-#' Parse ChemReg Export
+#' Parse CONCERT Export
 #'
-#' Detects if an Excel file is a valid ChemReg export and extracts
+#' Detects if an Excel file is a valid CONCERT export and extracts
 #' configuration data (reference lists and column tags).
 #'
 #' @param file_path Path to Excel file
 #'
 #' @return List with reference_lists, column_tags, config data frames,
-#'         or NULL if not a valid ChemReg export
+#'         or NULL if not a valid CONCERT export
 #' @export
-parse_chemreg_export <- function(file_path) {
+parse_concert_export <- function(file_path) {
   tryCatch(
     {
       # Stage 1: Check if Pipeline Config sheet exists
@@ -23,21 +23,21 @@ parse_chemreg_export <- function(file_path) {
         return(NULL)
       }
 
-      # Stage 2: Check if chemreg_export marker is true
+      # Stage 2: Check if concert_export marker is true
       config_df <- readxl::read_excel(file_path, sheet = "Pipeline Config")
       if (!"key" %in% names(config_df) || !"value" %in% names(config_df)) {
         return(NULL)
       }
 
-      chemreg_marker <- config_df %>%
-        dplyr::filter(key == "chemreg_export") %>%
+      concert_marker <- config_df %>%
+        dplyr::filter(key == "concert_export") %>%
         dplyr::pull(value)
 
-      if (length(chemreg_marker) == 0 || chemreg_marker != "true") {
+      if (length(concert_marker) == 0 || concert_marker != "true") {
         return(NULL)
       }
 
-      # Valid ChemReg export — read Reference Lists and Column Tags
+      # Valid CONCERT export — read Reference Lists and Column Tags
       reference_lists_df <- if ("Reference Lists" %in% sheets) {
         readxl::read_excel(file_path, sheet = "Reference Lists")
       } else {
@@ -57,7 +57,7 @@ parse_chemreg_export <- function(file_path) {
       )
     },
     error = function(e) {
-      warning("Failed to parse ChemReg export: ", conditionMessage(e))
+      warning("Failed to parse CONCERT export: ", conditionMessage(e))
       return(NULL)
     }
   )

@@ -64,7 +64,7 @@ Replaced ~50 lines of inline sheet building code with clean function calls:
 4. Cleaning Audit — per-row audit trail
 5. Reference Lists — all list types with type column
 6. Column Tags — column-to-tag mapping
-7. Pipeline Config — metadata with chemreg_export=true marker
+7. Pipeline Config — metadata with concert_export=true marker
 
 **Commit:** `a3b19b7`
 
@@ -80,8 +80,8 @@ Replaced ~50 lines of inline sheet building code with clean function calls:
 **Server changes:**
 - Added `imported_config` reactiveVal to store parsed data between modal show and confirm
 - Added `observeEvent(input$config_import)` to detect uploads:
-  - Calls `parse_chemreg_export()` to validate file
-  - Shows warning notification for non-ChemReg files
+  - Calls `parse_concert_export()` to validate file
+  - Shows warning notification for non-CONCERT files
   - Shows confirmation modal with checkboxes for selective import
 - Added `observeEvent(input$confirm_config_import)` to execute import:
   - Calls `merge_reference_lists()` to merge imported reference lists
@@ -105,7 +105,7 @@ Replaced ~50 lines of inline sheet building code with clean function calls:
 1. Export from one session → verify 7 sheets exist
 2. Upload export in new session → verify modal appears
 3. Confirm import → verify reference lists appear in Clean Data tab
-4. Upload non-ChemReg file → verify warning notification
+4. Upload non-CONCERT file → verify warning notification
 
 ## Deviations from Plan
 
@@ -115,7 +115,7 @@ Replaced ~50 lines of inline sheet building code with clean function calls:
 
 **Blocking files missing:**
 - `R/export_helpers.R` (build_export_sheets, validate_excel_size)
-- `R/config_import.R` (parse_chemreg_export, merge_reference_lists)
+- `R/config_import.R` (parse_concert_export, merge_reference_lists)
 - `tests/test_export_import.R`
 
 **Resolution:** Implemented all of Plan 14-01 inline as a blocking issue fix (deviation Rule 3):
@@ -173,12 +173,12 @@ All commits exist. All files exist. Self-check passed.
 
 **EXPO-01: Multi-sheet export builder**
 - [x] 7 sheets produced: Raw Data, Curated Data, Summary, Cleaning Audit, Reference Lists, Column Tags, Pipeline Config
-- [x] Pipeline Config contains chemreg_export=true marker
+- [x] Pipeline Config contains concert_export=true marker
 - [x] Reference Lists uses singular type column values
 
 **EXPO-02: Config import detection**
-- [x] parse_chemreg_export() detects valid ChemReg exports
-- [x] Non-ChemReg files show warning notification
+- [x] parse_concert_export() detects valid CONCERT exports
+- [x] Non-CONCERT files show warning notification
 - [x] Modal confirmation appears for valid exports
 - [x] Checkboxes allow selective import
 
@@ -201,7 +201,7 @@ All commits exist. All files exist. Self-check passed.
 1. Manual UAT recommended (despite auto-approval):
    - Export from one session, import in another
    - Verify reference lists merge correctly
-   - Test with non-ChemReg files
+   - Test with non-CONCERT files
 
 2. Phase 14 complete — all plans executed
 
@@ -209,7 +209,7 @@ All commits exist. All files exist. Self-check passed.
 
 ## Summary
 
-Successfully integrated multi-sheet export and config import functionality into ChemReg UI. Users can now export comprehensive 7-sheet workbooks and selectively restore reference lists and column tags from previous exports. Plan 14-01 implemented inline to resolve dependency blocker, resulting in efficient single-session execution of both plans.
+Successfully integrated multi-sheet export and config import functionality into CONCERT UI. Users can now export comprehensive 7-sheet workbooks and selectively restore reference lists and column tags from previous exports. Plan 14-01 implemented inline to resolve dependency blocker, resulting in efficient single-session execution of both plans.
 
 **Total execution time:** 377 seconds (6 minutes 17 seconds)
 

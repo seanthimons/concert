@@ -61,7 +61,7 @@ Inserted before `"Match Rate (%)"` per the plan spec.
 
 ### Task 2: Smoke Test (checkpoint:human-verify)
 
-Ran `chemreg::run_app(port=3839, launch.browser=FALSE)` from the worktree. Output:
+Ran `concert::run_app(port=3839, launch.browser=FALSE)` from the worktree. Output:
 
 ```
 Listening on http://127.0.0.1:3839

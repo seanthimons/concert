@@ -1,4 +1,4 @@
-# Benchmark Results: ChemReg Pipeline
+# Benchmark Results: CONCERT Pipeline
 
 _Generated: 2026-04-26 02:12 UTC_
 _R version: 4.5.1 | bench version: 1.1.4_

@@ -749,7 +749,7 @@ run_curation_pipeline <- function(
 
       # Tier 3: WQX — no character minimum (local dictionary, no API cost)
       if (length(still_missed) > 0) {
-        cache_dir <- system.file("extdata", "reference_cache", package = "chemreg")
+        cache_dir <- system.file("extdata", "reference_cache", package = "concert")
         wqx_dict <- load_wqx_dictionary(cache_dir)
         wqx_raw <- match_wqx(still_missed, wqx_dict, threshold = wqx_threshold, verbose = FALSE)
 

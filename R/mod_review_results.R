@@ -2196,7 +2196,7 @@ mod_review_results_server <- function(id, data_store) {
       # both showModal and updateSelectizeInput land in the same flush — and Shiny's
       # client processes inputMessages before modal, so the update targets a DOM
       # element that doesn't exist yet and is silently dropped.
-      cache_dir <- system.file("extdata", "reference_cache", package = "chemreg")
+      cache_dir <- system.file("extdata", "reference_cache", package = "concert")
       wqx_dict <- load_wqx_dictionary(cache_dir)
       display_type <- ifelse(wqx_dict$type == "canonical", "canonical", "alias")
       wqx_labels <- paste0(wqx_dict$name, " (", display_type, ")")

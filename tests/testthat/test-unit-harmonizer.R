@@ -1096,3 +1096,39 @@ test_that("ambiguous_unit: non-ambiguous 'min' does NOT get ambiguous flag", {
   result <- harmonize_units(c(60), c("min"), unit_map, category = "duration")
   expect_equal(result$unit_flag, "")
 })
+
+test_that("SSWQS observed units harmonize through bundled references", {
+  unit_map <- load_unit_map(system.file("extdata/reference_cache", package = "concert"))
+
+  result <- harmonize_units(
+    values = c(1000, 2, 7, 100, 3, 5, 1, 2, 10, 1, 4, 2, 100, 1),
+    units = c(
+      "parts/billion (ppb)",
+      "pg/L",
+      "standard units",
+      "CFU/100 ml or MPN/100 ml",
+      "million fibers/L",
+      "umhos/cm",
+      "feet",
+      "lbs/year",
+      "picocuries/L",
+      "change in PCU",
+      "mg/kg fish tissue",
+      "ug/kg",
+      "ng/L",
+      "no units"
+    ),
+    unit_map = unit_map,
+    media = "aqueous"
+  )
+
+  expect_equal(result$harmonized_unit, c(
+    "mg/L", "mg/L", "pH units", "CFU/100 mL", "fibers/L", "uS/cm",
+    "meters", "kg/yr", "pCi/L", "PCU", "mg/kg wet weight", "mg/kg",
+    "mg/L", "[no units]"
+  ))
+  expect_equal(result$harmonized_value[1], 1)
+  expect_equal(result$harmonized_value[2], 2e-9)
+  expect_equal(result$harmonized_value[7], 0.3048)
+  expect_equal(result$harmonized_value[8], 0.90718474)
+})

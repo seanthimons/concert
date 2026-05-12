@@ -26,10 +26,10 @@
 library(dplyr)
 library(bench)
 
-CHEMREG_ROOT <- here::here()
-source(file.path(CHEMREG_ROOT, "R", "cleaning_pipeline.R"))
-source(file.path(CHEMREG_ROOT, "R", "unit_harmonizer.R"))
-source(file.path(CHEMREG_ROOT, "R", "cleaning_reference.R"))
+CONCERT_ROOT <- here::here()
+source(file.path(CONCERT_ROOT, "R", "cleaning_pipeline.R"))
+source(file.path(CONCERT_ROOT, "R", "unit_harmonizer.R"))
+source(file.path(CONCERT_ROOT, "R", "cleaning_reference.R"))
 ```
 
 **Guard/stopifnot pattern** (curate_dataset.R lines 44–47):
@@ -86,7 +86,7 @@ cleaning_results <- bench::press(
 # Save raw results (gitignored path)
 readr::write_csv(
   dplyr::select(cleaning_results, n, use_dedup, median, mem_alloc),
-  file.path(CHEMREG_ROOT, "data", "benchmark", "results.csv")
+  file.path(CONCERT_ROOT, "data", "benchmark", "results.csv")
 )
 ```
 

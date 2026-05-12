@@ -169,8 +169,8 @@ test_that("curate_headless accepts Media-only tag_map with harmonize=TRUE", {
 test_that("harmonize_media output media_category feeds harmonize_units ppb routing", {
   # This tests the exact wiring fixed by CR-01 and WR-01:
   # harmonize_media() -> media_category -> harmonize_units(media=...) -> harmonized_unit
-  unit_map <- chemreg:::load_unit_map(
-    system.file("extdata", "reference_cache", package = "chemreg")
+  unit_map <- concert:::load_unit_map(
+    system.file("extdata", "reference_cache", package = "concert")
   )
 
   raw_media <- c("water", "soil", "water", "soil")

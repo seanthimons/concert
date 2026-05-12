@@ -2,13 +2,13 @@
 # Package initialization: register domain-specific units on load
 #
 # The `units` package (udunits2 engine) lacks chemistry-specific units.
-# We register them here so they're available immediately after library(chemreg).
+# We register them here so they're available immediately after library(concert).
 #
 # NOTE: Per D-03, `units` is a hard Imports dependency - no requireNamespace()
 # guard needed. If units is missing, package installation fails (which is correct).
 
 .onLoad <- function(libname, pkgname) {
-  register_chemreg_units()
+  register_concert_units()
 }
 
 #' Register chemistry and environmental domain units
@@ -20,7 +20,7 @@
 #'
 #' @return NULL (called for side effects)
 #' @keywords internal
-register_chemreg_units <- function() {
+register_concert_units <- function() {
   # No requireNamespace() guard needed - units is a hard Imports dependency (D-03).
   # If units is missing, the package won't load at all (correct behavior).
 

@@ -37,7 +37,7 @@ normalize_unit_string <- function(x) {
 #' @return Tibble with synonym mappings or NULL if not found
 #' @keywords internal
 get_unit_synonyms <- function() {
-  path <- system.file("extdata/unit_synonyms.rds", package = "chemreg")
+  path <- system.file("extdata/unit_synonyms.rds", package = "concert")
   if (nzchar(path) && file.exists(path)) {
     readRDS(path)
   } else {

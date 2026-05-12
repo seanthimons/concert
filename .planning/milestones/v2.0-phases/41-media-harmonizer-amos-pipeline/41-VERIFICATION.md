@@ -72,7 +72,7 @@ Previous status was `gaps_found` (score 3/5). All 4 gaps plus a guard condition 
 
 | From | To | Via | Status | Details |
 |------|----|-----|--------|---------|
-| R/media_harmonizer.R | inst/extdata/reference_cache/amos_media.rds | system.file() in get_media_table() | WIRED | Line 17: `system.file("extdata/reference_cache/amos_media.rds", package = "chemreg")` |
+| R/media_harmonizer.R | inst/extdata/reference_cache/amos_media.rds | system.file() in get_media_table() | WIRED | Line 17: `system.file("extdata/reference_cache/amos_media.rds", package = "concert")` |
 | R/media_harmonizer.R | R/unit_harmonizer.R | media_category output feeds harmonize_units(media=) | WIRED | harmonize_media() produces media_category column; integration test confirms aqueous=>"mg/L", solid=>"mg/kg" for ppb inputs |
 | scripts/build_amos_media.R | inst/extdata/reference_cache/amos_media.rds | saveRDS() | WIRED | Line 310: saveRDS(enriched_media, cache_path) |
 | R/mod_harmonize.R | R/media_harmonizer.R | direct harmonize_media() call at line 349 | WIRED | CR-01 closed: dedup_step removed. Direct call with correct signature. tryCatch wrapping preserved. |
