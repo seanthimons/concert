@@ -106,7 +106,7 @@
 
 - [x] **Phase 49: Conflict Scoring Engine** - Prototype and implement Jaro-Winkler-based similarity scoring for name-vs-CAS disagreements using CompTox synonym and rank data (completed 2026-05-08)
 - [x] **Phase 50: Auto-Resolve & Suggest** - Consume scores to auto-resolve clear mismatches and surface a ranked best-match suggestion for ambiguous cases (completed 2026-05-11)
-- [ ] **Phase 51: Row Flagging** - Add BAD/FOLLOW-UP/VERIFIED flag labels to the resolution UI with batch flagging and export persistence
+- [ ] **Phase 51: Row Flagging** - Add BAD/FOLLOW-UP/VERIFIED flag labels to the resolution UI with batch flagging and export persistence (2 plans)
 - [ ] **Phase 52: Detection Threshold Wiring** - Wire threshold parameters through `detect_data_start()` and both call sites in `mod_file_upload.R`
 
 ## Phase Details
@@ -151,7 +151,10 @@ Plans:
   2. User can select multiple rows via checkboxes and apply a flag to all selected rows in one action
   3. Flag status survives tab navigation and re-render within the session
   4. Exported Excel/Parquet file contains a dedicated flag column with the per-row flag values
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 51-01-PLAN.md -- State and export foundation (row_flag initialization, validated helpers, export persistence, focused tests)
+- [ ] 51-02-PLAN.md -- Review Results UI (modal flag controls, selected-visible batch flagging, session/export UAT)
 **UI hint**: yes
 
 ### Phase 52: Detection Threshold Wiring
@@ -201,5 +204,5 @@ Plans:
 | 48. WQX Resolution UI | v2.2 | 5/5 | Complete | 2026-05-08 |
 | 49. Conflict Scoring Engine | v2.3 | 2/2 | Complete    | 2026-05-08 |
 | 50. Auto-Resolve & Suggest | v2.3 | 3/3 | Complete   | 2026-05-11 |
-| 51. Row Flagging | v2.3 | 0/? | Not started | - |
+| 51. Row Flagging | v2.3 | 0/2 | Planned | - |
 | 52. Detection Threshold Wiring | v2.3 | 0/? | Not started | - |
