@@ -37,7 +37,8 @@ build_export_sheets <- function(
   # Sheet 1: Raw Data (as-is)
   raw_data_sheet <- raw
 
-  # Sheet 2: Curated Data with needs_review flag
+  # Sheet 2: Curated Data with public row_flag and computed needs_review flag
+  resolution_state <- init_resolution_state(resolution_state)
   curated_data_sheet <- resolution_state %>%
     dplyr::mutate(
       needs_review = (consensus_status %in% c("error", "unresolvable"))
@@ -61,7 +62,7 @@ build_export_sheets <- function(
 
   curated_data_sheet <- curated_data_sheet %>%
     dplyr::relocate(
-      tidyselect::any_of(c(".resolution_method", ".resolution_reason")),
+      tidyselect::any_of(c(".resolution_method", ".resolution_reason", "row_flag")),
       .after = tidyselect::any_of("consensus_source")
     )
 

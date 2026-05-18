@@ -216,6 +216,67 @@ test_that("Curated Data has needs_review column, no .pinned column", {
   expect_equal(curated$needs_review, c(FALSE, FALSE, TRUE))
 })
 
+test_that("Curated Data includes row_flag without extra flag metadata", {
+  test_data <- create_test_data()
+  test_data$resolution_state$row_flag <- c("BAD", NA_character_, "VERIFIED")
+
+  sheets <- build_export_sheets(
+    raw = test_data$raw,
+    resolution_state = test_data$resolution_state,
+    consensus_summary = test_data$consensus_summary,
+    cleaning_audit = test_data$cleaning_audit,
+    reference_lists = test_data$reference_lists,
+    column_tags = test_data$column_tags,
+    detection = test_data$detection,
+    file_info = test_data$file_info
+  )
+
+  curated <- sheets[["Curated Data"]]
+
+  expect_true("row_flag" %in% names(curated))
+  expect_equal(curated$row_flag, c("BAD", NA_character_, "VERIFIED"))
+  expect_false("row_flag_timestamp" %in% names(curated))
+  expect_false("row_flag_method" %in% names(curated))
+  expect_false("row_flag_note" %in% names(curated))
+})
+
+test_that("Curated Data initializes missing row_flag and keeps BAD separate from needs_review", {
+  test_data <- create_test_data()
+  test_data$resolution_state$consensus_status[1] <- "agree"
+
+  sheets <- build_export_sheets(
+    raw = test_data$raw,
+    resolution_state = test_data$resolution_state,
+    consensus_summary = test_data$consensus_summary,
+    cleaning_audit = test_data$cleaning_audit,
+    reference_lists = test_data$reference_lists,
+    column_tags = test_data$column_tags,
+    detection = test_data$detection,
+    file_info = test_data$file_info
+  )
+
+  curated <- sheets[["Curated Data"]]
+  expect_true("row_flag" %in% names(curated))
+  expect_true(all(is.na(curated$row_flag)))
+
+  flagged_state <- test_data$resolution_state
+  flagged_state$row_flag <- c("BAD", NA_character_, NA_character_)
+  flagged_sheets <- build_export_sheets(
+    raw = test_data$raw,
+    resolution_state = flagged_state,
+    consensus_summary = test_data$consensus_summary,
+    cleaning_audit = test_data$cleaning_audit,
+    reference_lists = test_data$reference_lists,
+    column_tags = test_data$column_tags,
+    detection = test_data$detection,
+    file_info = test_data$file_info
+  )
+
+  flagged_curated <- flagged_sheets[["Curated Data"]]
+  expect_equal(flagged_curated$row_flag[1], "BAD")
+  expect_false(flagged_curated$needs_review[1])
+})
+
 test_that("Summary has Metric and Value columns with correct row count", {
   test_data <- create_test_data()
 
