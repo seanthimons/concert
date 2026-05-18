@@ -47,6 +47,39 @@ derive_match_type <- function(df) {
   result
 }
 
+derive_row_flag_html <- function(flag) {
+  flag <- as.character(flag)
+  flag[is.na(flag)] <- ""
+
+  colors <- c(
+    "BAD" = "#DC3545",
+    "FOLLOW-UP" = "#FFC107",
+    "VERIFIED" = "#198754"
+  )
+  text_colors <- c(
+    "BAD" = "#fff",
+    "FOLLOW-UP" = "#212529",
+    "VERIFIED" = "#fff"
+  )
+
+  unname(vapply(flag, function(value) {
+    if (value == "") {
+      return("")
+    }
+    bg <- unname(colors[value]) %||% "#6c757d"
+    fg <- unname(text_colors[value]) %||% "#fff"
+    paste0(
+      '<span class="badge row-flag-chip" style="background:',
+      bg,
+      ";color:",
+      fg,
+      ';font-size:0.8em;">',
+      htmltools::htmlEscape(value),
+      "</span>"
+    )
+  }, character(1)))
+}
+
 # Vectorized Resolution column builder (replaces row-by-row sapply)
 derive_resolution_html <- function(df, row_indices) {
   n <- nrow(df)
@@ -459,6 +492,24 @@ mod_review_results_ui <- function(id) {
         h4("Curated Results"),
         div(
           class = "d-flex gap-2",
+          selectInput(
+            ns("batch_row_flag"),
+            label = NULL,
+            choices = c(
+              "Flag selected..." = "",
+              "BAD" = "BAD",
+              "FOLLOW-UP" = "FOLLOW-UP",
+              "VERIFIED" = "VERIFIED",
+              "Clear flag" = "CLEAR"
+            ),
+            width = "150px"
+          ),
+          actionButton(
+            ns("apply_batch_row_flag"),
+            "Apply Flag",
+            icon = icon("tags"),
+            class = "btn-sm btn-outline-primary"
+          ),
           actionButton(
             ns("filter_errors"),
             "Show Errors",
@@ -742,7 +793,8 @@ mod_review_results_server <- function(id, data_store) {
     output$curation_table <- reactable::renderReactable({
       req(data_store$resolution_state, data_store$dtxsid_cols)
 
-      df <- data_store$resolution_state
+      df <- init_resolution_state(data_store$resolution_state)
+      data_store$resolution_state <- df
       dtxsid_cols <- data_store$dtxsid_cols
       df$consensus_status <- as.character(df$consensus_status)
 
@@ -1005,6 +1057,27 @@ mod_review_results_server <- function(id, data_store) {
             }"
           ),
           filterInput = make_select_filter(status_levels, "consensus_status")
+        )
+      }
+
+      # Badge: row_flag
+      if ("row_flag" %in% names(df_display)) {
+        flag_levels <- intersect(valid_row_flags(), unique(as.character(stats::na.omit(df_display$row_flag))))
+        col_defs[["row_flag"]] <- reactable::colDef(
+          name = "Flag",
+          html = TRUE,
+          minWidth = 100,
+          cell = function(value, index) {
+            derive_row_flag_html(value)
+          },
+          filterMethod = htmlwidgets::JS(
+            "function(rows, columnId, filterValue) {
+              return rows.filter(function(row) {
+                return row.values[columnId] === filterValue;
+              });
+            }"
+          ),
+          filterInput = make_select_filter(flag_levels, "row_flag")
         )
       }
 
@@ -1334,6 +1407,13 @@ mod_review_results_server <- function(id, data_store) {
       data_store$modal_row_idx <- row_idx
       data_store$modal_selected_column <- NULL
 
+      current_flag <- if ("row_flag" %in% names(data_store$resolution_state)) {
+        data_store$resolution_state$row_flag[row_idx]
+      } else {
+        NA_character_
+      }
+      current_flag <- if (!is.na(current_flag)) current_flag else ""
+
       # Build tagged column summary for context
       tagged_summary <- if (!is.null(data_store$column_tags) && length(data_store$column_tags) > 0) {
         tag_values <- sapply(names(data_store$column_tags), function(col) {
@@ -1467,6 +1547,17 @@ mod_review_results_server <- function(id, data_store) {
       # Build scrollable container
       cards_container <- div(style = "max-height: 60vh; overflow-y: auto;", cards)
 
+      flag_controls <- div(
+        class = "border rounded p-2 mb-3",
+        radioButtons(
+          session$ns("modal_row_flag"),
+          "Row Flag",
+          choices = c("Unset" = "", "BAD" = "BAD", "FOLLOW-UP" = "FOLLOW-UP", "VERIFIED" = "VERIFIED"),
+          selected = current_flag,
+          inline = TRUE
+        )
+      )
+
       # "Accept Suggestion" button only shown for suggested rows
       accept_suggestion_btn <- if (row_status == "suggested") {
         tags$button(
@@ -1503,12 +1594,38 @@ mod_review_results_server <- function(id, data_store) {
       # Show modal
       showModal(modalDialog(
         title = "Compare Candidates",
-        tagList(tagged_summary, cards_container),
+        tagList(tagged_summary, flag_controls, cards_container),
         footer = footer,
         size = "l",
         easyClose = TRUE
       ))
     })
+
+    observeEvent(input$modal_row_flag, {
+      row_idx <- data_store$modal_row_idx
+      if (is.null(row_idx)) {
+        return()
+      }
+
+      tryCatch(
+        {
+          group_rows <- get_group_rows(row_idx, isolate(data_store$dedup_group_map))
+          updated_df <- set_row_flags(data_store$resolution_state, group_rows, input$modal_row_flag)
+          data_store$resolution_state <- updated_df
+
+          flag <- normalize_row_flag(input$modal_row_flag)
+          msg <- if (is.na(flag)) {
+            sprintf("%d row(s) cleared", length(group_rows))
+          } else {
+            sprintf("%d row(s) flagged %s", length(group_rows), flag)
+          }
+          showNotification(msg, type = "message", duration = 2)
+        },
+        error = function(e) {
+          showNotification(paste0("Error setting row flag: ", e$message), type = "error")
+        }
+      )
+    }, ignoreInit = TRUE)
 
     # Handle modal candidate selection
     observeEvent(input$modal_candidate_select, {
@@ -1903,6 +2020,50 @@ mod_review_results_server <- function(id, data_store) {
         data_store$selected_error_rows <- NULL
         shinyjs::hide("retag_selected")
       }
+    })
+
+    observe({
+      selected <- reactable::getReactableState("curation_table", "selected")
+      if (!is.null(selected) && length(selected) > 0) {
+        rep_rows <- data_store$display_row_map[selected]
+        grp_map <- data_store$dedup_group_map
+        all_rows <- unique(unlist(lapply(rep_rows, get_group_rows, dedup_group_map = grp_map)))
+        data_store$selected_visible_rows <- all_rows
+      } else {
+        data_store$selected_visible_rows <- NULL
+      }
+    })
+
+    observeEvent(input$apply_batch_row_flag, {
+      selected_rows <- data_store$selected_visible_rows
+      if (is.null(selected_rows) || length(selected_rows) == 0) {
+        showNotification("Select one or more visible rows first.", type = "warning")
+        return()
+      }
+
+      if (is.null(input$batch_row_flag) || input$batch_row_flag == "") {
+        showNotification("Choose a flag action first.", type = "warning")
+        return()
+      }
+
+      tryCatch(
+        {
+          updated_df <- set_row_flags(data_store$resolution_state, selected_rows, input$batch_row_flag)
+          data_store$resolution_state <- updated_df
+
+          flag <- normalize_row_flag(input$batch_row_flag)
+          msg <- if (is.na(flag)) {
+            sprintf("%d row(s) cleared", length(selected_rows))
+          } else {
+            sprintf("%d row(s) flagged %s", length(selected_rows), flag)
+          }
+          showNotification(msg, type = "message")
+          updateSelectInput(session, "batch_row_flag", selected = "")
+        },
+        error = function(e) {
+          showNotification(paste0("Error applying row flag: ", e$message), type = "error")
+        }
+      )
     })
 
     # Show re-tag modal
