@@ -157,14 +157,15 @@ classify_consensus <- function(df, dtxsid_cols) {
 
 #' Initialize resolution state on a classified data frame
 #'
-#' Adds .pinned column (FALSE) and .manual_entry column (FALSE) if not already present.
-#' Also adds .resolution_method and .resolution_reason columns (NA_character_) for
-#' tracking how each row was resolved (per D-11).
+#' Adds .pinned column (FALSE), .manual_entry column (FALSE), and public
+#' row_flag column (NA_character_) if not already present. Also adds
+#' .resolution_method and .resolution_reason columns (NA_character_) for tracking
+#' how each row was resolved (per D-11).
 #'
 #' Valid .resolution_method values: "auto", "suggested-accept", "bulk-accept", "manual", NA.
 #'
 #' @param df Data frame (typically output of classify_consensus)
-#' @return df with .pinned, .manual_entry, .resolution_method, and .resolution_reason columns
+#' @return df with .pinned, .manual_entry, row_flag, .resolution_method, and .resolution_reason columns
 #' @export
 init_resolution_state <- function(df) {
   if (!".pinned" %in% names(df)) {
@@ -173,12 +174,86 @@ init_resolution_state <- function(df) {
   if (!".manual_entry" %in% names(df)) {
     df$.manual_entry <- FALSE
   }
+  if (!"row_flag" %in% names(df)) {
+    df$row_flag <- NA_character_
+  }
   if (!".resolution_method" %in% names(df)) {
     df$.resolution_method <- NA_character_
   }
   if (!".resolution_reason" %in% names(df)) {
     df$.resolution_reason <- NA_character_
   }
+  df
+}
+
+#' Valid row flag values
+#'
+#' @return Character vector of user-facing row flag values.
+#' @export
+valid_row_flags <- function() {
+  c("BAD", "FOLLOW-UP", "VERIFIED")
+}
+
+#' Normalize a row flag value
+#'
+#' @param flag Character flag value, or NULL/NA/""/"CLEAR" to unset.
+#' @return A valid uppercase flag, or NA_character_ when unset.
+#' @export
+normalize_row_flag <- function(flag) {
+  if (is.null(flag) || length(flag) == 0 || is.na(flag[1])) {
+    return(NA_character_)
+  }
+
+  normalized <- toupper(trimws(as.character(flag[1])))
+  if (normalized %in% c("", "CLEAR")) {
+    return(NA_character_)
+  }
+
+  valid_flags <- valid_row_flags()
+  if (!normalized %in% valid_flags) {
+    stop(
+      "Invalid row_flag '", flag[1], "'. Valid flags are: ",
+      paste(valid_flags, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  normalized
+}
+
+#' Set one row flag
+#'
+#' @param df Resolution state data frame.
+#' @param row_idx Integer row index to update.
+#' @param flag Flag value, or NULL/NA/""/"CLEAR" to unset.
+#' @return Updated resolution state.
+#' @export
+set_row_flag <- function(df, row_idx, flag) {
+  set_row_flags(df, row_idx, flag)
+}
+
+#' Set row flags in bulk
+#'
+#' @param df Resolution state data frame.
+#' @param row_indices Integer row indices to update.
+#' @param flag Flag value, or NULL/NA/""/"CLEAR" to unset.
+#' @return Updated resolution state.
+#' @export
+set_row_flags <- function(df, row_indices, flag) {
+  df <- init_resolution_state(df)
+
+  if (is.null(row_indices) || length(row_indices) == 0) {
+    return(df)
+  }
+
+  if (any(is.na(row_indices)) ||
+    any(row_indices != as.integer(row_indices)) ||
+    any(row_indices < 1L) ||
+    any(row_indices > nrow(df))) {
+    stop("row_indices must be valid 1-based row positions.", call. = FALSE)
+  }
+
+  df$row_flag[as.integer(row_indices)] <- normalize_row_flag(flag)
   df
 }
 

@@ -283,6 +283,62 @@ test_that("init_resolution_state preserves existing .pinned", {
   expect_true(result$.pinned[1])
 })
 
+test_that("init_resolution_state adds public row_flag column", {
+  df <- data.frame(Chemical = c("Toluene"), stringsAsFactors = FALSE)
+  result <- init_resolution_state(df)
+
+  expect_true("row_flag" %in% names(result))
+  expect_false(".row_flag" %in% names(result))
+  expect_true(is.na(result$row_flag[1]))
+})
+
+test_that("init_resolution_state preserves existing row_flag values", {
+  df <- data.frame(
+    Chemical = c("Toluene", "Ethanol"),
+    row_flag = c("BAD", "VERIFIED"),
+    stringsAsFactors = FALSE
+  )
+  result <- init_resolution_state(df)
+
+  expect_equal(result$row_flag, c("BAD", "VERIFIED"))
+})
+
+test_that("set_row_flag validates, sets, clears, and preserves consensus status", {
+  df <- data.frame(
+    consensus_status = c("agree", "single", "error"),
+    consensus_dtxsid = c("DTXSID1", "DTXSID2", NA_character_),
+    .pinned = c(FALSE, TRUE, FALSE),
+    .resolution_method = c(NA_character_, "manual", NA_character_),
+    .resolution_reason = c(NA_character_, "existing", NA_character_),
+    stringsAsFactors = FALSE
+  )
+
+  result <- set_row_flag(df, 1L, "bad")
+  expect_equal(result$row_flag[1], "BAD")
+  expect_equal(result$consensus_status, df$consensus_status)
+  expect_equal(result$consensus_dtxsid, df$consensus_dtxsid)
+  expect_equal(result$.pinned, df$.pinned)
+  expect_equal(result$.resolution_method, df$.resolution_method)
+  expect_equal(result$.resolution_reason, df$.resolution_reason)
+
+  result <- set_row_flag(result, 2L, "FOLLOW-UP")
+  result <- set_row_flag(result, 3L, "VERIFIED")
+  expect_equal(result$row_flag, c("BAD", "FOLLOW-UP", "VERIFIED"))
+
+  result <- set_row_flag(result, 1L, "CLEAR")
+  expect_true(is.na(result$row_flag[1]))
+})
+
+test_that("set_row_flags updates multiple rows and rejects invalid input", {
+  df <- data.frame(consensus_status = rep("agree", 4), stringsAsFactors = FALSE)
+
+  result <- set_row_flags(df, c(2L, 4L), "verified")
+  expect_equal(result$row_flag, c(NA_character_, "VERIFIED", NA_character_, "VERIFIED"))
+
+  expect_error(set_row_flag(result, 1L, "MAYBE"), "Valid flags")
+  expect_error(set_row_flags(result, 5L, "BAD"), "valid 1-based")
+})
+
 # ============================================================================
 # Test Group 9: get_resolution_options
 # ============================================================================
