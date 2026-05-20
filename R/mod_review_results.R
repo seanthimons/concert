@@ -454,12 +454,37 @@ mod_review_results_ui <- function(id) {
     ns("copy_done")
   )))
 
+  clear_filters_js <- tags$script(HTML(sprintf(
+    "
+    $(document).on('click', '#%s', function() {
+      var tableId = '%s';
+      try {
+        var state = Reactable.getState(tableId);
+        var filters = (state && state.filters) ? state.filters.slice() : [];
+        filters.forEach(function(f) {
+          Reactable.setFilter(tableId, f.id, undefined);
+        });
+      } catch(e) {}
+
+      var container = document.getElementById(tableId);
+      if (container) {
+        container.querySelectorAll('select').forEach(function(sel) {
+          sel.value = '';
+        });
+      }
+    });
+  ",
+    ns("clear_table_filters"),
+    ns("curation_table")
+  )))
+
   tagList(
     filter_persist_js,
     resolution_js,
     compare_js,
     dtxsid_edit_js,
     copy_table_js,
+    clear_filters_js,
     reactable.extras::reactable_extras_dependency(),
 
     # Content when curation completed
@@ -509,6 +534,12 @@ mod_review_results_ui <- function(id) {
             "Apply Flag",
             icon = icon("tags"),
             class = "btn-sm btn-outline-primary"
+          ),
+          actionButton(
+            ns("clear_table_filters"),
+            "Clear Filters",
+            icon = icon("filter-circle-xmark"),
+            class = "btn-sm btn-outline-secondary"
           ),
           actionButton(
             ns("filter_errors"),
@@ -1165,15 +1196,14 @@ mod_review_results_server <- function(id, data_store) {
         if (!is.null(bg) && !is.na(bg)) list(backgroundColor = bg) else NULL
       }
 
-      selection_mode <- if (isTRUE(data_store$error_filter_active)) "multiple" else NULL
       page_size <- as.integer(input$page_size %||% 25)
 
       reactable::reactable(
         df_display,
         columns = col_defs,
         filterable = TRUE,
-        selection = selection_mode,
-        onClick = if (!is.null(selection_mode)) "select" else NULL,
+        selection = "multiple",
+        onClick = "select",
         rowStyle = row_style_fn,
         defaultPageSize = page_size,
         resizable = TRUE,
@@ -2005,6 +2035,14 @@ mod_review_results_server <- function(id, data_store) {
         "filter_errors",
         label = if (data_store$error_filter_active) "Show All" else "Show Errors"
       )
+    })
+
+    observeEvent(input$clear_table_filters, {
+      data_store$error_filter_active <- FALSE
+      data_store$selected_error_rows <- NULL
+      data_store$selected_visible_rows <- NULL
+      updateActionButton(session, "filter_errors", label = "Show Errors")
+      shinyjs::hide("retag_selected")
     })
 
     # Track selected rows and show/hide retag button
