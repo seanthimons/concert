@@ -56,6 +56,14 @@ If hardness is missing:
 - clearly label any area-average hardness calculation as estimated/screening-grade;
 - then route to the calculation workflow.
 
+### Option 3: pull hardness-supporting data from Freshwater Explorer
+
+If user/sample hardness is absent but spatial context is available:
+- investigate pulling supporting data from Freshwater Explorer via the alkalinity layer;
+- assess whether alkalinity can support a defensible area-level hardness estimate or related screening proxy;
+- require the output to identify this as a derived/spatially-sourced support value, not measured sample hardness;
+- preserve provenance: Freshwater Explorer layer, query geometry/area, date/version if available, and transformation/assumption used to support hardness criteria calculation.
+
 ## Acceptance criteria
 
 - Identify which CONCERT benchmark tables/functions currently ingest aquatic life dissolved metals criteria.
@@ -63,6 +71,7 @@ If hardness is missing:
 - Document how Appendix B hardness parameters map to CMC and CCC calculations.
 - Add or design a post-flight check that detects hardness columns/values in uploaded data.
 - Add or design a warning path when hardness-dependent metals criteria are requested but hardness is absent.
+- Evaluate Freshwater Explorer alkalinity-layer access as a possible spatial support source for area-level hardness estimation/proxy workflows.
 - Ensure CMC and CCC are preserved as separate fields/calculation outputs.
 - Add tests/fixtures for at least one hardness-dependent dissolved metal with both CMC and CCC paths.
 - Do not silently substitute a default hardness value. User-provided or explicitly configured area-average hardness must be traceable in output metadata.
