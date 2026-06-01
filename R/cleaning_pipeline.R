@@ -2709,9 +2709,9 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
         canonical <- filtered_lookup$canonical[i]
 
         pattern <- paste0(
-          "(?<![0-9])\\b(?i:",
+          "(?<![0-9A-Za-z])(?i:",
           stringr::str_escape(sym),
-          ")(",
+          ")(?:\\s*[- ]\\s*)?(",
           stringr::str_escape(mass_num),
           ")\\b(?![A-Z])"
         )

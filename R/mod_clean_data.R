@@ -122,11 +122,12 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
   moduleServer(id, function(input, output, session) {
     # Initialize reference lists if not yet loaded
     observe({
+      reference_cache_dir <- resolve_reference_cache_dir()
       if (is.null(data_store$reference_lists)) {
-        data_store$reference_lists <- load_all_reference_lists("data/reference_cache")
+        data_store$reference_lists <- load_all_reference_lists(reference_cache_dir)
       } else if (is.null(data_store$reference_lists$strip_terms)) {
         # Backfill strip_terms for sessions initialized before this list existed
-        data_store$reference_lists$strip_terms <- load_strip_terms("data/reference_cache")
+        data_store$reference_lists$strip_terms <- load_strip_terms(reference_cache_dir)
       }
     })
 

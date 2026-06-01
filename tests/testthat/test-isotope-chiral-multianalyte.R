@@ -141,6 +141,18 @@ test_that("expand_isotope_shortcodes expands ra226 to Radium-226", {
   expect_equal(result$cleaned_data$chemical_name[1], "Radium-226")
 })
 
+test_that("expand_isotope_shortcodes normalizes separated isotope symbols", {
+  df <- tibble::tibble(
+    chemical_name = c("Ra-226", "Ra 228", "U-234", "Cs-137", "Sr-90", "H-3")
+  )
+  result <- expand_isotope_shortcodes(df, c("chemical_name"))
+
+  expect_equal(result$cleaned_data$chemical_name, c(
+    "Radium-226", "Radium-228", "Uranium-234", "Caesium-137", "Strontium-90", "Hydrogen-3"
+  ))
+  expect_true(all(grepl("isotope_match", result$cleaned_data$cleaning_flag)))
+})
+
 test_that("expand_isotope_shortcodes normalizes 'radium 226' to Radium-226 (spelled-out form)", {
   df <- tibble::tibble(chemical_name = c("radium 226"))
   result <- expand_isotope_shortcodes(df, c("chemical_name"))
