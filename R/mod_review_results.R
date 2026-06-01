@@ -1556,12 +1556,20 @@ mod_review_results_server <- function(id, data_store) {
         }
 
         # Badge for suggested/auto_resolved candidate
-        candidate_badge <- if (is_suggested_candidate && row_status == "suggested") {
+        evidence_only_candidate <- isTRUE(opt$evidence_only)
+        candidate_badge <- if (evidence_only_candidate) {
+          tags$span(class = "badge bg-secondary ms-2", "Evidence only")
+        } else if (is_suggested_candidate && row_status == "suggested") {
           tags$span(class = "badge bg-primary ms-2", "Suggested")
         } else if (is_suggested_candidate && row_status == "auto_resolved") {
           tags$span(class = "badge bg-warning text-dark ms-2", "Auto-Selected")
         } else {
           NULL
+        }
+        candidate_dtxsid_label <- if (evidence_only_candidate || is.na(opt$dtxsid)) {
+          "WQX evidence only (no DTXSID)"
+        } else {
+          opt$dtxsid
         }
 
         div(
@@ -1574,7 +1582,7 @@ mod_review_results_server <- function(id, data_store) {
               div(
                 div(
                   class = "d-flex align-items-center",
-                  tags$h6(class = "mb-1 fw-bold d-inline", opt$dtxsid),
+                  tags$h6(class = "mb-1 fw-bold d-inline", candidate_dtxsid_label),
                   candidate_badge
                 ),
                 if (!is.na(opt$preferredName)) tags$p(class = "mb-1 text-muted", opt$preferredName) else NULL
@@ -1590,11 +1598,15 @@ mod_review_results_server <- function(id, data_store) {
                 } else {
                   NULL
                 },
-                tags$button(
-                  class = "modal-select-btn btn btn-sm btn-outline-success",
-                  `data-column` = col,
-                  "Select"
-                )
+                if (!evidence_only_candidate) {
+                  tags$button(
+                    class = "modal-select-btn btn btn-sm btn-outline-success",
+                    `data-column` = col,
+                    "Select"
+                  )
+                } else {
+                  tags$span(class = "text-muted small", "Review only")
+                }
               )
             ),
             tags$hr(class = "my-2"),

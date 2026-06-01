@@ -16,6 +16,87 @@ find_dtxsid_cols <- function(df) {
   grep("^dtxsid$|^dtxsid_", names(df), value = TRUE)
 }
 
+source_column_name <- function(dtxsid_col) {
+  if (identical(dtxsid_col, "dtxsid")) {
+    return("Name")
+  }
+  sub("^dtxsid_", "", dtxsid_col)
+}
+
+source_field_column <- function(dtxsid_col, prefix) {
+  if (identical(dtxsid_col, "dtxsid")) {
+    return(prefix)
+  }
+  sub("^dtxsid_", paste0(prefix, "_"), dtxsid_col)
+}
+
+is_wqx_tier <- function(x) {
+  !is.na(x) & grepl("^wqx_", x)
+}
+
+normalize_identity_evidence_name <- function(x) {
+  x <- as.character(x)
+  x[is.na(x)] <- NA_character_
+  normalized <- tolower(gsub("[^a-z0-9]+", "", x))
+  normalized[!nzchar(normalized)] <- NA_character_
+  normalized
+}
+
+find_wqx_evidence_only_cols <- function(df, dtxsid_cols, row_idx) {
+  cols <- character(0)
+  for (col in dtxsid_cols) {
+    tier_col <- source_field_column(col, "source_tier")
+    pref_col <- source_field_column(col, "preferredName")
+    if (!tier_col %in% names(df) || !pref_col %in% names(df)) {
+      next
+    }
+
+    dtxsid_val <- df[[col]][row_idx]
+    tier_val <- as.character(df[[tier_col]][row_idx])
+    pref_val <- as.character(df[[pref_col]][row_idx])
+
+    if (is.na(dtxsid_val) && is_wqx_tier(tier_val) && !is.na(pref_val) && nzchar(trimws(pref_val))) {
+      cols <- c(cols, col)
+    }
+  }
+  cols
+}
+
+has_wqx_evidence_conflict <- function(df, dtxsid_cols, row_idx) {
+  wqx_cols <- find_wqx_evidence_only_cols(df, dtxsid_cols, row_idx)
+  if (length(wqx_cols) == 0) {
+    return(FALSE)
+  }
+
+  dtxsid_pref_keys <- character(0)
+  for (col in dtxsid_cols) {
+    dtxsid_val <- df[[col]][row_idx]
+    if (is.na(dtxsid_val)) {
+      next
+    }
+    pref_col <- source_field_column(col, "preferredName")
+    if (pref_col %in% names(df)) {
+      dtxsid_pref_keys <- c(dtxsid_pref_keys, normalize_identity_evidence_name(df[[pref_col]][row_idx]))
+    }
+  }
+  dtxsid_pref_keys <- unique(dtxsid_pref_keys[!is.na(dtxsid_pref_keys)])
+  if (length(dtxsid_pref_keys) == 0) {
+    return(FALSE)
+  }
+
+  wqx_pref_keys <- vapply(
+    wqx_cols,
+    function(col) {
+      pref_col <- source_field_column(col, "preferredName")
+      normalize_identity_evidence_name(df[[pref_col]][row_idx])
+    },
+    character(1)
+  )
+  wqx_pref_keys <- wqx_pref_keys[!is.na(wqx_pref_keys)]
+
+  any(!wqx_pref_keys %in% dtxsid_pref_keys)
+}
+
 # ============================================================================
 # compute_qc_tier
 # ============================================================================
@@ -85,6 +166,17 @@ classify_consensus <- function(df, dtxsid_cols) {
     n_present <- length(non_na)
     unique_vals <- unique(non_na)
     n_unique <- length(unique_vals)
+
+    if (n_present > 0 && has_wqx_evidence_conflict(df, dtxsid_cols, i)) {
+      # WQX can contribute name-only identity evidence. If it conflicts with a
+      # DTXSID-backed source, treat the row like any other source disagreement
+      # instead of letting the DTXSID-backed source appear as a clean single/agree.
+      consensus_status[i] <- "disagree"
+      consensus_dtxsid[i] <- NA_character_
+      consensus_source[i] <- NA_character_
+      qc_tier[i] <- compute_qc_tier("disagree", 0L, k)
+      next
+    }
 
     # WQX guard: rows with NA DTXSIDs but WQX source_tier get "wqx" status, not "error"
     if (n_present == 0) {
@@ -285,23 +377,29 @@ get_resolution_options <- function(df, row_idx, dtxsid_cols, enrichment_cache = 
     "starts_with" = "Starts-with",
     "miss" = "No match",
     "cas_no_match" = "No match",
-    "cas_invalid" = "No match"
+    "cas_invalid" = "No match",
+    "wqx_exact" = "WQX Exact",
+    "wqx_alias" = "WQX Alias",
+    "wqx_fuzzy" = "WQX Fuzzy"
   )
+
+  wqx_evidence_cols <- find_wqx_evidence_only_cols(df, dtxsid_cols, row_idx)
 
   options <- list()
   for (col in dtxsid_cols) {
     val <- df[[col]][row_idx]
-    if (!is.na(val)) {
+    is_evidence_only <- is.na(val) && col %in% wqx_evidence_cols
+    if (!is.na(val) || is_evidence_only) {
       # Get corresponding preferredName and rank
-      pref_col <- sub("^dtxsid_", "preferredName_", col)
-      rank_col <- sub("^dtxsid_", "rank_", col)
-      tier_col <- sub("^dtxsid_", "source_tier_", col)
+      pref_col <- source_field_column(col, "preferredName")
+      rank_col <- source_field_column(col, "rank")
+      tier_col <- source_field_column(col, "source_tier")
       pref_name <- if (pref_col %in% names(df)) df[[pref_col]][row_idx] else NA_character_
       rank_val <- if (rank_col %in% names(df)) df[[rank_col]][row_idx] else NA_real_
 
       # Source attribution
-      source_column <- sub("^dtxsid_", "", col)
-      raw_tier <- if (tier_col %in% names(df)) df[[tier_col]][row_idx] else NA_character_
+      source_column <- source_column_name(col)
+      raw_tier <- if (tier_col %in% names(df)) as.character(df[[tier_col]][row_idx]) else NA_character_
       source_tier <- if (!is.na(raw_tier) && raw_tier %in% names(tier_labels)) {
         unname(tier_labels[raw_tier])
       } else {
@@ -312,7 +410,7 @@ get_resolution_options <- function(df, row_idx, dtxsid_cols, enrichment_cache = 
       enrich_casrn <- NA_character_
       enrich_formula <- NA_character_
       enrich_mw <- NA_real_
-      if (!is.null(enrichment_cache) && nrow(enrichment_cache) > 0) {
+      if (!is.na(val) && !is.null(enrichment_cache) && nrow(enrichment_cache) > 0) {
         match_idx <- which(enrichment_cache$dtxsid == val)
         if (length(match_idx) > 0) {
           enrich_casrn <- enrichment_cache$casrn[match_idx[1]]
@@ -329,7 +427,8 @@ get_resolution_options <- function(df, row_idx, dtxsid_cols, enrichment_cache = 
         source_tier = source_tier,
         casrn = enrich_casrn,
         molecular_formula = enrich_formula,
-        molecular_weight = enrich_mw
+        molecular_weight = enrich_mw,
+        evidence_only = is_evidence_only
       )
     }
   }

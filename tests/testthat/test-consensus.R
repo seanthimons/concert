@@ -96,6 +96,50 @@ test_that("classify_consensus: only one column has data -> single", {
   expect_equal(result$consensus_source[1], "Chemical")
 })
 
+test_that("classify_consensus: WQX evidence-only conflict with DTXSID-backed source -> disagree", {
+  df <- data.frame(
+    Chemical = c("benzo (a) anthracene"),
+    CASRN = c("56-55-3"),
+    dtxsid_Chemical = c(NA_character_),
+    preferredName_Chemical = c("Benzo(a)anthracene-D12"),
+    source_tier_Chemical = c("wqx_fuzzy"),
+    dtxsid_CASRN = c("DTXSID001"),
+    preferredName_CASRN = c("Benz[a]anthracene"),
+    source_tier_CASRN = c("cas"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CASRN")
+
+  result <- classify_consensus(df, dtxsid_cols)
+
+  expect_equal(result$consensus_status[1], "disagree")
+  expect_true(is.na(result$consensus_dtxsid[1]))
+  expect_true(is.na(result$consensus_source[1]))
+})
+
+test_that("classify_consensus: matching WQX evidence-only name does not force disagree", {
+  df <- data.frame(
+    Chemical = c("Toluene"),
+    CASRN = c("108-88-3"),
+    dtxsid_Chemical = c(NA_character_),
+    preferredName_Chemical = c("Toluene"),
+    source_tier_Chemical = c("wqx_exact"),
+    dtxsid_CASRN = c("DTXSID7021360"),
+    preferredName_CASRN = c("Toluene"),
+    source_tier_CASRN = c("cas"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CASRN")
+
+  result <- classify_consensus(df, dtxsid_cols)
+
+  expect_equal(result$consensus_status[1], "single")
+  expect_equal(result$consensus_dtxsid[1], "DTXSID7021360")
+  expect_equal(result$consensus_source[1], "CASRN")
+})
+
 test_that("classify_consensus: all columns NA -> error", {
   df <- data.frame(
     Chemical = c("Unknown"),
@@ -394,6 +438,33 @@ test_that("get_resolution_options excludes NA columns", {
   # Verify new return format
   expect_equal(options[["dtxsid_Chemical"]]$dtxsid, "DTXSID7021360")
   expect_equal(options[["dtxsid_CAS"]]$dtxsid, "DTXSID1020001")
+})
+
+test_that("get_resolution_options includes WQX evidence-only candidates for disagree rows", {
+  df <- data.frame(
+    Chemical = c("benzo (a) anthracene"),
+    CASRN = c("56-55-3"),
+    dtxsid_Chemical = c(NA_character_),
+    preferredName_Chemical = c("Benzo(a)anthracene-D12"),
+    source_tier_Chemical = c("wqx_fuzzy"),
+    dtxsid_CASRN = c("DTXSID001"),
+    preferredName_CASRN = c("Benz[a]anthracene"),
+    source_tier_CASRN = c("cas"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CASRN")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  options <- get_resolution_options(df, 1, dtxsid_cols)
+
+  expect_length(options, 2)
+  expect_true(is.na(options[["dtxsid_Chemical"]]$dtxsid))
+  expect_equal(options[["dtxsid_Chemical"]]$preferredName, "Benzo(a)anthracene-D12")
+  expect_equal(options[["dtxsid_Chemical"]]$source_tier, "WQX Fuzzy")
+  expect_true(options[["dtxsid_Chemical"]]$evidence_only)
+  expect_equal(options[["dtxsid_CASRN"]]$dtxsid, "DTXSID001")
+  expect_false(options[["dtxsid_CASRN"]]$evidence_only)
 })
 
 # ============================================================================
