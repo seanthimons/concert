@@ -66,6 +66,26 @@ test_that("derive_match_type maps wqx_fuzzy to WQX Fuzzy", {
   expect_equal(result, "WQX Fuzzy")
 })
 
+test_that("derive_match_type uses consensus_source instead of first available source_tier", {
+  df <- data.frame(
+    consensus_status = c("single"),
+    consensus_dtxsid = c("DTXSID001"),
+    consensus_source = c("CASRN"),
+    dtxsid_Chemical = c(NA_character_),
+    preferredName_Chemical = c("Benzo(a)anthracene-D12"),
+    source_tier_Chemical = c("wqx_fuzzy"),
+    dtxsid_CASRN = c("DTXSID001"),
+    preferredName_CASRN = c("Benz[a]anthracene"),
+    source_tier_CASRN = c("cas"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  result <- derive_match_type(df)
+
+  expect_equal(result, "CAS Lookup")
+})
+
 test_that("derive_row_flag_html renders BAD, FOLLOW-UP, VERIFIED, and blank flags", {
   result <- derive_row_flag_html(c("BAD", "FOLLOW-UP", "VERIFIED", NA_character_, ""))
 
@@ -124,6 +144,28 @@ test_that("derive_resolution_html still works correctly for agree rows (regressi
   result <- derive_resolution_html(df, row_indices = 1L)
   expect_match(result, "DTXSID7021360")
   expect_match(result, "Toluene")
+})
+
+test_that("derive_resolution_html uses consensus_source preferredName for single-source rows", {
+  df <- data.frame(
+    consensus_status = c("single"),
+    consensus_dtxsid = c("DTXSID001"),
+    consensus_source = c("CASRN"),
+    dtxsid_Chemical = c(NA_character_),
+    preferredName_Chemical = c("Benzo(a)anthracene-D12"),
+    source_tier_Chemical = c("wqx_fuzzy"),
+    dtxsid_CASRN = c("DTXSID001"),
+    preferredName_CASRN = c("Benz[a]anthracene"),
+    source_tier_CASRN = c("cas"),
+    .pinned = c(FALSE),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  result <- derive_resolution_html(df, row_indices = 1L)
+
+  expect_match(result, "Benz\\[a\\]anthracene")
+  expect_no_match(result, "Benzo\\(a\\)anthracene-D12")
 })
 
 # ============================================================================
