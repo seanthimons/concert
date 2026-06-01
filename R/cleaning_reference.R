@@ -37,6 +37,39 @@ load_or_fetch_reference <- function(cache_path, fetch_fn, name) {
   return(result)
 }
 
+#' Resolve the default bundled reference cache directory
+#'
+#' Prefer installed package data. When running the Shiny app from a source
+#' checkout, system.file() may be empty, so fall back to inst/extdata/reference_cache
+#' before allowing data/reference_cache to be created with minimal fallback data.
+#'
+#' @param cache_dir Optional explicit cache directory
+#' @return Character path to a reference cache directory
+#' @keywords internal
+resolve_reference_cache_dir <- function(cache_dir = NULL) {
+  if (!is.null(cache_dir) && nzchar(cache_dir)) {
+    return(cache_dir)
+  }
+
+  installed_cache <- system.file("extdata", "reference_cache", package = "concert")
+  candidates <- c(
+    installed_cache,
+    file.path("inst", "extdata", "reference_cache"),
+    file.path(getwd(), "inst", "extdata", "reference_cache"),
+    file.path("..", "..", "inst", "extdata", "reference_cache"),
+    file.path(getwd(), "..", "..", "inst", "extdata", "reference_cache"),
+    file.path("data", "reference_cache")
+  )
+  candidates <- unique(candidates[nzchar(candidates)])
+
+  existing <- candidates[dir.exists(candidates)]
+  if (length(existing) > 0) {
+    return(existing[1])
+  }
+
+  file.path("data", "reference_cache")
+}
+
 #' Load stop words list
 #'
 #' Returns a tibble of chemistry-specific stop words with provenance tracking.
@@ -301,6 +334,84 @@ load_isotope_lookup <- function(cache_dir) {
   load_or_fetch_reference(cache_path, fetch_fn, "isotope lookup")
 }
 
+#' Add deterministic radiological activity-concentration conversions
+#'
+#' Environmental radioisotope results are commonly reported as activity per volume,
+#' but live datasets also use bare activity units such as `pCi` as shorthand. Keep
+#' those dimensions separate: concentration units harmonize to `pCi/L`; bare
+#' activity units harmonize to `pCi` without assuming a volume basis.
+#'
+#' Existing ECOTOX-derived cache rows mix canonical targets (`Bq/l` vs `pCi/L`) and
+#' omit several common curie-scale variants. This helper installs stable targets
+#' for environmental radiological detections.
+#'
+#' @param unit_map Tibble with unit conversion columns
+#' @return Tibble with radiological rows overriding conflicting source rows
+#' @keywords internal
+augment_radiological_unit_map <- function(unit_map) {
+  make_rows <- function(from_unit, to_unit, multiplier, category) {
+    tibble::tibble(
+      from_unit = from_unit,
+      to_unit = rep(to_unit, length(from_unit)),
+      multiplier = multiplier,
+      category = rep(category, length(from_unit)),
+      confidence = rep("HIGH", length(from_unit)),
+      source = rep("concert_radiological", length(from_unit))
+    )
+  }
+
+  activity_concentration_rows <- make_rows(
+    from_unit = c(
+      "pCi/L", "pCi/l", "pCi per L", "pCi per liter", "pCi per litre",
+      "picocurie/L", "picocuries/L", "picocurie/liter", "picocuries/liter",
+      "picocurie per liter", "picocuries per liter",
+      "picocurie per litre", "picocuries per litre",
+      "nCi/L", "uCi/L", "µCi/L", "mCi/L", "Ci/L",
+      "Bq/L", "Bq/l", "Bq per L", "Bq per liter", "Bq per litre",
+      "mBq/L", "mBq per L", "mBq per liter", "mBq per litre",
+      "uBq/L", "uBq per L", "uBq per liter", "uBq per litre",
+      "µBq/L", "µBq per L", "µBq per liter", "µBq per litre",
+      "kBq/L", "kBq per L", "kBq per liter", "kBq per litre"
+    ),
+    to_unit = "pCi/L",
+    multiplier = c(
+      rep(1, 13),
+      1e3, 1e6, 1e6, 1e9, 1e12,
+      rep(27.027027027027, 5),
+      rep(0.027027027027027, 4),
+      rep(0.000027027027027, 4),
+      rep(0.000027027027027, 4),
+      rep(27027.027027027, 4)
+    ),
+    category = "radioactivity_concentration"
+  )
+
+  activity_rows <- make_rows(
+    from_unit = c(
+      "pCi", "picocurie", "picocuries",
+      "nCi", "uCi", "µCi", "mCi", "Ci",
+      "Bq", "mBq", "uBq", "µBq", "kBq"
+    ),
+    to_unit = "pCi",
+    multiplier = c(
+      1, 1, 1,
+      1e3, 1e6, 1e6, 1e9, 1e12,
+      27.027027027027, 0.027027027027027,
+      0.000027027027027, 0.000027027027027, 27027.027027027
+    ),
+    category = "radioactivity"
+  )
+
+  radiological_rows <- dplyr::bind_rows(activity_concentration_rows, activity_rows)
+
+  if (is.null(unit_map) || nrow(unit_map) == 0) {
+    return(radiological_rows)
+  }
+
+  unit_map <- unit_map[!tolower(unit_map$from_unit) %in% tolower(radiological_rows$from_unit), , drop = FALSE]
+  dplyr::bind_rows(radiological_rows, unit_map)
+}
+
 #' Load unit conversion map
 #'
 #' Returns a tibble of unit conversion factors for harmonizing measurement units.
@@ -317,7 +428,8 @@ load_isotope_lookup <- function(cache_dir) {
 #' @param cache_dir Directory for cache files (e.g., "inst/extdata")
 #' @return Tibble with columns: from_unit, to_unit, multiplier, category, confidence, source
 #' @export
-load_unit_map <- function(cache_dir) {
+load_unit_map <- function(cache_dir = NULL) {
+  cache_dir <- resolve_reference_cache_dir(cache_dir)
   cache_path <- file.path(cache_dir, "unit_conversion.rds")
 
   fetch_fn <- function() {
@@ -334,7 +446,7 @@ load_unit_map <- function(cache_dir) {
     )
   }
 
-  load_or_fetch_reference(cache_path, fetch_fn, "unit conversion map")
+  augment_radiological_unit_map(load_or_fetch_reference(cache_path, fetch_fn, "unit conversion map"))
 }
 
 #' Load unit synonym normalization table
@@ -498,7 +610,9 @@ load_media_map <- function(cache_dir) {
 #' refs$toxval_schema
 #' refs$media_map
 #' @export
-load_all_reference_lists <- function(cache_dir) {
+load_all_reference_lists <- function(cache_dir = NULL) {
+  cache_dir <- resolve_reference_cache_dir(cache_dir)
+
   list(
     stop_words = load_stop_words(cache_dir),
     block_patterns = load_block_patterns(cache_dir),

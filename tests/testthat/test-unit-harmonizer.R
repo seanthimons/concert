@@ -1132,3 +1132,48 @@ test_that("SSWQS observed units harmonize through bundled references", {
   expect_equal(result$harmonized_value[7], 0.3048)
   expect_equal(result$harmonized_value[8], 0.90718474)
 })
+
+test_that("common environmental radiological activity concentration units harmonize to pCi/L", {
+  unit_map <- load_unit_map()
+
+  result <- harmonize_units(
+    values = rep(1, 12),
+    units = c(
+      "pCi/L", "PCI/L", "pCi / L", "picocurie/L", "picocuries per liter",
+      "Bq/L", "mBq/L", "uBq/L", "µBq/L", "nCi/L", "uCi/L", "CI/L"
+    ),
+    unit_map = unit_map
+  )
+
+  expect_equal(result$harmonized_unit, rep("pCi/L", 12))
+  expect_equal(result$conversion_factor, c(
+    1, 1, 1, 1, 1,
+    27.027027027027, 0.027027027027027,
+    0.000027027027027, 0.000027027027027,
+    1000, 1e6, 1e12
+  ), tolerance = 1e-12)
+  expect_true(all(result$unit_flag %in% c("", "case_fallback")))
+})
+
+test_that("bare radiological activity units harmonize to pCi without assuming volume", {
+  unit_map <- load_unit_map()
+
+  result <- harmonize_units(
+    values = rep(1, 12),
+    units = c(
+      "pCi", "PCI", "picocurie", "picocuries",
+      "Bq", "mBq", "uBq", "µBq",
+      "nCi", "uCi", "mCi", "Ci"
+    ),
+    unit_map = unit_map
+  )
+
+  expect_equal(result$harmonized_unit, rep("pCi", 12))
+  expect_equal(result$conversion_factor, c(
+    1, 1, 1, 1,
+    27.027027027027, 0.027027027027027,
+    0.000027027027027, 0.000027027027027,
+    1000, 1e6, 1e9, 1e12
+  ), tolerance = 1e-12)
+  expect_true(all(result$unit_flag %in% c("", "case_fallback")))
+})

@@ -37,8 +37,20 @@ normalize_unit_string <- function(x) {
 #' @return Tibble with synonym mappings or NULL if not found
 #' @keywords internal
 get_unit_synonyms <- function() {
-  path <- system.file("extdata/unit_synonyms.rds", package = "concert")
-  if (nzchar(path) && file.exists(path)) {
+  candidates <- c(
+    system.file("extdata/unit_synonyms.rds", package = "concert"),
+    file.path("inst", "extdata", "unit_synonyms.rds"),
+    file.path(getwd(), "inst", "extdata", "unit_synonyms.rds"),
+    file.path("..", "..", "inst", "extdata", "unit_synonyms.rds"),
+    file.path(getwd(), "..", "..", "inst", "extdata", "unit_synonyms.rds"),
+    file.path("inst", "extdata", "reference_cache", "unit_synonyms.rds"),
+    file.path(getwd(), "inst", "extdata", "reference_cache", "unit_synonyms.rds"),
+    file.path("..", "..", "inst", "extdata", "reference_cache", "unit_synonyms.rds"),
+    file.path(getwd(), "..", "..", "inst", "extdata", "reference_cache", "unit_synonyms.rds")
+  )
+  candidates <- unique(candidates[nzchar(candidates)])
+  path <- candidates[file.exists(candidates)][1]
+  if (!is.na(path) && nzchar(path)) {
     readRDS(path)
   } else {
     NULL
