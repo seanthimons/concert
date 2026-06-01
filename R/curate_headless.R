@@ -121,7 +121,7 @@ curate_headless <- function(
     # Step 2: Load reference lists
     # ------------------------------------------------------------------
     if (is.null(reference_lists)) {
-      cache_dir <- system.file("extdata", "reference_cache", package = "concert")
+      cache_dir <- resolve_reference_cache_dir()
       reference_lists <- load_all_reference_lists(cache_dir)
     } else {
       expected <- c("stop_words", "functional_categories", "block_patterns", "strip_terms", "isotope_lookup")
@@ -207,13 +207,13 @@ curate_headless <- function(
       # Load unit_map from cache if not provided
       cache_dir_ref <- NULL
       if (is.null(unit_map)) {
-        cache_dir_ref <- system.file("extdata", "reference_cache", package = "concert")
+        cache_dir_ref <- resolve_reference_cache_dir()
         unit_map <- load_unit_map(cache_dir_ref)
       }
       # Load corrections from cache if not provided
       if (is.null(corrections)) {
         if (is.null(cache_dir_ref)) {
-          cache_dir_ref <- system.file("extdata", "reference_cache", package = "concert")
+          cache_dir_ref <- resolve_reference_cache_dir()
         }
         corrections <- load_corrections(cache_dir_ref)
       }

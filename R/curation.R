@@ -15,15 +15,26 @@
 #' @param skip_flags Optional character vector of cleaning_flag values. Rows whose
 #'   cleaning_flag contains any of these values are excluded from the search pool
 #'   (their dedup_key_map entries are kept but marked as skipped).
+#' @param skip_rows Optional integer vector of explicit row indices to exclude from
+#'   the search pool. When supplied, this takes precedence over skip_flags.
 #' @return List with unique_names, unique_cas, dedup_key_map, and skipped_rows (integer vector)
-deduplicate_tagged_columns <- function(df, tag_map, skip_flags = NULL) {
+deduplicate_tagged_columns <- function(df, tag_map, skip_flags = NULL, skip_rows = NULL) {
   name_cols <- names(tag_map)[tag_map == "Name"]
   cas_cols <- names(tag_map)[tag_map == "CASRN"]
   other_cols <- names(tag_map)[tag_map == "Other"]
 
-  # Identify rows to skip from API search (e.g. isotope_match)
+  # Identify rows to skip from API search (e.g., isotope_match)
   skipped_rows <- integer(0)
-  if (!is.null(skip_flags) && "cleaning_flag" %in% names(df)) {
+  if (!is.null(skip_rows)) {
+    skipped_rows <- sort(unique(as.integer(skip_rows)))
+    skipped_rows <- skipped_rows[!is.na(skipped_rows) & skipped_rows >= 1L & skipped_rows <= nrow(df)]
+    if (length(skipped_rows) > 0) {
+      message(sprintf(
+        "[dedup] Skipping %d rows from search pool (explicit row filter)",
+        length(skipped_rows)
+      ))
+    }
+  } else if (!is.null(skip_flags) && "cleaning_flag" %in% names(df)) {
     skip_pattern <- paste0("\\b(", paste(skip_flags, collapse = "|"), ")\\b")
     skipped_rows <- which(!is.na(df$cleaning_flag) & grepl(skip_pattern, df$cleaning_flag))
     if (length(skipped_rows) > 0) {
@@ -87,6 +98,37 @@ deduplicate_tagged_columns <- function(df, tag_map, skip_flags = NULL) {
     dedup_key_map = dedup_key_map,
     skipped_rows = skipped_rows
   )
+}
+
+#' Identify isotope rows that are already pre-resolved to DTXSID
+#'
+#' Isotope normalization can canonicalize WQX radiochemical names without a
+#' CompTox DTXSID. Only rows that actually have an isotope DTXSID should skip
+#' the normal curation search pool; unresolved isotope matches must continue to
+#' WQX matching.
+#'
+#' @param clean_data Cleaned data frame containing cleaning_flag and isotope_dtxsid
+#' @return Integer row indices for pre-resolved isotope rows
+#' @keywords internal
+get_pre_resolved_isotope_rows <- function(clean_data) {
+  if (!"cleaning_flag" %in% names(clean_data) || !"isotope_dtxsid" %in% names(clean_data)) {
+    return(integer(0))
+  }
+
+  which(
+    !is.na(clean_data$cleaning_flag) &
+      grepl("\\bisotope_match\\b", clean_data$cleaning_flag) &
+      !is.na(clean_data$isotope_dtxsid) &
+      nzchar(clean_data$isotope_dtxsid)
+  )
+}
+
+#' Resolve reference cache directory for curation-time dictionary lookups
+#'
+#' @return Character path to bundled/source reference cache
+#' @keywords internal
+resolve_curation_reference_cache_dir <- function() {
+  resolve_reference_cache_dir(system.file("extdata", "reference_cache", package = "concert"))
 }
 
 # ============================================================================
@@ -640,27 +682,23 @@ run_curation_pipeline <- function(
   wqx_threshold = 0.85,
   starts_with = FALSE
 ) {
-  # Build pre-resolved tibble for isotope-matched rows (skip API search)
+  # Build pre-resolved tibble for isotope-matched rows with known DTXSIDs.
+  # Isotope matches without DTXSID must remain searchable so WQX can resolve
+  # radiochemical canonical names such as Potassium-40, Lead-212, and Thallium-208.
   pre_resolved <- NULL
-  if ("cleaning_flag" %in% names(clean_data) && "isotope_dtxsid" %in% names(clean_data)) {
-    iso_rows <- which(
-      !is.na(clean_data$cleaning_flag) &
-        grepl("\\bisotope_match\\b", clean_data$cleaning_flag) &
-        !is.na(clean_data$isotope_dtxsid)
+  isotope_skip_rows <- get_pre_resolved_isotope_rows(clean_data)
+  if (length(isotope_skip_rows) > 0) {
+    pre_resolved <- tibble::tibble(
+      row_idx = isotope_skip_rows,
+      dtxsid = clean_data$isotope_dtxsid[isotope_skip_rows],
+      preferredName = NA_character_,
+      source_tier = "isotope_match"
     )
-    if (length(iso_rows) > 0) {
-      pre_resolved <- tibble::tibble(
-        row_idx = iso_rows,
-        dtxsid = clean_data$isotope_dtxsid[iso_rows],
-        preferredName = NA_character_,
-        source_tier = "isotope_match"
-      )
-      message(sprintf("[pipeline] %d isotope-matched rows with DTXSID will skip API search", length(iso_rows)))
-    }
+    message(sprintf("[pipeline] %d isotope-matched rows with DTXSID will skip API search", length(isotope_skip_rows)))
   }
 
-  # Stage 1: Deduplication (skip isotope_match rows from search pool)
-  dedup_result <- deduplicate_tagged_columns(clean_data, column_tags, skip_flags = "isotope_match")
+  # Stage 1: Deduplication (skip only isotope_match rows that already have DTXSID)
+  dedup_result <- deduplicate_tagged_columns(clean_data, column_tags, skip_rows = isotope_skip_rows)
 
   n_other <- sum(column_tags == "Other")
   dedup_msg <- sprintf(
@@ -749,7 +787,7 @@ run_curation_pipeline <- function(
 
       # Tier 3: WQX — no character minimum (local dictionary, no API cost)
       if (length(still_missed) > 0) {
-        cache_dir <- system.file("extdata", "reference_cache", package = "concert")
+        cache_dir <- resolve_curation_reference_cache_dir()
         wqx_dict <- load_wqx_dictionary(cache_dir)
         wqx_raw <- match_wqx(still_missed, wqx_dict, threshold = wqx_threshold, verbose = FALSE)
 
@@ -1232,7 +1270,8 @@ enrich_synonyms <- function(dtxsids, existing_cache = NULL) {
 #' @return List with n_names and n_cas
 #' @export
 get_dedup_preview <- function(clean_data, column_tags) {
-  dedup_result <- deduplicate_tagged_columns(clean_data, column_tags, skip_flags = "isotope_match")
+  isotope_skip_rows <- get_pre_resolved_isotope_rows(clean_data)
+  dedup_result <- deduplicate_tagged_columns(clean_data, column_tags, skip_rows = isotope_skip_rows)
 
   list(
     n_names = length(dedup_result$unique_names),
