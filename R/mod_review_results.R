@@ -17,9 +17,74 @@ recalc_consensus_summary <- function(df) {
   )
 }
 
+source_to_column <- function(prefix, source) {
+  if (is.na(source) || !nzchar(source)) {
+    return(NA_character_)
+  }
+  if (source == "Name") {
+    return(prefix)
+  }
+  paste0(prefix, "_", source)
+}
+
+dtxsid_to_column <- function(dtxsid_col, prefix) {
+  if (dtxsid_col == "dtxsid") {
+    return(prefix)
+  }
+  sub("^dtxsid_", paste0(prefix, "_"), dtxsid_col)
+}
+
+pick_source_aligned_values <- function(df, prefix) {
+  n <- nrow(df)
+  values <- rep(NA_character_, n)
+
+  source <- if ("consensus_source" %in% names(df)) as.character(df$consensus_source) else rep(NA_character_, n)
+  dtxsid <- if ("consensus_dtxsid" %in% names(df)) as.character(df$consensus_dtxsid) else rep(NA_character_, n)
+  dtxsid_cols <- find_dtxsid_cols(df)
+
+  for (i in seq_len(n)) {
+    src <- source[i]
+
+    if (!is.na(src) && nzchar(src) && !src %in% c("consensus", "manual_entry")) {
+      source_col <- source_to_column(prefix, src)
+      if (!is.na(source_col) && source_col %in% names(df) && !is.na(df[[source_col]][i])) {
+        values[i] <- as.character(df[[source_col]][i])
+        next
+      }
+    }
+
+    if (!is.na(dtxsid[i]) && length(dtxsid_cols) > 0) {
+      for (dc in dtxsid_cols) {
+        if (!is.na(df[[dc]][i]) && identical(as.character(df[[dc]][i]), dtxsid[i])) {
+          candidate_col <- dtxsid_to_column(dc, prefix)
+          if (candidate_col %in% names(df) && !is.na(df[[candidate_col]][i])) {
+            values[i] <- as.character(df[[candidate_col]][i])
+            break
+          }
+        }
+      }
+    }
+
+    # Backward-compatible fallback for legacy rows/tests without consensus_source
+    # or rows that have no DTXSID-bearing source, e.g. WQX-only evidence.
+    if (is.na(values[i])) {
+      prefixed_cols <- if (prefix %in% names(df)) prefix else character(0)
+      prefixed_cols <- c(prefixed_cols, grep(paste0("^", prefix, "_"), names(df), value = TRUE))
+      for (pc in prefixed_cols) {
+        if (!is.na(df[[pc]][i])) {
+          values[i] <- as.character(df[[pc]][i])
+          break
+        }
+      }
+    }
+  }
+
+  values
+}
+
 # Vectorized match_type derivation (replaces row-by-row sapply)
 derive_match_type <- function(df) {
-  tier_cols <- grep("^source_tier_", names(df), value = TRUE)
+  tier_cols <- c(intersect("source_tier", names(df)), grep("^source_tier_", names(df), value = TRUE))
   if (length(tier_cols) == 0) {
     return(rep("Unknown", nrow(df)))
   }
@@ -33,16 +98,10 @@ derive_match_type <- function(df) {
     "wqx_fuzzy" = "WQX Fuzzy"
   )
 
+  raw_tier <- pick_source_aligned_values(df, "source_tier")
   result <- rep("No Match", nrow(df))
-
-  for (tc in tier_cols) {
-    tier_val <- df[[tc]]
-    is_known <- !is.na(tier_val) & tier_val %in% names(tier_label_map)
-    update_mask <- is_known & result == "No Match"
-    if (any(update_mask)) {
-      result[update_mask] <- tier_label_map[tier_val[update_mask]]
-    }
-  }
+  is_known <- !is.na(raw_tier) & raw_tier %in% names(tier_label_map)
+  result[is_known] <- tier_label_map[raw_tier[is_known]]
 
   result
 }
@@ -89,17 +148,8 @@ derive_resolution_html <- function(df, row_indices) {
   pinned <- if (".pinned" %in% names(df)) df$.pinned else rep(FALSE, n)
   pinned[is.na(pinned)] <- FALSE
 
-  pref_cols <- grep("^preferredName_", names(df), value = TRUE)
+  pref_name <- pick_source_aligned_values(df, "preferredName")
   manual_pref <- if ("manual_preferredName" %in% names(df)) df$manual_preferredName else rep(NA_character_, n)
-
-  pref_name <- rep(NA_character_, n)
-  for (pc in pref_cols) {
-    needs_fill <- is.na(pref_name)
-    if (!any(needs_fill)) {
-      break
-    }
-    pref_name[needs_fill] <- df[[pc]][needs_fill]
-  }
 
   # Pre-compute search icon once (used by multiple blocks below)
   search_icon <- as.character(shiny::icon("search"))
@@ -2277,29 +2327,15 @@ mod_review_results_server <- function(id, data_store) {
           break
         }
       }
-      # Get current preferred name (first non-NA preferredName_*)
-      pref_cols <- grep("^preferredName_", names(row), value = TRUE)
-      current_name <- NA_character_
-      for (pc in pref_cols) {
-        if (!is.na(row[[pc]])) {
-          current_name <- row[[pc]]
-          break
-        }
-      }
+      # Get current preferred name from the same source chain as consensus_source
+      current_name <- pick_source_aligned_values(row, "preferredName")[[1]]
       # Prefer override name if set
       if ("wqx_override_name" %in% names(row) && !is.na(row$wqx_override_name)) {
         current_name <- row$wqx_override_name
       }
 
-      # Get match type from source_tier_* columns
-      tier_cols <- grep("^source_tier_", names(row), value = TRUE)
-      match_tier_raw <- NA_character_
-      for (tc in tier_cols) {
-        if (!is.na(row[[tc]])) {
-          match_tier_raw <- row[[tc]]
-          break
-        }
-      }
+      # Get match type from the same source chain as consensus_source
+      match_tier_raw <- pick_source_aligned_values(row, "source_tier")[[1]]
       match_type_label <- switch(
         as.character(match_tier_raw),
         "wqx_exact" = "WQX Exact",
@@ -2308,11 +2344,9 @@ mod_review_results_server <- function(id, data_store) {
         "WQX"
       )
 
-      # Confidence score (only for fuzzy)
-      # Use grep-based lookup to handle both single-tag (wqx_confidence) and
-      # multi-tag (wqx_confidence_Chemical) naming from map_results_to_rows()
-      wqx_conf_col <- grep("^wqx_confidence", names(row), value = TRUE)
-      confidence <- if (length(wqx_conf_col) > 0) row[[wqx_conf_col[1]]] else NA_real_
+      # Confidence score (only for fuzzy), source-aligned like the displayed WQX name.
+      confidence_raw <- pick_source_aligned_values(row, "wqx_confidence")[[1]]
+      confidence <- suppressWarnings(as.numeric(confidence_raw))
 
       # Build context card (per D-07, UI-SPEC)
       context_card <- div(
