@@ -95,7 +95,8 @@ derive_match_type <- function(df) {
     "starts_with" = "Starts-With",
     "wqx_exact" = "WQX Exact",
     "wqx_alias" = "WQX Alias",
-    "wqx_fuzzy" = "WQX Fuzzy"
+    "wqx_fuzzy" = "WQX Fuzzy",
+    "isotope_match" = "Isotope Match"
   )
 
   raw_tier <- pick_source_aligned_values(df, "source_tier")
@@ -350,6 +351,71 @@ get_group_rows <- function(original_idx, dedup_group_map) {
   dedup_group_map[[grp_idx]]
 }
 
+clean_column_names <- function(x) {
+  x <- unique(as.character(x %||% character(0)))
+  x[!is.na(x) & nzchar(x)]
+}
+
+review_internal_hidden_cols <- function(df_names, dtxsid_cols = character(0)) {
+  unique(c(
+    dtxsid_cols,
+    grep("^preferredName_", df_names, value = TRUE),
+    grep("^searchName_", df_names, value = TRUE),
+    grep("^rank_", df_names, value = TRUE),
+    grep("^source_tier_", df_names, value = TRUE),
+    ".pinned",
+    ".manual_entry",
+    "manual_preferredName"
+  ))
+}
+
+derive_review_column_choices <- function(upload_col_names, df_names, internal_hidden_cols = character(0)) {
+  upload_col_names <- clean_column_names(upload_col_names)
+  df_names <- clean_column_names(df_names)
+  internal_hidden_cols <- clean_column_names(internal_hidden_cols)
+
+  upload_choices <- upload_col_names[upload_col_names %in% df_names]
+  curated_choices <- setdiff(df_names, upload_col_names)
+
+  setdiff(unique(c(upload_choices, curated_choices)), internal_hidden_cols)
+}
+
+derive_default_visible_review_columns <- function(
+  upload_col_names,
+  column_tags,
+  df_names,
+  internal_hidden_cols = character(0)
+) {
+  choices <- derive_review_column_choices(upload_col_names, df_names, internal_hidden_cols)
+  upload_col_names <- clean_column_names(upload_col_names)
+  tagged_col_names <- clean_column_names(names(column_tags %||% character(0)))
+
+  untagged_upload_cols <- setdiff(upload_col_names[upload_col_names %in% df_names], tagged_col_names)
+  setdiff(choices, untagged_upload_cols)
+}
+
+derive_hidden_review_columns <- function(
+  selected_cols,
+  upload_col_names,
+  column_tags,
+  df_names,
+  internal_hidden_cols = character(0)
+) {
+  choices <- derive_review_column_choices(upload_col_names, df_names, internal_hidden_cols)
+  selected_cols <- clean_column_names(selected_cols)
+
+  if (length(selected_cols) == 0) {
+    selected_cols <- derive_default_visible_review_columns(
+      upload_col_names,
+      column_tags,
+      df_names,
+      internal_hidden_cols
+    )
+  }
+
+  setdiff(choices, intersect(selected_cols, choices))
+}
+
 #' Review Results Module - UI
 #'
 #' @param id Module namespace ID
@@ -566,7 +632,7 @@ mod_review_results_ui <- function(id) {
         class = "d-flex justify-content-between align-items-center mb-3 mt-3",
         h4("Curated Results"),
         div(
-          class = "d-flex gap-2",
+          class = "d-flex gap-2 align-items-center flex-wrap",
           selectInput(
             ns("batch_row_flag"),
             label = NULL,
@@ -636,12 +702,14 @@ mod_review_results_ui <- function(id) {
           downloadButton(
             ns("download_csv"),
             "CSV",
-            class = "btn-sm btn-outline-secondary"
+            class = "btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center",
+            style = "line-height:1.5;"
           ),
           downloadButton(
             ns("download_curated"),
             "Download Excel",
-            class = "btn-primary"
+            class = "btn-primary d-inline-flex align-items-center justify-content-center",
+            style = "line-height:1.5;"
           )
         )
       ),
@@ -649,17 +717,10 @@ mod_review_results_ui <- function(id) {
       # Table toolbar: column toggle + page size
       div(
         class = "mb-2 d-flex align-items-start gap-3",
-        tags$details(
-          tags$summary(
-            class = "btn btn-sm btn-outline-secondary",
-            icon("columns"),
-            " Toggle Columns"
-          ),
-          div(
-            class = "card card-body mt-1 p-2",
-            style = "max-height: 200px; overflow-y: auto;",
-            uiOutput(ns("col_visibility_checkboxes"))
-          )
+        div(
+          class = "review-column-select",
+          style = "min-width: 320px; max-width: 480px;",
+          uiOutput(ns("col_visibility_dropdown"))
         ),
         div(
           class = "d-flex align-items-center gap-2",
@@ -823,29 +884,41 @@ mod_review_results_server <- function(id, data_store) {
       )
     })
 
-    # Column visibility checkboxes (for untagged columns)
-    output$col_visibility_checkboxes <- renderUI({
+    # Column visibility dropdown
+    output$col_visibility_dropdown <- renderUI({
       req(data_store$resolution_state, data_store$column_tags, data_store$clean)
 
-      tagged_col_names <- names(data_store$column_tags)
-      all_original_cols <- names(data_store$clean)
       df_names <- names(data_store$resolution_state)
+      upload_col_names <- names(data_store$clean)
+      internal_hidden <- review_internal_hidden_cols(df_names, data_store$dtxsid_cols %||% character(0))
+      choices <- derive_review_column_choices(upload_col_names, df_names, internal_hidden)
 
-      untagged_cols <- setdiff(
-        all_original_cols[all_original_cols %in% df_names],
-        tagged_col_names
-      )
-
-      if (length(untagged_cols) == 0) {
+      if (length(choices) == 0) {
         return(tags$small(class = "text-muted", "No toggleable columns available"))
       }
 
-      checkboxGroupInput(
+      default_visible <- derive_default_visible_review_columns(
+        upload_col_names,
+        data_store$column_tags,
+        df_names,
+        internal_hidden
+      )
+
+      current_selection <- isolate(input$visible_cols)
+      selected <- if (is.null(current_selection)) default_visible else intersect(current_selection, choices)
+
+      selectizeInput(
         session$ns("visible_cols"),
-        label = NULL,
-        choices = untagged_cols,
-        selected = character(0),
-        inline = TRUE
+        label = "Columns shown",
+        choices = choices,
+        selected = selected,
+        multiple = TRUE,
+        width = "100%",
+        options = list(
+          plugins = list("remove_button"),
+          placeholder = "Search columns...",
+          closeAfterSelect = FALSE
+        )
       )
     })
 
@@ -942,34 +1015,19 @@ mod_review_results_server <- function(id, data_store) {
       df_display$Resolution <- derive_resolution_html(df_display, rep_indices)
 
       # --- Column visibility ---
-      always_hidden <- c(
-        dtxsid_cols,
-        grep("^preferredName_", names(df_display), value = TRUE),
-        grep("^searchName_", names(df_display), value = TRUE),
-        grep("^rank_", names(df_display), value = TRUE),
-        grep("^source_tier_", names(df_display), value = TRUE),
-        ".pinned",
-        ".manual_entry",
-        "manual_preferredName"
-      )
-      always_hidden_set <- unique(always_hidden)
-
-      tagged_col_names <- names(data_store$column_tags)
-      all_original_cols <- names(data_store$clean)
-      untagged_cols <- setdiff(
-        all_original_cols[all_original_cols %in% names(df_display)],
-        tagged_col_names
-      )
+      upload_col_names <- names(data_store$clean)
+      internal_hidden <- review_internal_hidden_cols(names(df_display), dtxsid_cols)
       visible_extra <- input$visible_cols
+      hidden_by_visibility <- derive_hidden_review_columns(
+        visible_extra,
+        upload_col_names,
+        data_store$column_tags,
+        names(df_display),
+        internal_hidden
+      )
+      hidden_cols <- unique(c(internal_hidden, hidden_by_visibility))
 
       col_defs <- list()
-      for (col_name in names(df_display)) {
-        if (col_name %in% always_hidden_set) {
-          col_defs[[col_name]] <- reactable::colDef(show = FALSE)
-        } else if (col_name %in% untagged_cols && !(col_name %in% visible_extra)) {
-          col_defs[[col_name]] <- reactable::colDef(show = FALSE)
-        }
-      }
 
       # Count badge column
       col_defs[["n_rows"]] <- reactable::colDef(
@@ -1049,7 +1107,16 @@ mod_review_results_server <- function(id, data_store) {
       # Badge: match_type
       if ("match_type" %in% names(df_display)) {
         match_levels <- intersect(
-          c("Exact Match", "CAS Lookup", "Starts-With", "WQX Exact", "WQX Alias", "WQX Fuzzy", "No Match"),
+          c(
+            "Exact Match",
+            "CAS Lookup",
+            "Starts-With",
+            "WQX Exact",
+            "WQX Alias",
+            "WQX Fuzzy",
+            "Isotope Match",
+            "No Match"
+          ),
           unique(as.character(df_display$match_type))
         )
         match_colors <- c(
@@ -1059,6 +1126,7 @@ mod_review_results_server <- function(id, data_store) {
           "WQX Exact" = "#20c997",
           "WQX Alias" = "#17a2b8",
           "WQX Fuzzy" = "#6f42c1",
+          "Isotope Match" = "#6610f2",
           "No Match" = "#dc3545"
         )
         match_text_colors <- c("Starts-With" = "#212529")
@@ -1247,6 +1315,10 @@ mod_review_results_server <- function(id, data_store) {
       }
 
       page_size <- as.integer(input$page_size %||% 25)
+
+      for (hidden_col in intersect(hidden_cols, names(df_display))) {
+        col_defs[[hidden_col]] <- reactable::colDef(show = FALSE)
+      }
 
       reactable::reactable(
         df_display,

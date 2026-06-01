@@ -66,6 +66,18 @@ test_that("derive_match_type maps wqx_fuzzy to WQX Fuzzy", {
   expect_equal(result, "WQX Fuzzy")
 })
 
+test_that("derive_match_type maps built-in isotope dictionary matches", {
+  df <- data.frame(
+    source_tier_Chemical = c("isotope_match"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  result <- derive_match_type(df)
+
+  expect_equal(result, "Isotope Match")
+})
+
 test_that("derive_match_type uses consensus_source instead of first available source_tier", {
   df <- data.frame(
     consensus_status = c("single"),
@@ -471,4 +483,37 @@ test_that("wqx_conf_cols Filter preserves single-tag column", {
   wqx_conf_cols <- Filter(function(col) any(!is.na(df[[col]])), wqx_conf_cols)
   expect_equal(length(wqx_conf_cols), 1)
   expect_equal(wqx_conf_cols, "wqx_confidence")
+})
+
+test_that("review column selector exposes upload and curated columns but excludes internals", {
+  upload_cols <- c("Chemical", "CASRN", "Sample ID")
+  df_names <- c(
+    upload_cols,
+    "consensus_status",
+    "match_type",
+    "Resolution",
+    "source_tier_Chemical",
+    ".pinned"
+  )
+  internal_hidden <- c("source_tier_Chemical", ".pinned")
+
+  choices <- derive_review_column_choices(upload_cols, df_names, internal_hidden)
+
+  expect_true(all(upload_cols %in% choices))
+  expect_true(all(c("consensus_status", "match_type", "Resolution") %in% choices))
+  expect_false("source_tier_Chemical" %in% choices)
+  expect_false(".pinned" %in% choices)
+})
+
+test_that("review column selector preserves condensed default while making untagged uploads available", {
+  upload_cols <- c("Chemical", "CASRN", "Sample ID")
+  column_tags <- c("Chemical" = "Name", "CASRN" = "CASRN")
+  df_names <- c(upload_cols, "consensus_status", "match_type", "Resolution")
+
+  choices <- derive_review_column_choices(upload_cols, df_names)
+  default_visible <- derive_default_visible_review_columns(upload_cols, column_tags, df_names)
+
+  expect_true("Sample ID" %in% choices)
+  expect_true(all(c("Chemical", "CASRN", "consensus_status", "match_type", "Resolution") %in% default_visible))
+  expect_false("Sample ID" %in% default_visible)
 })

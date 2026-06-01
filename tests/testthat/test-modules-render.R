@@ -131,6 +131,18 @@ find_mod_review_results <- function() {
   NULL
 }
 
+find_mod_tag_columns <- function() {
+  candidates <- c(
+    file.path(here::here(), "R", "mod_tag_columns.R"),
+    file.path(getwd(), "R", "mod_tag_columns.R"),
+    file.path(dirname(dirname(testthat::test_path())), "R", "mod_tag_columns.R")
+  )
+  for (p in candidates) {
+    if (file.exists(p)) return(p)
+  }
+  NULL
+}
+
 # UIPOL-01: Verify reactable call uses wrap = TRUE (not wrap = FALSE)
 test_that("UIPOL-01: review results reactable uses wrap=TRUE", {
   src_path <- find_mod_review_results()
@@ -180,4 +192,27 @@ test_that("UIPOL-04: re-tag modal uses named list choices to avoid jsonlite warn
     src
   )
   expect_equal(length(named_vector_lines), 0, info = "re-tag modal choices must not use c(...)")
+})
+
+test_that("Tag Columns table puts Type before Column Name", {
+  src_path <- find_mod_tag_columns()
+  skip_if(is.null(src_path), "R/mod_tag_columns.R not found from test context")
+  src <- paste(readLines(src_path), collapse = "\n")
+
+  type_pos <- regexpr('tags\\$th\\("Type"', src)[[1]]
+  name_pos <- regexpr('tags\\$th\\("Column Name"', src)[[1]]
+
+  expect_true(type_pos > 0)
+  expect_true(name_pos > 0)
+  expect_lt(type_pos, name_pos)
+})
+
+test_that("Tag Columns rows have selected-state styling hook", {
+  src_path <- find_mod_tag_columns()
+  skip_if(is.null(src_path), "R/mod_tag_columns.R not found from test context")
+  src <- paste(readLines(src_path), collapse = "\n")
+
+  expect_match(src, "tag-column-row")
+  expect_match(src, "tag-column-selected")
+  expect_match(src, "shiny:inputchanged")
 })
