@@ -13,22 +13,163 @@
 #' @return Tibble with columns term, canonical_term, envo_id, parent,
 #'   media_category, source, fetch_timestamp; or NULL.
 #' @keywords internal
+find_local_media_table <- function() {
+  cwd <- normalizePath(getwd(), winslash = "/", mustWork = FALSE)
+  parts <- strsplit(cwd, "/", fixed = TRUE)[[1]]
+  if (length(parts) == 0L) {
+    return("")
+  }
+
+  for (i in seq(length(parts), 1L)) {
+    candidate_root <- paste(parts[seq_len(i)], collapse = "/")
+    if (!nzchar(candidate_root)) {
+      candidate_root <- "/"
+    }
+    candidate <- file.path(candidate_root, "inst", "extdata", "reference_cache", "amos_media.rds")
+    if (file.exists(candidate)) {
+      return(candidate)
+    }
+  }
+
+  ""
+}
+
 get_media_table <- function() {
-  path <- system.file("extdata/reference_cache/amos_media.rds", package = "concert")
-  if (nzchar(path) && file.exists(path)) {
+  package_path <- system.file("extdata/reference_cache/amos_media.rds", package = "concert")
+  local_path <- find_local_media_table()
+  path <- if (nzchar(package_path) && file.exists(package_path)) {
+    package_path
+  } else if (file.exists(local_path)) {
+    local_path
+  } else {
+    ""
+  }
+
+  if (nzchar(path)) {
     readRDS(path)
   } else {
     NULL
   }
 }
 
+media_value_present <- function(x) {
+  !is.na(x) & nzchar(trimws(as.character(x)))
+}
+
+escape_regex <- function(x) {
+  gsub("([][{}()+*^$.|?\\\\])", "\\\\\\1", x)
+}
+
+media_term_in_text <- function(term, text) {
+  if (is.na(term) || is.na(text) || !nzchar(term) || !nzchar(text)) {
+    return(FALSE)
+  }
+
+  pattern <- sprintf("(^|[^[:alnum:]])%s($|[^[:alnum:]])", escape_regex(term))
+  grepl(pattern, text, perl = TRUE)
+}
+
+is_resolved_media_row <- function(media_tbl, idx) {
+  valid_idx <- !is.na(idx)
+  out <- rep(FALSE, length(idx))
+  if (any(valid_idx)) {
+    rows <- idx[valid_idx]
+    out[valid_idx] <- media_value_present(media_tbl$canonical_term[rows]) &
+      media_value_present(media_tbl$media_category[rows])
+  }
+  out
+}
+
+prepare_media_table <- function(media_tbl) {
+  if (is.null(media_tbl) || nrow(media_tbl) == 0L) {
+    return(media_tbl)
+  }
+
+  if (!"canonical_term" %in% names(media_tbl) && "canonical" %in% names(media_tbl)) {
+    media_tbl$canonical_term <- media_tbl$canonical
+  }
+  if (!"envo_id" %in% names(media_tbl)) {
+    media_tbl$envo_id <- NA_character_
+  }
+  if (!"media_category" %in% names(media_tbl)) {
+    media_tbl$media_category <- NA_character_
+  }
+  if (!"parent" %in% names(media_tbl)) {
+    media_tbl$parent <- NA_character_
+  }
+  if (!"active" %in% names(media_tbl)) {
+    media_tbl$active <- TRUE
+  }
+
+  active_flag <- as.logical(media_tbl$active)
+  active_flag[is.na(active_flag)] <- FALSE
+  media_tbl <- media_tbl[active_flag, , drop = FALSE]
+  media_tbl$term <- trimws(tolower(as.character(media_tbl$term)))
+  media_tbl$canonical_term <- trimws(as.character(media_tbl$canonical_term))
+  media_tbl$parent <- trimws(tolower(as.character(media_tbl$parent)))
+  media_tbl$parent[!media_value_present(media_tbl$parent)] <- NA_character_
+
+  media_tbl
+}
+
+infer_media_categories <- function(media_tbl) {
+  if (is.null(media_tbl) || nrow(media_tbl) == 0L || !"media_category" %in% names(media_tbl)) {
+    return(media_tbl)
+  }
+
+  source_idx <- which(
+    media_value_present(media_tbl$canonical_term) &
+      media_value_present(media_tbl$media_category)
+  )
+  if (length(source_idx) == 0L) {
+    return(media_tbl)
+  }
+
+  unique_donor <- function(key, key_vec) {
+    candidates <- source_idx[key_vec[source_idx] == key]
+    if (length(candidates) == 0L) {
+      return(NA_integer_)
+    }
+    categories <- unique(media_tbl$media_category[candidates])
+    categories <- categories[media_value_present(categories)]
+    if (length(categories) != 1L) {
+      return(NA_integer_)
+    }
+    candidates[1]
+  }
+
+  term_keys <- media_tbl$term
+  canonical_keys <- trimws(tolower(media_tbl$canonical_term))
+
+  missing_category <- which(
+    media_value_present(media_tbl$canonical_term) &
+      !media_value_present(media_tbl$media_category)
+  )
+  for (i in missing_category) {
+    key <- trimws(tolower(media_tbl$canonical_term[i]))
+    donor <- unique_donor(key, term_keys)
+    if (is.na(donor)) {
+      donor <- unique_donor(key, canonical_keys)
+    }
+    if (!is.na(donor)) {
+      media_tbl$media_category[i] <- media_tbl$media_category[donor]
+      if (is.na(media_tbl$envo_id[i]) && !is.na(media_tbl$envo_id[donor])) {
+        media_tbl$envo_id[i] <- media_tbl$envo_id[donor]
+      }
+    }
+  }
+
+  media_tbl
+}
+
 #' Walk the parent hierarchy for a normalized media string
 #'
-#' Given a normalized (trimws + tolower) input string that did not produce an
-#' exact match, attempts to find the best ancestor by checking whether any
-#' table term is a sub-string of the input or vice-versa.  When a candidate is
-#' found, walks up the \code{parent} column until an entry with a non-NA
-#' \code{media_category} is reached.
+#' Given a normalized (trimws + tolower) input string that did not produce a
+#' resolved exact match, attempts to find the best ancestor by checking whether
+#' a table term appears as a full token/phrase in the input.  Embedded
+#' substrings such as \code{"water"} in \code{"wastewater"} are intentionally
+#' ignored.  When a candidate is found, walks up the \code{parent} column until
+#' an entry with both a canonical term and media category is reached.
 #'
 #' Returns the integer row index of the resolved entry, or \code{NA_integer_}.
 #'
@@ -41,55 +182,43 @@ walk_parent <- function(norm_term, media_tbl) {
     return(NA_integer_)
   }
 
-  # Pre-built term vector (lowercase, already normalized in the table)
   tbl_terms <- media_tbl$term
-
-  # Candidate: norm_term is a sub-string of a table entry (e.g. "water" in
-  # "freshwater"), OR a table entry is a sub-string of norm_term (e.g.
-  # "sediment" in "freshwater sediment").
-  # grepl(pattern, x) -- vectorize over x for the first case (one pattern,
-  # many strings), and over pattern via vapply for the second case so that we
-  # never pass a length>1 vector as the pattern argument.
-  norm_in_tbl <- grepl(norm_term, tbl_terms, fixed = TRUE)
-  tbl_in_norm <- vapply(tbl_terms, grepl, logical(1L), x = norm_term, fixed = TRUE)
-  is_candidate <- norm_in_tbl | tbl_in_norm
+  is_candidate <- vapply(tbl_terms, media_term_in_text, logical(1L), text = norm_term)
 
   candidate_idx <- which(is_candidate)
   if (length(candidate_idx) == 0L) {
     return(NA_integer_)
   }
 
-  # Among candidates, prefer longer term strings (more specific match).
-  # Pre-compute lengths once.
   cand_lens <- nchar(tbl_terms[candidate_idx])
-  best_cand <- candidate_idx[which.max(cand_lens)]
+  candidate_idx <- candidate_idx[order(cand_lens, decreasing = TRUE)]
 
-  # Walk up the parent hierarchy until we reach an entry with media_category
-  visited <- integer(0)
-  current <- best_cand
+  for (best_cand in candidate_idx) {
+    visited <- integer(0)
+    current <- best_cand
 
-  repeat {
-    if (current %in% visited) {
-      break
-    } # cycle guard
-    visited <- c(visited, current)
+    repeat {
+      if (current %in% visited) {
+        break
+      }
+      visited <- c(visited, current)
 
-    if (!is.na(media_tbl$media_category[current])) {
-      return(current)
+      if (is_resolved_media_row(media_tbl, current)) {
+        return(current)
+      }
+
+      parent_term <- media_tbl$parent[current]
+      if (is.na(parent_term)) {
+        break
+      }
+
+      parent_idx <- match(parent_term, tbl_terms)
+      if (is.na(parent_idx)) {
+        break
+      }
+
+      current <- parent_idx
     }
-
-    # Move to parent
-    parent_term <- media_tbl$parent[current]
-    if (is.na(parent_term)) {
-      break
-    }
-
-    parent_idx <- match(parent_term, tbl_terms)
-    if (is.na(parent_idx)) {
-      break
-    }
-
-    current <- parent_idx
   }
 
   NA_integer_
@@ -146,30 +275,15 @@ harmonize_media <- function(raw_media, orig_row_id = seq_along(raw_media), media
     # Validate required column: term must be present
     if (!"term" %in% names(media_map)) {
       get_media_table()
-    } else if ("canonical_term" %in% names(media_map)) {
-      # Internal schema already present — use as-is
-      media_map
-    } else if ("canonical" %in% names(media_map)) {
-      # Translate display schema to internal schema (T-42-02 column validation)
-      mm <- media_map
-      mm$canonical_term <- mm$canonical
-      if (!"envo_id" %in% names(mm)) {
-        mm$envo_id <- NA_character_
-      }
-      if (!"media_category" %in% names(mm)) {
-        mm$media_category <- NA_character_
-      }
-      # walk_parent() requires a parent column; add NA-filled column if absent
-      if (!"parent" %in% names(mm)) {
-        mm$parent <- NA_character_
-      }
-      mm
     } else {
-      get_media_table()
+      media_map
     }
   } else {
     get_media_table()
   }
+
+  media_tbl <- prepare_media_table(media_tbl)
+  media_tbl <- infer_media_categories(media_tbl)
 
   if (is.null(media_tbl) || nrow(media_tbl) == 0L) {
     return(tibble::tibble(
@@ -199,8 +313,9 @@ harmonize_media <- function(raw_media, orig_row_id = seq_along(raw_media), media
   category_out <- rep(NA_character_, n)
   media_flag <- rep("media_unmatched", n)
 
-  # Fill exact matches (vectorized where possible)
-  exact_mask <- !is.na(match_idx)
+  # Fill resolved exact matches (vectorized where possible). Exact rows without
+  # a usable routing category stay unmatched so ppb/ppm never default silently.
+  exact_mask <- !is.na(match_idx) & is_resolved_media_row(media_tbl, match_idx)
   if (any(exact_mask)) {
     idx_vec <- match_idx[exact_mask]
     canonical_out[exact_mask] <- media_tbl$canonical_term[idx_vec]

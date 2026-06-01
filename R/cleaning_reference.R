@@ -581,10 +581,12 @@ load_media_map <- function(cache_dir) {
       user_map$media_category <- NA_character_
     }
     amos_fallback <- amos_map[!amos_map$term %in% user_map$term, ]
-    dplyr::bind_rows(user_map, amos_fallback)
+    merged <- dplyr::bind_rows(user_map, amos_fallback)
   } else {
-    amos_map
+    merged <- amos_map
   }
+
+  infer_media_categories(merged)
 }
 
 #' Load all reference lists

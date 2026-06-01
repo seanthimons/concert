@@ -232,3 +232,113 @@ test_that("harmonize_media all-NA input returns correct empty result with no war
   expect_true(all(is.na(result$canonical_media)))
   expect_true(all(is.na(result$media_category)))
 })
+
+test_that("harmonize_media treats undecided exact media terms as unmatched", {
+  media_map <- tibble::tibble(
+    term = c("aqueous", "solid", "runoff", "surface water"),
+    canonical_term = c(NA_character_, NA_character_, NA_character_, "surface water"),
+    envo_id = c(NA_character_, NA_character_, NA_character_, "ENVO:00002042"),
+    parent = NA_character_,
+    media_category = c(NA_character_, NA_character_, NA_character_, "aqueous"),
+    source = "test"
+  )
+
+  result <- harmonize_media(c("aqueous", "solid", "runoff", "surface water"), media_map = media_map)
+
+  expect_equal(result$media_flag[1:3], rep("media_unmatched", 3))
+  expect_true(all(is.na(result$canonical_media[1:3])))
+  expect_true(all(is.na(result$media_category[1:3])))
+  expect_equal(result$media_flag[4], "")
+  expect_equal(result$media_category[4], "aqueous")
+})
+
+test_that("unresolved media does not default ppb routing to aqueous", {
+  unit_map <- tibble::tibble(
+    from_unit = "ppb",
+    to_unit = "ppb",
+    multiplier = 1,
+    category = "dimensionless",
+    confidence = "HIGH",
+    source = "test"
+  )
+
+  media_result <- harmonize_media(
+    "solid",
+    media_map = tibble::tibble(
+      term = "solid",
+      canonical_term = NA_character_,
+      envo_id = NA_character_,
+      parent = NA_character_,
+      media_category = NA_character_,
+      source = "test"
+    )
+  )
+  unit_result <- harmonize_units(
+    values = 1000,
+    units = "ppb",
+    unit_map = unit_map,
+    media = media_result$media_category
+  )
+
+  expect_equal(media_result$media_flag, "media_unmatched")
+  expect_equal(unit_result$harmonized_unit, "ppb")
+  expect_equal(unit_result$harmonized_value, 1000)
+})
+
+test_that("harmonize_media infers user mapping category from canonical media term", {
+  media_map <- tibble::tibble(
+    term = c("stormwater runoff", "surface water"),
+    canonical = c("surface water", "surface water"),
+    canonical_term = c("surface water", "surface water"),
+    envo_id = c(NA_character_, "ENVO:00002042"),
+    parent = NA_character_,
+    media_category = c(NA_character_, "aqueous"),
+    source = c("user", "amos"),
+    active = TRUE
+  )
+
+  result <- harmonize_media("stormwater runoff", media_map = media_map)
+
+  expect_equal(result$canonical_media, "surface water")
+  expect_equal(result$media_category, "aqueous")
+  expect_equal(result$media_flag, "")
+})
+
+test_that("harmonize_media does not infer category from ambiguous canonical donors", {
+  media_map <- tibble::tibble(
+    term = c("user mapped medium", "shared canonical water", "shared canonical soil"),
+    canonical_term = c("shared canonical", "shared canonical", "shared canonical"),
+    envo_id = NA_character_,
+    parent = NA_character_,
+    media_category = c(NA_character_, "aqueous", "solid"),
+    source = c("user", "test", "test"),
+    active = TRUE
+  )
+
+  result <- harmonize_media("user mapped medium", media_map = media_map)
+
+  expect_equal(result$media_flag, "media_unmatched")
+  expect_true(is.na(result$canonical_media))
+  expect_true(is.na(result$media_category))
+})
+
+test_that("harmonize_media parent walk is token-aware and does not bridge through embedded substrings", {
+  media_map <- tibble::tibble(
+    term = c("water", "sediment"),
+    canonical_term = c("water", "sediment"),
+    envo_id = c("ENVO:00002006", "ENVO:00002007"),
+    parent = NA_character_,
+    media_category = c("aqueous", "solid"),
+    source = "test"
+  )
+
+  result <- harmonize_media(c("ground water", "wastewater"), media_map = media_map)
+
+  expect_equal(result$canonical_media[1], "water")
+  expect_equal(result$media_category[1], "aqueous")
+  expect_equal(result$media_flag[1], "parent_walk")
+
+  expect_true(is.na(result$canonical_media[2]))
+  expect_true(is.na(result$media_category[2]))
+  expect_equal(result$media_flag[2], "media_unmatched")
+})

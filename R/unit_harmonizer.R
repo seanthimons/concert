@@ -201,7 +201,7 @@ fetch_molecular_weight <- function(dtxsids) {
 #'
 #' @param unit Character - the unit string (should be ppb or ppm)
 #' @param media Character - "aqueous", "air", "solid", or NULL
-#' @return Character - target unit or NULL if not applicable
+#' @return Character - target unit or NULL if media is unknown/not applicable
 #' @keywords internal
 get_media_target <- function(unit, media) {
   unit_lower <- tolower(unit)
@@ -209,9 +209,10 @@ get_media_target <- function(unit, media) {
     return(NULL)
   }
 
-  # D-09: Default to aqueous when media context unknown
+  # Media routing is only safe when the upstream media resolver produced an
+  # explicit category. Unknown media must not silently become aqueous.
   if (is.null(media) || is.na(media) || media == "") {
-    media <- "aqueous"
+    return(NULL)
   }
 
   switch(
@@ -219,7 +220,7 @@ get_media_target <- function(unit, media) {
     "aqueous" = "mg/L",
     "air" = "mg/m3",
     "solid" = "mg/kg",
-    "mg/L" # default fallback
+    NULL
   )
 }
 
@@ -231,12 +232,34 @@ get_media_target <- function(unit, media) {
 get_ppx_conversion_factor <- function(unit) {
   unit_lower <- tolower(unit)
   if (unit_lower == "ppb") {
-    0.001 # ppb = ug/L = 0.001 mg/L (for aqueous; same ratio for others)
+    0.001 # ppb = ug/L = 0.001 mg/L (for aqueous/solid/air media routing)
   } else if (unit_lower == "ppm") {
-    1 # ppm = mg/L (for aqueous; same ratio for others)
+    1 # ppm = mg/L (for aqueous/solid/air media routing)
   } else {
     1
   }
+}
+
+lookup_unit_mapping <- function(unit, unit_map) {
+  exact_idx <- match(unit, unit_map$from_unit)
+  if (!is.na(exact_idx)) {
+    return(list(
+      to_unit = unit_map$to_unit[exact_idx],
+      multiplier = unit_map$multiplier[exact_idx],
+      flag = ""
+    ))
+  }
+
+  ci_idx <- match(tolower(unit), tolower(unit_map$from_unit))
+  if (!is.na(ci_idx)) {
+    return(list(
+      to_unit = unit_map$to_unit[ci_idx],
+      multiplier = unit_map$multiplier[ci_idx],
+      flag = "case_fallback"
+    ))
+  }
+
+  list(to_unit = unit, multiplier = 1, flag = "unmatched")
 }
 
 #' Harmonize unit values using a conversion table
@@ -260,7 +283,8 @@ get_ppx_conversion_factor <- function(unit) {
 #' @param units Character vector of unit strings (same length as values)
 #' @param unit_map Tibble from load_unit_map() with columns: from_unit, to_unit, multiplier
 #' @param media Optional character vector - media context for ppb/ppm routing.
-#'   Values: "aqueous", "air", "solid", or NULL (defaults to aqueous per D-09)
+#'   Values: "aqueous", "air", "solid", or NULL. Unknown media falls back to
+#'   the unit map instead of assuming aqueous.
 #' @param dtxsid Optional character vector - DTXSIDs for MW lookup when molarity detected
 #' @param molecular_weight Optional numeric vector - MW override (skips API call)
 #' @param use_dedup Logical. When TRUE (default), applies unit-key dedup
@@ -467,22 +491,26 @@ harmonize_units <- function(
       u_ppx_units <- unique_normalized[u_ppx_idx]
       u_ppx_media <- unique_media_vec[u_ppx_idx]
 
-      u_ppx_factors <- vapply(u_ppx_units, get_ppx_conversion_factor, numeric(1))
-
-      u_ppx_targets <- vapply(
-        seq_along(u_ppx_idx),
-        function(i) {
-          get_media_target(u_ppx_units[i], u_ppx_media[i]) %||% "mg/L"
-        },
-        character(1)
-      )
+      u_ppx_targets <- character(length(u_ppx_idx))
+      u_ppx_factors <- numeric(length(u_ppx_idx))
+      u_ppx_flags <- character(length(u_ppx_idx))
+      for (i in seq_along(u_ppx_idx)) {
+        media_target <- get_media_target(u_ppx_units[i], u_ppx_media[i])
+        if (is.null(media_target)) {
+          mapped <- lookup_unit_mapping(u_ppx_units[i], unit_map)
+          u_ppx_targets[i] <- mapped$to_unit
+          u_ppx_factors[i] <- mapped$multiplier
+          u_ppx_flags[i] <- mapped$flag
+        } else {
+          u_ppx_targets[i] <- media_target
+          u_ppx_factors[i] <- get_ppx_conversion_factor(u_ppx_units[i])
+          u_ppx_flags[i] <- ""
+        }
+      }
 
       u_harmonized_unit[u_ppx_idx] <- u_ppx_targets
       u_conversion_factor[u_ppx_idx] <- u_ppx_factors
-
-      u_ppx_media_na <- is.na(u_ppx_media) | u_ppx_media == ""
-      u_unit_flag[u_ppx_idx] <- ""
-      u_unit_flag[u_ppx_idx[u_ppx_media_na]] <- "media_inferred"
+      u_unit_flag[u_ppx_idx] <- u_ppx_flags
     }
 
     # ---- Unique-subset: standard table lookup ----
@@ -563,26 +591,27 @@ harmonize_units <- function(
       ppx_units <- normalized[ppx_idx]
       ppx_media <- media_vec[ppx_idx]
 
-      # Vectorized ppx conversion factors
-      ppx_factors <- vapply(ppx_units, get_ppx_conversion_factor, numeric(1))
-
-      # Vectorized media target lookup (now O(k), not O(k²))
-      ppx_targets <- vapply(
-        seq_along(ppx_idx),
-        function(i) {
-          get_media_target(ppx_units[i], ppx_media[i]) %||% "mg/L"
-        },
-        character(1)
-      )
+      ppx_targets <- character(length(ppx_idx))
+      ppx_factors <- numeric(length(ppx_idx))
+      ppx_flags <- character(length(ppx_idx))
+      for (i in seq_along(ppx_idx)) {
+        media_target <- get_media_target(ppx_units[i], ppx_media[i])
+        if (is.null(media_target)) {
+          mapped <- lookup_unit_mapping(ppx_units[i], unit_map)
+          ppx_targets[i] <- mapped$to_unit
+          ppx_factors[i] <- mapped$multiplier
+          ppx_flags[i] <- mapped$flag
+        } else {
+          ppx_targets[i] <- media_target
+          ppx_factors[i] <- get_ppx_conversion_factor(ppx_units[i])
+          ppx_flags[i] <- ""
+        }
+      }
 
       harmonized_value[ppx_idx] <- values[ppx_idx] * ppx_factors
       harmonized_unit[ppx_idx] <- ppx_targets
       conversion_factor[ppx_idx] <- ppx_factors
-
-      # Flag as media_inferred if media was NULL/NA
-      ppx_media_na <- is.na(ppx_media) | ppx_media == ""
-      unit_flag[ppx_idx] <- ""
-      unit_flag[ppx_idx[ppx_media_na]] <- "media_inferred"
+      unit_flag[ppx_idx] <- ppx_flags
     }
 
     # ---- Handle standard table lookup (vectorized with hash) ----
