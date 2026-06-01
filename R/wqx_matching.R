@@ -5,6 +5,57 @@
 # Tier 2: alias lookup resolving to canonical_name (O(1) named vector)
 # Tier 3: Jaro-Winkler fuzzy fallback against canonical names only
 
+#' Normalize WQX lookup keys
+#'
+#' WQX includes PAH locant variants that differ only by whitespace or bracket
+#' style, e.g. `benzo (a) anthracene`, `benzo(a) anthracene`, and
+#' `Benzo[a]anthracene`. Normalize those variants before exact/alias lookup so
+#' they do not fall through to isotope-adjacent fuzzy matches.
+#'
+#' @param x Character vector of raw WQX/name values.
+#' @return Character vector normalized for WQX dictionary key lookup.
+#' @keywords internal
+normalize_wqx_key <- function(x) {
+  x <- tolower(trimws(x))
+  x <- gsub("\\s*&\\s*", " and ", x, perl = TRUE)
+
+  # Normalize comma spacing inside locant groups only:
+  # "(a, h)" -> "(a,h)", "[g, h, i]" -> "[g,h,i]".
+  x <- stringr::str_replace_all(
+    x,
+    "([\\(\\[])([a-z0-9]+(?:\\s*,\\s*[a-z0-9]+)*)([\\)\\]])",
+    function(m) gsub("\\s*,\\s*", ",", m, perl = TRUE)
+  )
+
+  # Collapse whitespace before locant groups:
+  # "benzo (a)" -> "benzo(a)", "dibenz [g,h,i]" -> "dibenz[g,h,i]".
+  x <- gsub(
+    "\\s+([\\(\\[])([a-z0-9]+(?:,[a-z0-9]+)*)([\\)\\]])",
+    "\\1\\2\\3",
+    x,
+    perl = TRUE
+  )
+
+  # Treat square-bracket and parenthetical locants as lookup-equivalent.
+  x <- gsub(
+    "\\[([a-z0-9]+(?:,[a-z0-9]+)*)\\]",
+    "(\\1)",
+    x,
+    perl = TRUE
+  )
+
+  # Collapse optional space after a locant group:
+  # "benzo(a) anthracene" -> "benzo(a)anthracene".
+  x <- gsub(
+    "\\(([a-z0-9]+(?:,[a-z0-9]+)*)\\)\\s+",
+    "(\\1)",
+    x,
+    perl = TRUE
+  )
+
+  x
+}
+
 #' Match chemical names against WQX Characteristic Name dictionary
 #'
 #' Runs a three-tier lookup: (1) exact canonical, (2) alias crosswalk,
@@ -42,9 +93,8 @@ match_wqx <- function(names, dictionary, threshold = 0.85, verbose = FALSE) {
   # --- Identify valid inputs (non-NA, non-empty after trimming) ---
   valid_idx <- which(!is.na(names) & trimws(names) != "")
 
-  # --- Normalize once: lowercase + trim + ampersand swap ---
-  names_clean <- tolower(trimws(names))
-  names_clean <- gsub("\\s*&\\s*", " and ", names_clean)
+  # --- Normalize once for dictionary key lookup ---
+  names_clean <- normalize_wqx_key(names)
 
   # --- Build hash tables from dictionary ---
   # Tier 1: canonical rows only
@@ -53,21 +103,18 @@ match_wqx <- function(names, dictionary, threshold = 0.85, verbose = FALSE) {
   # Tier 2: alias rows (synonym, standardize, retired)
   alias_rows <- dictionary[dictionary$type %in% c("synonym", "standardize", "retired"), ]
 
-  # Normalize keys: lowercase + trim + & -> and
-  normalize_key <- function(x) gsub("\\s*&\\s*", " and ", tolower(trimws(x)))
-
   # Deduplicate alias keys: prioritize standardize > synonym > retired,
   # then keep first row per normalized name
   alias_type_priority <- c("standardize" = 1L, "synonym" = 2L, "retired" = 3L)
   alias_rows <- alias_rows[order(alias_type_priority[alias_rows$type]), ]
   alias_rows <- dplyr::distinct(
-    dplyr::mutate(alias_rows, .lower_name = normalize_key(alias_rows$name)),
+    dplyr::mutate(alias_rows, .lower_name = normalize_wqx_key(alias_rows$name)),
     .lower_name,
     .keep_all = TRUE
   )
 
   # O(1) named-vector maps
-  tier1_map <- stats::setNames(canonical_rows$name, normalize_key(canonical_rows$name))
+  tier1_map <- stats::setNames(canonical_rows$name, normalize_wqx_key(canonical_rows$name))
   tier2_map <- stats::setNames(alias_rows$canonical_name, alias_rows$.lower_name)
   tier2_type_map <- stats::setNames(alias_rows$type, alias_rows$.lower_name)
 
@@ -106,12 +153,13 @@ match_wqx <- function(names, dictionary, threshold = 0.85, verbose = FALSE) {
 
   if (length(still_unresolved_idx) > 0) {
     canonical_name_vec <- canonical_rows$name
+    canonical_key_vec <- normalize_wqx_key(canonical_name_vec)
 
     # JW distance: 0 = identical, 1 = maximally different
     # cutoff = 1 - threshold (e.g., threshold 0.85 → cutoff 0.15)
     dist_matrix <- stringdist::stringdistmatrix(
       names_clean[still_unresolved_idx],
-      tolower(canonical_name_vec),
+      canonical_key_vec,
       method = "jw"
     )
 
