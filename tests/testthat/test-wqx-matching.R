@@ -51,6 +51,63 @@ mock_dict <- tibble::tibble(
   description = rep(NA_character_, 7)
 )
 
+pah_dict <- tibble::tibble(
+  name = c(
+    "Benz[a]anthracene",
+    "Benzo(a)anthracene-D12",
+    "Benzo(a) anthracene",
+    "Benzo[a]anthracene",
+    "Dibenz[a,h]anthracene",
+    "Dibenz(g,h,i)perylene",
+    "Dibenz (a,h) anthracene",
+    "Dibenz (g,h,i) perylene"
+  ),
+  canonical_name = c(
+    "Benz[a]anthracene",
+    "Benzo(a)anthracene-D12",
+    "Benz[a]anthracene",
+    "Benz[a]anthracene",
+    "Dibenz[a,h]anthracene",
+    "Dibenz(g,h,i)perylene",
+    "Dibenz[a,h]anthracene",
+    "Dibenz(g,h,i)perylene"
+  ),
+  type = c(
+    "canonical",
+    "canonical",
+    "synonym",
+    "synonym",
+    "canonical",
+    "canonical",
+    "synonym",
+    "synonym"
+  ),
+  cas_number = rep(NA_character_, 8),
+  group_name = rep(NA_character_, 8),
+  description = rep(NA_character_, 8)
+)
+
+test_that("normalize_wqx_key canonicalizes single, paired, and triple locants", {
+  inputs <- c(
+    "benzo (a) anthracene",
+    "benzo(a) anthracene",
+    "BENZO[A]ANTHRACENE",
+    "dibenz (a, h) anthracene",
+    "dibenz [g, h, i] perylene"
+  )
+
+  expect_equal(
+    normalize_wqx_key(inputs),
+    c(
+      "benzo(a)anthracene",
+      "benzo(a)anthracene",
+      "benzo(a)anthracene",
+      "dibenz(a,h)anthracene",
+      "dibenz(g,h,i)perylene"
+    )
+  )
+})
+
 # Test 1 (MATCH-01): Exact canonical name match
 test_that("match_wqx returns exact tier for canonical name match", {
   result <- match_wqx("Arsenic", mock_dict)
@@ -60,6 +117,21 @@ test_that("match_wqx returns exact tier for canonical name match", {
   expect_equal(result$wqx_name, "Arsenic")
   expect_true(is.na(result$match_distance))
   expect_true(is.na(result$alias_type))
+})
+
+test_that("match_wqx normalizes spaced single locants before fuzzy isotope fallback", {
+  result <- match_wqx("benzo (a) anthracene", pah_dict)
+
+  expect_equal(result$match_tier, "alias")
+  expect_equal(result$wqx_name, "Benz[a]anthracene")
+  expect_equal(result$alias_type, "synonym")
+})
+
+test_that("match_wqx normalizes comma-separated locants with spaces", {
+  result <- match_wqx(c("dibenz (a, h) anthracene", "dibenz [g, h, i] perylene"), pah_dict)
+
+  expect_equal(result$match_tier, c("exact", "exact"))
+  expect_equal(result$wqx_name, c("Dibenz[a,h]anthracene", "Dibenz(g,h,i)perylene"))
 })
 
 # Test 2 (MATCH-01): Case-insensitive and whitespace-trimmed exact match
