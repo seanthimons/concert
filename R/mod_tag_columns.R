@@ -11,6 +11,26 @@ mod_tag_columns_ui <- function(id) {
   ns <- NS(id)
 
   tagList(
+    tags$style(HTML(paste0(
+      "#", ns("column_tagging_ui"), " .tag-columns-table td { vertical-align: middle; }",
+      "#", ns("column_tagging_ui"), " .tag-column-name { padding-left: 0.75rem; }",
+      "#", ns("column_tagging_ui"), " .tag-column-selected > td { background-color: #e7f5ff !important; }"
+    ))),
+    tags$script(HTML(paste0(
+      "$(document).on('shiny:inputchanged', function(event) {",
+      "  var id = event.name;",
+      "  var row = $('#", ns("column_tagging_ui"), " .tag-column-row').filter(function() {",
+      "    return $(this).data('input-id') === id;",
+      "  });",
+      "  if (!row.length) return;",
+      "  if (event.value && event.value !== '') {",
+      "    row.addClass('tag-column-selected');",
+      "  } else {",
+      "    row.removeClass('tag-column-selected');",
+      "  }",
+      "});"
+    ))),
+
     # Empty state when no data uploaded
     conditionalPanel(
       condition = paste0("!output['", ns("has_data"), "']"),
@@ -65,18 +85,20 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
 
       # Table-based layout: one row per column
       tags$table(
-        class = "table table-striped table-hover",
+        class = "table table-sm table-striped table-hover tag-columns-table",
         tags$thead(
           tags$tr(
-            tags$th("Column Name"),
-            tags$th("Type", style = "width: 200px;")
+            tags$th("Type", style = "width: 220px;"),
+            tags$th("Column Name", class = "text-start")
           )
         ),
         tags$tbody(
           lapply(selected_cols, function(col) {
             tags$tr(
-              tags$td(tags$strong(col)),
+              class = "tag-column-row",
+              `data-input-id` = session$ns(paste0("tag_", make.names(col))),
               tags$td(
+                style = "width:220px;",
                 selectInput(
                   inputId = session$ns(paste0("tag_", make.names(col))),
                   label = NULL,
@@ -97,6 +119,10 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
                   selectize = FALSE,
                   width = "100%"
                 )
+              ),
+              tags$td(
+                class = "tag-column-name text-start align-middle",
+                tags$strong(col)
               )
             )
           })
