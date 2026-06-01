@@ -10,10 +10,10 @@
 #' Auto-detect DTXSID columns by name pattern
 #'
 #' @param df Data frame with lookup results
-#' @return Character vector of column names matching "dtxsid_*"
+#' @return Character vector of column names matching "dtxsid" or "dtxsid_*"
 #' @export
 find_dtxsid_cols <- function(df) {
-  grep("^dtxsid_", names(df), value = TRUE)
+  grep("^dtxsid$|^dtxsid_", names(df), value = TRUE)
 }
 
 # ============================================================================
@@ -67,7 +67,7 @@ classify_consensus <- function(df, dtxsid_cols) {
   qc_tier <- integer(nrow(df))
 
   # Pre-compute source_tier column names (avoids repeated sub() inside loop)
-  tier_cols <- sub("^dtxsid_", "source_tier_", dtxsid_cols)
+  tier_cols <- ifelse(dtxsid_cols == "dtxsid", "source_tier", sub("^dtxsid_", "source_tier_", dtxsid_cols))
   tier_cols_exist <- tier_cols %in% names(df)
 
   for (i in seq_len(nrow(df))) {
@@ -102,7 +102,7 @@ classify_consensus <- function(df, dtxsid_cols) {
         consensus_dtxsid[i] <- NA_character_
         # Find which column had the WQX resolution for source attribution
         wqx_col_idx <- which(!is.na(row_tiers) & grepl("^wqx_", row_tiers))[1]
-        consensus_source[i] <- sub("^source_tier_", "", tier_cols[wqx_col_idx])
+        consensus_source[i] <- if (tier_cols[wqx_col_idx] == "source_tier") "Name" else sub("^source_tier_", "", tier_cols[wqx_col_idx])
         qc_tier[i] <- compute_qc_tier("wqx", 0L, k)
         next
       }
@@ -120,7 +120,7 @@ classify_consensus <- function(df, dtxsid_cols) {
       consensus_dtxsid[i] <- non_na[1]
       # Find which column had the value
       src_col <- dtxsid_cols[!is.na(values)][1]
-      consensus_source[i] <- sub("^dtxsid_", "", src_col)
+      consensus_source[i] <- if (src_col == "dtxsid") "Name" else sub("^dtxsid_", "", src_col)
       qc_tier[i] <- compute_qc_tier("single", 1L, k)
     } else if (n_unique == 1 && n_present == k) {
       # All columns agree
