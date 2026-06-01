@@ -556,25 +556,28 @@ test_that("ppm media: air -> mg/m3", {
   expect_equal(result$harmonized_unit, "mg/m3")
 })
 
-test_that("ppb media: NULL defaults to aqueous with media_inferred flag", {
+test_that("ppb media: NULL does not default to aqueous", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(1000), c("ppb"), unit_map, media = NULL)
-  expect_equal(result$harmonized_unit, "mg/L")
-  expect_equal(result$unit_flag, "media_inferred")
+  expect_equal(result$harmonized_unit, "ppb")
+  expect_equal(result$harmonized_value, 1000)
+  expect_equal(result$unit_flag, "unmatched")
 })
 
-test_that("ppm media: NULL defaults to aqueous with media_inferred flag", {
+test_that("ppm media: NULL does not default to aqueous", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(10), c("ppm"), unit_map)
-  expect_equal(result$harmonized_unit, "mg/L")
-  expect_equal(result$unit_flag, "media_inferred")
+  expect_equal(result$harmonized_unit, "ppm")
+  expect_equal(result$harmonized_value, 10)
+  expect_equal(result$unit_flag, "unmatched")
 })
 
-test_that("ppb media: empty string defaults to aqueous", {
+test_that("ppb media: empty string does not default to aqueous", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(1000), c("ppb"), unit_map, media = "")
-  expect_equal(result$harmonized_unit, "mg/L")
-  expect_equal(result$unit_flag, "media_inferred")
+  expect_equal(result$harmonized_unit, "ppb")
+  expect_equal(result$harmonized_value, 1000)
+  expect_equal(result$unit_flag, "unmatched")
 })
 
 test_that("ppb/ppm: conversion factors correct", {
@@ -699,10 +702,10 @@ test_that("unit_flag: 'needs_mw' for molarity without MW", {
   expect_equal(result$unit_flag, "needs_mw")
 })
 
-test_that("unit_flag: 'media_inferred' for ppb/ppm default media", {
+test_that("unit_flag: unmatched for ppb/ppm without explicit media", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(10), c("ppb"), unit_map)
-  expect_equal(result$unit_flag, "media_inferred")
+  expect_equal(result$unit_flag, "unmatched")
 })
 
 test_that("unit_flag: molarity with MW gives '' not needs_mw", {

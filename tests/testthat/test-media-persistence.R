@@ -236,8 +236,9 @@ test_that("harmonize_media returns media_unmatched for term not in custom media_
 # Section 5: harmonize_media — custom media_map with canonical column (display schema)
 # ==============================================================================
 
-test_that("harmonize_media translates 'canonical' column to 'canonical_term' internally", {
-  # Display schema: canonical not canonical_term
+test_that("harmonize_media translates 'canonical' column but requires a resolvable media_category", {
+  # Display schema: canonical not canonical_term. Without an inferable category,
+  # the mapping is not usable for ppb/ppm routing and must remain unmatched.
   display_map <- tibble::tibble(
     term = c("display_medium"),
     canonical = c("Display Canonical"),
@@ -247,9 +248,9 @@ test_that("harmonize_media translates 'canonical' column to 'canonical_term' int
 
   result <- harmonize_media(c("display_medium"), media_map = display_map)
 
-  # Should resolve via translated canonical_term
-  expect_equal(result$canonical_media, "Display Canonical")
-  expect_equal(result$media_flag, "")
+  expect_true(is.na(result$canonical_media))
+  expect_true(is.na(result$media_category))
+  expect_equal(result$media_flag, "media_unmatched")
 })
 
 test_that("harmonize_media with display-schema map falls back gracefully for missing term", {

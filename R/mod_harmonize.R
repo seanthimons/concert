@@ -1460,6 +1460,9 @@ mod_harmonize_server <- function(id, data_store) {
       )
 
       tbl <- data_store$media_map_working
+      inferred_new_row <- infer_media_categories(dplyr::bind_rows(new_row, tbl))[1, ]
+      new_row$envo_id <- inferred_new_row$envo_id
+      new_row$media_category <- inferred_new_row$media_category
 
       # Check for AMOS conflict (D-13)
       amos_conflict <- tbl$term == new_row$term & tbl$source == "amos"
