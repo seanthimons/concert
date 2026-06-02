@@ -13,6 +13,7 @@ mod_tag_columns_ui <- function(id) {
   tagList(
     tags$style(HTML(paste0(
       "#", ns("column_tagging_ui"), " .tag-columns-table td { vertical-align: middle; }",
+      "#", ns("column_tagging_ui"), " .tag-columns-table td .shiny-input-container { margin-bottom: 0; }",
       "#", ns("column_tagging_ui"), " .tag-column-name { padding-left: 0.75rem; }",
       "#", ns("column_tagging_ui"), " .tag-column-selected > td { background-color: #e7f5ff !important; }"
     ))),

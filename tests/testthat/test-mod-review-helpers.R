@@ -302,6 +302,24 @@ test_that("derive_resolution_html Review button absent for non-WQX rows", {
   expect_no_match(result, "wqx-review-btn")
 })
 
+test_that("derive_resolution_html keeps compare actions for reviewable rows", {
+  df <- data.frame(
+    consensus_status = c("disagree", "suggested", "auto_resolved"),
+    consensus_dtxsid = c(NA_character_, "DTXSID7021360", "DTXSID7021360"),
+    preferredName_Chemical = c(NA_character_, "Toluene", "Toluene"),
+    .pinned = c(FALSE, FALSE, FALSE),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  result <- derive_resolution_html(df, row_indices = 1:3)
+
+  expect_match(result[1], "compare-btn")
+  expect_match(result[2], "compare-btn")
+  expect_match(result[2], "Review Suggestion")
+  expect_match(result[3], "compare-btn")
+})
+
 # ============================================================================
 # Test Group 6: map_results_to_rows -- wqx_confidence propagation (integration)
 # ============================================================================
@@ -539,7 +557,8 @@ test_that("review column selector exposes upload and curated columns but exclude
   choices <- derive_review_column_choices(upload_cols, df_names, internal_hidden)
 
   expect_true(all(upload_cols %in% choices))
-  expect_true(all(c("consensus_status", "match_type", "Resolution") %in% choices))
+  expect_true(all(c("consensus_status", "match_type") %in% choices))
+  expect_false("Resolution" %in% choices)
   expect_false("source_tier_Chemical" %in% choices)
   expect_false(".pinned" %in% choices)
 })
@@ -555,4 +574,53 @@ test_that("review column selector preserves condensed default while making untag
   expect_true("Sample ID" %in% choices)
   expect_true(all(c("Chemical", "CASRN", "consensus_status", "match_type", "Resolution") %in% default_visible))
   expect_false("Sample ID" %in% default_visible)
+})
+
+test_that("hidden review column derivation never hides required Resolution action", {
+  upload_cols <- c("Chemical", "CASRN", "Sample ID")
+  column_tags <- c("Chemical" = "Name", "CASRN" = "CASRN")
+  df_names <- c(upload_cols, "consensus_status", "match_type", "Resolution")
+
+  hidden <- derive_hidden_review_columns(
+    selected_cols = c("Chemical"),
+    upload_col_names = upload_cols,
+    column_tags = column_tags,
+    df_names = df_names
+  )
+
+  expect_true("CASRN" %in% hidden)
+  expect_true("match_type" %in% hidden)
+  expect_false("Resolution" %in% hidden)
+})
+
+test_that("persisted review columns are honored and reconciled against current choices", {
+  upload_cols <- c("Chemical", "CASRN", "Sample ID")
+  column_tags <- c("Chemical" = "Name", "CASRN" = "CASRN")
+  df_names <- c(upload_cols, "consensus_status", "match_type", "Resolution", "source_tier_Chemical")
+  internal_hidden <- c("source_tier_Chemical")
+
+  visible <- reconcile_visible_review_columns(
+    selected_cols = c("Sample ID", "Obsolete", "Resolution", "source_tier_Chemical"),
+    upload_col_names = upload_cols,
+    column_tags = column_tags,
+    df_names = df_names,
+    internal_hidden_cols = internal_hidden
+  )
+
+  expect_equal(visible, c("Sample ID", "Resolution"))
+})
+
+test_that("empty persisted review selection still preserves required action columns", {
+  upload_cols <- c("Chemical", "CASRN")
+  column_tags <- c("Chemical" = "Name", "CASRN" = "CASRN")
+  df_names <- c(upload_cols, "consensus_status", "Resolution")
+
+  visible <- reconcile_visible_review_columns(
+    selected_cols = character(0),
+    upload_col_names = upload_cols,
+    column_tags = column_tags,
+    df_names = df_names
+  )
+
+  expect_equal(visible, "Resolution")
 })

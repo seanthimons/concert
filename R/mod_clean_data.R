@@ -613,6 +613,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
             # Cascade reset: invalidate downstream state
             data_store$curation_results <- NULL
             data_store$resolved_data <- NULL
+            data_store$review_visible_cols <- NULL
 
             n_changes <- nrow(audit_combined)
 

@@ -17,7 +17,8 @@
 #   4. sampling_events.csv   - Long table: site x event x medium x method
 #   5. method_coverage.csv   - Site x year x domain x medium availability
 #   6. detections.csv        - Long tidy detections (with `medium` column)
-#   7. bioassay.csv          - AhR bioassay (water + sediment porewater)
+#   7. detections_quick_test_20_per_compound.csv - Random 20 records per analyte
+#   8. bioassay.csv          - AhR bioassay (water + sediment porewater)
 #
 # Design decisions:
 #   - Co-location: water/sediment/fish share site_id; wells & passive samplers
@@ -53,12 +54,27 @@ set.seed(42)
 n_sites       <- 18
 n_years       <- 12        # 2013-2024
 years         <- 2013:2024
+quick_test_n_per_compound <- 20
 
 # --- Chemical hierarchy -------------------------------------------------------
 
-make_chem <- function(order, family, domain, analyte, cas, units, conc, det_class) {
+make_chem <- function(order, family, domain, analyte, cas, units, conc, det_class,
+                      half_life_days = NA_real_,
+                      radionuclide_interest_window = NA_character_) {
   tibble(order=order, family=family, domain=domain, analyte=analyte,
-         cas=cas, units=units, typical_conc_ug_l=conc, detection_class=det_class)
+         cas=cas, units=units, typical_conc_ug_l=conc,
+         detection_class=det_class,
+         half_life_days=half_life_days,
+         radionuclide_interest_window=radionuclide_interest_window)
+}
+
+make_rad <- function(family, analyte, id, units, conc, det_class,
+                     half_life_days = NA_real_,
+                     interest_window = "long_term") {
+  make_chem("Radionuclides", family, "Radionuclides", analyte, id, units,
+            conc, det_class,
+            half_life_days = half_life_days,
+            radionuclide_interest_window = interest_window)
 }
 
 chemical_portfolio <- bind_rows(
@@ -126,13 +142,72 @@ chemical_portfolio <- bind_rows(
   make_chem("Inorganics","Metals","Metals","Silver","7440-22-4","ug/L",0.3,"rare_hit"),
   make_chem("Inorganics","Metals","Metals","Vanadium","7440-62-2","ug/L",4.0,"ubiquitous"),
   # --- Radionuclides ---
-  make_chem("Radionuclides","Radionuclides","Radionuclides","Gross Alpha","NA-GALPHA","pCi/L",8.0,"ubiquitous"),
-  make_chem("Radionuclides","Radionuclides","Radionuclides","Gross Beta","NA-GBETA","pCi/L",12.0,"ubiquitous"),
-  make_chem("Radionuclides","Radionuclides","Radionuclides","Radium-226","13982-63-3","pCi/L",2.0,"ubiquitous"),
-  make_chem("Radionuclides","Radionuclides","Radionuclides","Radium-228","15262-20-1","pCi/L",1.5,"ubiquitous"),
-  make_chem("Radionuclides","Radionuclides","Radionuclides","Uranium","7440-61-1","ug/L",3.0,"ubiquitous"),
-  make_chem("Radionuclides","Radionuclides","Radionuclides","Strontium-90","10098-97-2","pCi/L",0.5,"rare_hit"),
-  make_chem("Radionuclides","Radionuclides","Radionuclides","Tritium","10028-17-8","pCi/L",500,"discharge_driven"),
+  make_rad("Screening Radionuclides","Gross Alpha","NA-GALPHA","pCi/L",8.0,"ubiquitous",
+           interest_window = "screening"),
+  make_rad("Screening Radionuclides","Gross Beta","NA-GBETA","pCi/L",12.0,"ubiquitous",
+           interest_window = "screening"),
+  make_rad("Naturally Occurring Radionuclides","Radium-226","13982-63-3","pCi/L",2.0,"ubiquitous",
+           1600 * 365.25, "long_term"),
+  make_rad("Naturally Occurring Radionuclides","Radium-228","15262-20-1","pCi/L",1.5,"ubiquitous",
+           5.75 * 365.25, "long_term"),
+  make_rad("Naturally Occurring Radionuclides","Radon-222","NA-RN222","pCi/L",300,"ubiquitous",
+           3.82, "short_term"),
+  make_rad("Naturally Occurring Radionuclides","Uranium","7440-61-1","ug/L",3.0,"ubiquitous",
+           interest_window = "long_term"),
+  make_rad("Naturally Occurring Radionuclides","Uranium-234","NA-U234","pCi/L",0.6,"ubiquitous",
+           2.455e5 * 365.25, "long_term"),
+  make_rad("Naturally Occurring Radionuclides","Uranium-235","NA-U235","pCi/L",0.05,"ubiquitous",
+           7.04e8 * 365.25, "long_term"),
+  make_rad("Naturally Occurring Radionuclides","Uranium-238","NA-U238","pCi/L",0.4,"ubiquitous",
+           4.468e9 * 365.25, "long_term"),
+  make_rad("Naturally Occurring Radionuclides","Thorium-230","NA-TH230","pCi/L",0.03,"rare_hit",
+           7.538e4 * 365.25, "long_term"),
+  make_rad("Naturally Occurring Radionuclides","Thorium-232","NA-TH232","pCi/L",0.02,"rare_hit",
+           1.405e10 * 365.25, "long_term"),
+  make_rad("Short-Term Radionuclides","Iodine-131","NA-I131","pCi/L",0.2,"rare_hit",
+           8.02, "short_term"),
+  make_rad("Short-Term Radionuclides","Barium-140","NA-BA140","pCi/L",0.08,"rare_hit",
+           12.75, "short_term"),
+  make_rad("Short-Term Radionuclides","Lanthanum-140","NA-LA140","pCi/L",0.05,"rare_hit",
+           1.68, "short_term"),
+  make_rad("Short-Term Radionuclides","Ruthenium-103","NA-RU103","pCi/L",0.07,"rare_hit",
+           39.26, "short_term"),
+  make_rad("Short-Term Radionuclides","Zirconium-95","NA-ZR95","pCi/L",0.06,"rare_hit",
+           64.0, "short_term"),
+  make_rad("Short-Term Radionuclides","Cerium-141","NA-CE141","pCi/L",0.06,"rare_hit",
+           32.5, "short_term"),
+  make_rad("Short-Term Radionuclides","Cesium-134","NA-CS134","pCi/L",0.15,"rare_hit",
+           2.06 * 365.25, "short_term"),
+  make_rad("Short-Term Radionuclides","Cobalt-58","NA-CO58","pCi/L",0.04,"rare_hit",
+           70.86, "short_term"),
+  make_rad("Short-Term Radionuclides","Manganese-54","NA-MN54","pCi/L",0.04,"rare_hit",
+           312.2, "short_term"),
+  make_rad("Short-Term Radionuclides","Tritium","10028-17-8","pCi/L",500,"discharge_driven",
+           12.32 * 365.25, "short_term"),
+  make_rad("Long-Term Radionuclides","Strontium-90","10098-97-2","pCi/L",0.5,"rare_hit",
+           28.79 * 365.25, "long_term"),
+  make_rad("Long-Term Radionuclides","Cesium-137","NA-CS137","pCi/L",0.4,"rare_hit",
+           30.17 * 365.25, "long_term"),
+  make_rad("Long-Term Radionuclides","Cobalt-60","NA-CO60","pCi/L",0.1,"rare_hit",
+           5.27 * 365.25, "long_term"),
+  make_rad("Long-Term Radionuclides","Technetium-99","NA-TC99","pCi/L",1.0,"discharge_driven",
+           2.11e5 * 365.25, "long_term"),
+  make_rad("Long-Term Radionuclides","Iodine-129","NA-I129","pCi/L",0.02,"rare_hit",
+           1.57e7 * 365.25, "long_term"),
+  make_rad("Long-Term Radionuclides","Carbon-14","NA-C14","pCi/L",50,"ubiquitous",
+           5730 * 365.25, "long_term"),
+  make_rad("Long-Term Radionuclides","Nickel-63","NA-NI63","pCi/L",0.08,"rare_hit",
+           100.1 * 365.25, "long_term"),
+  make_rad("Transuranic Radionuclides","Neptunium-237","NA-NP237","pCi/L",0.005,"rare_hit",
+           2.144e6 * 365.25, "long_term"),
+  make_rad("Transuranic Radionuclides","Plutonium-238","NA-PU238","pCi/L",0.01,"rare_hit",
+           87.7 * 365.25, "long_term"),
+  make_rad("Transuranic Radionuclides","Plutonium-239","NA-PU239","pCi/L",0.01,"rare_hit",
+           24110 * 365.25, "long_term"),
+  make_rad("Transuranic Radionuclides","Plutonium-240","NA-PU240","pCi/L",0.008,"rare_hit",
+           6561 * 365.25, "long_term"),
+  make_rad("Transuranic Radionuclides","Americium-241","NA-AM241","pCi/L",0.01,"rare_hit",
+           432.2 * 365.25, "long_term"),
   # --- WQ Parameters ---
   make_chem("WQ_Parameters","Conventional","WQ_Metrics","pH","NA-PH","SU",7.2,"ubiquitous"),
   make_chem("WQ_Parameters","Conventional","WQ_Metrics","Dissolved Oxygen","NA-DO","mg/L",7.5,"ubiquitous"),
@@ -490,6 +565,16 @@ generate_detections <- function(sites, sampling_events, chemical_portfolio,
         domain == "PFAS" & year > 2020  ~ 1.1 - 0.03 * (year - 2020),
         domain == "VOCs" ~ 1 - 0.02 * year_centered,
         domain == "Metals" ~ 1 + rnorm(n(), 0, 0.02),
+        domain == "Radionuclides" &
+          radionuclide_interest_window == "short_term" &
+          detection_class == "rare_hit" ~
+          if_else(year %in% c(2014, 2019, 2023) & month %in% 3:8, 1.8, 0.35),
+        domain == "Radionuclides" &
+          radionuclide_interest_window == "short_term" ~
+          0.9 + rnorm(n(), 0, 0.05),
+        domain == "Radionuclides" &
+          radionuclide_interest_window == "long_term" ~
+          1 + 0.01 * year_centered + rnorm(n(), 0, 0.03),
         TRUE ~ 1
       ),
       temporal_factor = pmax(0.1, temporal_factor),
@@ -513,11 +598,21 @@ generate_detections <- function(sites, sampling_events, chemical_portfolio,
       # bioaccumulators, but require the chemical to actually partition there.
       medium_detect_mult = case_when(
         medium == "surface_water" ~ 1.0,
+        medium == "groundwater" & domain == "Radionuclides" &
+          analyte %in% c("Radon-222","Tritium","Technetium-99","Iodine-129") ~ 1.2,
         medium == "groundwater"   ~ 0.9,
         medium == "sediment" & domain %in% c("SVOCs","PFAS","Metals","Hydrocarbons") ~ 1.3,
+        medium == "sediment" & domain == "Radionuclides" &
+          radionuclide_interest_window == "long_term" ~ 1.2,
+        medium == "sediment" & domain == "Radionuclides" &
+          radionuclide_interest_window == "short_term" ~ 0.6,
         medium == "sediment" & domain == "VOCs" ~ 0.4,   # volatiles escape sediment
         medium == "sediment" ~ 1.0,
         medium == "soil" & domain %in% c("SVOCs","PFAS","Metals","Hydrocarbons") ~ 1.2,
+        medium == "soil" & domain == "Radionuclides" &
+          radionuclide_interest_window == "long_term" ~ 1.1,
+        medium == "soil" & domain == "Radionuclides" &
+          radionuclide_interest_window == "short_term" ~ 0.5,
         medium == "soil" & domain == "VOCs" ~ 0.3,
         medium == "soil" ~ 0.9,
         medium == "fish_tissue" & domain == "PFAS" ~ 1.4,  # bioaccumulates
@@ -537,7 +632,10 @@ generate_detections <- function(sites, sampling_events, chemical_portfolio,
     mutate(
       log_partition_mu = coalesce(log_partition_mu, 0),
       log_partition_sd = coalesce(log_partition_sd, 0.3),
-      reported_units   = coalesce(units.y, units.x),
+      reported_units   = case_when(
+        medium %in% c("surface_water","groundwater") ~ units.x,
+        TRUE ~ coalesce(units.y, units.x)
+      ),
       log_conc_mean = log(typical_conc_ug_l) +
         log(spatial_factor) +
         log(temporal_factor) +
@@ -569,6 +667,7 @@ generate_detections <- function(sites, sampling_events, chemical_portfolio,
       event_sample_id, sample_id, site_id, site_type, medium,
       sample_date, year, month,
       analyte_id, analyte, cas, domain, family, order,
+      half_life_days, radionuclide_interest_window,
       reported_units,
       detected, concentration, reporting_limit,
       result_qualifier, reported_result,
@@ -682,6 +781,7 @@ detections_full <- detections %>%
     # analyte
     analyte_id, analyte, cas, domain, family, order,
     detection_class, typical_conc_ug_l,
+    half_life_days, radionuclide_interest_window,
     # method
     method_name,
     # result
@@ -693,7 +793,24 @@ detections_full <- detections %>%
 
 # --- Write output -------------------------------------------------------------
 
-write_csv(detections_full, file.path(here::here('data','benchmark'), "detections.csv"))
+output_dir <- file.path(here::here("data", "benchmark"))
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+write_csv(detections_full, file.path(output_dir, "detections.csv"))
+
+set.seed(4242)
+detections_quick_test <- detections_full %>%
+  group_by(analyte_id, analyte) %>%
+  mutate(.quick_test_random = runif(n())) %>%
+  arrange(.quick_test_random, .by_group = TRUE) %>%
+  slice_head(n = quick_test_n_per_compound) %>%
+  ungroup() %>%
+  select(-.quick_test_random)
+
+write_csv(
+  detections_quick_test,
+  file.path(output_dir, "detections_quick_test_20_per_compound.csv")
+)
 
 # --- Summary ------------------------------------------------------------------
 
@@ -705,6 +822,7 @@ cat("Analytes:", nrow(chemical_portfolio), "\n")
 cat("Media:", paste(media$medium, collapse = ", "), "\n")
 cat("Sampling events:", nrow(sampling_events), "\n")
 cat("Total analytical records:", nrow(detections_full), "\n")
+cat("Quick-test records:", nrow(detections_quick_test), "\n")
 cat("  ...with bioassay attached:",
     sum(!is.na(detections_full$ahr_fold_induction)), "\n")
 cat("Columns in detections.csv:", ncol(detections_full), "\n\n")
@@ -722,3 +840,5 @@ cat("\nRecord counts by medium:\n")
 detections_full %>% count(medium) %>% print()
 
 cat("\nFile written to:", file.path(output_dir, "detections.csv"), "\n")
+cat("Quick-test file written to:",
+    file.path(output_dir, "detections_quick_test_20_per_compound.csv"), "\n")

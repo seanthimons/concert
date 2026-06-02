@@ -172,6 +172,7 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
             data_store$resolution_state <- pipeline_result$results
             data_store$dtxsid_cols <- find_dtxsid_cols(pipeline_result$results)
             data_store$priority_order <- data_store$dtxsid_cols
+            data_store$review_visible_cols <- NULL
 
             # Store in curation_results for backward compatibility with Review tab
             data_store$curation_results <- pipeline_result$results

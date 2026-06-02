@@ -389,6 +389,20 @@ clean_column_names <- function(x) {
   x[!is.na(x) & nzchar(x)]
 }
 
+review_required_visible_cols <- function(df_names) {
+  intersect("Resolution", clean_column_names(df_names))
+}
+
+derive_review_display_column_names <- function(df_names, qc_results = NULL) {
+  df_names <- clean_column_names(df_names)
+  computed_cols <- c("match_type", "n_rows", "Resolution")
+  if (!is.null(qc_results) && length(qc_results$row_indices %||% integer(0)) > 0) {
+    computed_cols <- c(computed_cols, "qc_flag")
+  }
+
+  unique(c(df_names, computed_cols))
+}
+
 review_internal_hidden_cols <- function(df_names, dtxsid_cols = character(0)) {
   unique(c(
     dtxsid_cols,
@@ -409,8 +423,9 @@ derive_review_column_choices <- function(upload_col_names, df_names, internal_hi
 
   upload_choices <- upload_col_names[upload_col_names %in% df_names]
   curated_choices <- setdiff(df_names, upload_col_names)
+  required_visible_cols <- review_required_visible_cols(df_names)
 
-  setdiff(unique(c(upload_choices, curated_choices)), internal_hidden_cols)
+  setdiff(unique(c(upload_choices, curated_choices)), unique(c(internal_hidden_cols, required_visible_cols)))
 }
 
 derive_default_visible_review_columns <- function(
@@ -424,7 +439,31 @@ derive_default_visible_review_columns <- function(
   tagged_col_names <- clean_column_names(names(column_tags %||% character(0)))
 
   untagged_upload_cols <- setdiff(upload_col_names[upload_col_names %in% df_names], tagged_col_names)
-  setdiff(choices, untagged_upload_cols)
+  unique(c(setdiff(choices, untagged_upload_cols), review_required_visible_cols(df_names)))
+}
+
+reconcile_visible_review_columns <- function(
+  selected_cols,
+  upload_col_names,
+  column_tags,
+  df_names,
+  internal_hidden_cols = character(0)
+) {
+  choices <- derive_review_column_choices(upload_col_names, df_names, internal_hidden_cols)
+  required_visible_cols <- review_required_visible_cols(df_names)
+
+  if (is.null(selected_cols)) {
+    selected_cols <- derive_default_visible_review_columns(
+      upload_col_names,
+      column_tags,
+      df_names,
+      internal_hidden_cols
+    )
+  } else {
+    selected_cols <- clean_column_names(selected_cols)
+  }
+
+  unique(c(intersect(selected_cols, choices), required_visible_cols))
 }
 
 derive_hidden_review_columns <- function(
@@ -435,16 +474,13 @@ derive_hidden_review_columns <- function(
   internal_hidden_cols = character(0)
 ) {
   choices <- derive_review_column_choices(upload_col_names, df_names, internal_hidden_cols)
-  selected_cols <- clean_column_names(selected_cols)
-
-  if (length(selected_cols) == 0) {
-    selected_cols <- derive_default_visible_review_columns(
-      upload_col_names,
-      column_tags,
-      df_names,
-      internal_hidden_cols
-    )
-  }
+  selected_cols <- reconcile_visible_review_columns(
+    selected_cols,
+    upload_col_names,
+    column_tags,
+    df_names,
+    internal_hidden_cols
+  )
 
   setdiff(choices, intersect(selected_cols, choices))
 }
@@ -628,6 +664,18 @@ mod_review_results_ui <- function(id) {
   )))
 
   tagList(
+    tags$style(HTML(paste0(
+      "#", ns("review_results_ui"), " .review-action-toolbar { align-items: center; }",
+      "#", ns("review_results_ui"), " .review-action-toolbar .shiny-input-container, ",
+      "#", ns("review_results_ui"), " .review-table-toolbar .shiny-input-container { margin-bottom: 0; }",
+      "#", ns("review_results_ui"), " .review-table-toolbar { align-items: center; }",
+      "#", ns("review_results_ui"), " .review-column-select { width: 180px; }",
+      "#", ns("review_results_ui"), " .review-column-dropdown .dropdown-toggle { min-width: 160px; }",
+      "#", ns("review_results_ui"), " .review-column-dropdown .dropdown-menu { min-width: 300px; max-height: 340px; overflow-y: auto; }",
+      "#", ns("review_results_ui"), " .review-column-dropdown .shiny-input-container { margin-bottom: 0; width: 100%; }",
+      "#", ns("review_results_ui"), " .review-column-dropdown .form-check, ",
+      "#", ns("review_results_ui"), " .review-column-dropdown .checkbox { margin-bottom: 0.25rem; }"
+    ))),
     filter_persist_js,
     resolution_js,
     compare_js,
@@ -636,149 +684,152 @@ mod_review_results_ui <- function(id) {
     clear_filters_js,
     reactable.extras::reactable_extras_dependency(),
 
-    # Content when curation completed
-    conditionalPanel(
-      condition = paste0("output['", ns("curation_completed"), "']"),
+    div(
+      id = ns("review_results_ui"),
 
-      # Statistics value boxes at top
-      uiOutput(ns("curation_stats")),
+      # Content when curation completed
+      conditionalPanel(
+        condition = paste0("output['", ns("curation_completed"), "']"),
 
-      # QC statistics (conditional on qc_results being available)
-      uiOutput(ns("qc_stats")),
+        # Statistics value boxes at top
+        uiOutput(ns("curation_stats")),
 
-      # En masse priority controls
-      div(
-        class = "card mb-3",
-        div(class = "card-header", "Column Priority (Bulk Resolution)"),
+        # QC statistics (conditional on qc_results being available)
+        uiOutput(ns("qc_stats")),
+
+        # En masse priority controls
         div(
-          class = "card-body",
-          uiOutput(ns("priority_controls")),
-          actionButton(ns("apply_priority"), "Apply Priority", class = "btn-warning btn-sm mt-2")
-        )
-      ),
-
-      # QC summary card (conditional on unhandled characters)
-      uiOutput(ns("qc_summary_card")),
-
-      # Header with Download button top-right and action buttons
-      div(
-        class = "d-flex justify-content-between align-items-center mb-3 mt-3",
-        h4("Curated Results"),
-        div(
-          class = "d-flex gap-2 align-items-center flex-wrap",
-          selectInput(
-            ns("batch_row_flag"),
-            label = NULL,
-            choices = c(
-              "Flag selected..." = "",
-              "BAD" = "BAD",
-              "FOLLOW-UP" = "FOLLOW-UP",
-              "VERIFIED" = "VERIFIED",
-              "Clear flag" = "CLEAR"
-            ),
-            width = "150px"
-          ),
-          actionButton(
-            ns("apply_batch_row_flag"),
-            "Apply Flag",
-            icon = icon("tags"),
-            class = "btn-sm btn-outline-primary"
-          ),
-          actionButton(
-            ns("clear_table_filters"),
-            "Clear Filters",
-            icon = icon("filter-circle-xmark"),
-            class = "btn-sm btn-outline-secondary"
-          ),
-          actionButton(
-            ns("filter_errors"),
-            "Show Errors",
-            icon = icon("filter"),
-            class = "btn-sm btn-outline-secondary"
-          ),
-          shinyjs::hidden(
-            actionButton(
-              ns("accept_all_suggestions"),
-              "Accept All Suggestions",
-              icon = icon("wand-magic-sparkles"),
-              class = "btn-sm btn-primary"
-            )
-          ),
-          shinyjs::hidden(
-            actionButton(
-              ns("retag_selected"),
-              "Re-tag Selected",
-              icon = icon("tags"),
-              class = "btn-sm btn-warning"
-            )
-          ),
-          shinyjs::hidden(
-            actionButton(
-              ns("validate_all"),
-              "Validate All",
-              icon = icon("check"),
-              class = "btn-sm btn-success"
-            )
-          ),
-          actionButton(
-            ns("rerun_qc"),
-            "Re-run QC",
-            icon = icon("arrows-rotate"),
-            class = "btn-sm btn-outline-secondary"
-          ),
-          actionButton(
-            ns("copy_table"),
-            "Copy",
-            icon = icon("copy"),
-            class = "btn-sm btn-outline-secondary"
-          ),
-          downloadButton(
-            ns("download_csv"),
-            "CSV",
-            class = "btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center",
-            style = "line-height:1.5;"
-          ),
-          downloadButton(
-            ns("download_curated"),
-            "Download Excel",
-            class = "btn-primary d-inline-flex align-items-center justify-content-center",
-            style = "line-height:1.5;"
+          class = "card mb-3",
+          div(class = "card-header", "Column Priority (Bulk Resolution)"),
+          div(
+            class = "card-body",
+            uiOutput(ns("priority_controls")),
+            actionButton(ns("apply_priority"), "Apply Priority", class = "btn-warning btn-sm mt-2")
           )
-        )
-      ),
-
-      # Table toolbar: column toggle + page size
-      div(
-        class = "mb-2 d-flex align-items-start gap-3",
-        div(
-          class = "review-column-select",
-          style = "min-width: 320px; max-width: 480px;",
-          uiOutput(ns("col_visibility_dropdown"))
         ),
+
+        # QC summary card (conditional on unhandled characters)
+        uiOutput(ns("qc_summary_card")),
+
+        # Header with Download button top-right and action buttons
         div(
-          class = "d-flex align-items-center gap-2",
-          tags$label("Rows:", `for` = ns("page_size"), class = "mb-0 small text-muted"),
-          selectInput(
-            ns("page_size"),
-            label = NULL,
-            width = "80px",
-            choices = c(10, 25, 50, 100),
-            selected = 25
+          class = "d-flex justify-content-between align-items-center mb-3 mt-3",
+          h4("Curated Results"),
+          div(
+            class = "d-flex gap-2 align-items-center flex-wrap review-action-toolbar",
+            selectInput(
+              ns("batch_row_flag"),
+              label = NULL,
+              choices = c(
+                "Flag selected..." = "",
+                "BAD" = "BAD",
+                "FOLLOW-UP" = "FOLLOW-UP",
+                "VERIFIED" = "VERIFIED",
+                "Clear flag" = "CLEAR"
+              ),
+              width = "150px"
+            ),
+            actionButton(
+              ns("apply_batch_row_flag"),
+              "Apply Flag",
+              icon = icon("tags"),
+              class = "btn-sm btn-outline-primary"
+            ),
+            actionButton(
+              ns("clear_table_filters"),
+              "Clear Filters",
+              icon = icon("filter-circle-xmark"),
+              class = "btn-sm btn-outline-secondary"
+            ),
+            actionButton(
+              ns("filter_errors"),
+              "Show Errors",
+              icon = icon("filter"),
+              class = "btn-sm btn-outline-secondary"
+            ),
+            shinyjs::hidden(
+              actionButton(
+                ns("accept_all_suggestions"),
+                "Accept All Suggestions",
+                icon = icon("wand-magic-sparkles"),
+                class = "btn-sm btn-primary"
+              )
+            ),
+            shinyjs::hidden(
+              actionButton(
+                ns("retag_selected"),
+                "Re-tag Selected",
+                icon = icon("tags"),
+                class = "btn-sm btn-warning"
+              )
+            ),
+            shinyjs::hidden(
+              actionButton(
+                ns("validate_all"),
+                "Validate All",
+                icon = icon("check"),
+                class = "btn-sm btn-success"
+              )
+            ),
+            actionButton(
+              ns("rerun_qc"),
+              "Re-run QC",
+              icon = icon("arrows-rotate"),
+              class = "btn-sm btn-outline-secondary"
+            ),
+            actionButton(
+              ns("copy_table"),
+              "Copy",
+              icon = icon("copy"),
+              class = "btn-sm btn-outline-secondary"
+            ),
+            downloadButton(
+              ns("download_csv"),
+              "CSV",
+              class = "btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center",
+              style = "line-height:1.5;"
+            ),
+            downloadButton(
+              ns("download_curated"),
+              "Download Excel",
+              class = "btn-primary d-inline-flex align-items-center justify-content-center",
+              style = "line-height:1.5;"
+            )
           )
-        )
+        ),
+
+        # Table toolbar: column toggle + page size
+        div(
+          class = "mb-2 d-flex align-items-center gap-3 review-table-toolbar flex-wrap",
+          div(
+            class = "review-column-select",
+            uiOutput(ns("col_visibility_dropdown"))
+          ),
+          div(
+            class = "d-flex align-items-center gap-2",
+            tags$label("Rows:", `for` = ns("page_size"), class = "mb-0 small text-muted"),
+            selectInput(
+              ns("page_size"),
+              label = NULL,
+              width = "80px",
+              choices = c(10, 25, 50, 100),
+              selected = 25
+            )
+          )
+        ),
+
+        reactable::reactableOutput(ns("curation_table"))
       ),
 
-      reactable::reactableOutput(ns("curation_table"))
-    ),
-
-    # Empty state when curation not completed
-    conditionalPanel(
-      condition = paste0("!output['", ns("curation_completed"), "']"),
-      div(
-        class = "text-center text-muted py-5",
-        bsicons::bs_icon("hourglass-split", size = "3em"),
-        h4("No results yet"),
-        p("Run curation first to see results here.")
+      # Empty state when curation not completed
+      conditionalPanel(
+        condition = paste0("!output['", ns("curation_completed"), "']"),
+        div(
+          class = "text-center text-muted py-5",
+          bsicons::bs_icon("hourglass-split", size = "3em"),
+          h4("No results yet"),
+          p("Run curation first to see results here.")
+        )
       )
     )
   )
@@ -921,7 +972,7 @@ mod_review_results_server <- function(id, data_store) {
     output$col_visibility_dropdown <- renderUI({
       req(data_store$resolution_state, data_store$column_tags, data_store$clean)
 
-      df_names <- names(data_store$resolution_state)
+      df_names <- derive_review_display_column_names(names(data_store$resolution_state), data_store$qc_results)
       upload_col_names <- names(data_store$clean)
       internal_hidden <- review_internal_hidden_cols(df_names, data_store$dtxsid_cols %||% character(0))
       choices <- derive_review_column_choices(upload_col_names, df_names, internal_hidden)
@@ -930,30 +981,67 @@ mod_review_results_server <- function(id, data_store) {
         return(tags$small(class = "text-muted", "No toggleable columns available"))
       }
 
-      default_visible <- derive_default_visible_review_columns(
+      visible_cols <- reconcile_visible_review_columns(
+        isolate(data_store$review_visible_cols),
         upload_col_names,
         data_store$column_tags,
         df_names,
         internal_hidden
       )
 
-      current_selection <- isolate(input$visible_cols)
-      selected <- if (is.null(current_selection)) default_visible else intersect(current_selection, choices)
+      selected <- intersect(visible_cols, choices)
 
-      selectizeInput(
-        session$ns("visible_cols"),
-        label = "Columns shown",
-        choices = choices,
-        selected = selected,
-        multiple = TRUE,
-        width = "100%",
-        options = list(
-          plugins = list("remove_button"),
-          placeholder = "Search columns...",
-          closeAfterSelect = FALSE
+      tags$div(
+        class = "dropdown review-column-dropdown",
+        tags$button(
+          type = "button",
+          class = "btn btn-sm btn-outline-secondary dropdown-toggle d-inline-flex align-items-center justify-content-between",
+          `data-bs-toggle` = "dropdown",
+          `data-bs-auto-close` = "outside",
+          `aria-expanded` = "false",
+          tags$span("Columns shown ", textOutput(session$ns("visible_cols_count"), inline = TRUE))
+        ),
+        tags$div(
+          class = "dropdown-menu p-2 shadow-sm",
+          onclick = "event.stopPropagation();",
+          checkboxGroupInput(
+            session$ns("visible_cols"),
+            label = NULL,
+            choices = stats::setNames(choices, choices),
+            selected = selected,
+            width = "100%"
+          )
         )
       )
     })
+
+    output$visible_cols_count <- renderText({
+      req(data_store$resolution_state, data_store$column_tags, data_store$clean)
+
+      df_names <- derive_review_display_column_names(names(data_store$resolution_state), data_store$qc_results)
+      upload_col_names <- names(data_store$clean)
+      internal_hidden <- review_internal_hidden_cols(df_names, data_store$dtxsid_cols %||% character(0))
+      selected_source <- if (!is.null(input$visible_cols)) input$visible_cols else data_store$review_visible_cols
+      visible_cols <- reconcile_visible_review_columns(
+        selected_source,
+        upload_col_names,
+        data_store$column_tags,
+        df_names,
+        internal_hidden
+      )
+
+      paste0("(", length(visible_cols), ")")
+    })
+
+    observeEvent(input$visible_cols, {
+      req(data_store$resolution_state, data_store$column_tags, data_store$clean)
+
+      df_names <- derive_review_display_column_names(names(data_store$resolution_state), data_store$qc_results)
+      upload_col_names <- names(data_store$clean)
+      internal_hidden <- review_internal_hidden_cols(df_names, data_store$dtxsid_cols %||% character(0))
+      choices <- derive_review_column_choices(upload_col_names, df_names, internal_hidden)
+      data_store$review_visible_cols <- intersect(clean_column_names(input$visible_cols), choices)
+    }, ignoreNULL = TRUE)
 
     # Copy done notification
     observeEvent(input$copy_done, {
@@ -1050,7 +1138,7 @@ mod_review_results_server <- function(id, data_store) {
       # --- Column visibility ---
       upload_col_names <- names(data_store$clean)
       internal_hidden <- review_internal_hidden_cols(names(df_display), dtxsid_cols)
-      visible_extra <- input$visible_cols
+      visible_extra <- if (!is.null(input$visible_cols)) input$visible_cols else data_store$review_visible_cols
       hidden_by_visibility <- derive_hidden_review_columns(
         visible_extra,
         upload_col_names,
@@ -1058,7 +1146,7 @@ mod_review_results_server <- function(id, data_store) {
         names(df_display),
         internal_hidden
       )
-      hidden_cols <- unique(c(internal_hidden, hidden_by_visibility))
+      hidden_cols <- setdiff(unique(c(internal_hidden, hidden_by_visibility)), review_required_visible_cols(names(df_display)))
 
       col_defs <- list()
 
