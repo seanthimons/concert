@@ -435,15 +435,17 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
                 cas_result <- normalize_cas_fields(df, tag_map)
                 df <- cas_result$cleaned_data
                 all_audits[[length(all_audits) + 1]] <- cas_result$audit_trail
+                new_tags <- c(new_tags, cas_result$new_tags %||% list())
               } else {
                 incProgress(0.12)
               }
 
               incProgress(0.12, detail = "Rescuing CAS from names...")
-              rescue_result <- rescue_cas_from_text(df, tag_map)
+              tag_map_after_cas <- c(tag_map, new_tags)
+              rescue_result <- rescue_cas_from_text(df, tag_map_after_cas)
               df <- rescue_result$cleaned_data
               all_audits[[length(all_audits) + 1]] <- rescue_result$audit_trail
-              new_tags <- rescue_result$new_tags
+              new_tags <- c(new_tags, rescue_result$new_tags)
 
               incProgress(0.08, detail = "Detecting multi-CAS rows...")
               updated_tag_map <- c(tag_map, new_tags)

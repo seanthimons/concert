@@ -82,6 +82,34 @@ pick_source_aligned_values <- function(df, prefix) {
   values
 }
 
+comptox_dashboard_url <- function(dtxsid) {
+  dtxsid <- as.character(dtxsid)
+  if (length(dtxsid) != 1 || is.na(dtxsid) || trimws(dtxsid) == "") {
+    return(NA_character_)
+  }
+
+  paste0("https://comptox.epa.gov/dashboard/chemical/details/", trimws(dtxsid))
+}
+
+candidate_dtxsid_heading <- function(dtxsid) {
+  url <- comptox_dashboard_url(dtxsid)
+  dtxsid_text <- if (length(dtxsid) == 1 && !is.na(dtxsid)) as.character(dtxsid) else ""
+
+  heading_content <- if (!is.na(url)) {
+    htmltools::tags$a(
+      href = url,
+      target = "_blank",
+      rel = "noopener noreferrer",
+      title = "Open in CompTox Dashboard",
+      dtxsid_text
+    )
+  } else {
+    dtxsid_text
+  }
+
+  htmltools::tags$h6(class = "mb-1 fw-bold d-inline", heading_content)
+}
+
 # Vectorized match_type derivation (replaces row-by-row sapply)
 derive_match_type <- function(df) {
   tier_cols <- c(intersect("source_tier", names(df)), grep("^source_tier_", names(df), value = TRUE))
@@ -138,6 +166,11 @@ derive_row_flag_html <- function(flag) {
       "</span>"
     )
   }, character(1)))
+}
+
+row_flag_filter_choices <- function(flags) {
+  tagged_flags <- intersect(valid_row_flags(), unique(as.character(stats::na.omit(flags))))
+  c("Untagged" = "__untagged__", stats::setNames(tagged_flags, tagged_flags))
 }
 
 # Vectorized Resolution column builder (replaces row-by-row sapply)
@@ -1089,6 +1122,13 @@ mod_review_results_server <- function(id, data_store) {
       table_id <- session$ns("curation_table")
       make_select_filter <- function(choices, col_name) {
         function(values, name) {
+          choice_labels <- names(choices)
+          if (is.null(choice_labels) || length(choice_labels) == 0) {
+            choice_labels <- as.character(choices)
+          } else {
+            choice_labels[choice_labels == ""] <- as.character(choices[choice_labels == ""])
+          }
+
           htmltools::tags$select(
             onchange = sprintf(
               "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
@@ -1097,9 +1137,9 @@ mod_review_results_server <- function(id, data_store) {
             ),
             style = "width:100%;font-size:0.85em;padding:2px;",
             htmltools::tags$option(value = "", "All"),
-            lapply(choices, function(val) {
-              htmltools::tags$option(value = val, val)
-            })
+            Map(function(value, label) {
+              htmltools::tags$option(value = unname(value), label)
+            }, choices, choice_labels)
           )
         }
       }
@@ -1211,7 +1251,7 @@ mod_review_results_server <- function(id, data_store) {
 
       # Badge: row_flag
       if ("row_flag" %in% names(df_display)) {
-        flag_levels <- intersect(valid_row_flags(), unique(as.character(stats::na.omit(df_display$row_flag))))
+        flag_levels <- row_flag_filter_choices(df_display$row_flag)
         col_defs[["row_flag"]] <- reactable::colDef(
           name = "Flag",
           html = TRUE,
@@ -1222,6 +1262,8 @@ mod_review_results_server <- function(id, data_store) {
           filterMethod = htmlwidgets::JS(
             "function(rows, columnId, filterValue) {
               return rows.filter(function(row) {
+                var value = row.values[columnId];
+                if (filterValue === '__untagged__') return value == null || value === '';
                 return row.values[columnId] === filterValue;
               });
             }"
@@ -1654,7 +1696,11 @@ mod_review_results_server <- function(id, data_store) {
               div(
                 div(
                   class = "d-flex align-items-center",
-                  tags$h6(class = "mb-1 fw-bold d-inline", candidate_dtxsid_label),
+                  if (evidence_only_candidate || is.na(opt$dtxsid)) {
+                    tags$h6(class = "mb-1 fw-bold d-inline", candidate_dtxsid_label)
+                  } else {
+                    candidate_dtxsid_heading(opt$dtxsid)
+                  },
                   candidate_badge
                 ),
                 if (!is.na(opt$preferredName)) tags$p(class = "mb-1 text-muted", opt$preferredName) else NULL

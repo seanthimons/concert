@@ -81,6 +81,20 @@ test_that("normalize_cas_fields preserves valid CAS unchanged", {
   expect_equal(cleaned$cas[3], "64-17-5")
 })
 
+test_that("normalize_cas_fields preserves slash-delimited CAS in generated CASRN columns", {
+  df <- tibble::tibble(cas = c("67-64-1/64-17-5", "108-88-3"))
+  tag_map <- list(cas = "CASRN")
+
+  result <- normalize_cas_fields(df, tag_map)
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$cas[1], "67-64-1")
+  expect_true("cas_extract_cas_2" %in% names(cleaned))
+  expect_equal(cleaned$cas_extract_cas_2[1], "64-17-5")
+  expect_true(is.na(cleaned$cas_extract_cas_2[2]))
+  expect_equal(result$new_tags$cas_extract_cas_2, "CASRN")
+})
+
 test_that("normalize_cas_fields returns audit trail with step='normalize_cas'", {
   df <- tibble::tibble(cas = c("67641", "no cas", "67-64-1"))
   tag_map <- list(cas = "CASRN")
@@ -229,6 +243,24 @@ test_that("detect_multi_cas sets rows with 0-1 CAS to multi_cas=FALSE", {
   expect_equal(result$multi_cas_count[1], 1)
   expect_equal(result$multi_cas_count[2], 0)
   expect_equal(result$multi_cas_count[3], 0)
+})
+
+test_that("run_cleaning_pipeline flags slash-delimited CAS as multi-CAS", {
+  df <- tibble::tibble(
+    cas_number = "67-64-1/64-17-5",
+    chemical_name = "acetone"
+  )
+  tag_map <- list(cas_number = "CASRN", chemical_name = "Name")
+
+  result <- run_cleaning_pipeline(df, tag_map)
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$cas_number[1], "67-64-1")
+  expect_true("cas_extract_cas_number_2" %in% names(cleaned))
+  expect_equal(cleaned$cas_extract_cas_number_2[1], "64-17-5")
+  expect_true(cleaned$multi_cas[1])
+  expect_equal(cleaned$multi_cas_count[1], 2)
+  expect_equal(result$new_tags$cas_extract_cas_number_2, "CASRN")
 })
 
 # ==============================================================================
