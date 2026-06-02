@@ -389,6 +389,21 @@ test_that("strip_quality_adjectives handles partial matches", {
   expect_equal(cleaned$chemical_name[2], "solvent")
 })
 
+test_that("strip_quality_adjectives preserves Technetium isotope names", {
+  df <- tibble::tibble(
+    chemical_name = c("Technetium-99", "technical grade ethanol", "tech grade solvent")
+  )
+  tag_map <- list(chemical_name = "Name")
+
+  result <- strip_quality_adjectives(df, names(tag_map)[tag_map == "Name"])
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$chemical_name[1], "Technetium-99")
+  expect_equal(cleaned$chemical_name[2], "ethanol")
+  expect_equal(cleaned$chemical_name[3], "solvent")
+  expect_false(any(result$audit_trail$original_value == "Technetium-99"))
+})
+
 test_that("strip_quality_adjectives preserves percentage qualifiers", {
   df <- tibble::tibble(
     chemical_name = c("Acetone, 99.5% pure", "Ethanol 95%")
