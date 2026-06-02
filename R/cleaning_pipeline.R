@@ -616,7 +616,7 @@ inject_row_lineage <- function(df) {
 #'
 #' @param df Dataframe with CAS columns
 #' @param tag_map Named list mapping column names to types ("CASRN", "Name", "Other")
-#' @return List with cleaned_data (tibble) and audit_trail (tibble)
+#' @return List with cleaned_data (tibble), audit_trail (tibble), and new_tags (generated CASRN columns)
 #'
 #' @examples
 #' df <- tibble::tibble(cas = c("67641", "no cas", "67-64-2"))
@@ -638,16 +638,53 @@ normalize_cas_fields <- function(df, tag_map) {
         original_value = character(),
         new_value = character(),
         reason = character()
-      )
+      ),
+      new_tags = list()
     ))
   }
 
   # Save before state
   df_before <- df
+  new_tags <- list()
+
+  # Preserve multiple CAS-RNs found in a single CASRN-tagged cell. ComptoxR::as_cas()
+  # returns NA for delimiter-combined values, so split those into generated CASRN
+  # columns before canonical normalization.
+  for (col_name in cas_cols) {
+    extracted <- ComptoxR::extract_cas(df[[col_name]])
+    if (!is.list(extracted)) {
+      extracted <- as.list(extracted)
+    }
+
+    extracted <- lapply(extracted, function(x) {
+      x <- stats::na.omit(as.character(x))
+      unique(x[nzchar(x)])
+    })
+
+    cas_counts <- lengths(extracted)
+    if (!any(cas_counts > 1)) {
+      next
+    }
+
+    max_count <- max(cas_counts, na.rm = TRUE)
+    df[[col_name]] <- vapply(seq_along(extracted), function(i) {
+      if (length(extracted[[i]]) >= 1) extracted[[i]][1] else as.character(df[[col_name]][i])
+    }, character(1))
+
+    for (cas_idx in seq.int(2L, max_count)) {
+      new_col_name <- paste0("cas_extract_", col_name, "_", cas_idx)
+      df[[new_col_name]] <- vapply(extracted, function(x) {
+        if (length(x) >= cas_idx) x[cas_idx] else NA_character_
+      }, character(1))
+      new_tags[[new_col_name]] <- "CASRN"
+    }
+  }
+
+  cas_cols_updated <- c(cas_cols, names(new_tags))
 
   # Apply as_cas to each CASRN column
   df_after <- df %>%
-    dplyr::mutate(dplyr::across(dplyr::all_of(cas_cols), ~ ComptoxR::as_cas(.x)))
+    dplyr::mutate(dplyr::across(dplyr::all_of(cas_cols_updated), ~ ComptoxR::as_cas(.x)))
 
   # Build audit trail vectorized (avoids O(n^2) growing-list pattern)
   all_row_ids <- integer()
@@ -655,8 +692,12 @@ normalize_cas_fields <- function(df, tag_map) {
   all_originals <- character()
   all_news <- character()
 
-  for (col_name in cas_cols) {
-    original_vals <- as.character(df_before[[col_name]])
+  for (col_name in cas_cols_updated) {
+    original_vals <- if (col_name %in% names(df_before)) {
+      as.character(df_before[[col_name]])
+    } else {
+      rep(NA_character_, nrow(df_before))
+    }
     cleaned_vals <- as.character(df_after[[col_name]])
 
     # Vectorized comparison: find rows where values differ (including NA transitions)
@@ -695,7 +736,8 @@ normalize_cas_fields <- function(df, tag_map) {
 
   list(
     cleaned_data = df_after,
-    audit_trail = audit_trail
+    audit_trail = audit_trail,
+    new_tags = new_tags
   )
 }
 
@@ -2149,13 +2191,16 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL, us
       }
       df_after_cas <- cas_result$cleaned_data
       audit_combined <- dplyr::bind_rows(audit_combined, cas_result$audit_trail)
+      cas_new_tags <- cas_result$new_tags %||% list()
+      new_tags <- c(new_tags, cas_new_tags)
     }
 
     # Step 4: Rescue CAS from text columns
-    rescue_result <- rescue_cas_from_text(df_after_cas, tag_map)
+    tag_map_after_cas <- c(tag_map, new_tags)
+    rescue_result <- rescue_cas_from_text(df_after_cas, tag_map_after_cas)
     df_after_rescue <- rescue_result$cleaned_data
     audit_combined <- dplyr::bind_rows(audit_combined, rescue_result$audit_trail)
-    new_tags <- rescue_result$new_tags
+    new_tags <- c(new_tags, rescue_result$new_tags)
 
     # Update tag_map with rescued columns for multi-CAS detection
     tag_map_updated <- c(tag_map, new_tags)

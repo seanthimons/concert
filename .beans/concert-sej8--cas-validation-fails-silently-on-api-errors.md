@@ -1,3 +1,13 @@
+---
+# concert-sej8
+title: ""
+status: completed
+type: task
+priority: normal
+created_at: 2026-05-12T00:01:42Z
+updated_at: 2026-05-29T22:26:04Z
+---
+
 ﻿---
 # concert-sej8
 title: CAS validation fails silently on API errors

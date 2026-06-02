@@ -12,7 +12,7 @@ normalize_cas_fields(df, tag_map)
 \item{tag_map}{Named list mapping column names to types ("CASRN", "Name", "Other")}
 }
 \value{
-List with cleaned_data (tibble) and audit_trail (tibble)
+List with cleaned_data (tibble), audit_trail (tibble), and new_tags (generated CASRN columns)
 }
 \description{
 Applies ComptoxR::as_cas() to all CASRN-tagged columns:

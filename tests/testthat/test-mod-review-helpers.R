@@ -2,6 +2,29 @@
 # Tests for mod_review_results.R helper functions with WQX support
 # ============================================================================
 
+test_that("comptox_dashboard_url builds chemical details URL", {
+  result <- comptox_dashboard_url("DTXSID7021360")
+  expect_equal(result, "https://comptox.epa.gov/dashboard/chemical/details/DTXSID7021360")
+})
+
+test_that("candidate_dtxsid_heading does not link missing or blank DTXSIDs", {
+  missing_heading <- as.character(candidate_dtxsid_heading(NA_character_))
+  blank_heading <- as.character(candidate_dtxsid_heading("  "))
+
+  expect_no_match(missing_heading, "<a", fixed = TRUE)
+  expect_no_match(blank_heading, "<a", fixed = TRUE)
+})
+
+test_that("candidate_dtxsid_heading links DTXSID to CompTox Dashboard", {
+  result <- as.character(candidate_dtxsid_heading("DTXSID7021360"))
+
+  expect_match(result, "DTXSID7021360", fixed = TRUE)
+  expect_match(result, 'href="https://comptox.epa.gov/dashboard/chemical/details/DTXSID7021360"', fixed = TRUE)
+  expect_match(result, 'target="_blank"', fixed = TRUE)
+  expect_match(result, 'rel="noopener noreferrer"', fixed = TRUE)
+  expect_match(result, 'title="Open in CompTox Dashboard"', fixed = TRUE)
+})
+
 # ============================================================================
 # Test Group 1: recalc_consensus_summary — WQX counting
 # ============================================================================
@@ -111,6 +134,22 @@ test_that("derive_row_flag_html renders BAD, FOLLOW-UP, VERIFIED, and blank flag
   expect_match(result[3], "#198754", fixed = TRUE)
   expect_equal(result[4], "")
   expect_equal(result[5], "")
+})
+
+test_that("row_flag_filter_choices always includes untagged rows", {
+  result <- row_flag_filter_choices(c("BAD", NA_character_, ""))
+
+  expect_equal(result[["Untagged"]], "__untagged__")
+  expect_equal(result[["BAD"]], "BAD")
+  expect_false("FOLLOW-UP" %in% names(result))
+})
+
+test_that("row_flag_filter_choices includes untagged even when every row is flagged", {
+  result <- row_flag_filter_choices(c("BAD", "VERIFIED"))
+
+  expect_equal(result[["Untagged"]], "__untagged__")
+  expect_equal(result[["BAD"]], "BAD")
+  expect_equal(result[["VERIFIED"]], "VERIFIED")
 })
 
 # ============================================================================
