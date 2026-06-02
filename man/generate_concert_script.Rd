@@ -9,10 +9,6 @@ generate_concert_script(
   output_path,
   tag_map,
   header_row,
-  reference_lists = NULL,
-  unit_map = NULL,
-  corrections = NULL,
-  media_map = NULL,
   review_overrides = NULL,
   wqx_threshold = 0.85,
   starts_with = FALSE,
@@ -30,14 +26,6 @@ generate_concert_script(
 \item{tag_map}{Named list of chemical, numeric, metadata, and study tags.}
 
 \item{header_row}{Detected header row to pin for replay.}
-
-\item{reference_lists}{Optional reference lists to embed.}
-
-\item{unit_map}{Optional unit map to embed.}
-
-\item{corrections}{Optional correction table to embed.}
-
-\item{media_map}{Optional media map to embed.}
 
 \item{review_overrides}{Optional review overrides to embed.}
 

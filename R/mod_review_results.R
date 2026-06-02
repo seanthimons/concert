@@ -2249,14 +2249,6 @@ mod_review_results_server <- function(id, data_store) {
       )
     })
 
-    reference_value <- function(name) {
-      refs <- data_store$reference_lists
-      if (is.null(refs) || !name %in% names(refs)) {
-        return(NULL)
-      }
-      refs[[name]]
-    }
-
     replay_script_text <- function() {
       req(data_store$resolution_state)
 
@@ -2282,10 +2274,6 @@ mod_review_results_server <- function(id, data_store) {
         output_path = paste0(file_base, "_curated.xlsx"),
         tag_map = full_tag_map,
         header_row = if (!is.null(data_store$detection)) data_store$detection$header_row else NULL,
-        reference_lists = data_store$reference_lists,
-        unit_map = data_store$unit_map_working %||% reference_value("unit_map"),
-        corrections = data_store$corrections_working %||% reference_value("corrections"),
-        media_map = data_store$media_map_working %||% reference_value("media_map"),
         review_overrides = review_overrides,
         wqx_threshold = data_store$wqx_threshold %||% 0.85,
         starts_with = isTRUE(data_store$starts_with),
