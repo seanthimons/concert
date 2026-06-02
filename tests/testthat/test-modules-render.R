@@ -9,6 +9,7 @@ create_test_store <- function() {
     curation_results = NULL, curation_report = NULL, curation_status = NULL,
     dedup_preview = NULL, consensus_data = NULL, consensus_summary = NULL,
     resolution_state = NULL, dtxsid_cols = NULL, priority_order = NULL,
+    review_visible_cols = NULL,
     error_filter_active = FALSE, display_row_map = NULL,
     selected_error_rows = NULL, manual_queue = list(),
     qc_results = NULL,
