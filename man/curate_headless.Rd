@@ -19,6 +19,9 @@ curate_headless(
   media = NULL,
   wqx_threshold = 0.85,
   starts_with = FALSE,
+  postprocess_candidates = FALSE,
+  review_overrides = NULL,
+  media_map = NULL,
   write_files = TRUE,
   source_name = NULL
 )
@@ -67,6 +70,16 @@ corrections, or NULL (default) to load from package cache.}
 
 \item{media}{Character. Media context for ppb/ppm routing: "aqueous", "air",
 or "solid". NULL (default) uses aqueous assumption.}
+
+\item{postprocess_candidates}{Logical. If TRUE, runs the same enrichment,
+similarity scoring, and auto-resolve pass used by the Shiny app after
+curation. Default FALSE for backward compatibility.}
+
+\item{review_overrides}{Optional sparse overrides from
+\code{build_review_overrides()} to replay Review Results edits.}
+
+\item{media_map}{Optional media harmonization map passed to
+\code{harmonize_media()}.}
 
 \item{write_files}{Logical. If TRUE (default), writes XLSX and optional
 parquet/CSV outputs. If FALSE, runs fully in memory and returns the same

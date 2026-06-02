@@ -40,6 +40,13 @@
 #'   corrections, or NULL (default) to load from package cache.
 #' @param media Character. Media context for ppb/ppm routing: "aqueous", "air",
 #'   or "solid". NULL (default) uses aqueous assumption.
+#' @param postprocess_candidates Logical. If TRUE, runs the same enrichment,
+#'   similarity scoring, and auto-resolve pass used by the Shiny app after
+#'   curation. Default FALSE for backward compatibility.
+#' @param review_overrides Optional sparse overrides from
+#'   `build_review_overrides()` to replay Review Results edits.
+#' @param media_map Optional media harmonization map passed to
+#'   `harmonize_media()`.
 #' @param write_files Logical. If TRUE (default), writes XLSX and optional
 #'   parquet/CSV outputs. If FALSE, runs fully in memory and returns the same
 #'   list without requiring or creating output files.
@@ -81,6 +88,9 @@ curate_headless <- function(
   media = NULL,
   wqx_threshold = 0.85,
   starts_with = FALSE,
+  postprocess_candidates = FALSE,
+  review_overrides = NULL,
+  media_map = NULL,
   write_files = TRUE,
   source_name = NULL
 ) {
@@ -176,12 +186,16 @@ curate_headless <- function(
       ))
     }
 
+    tag_groups <- classify_tags(tag_map)
+    chemical_tag_map <- tag_groups$chemical_tags
+
     # ------------------------------------------------------------------
     # Step 7: Run cleaning pipeline
     # ------------------------------------------------------------------
     message("[headless] Running cleaning pipeline...")
-    cleaning_result <- run_cleaning_pipeline(clean_data, tag_map, reference_lists)
-    merged_tags <- c(tag_map, cleaning_result$new_tags)
+    cleaning_result <- run_cleaning_pipeline(clean_data, chemical_tag_map, reference_lists)
+    merged_chemical_tags <- combine_tag_maps(chemical_tag_map, cleaning_result$new_tags)
+    merged_tags <- combine_tag_maps(tag_map, cleaning_result$new_tags)
 
     # ------------------------------------------------------------------
     # Step 8: Run curation pipeline (CompTox API search)
@@ -189,11 +203,39 @@ curate_headless <- function(
     message("[headless] Running curation pipeline (CompTox API search)...")
     pipeline_result <- run_curation_pipeline(
       cleaning_result$cleaned_data,
-      merged_tags,
+      merged_chemical_tags,
       wqx_threshold = wqx_threshold,
       starts_with = starts_with
     )
     resolution_state <- pipeline_result$results
+    consensus_summary <- pipeline_result$consensus_summary
+    enrichment_cache <- NULL
+    enrichment_failed <- character(0)
+
+    if (isTRUE(postprocess_candidates)) {
+      message("[headless] Running post-curation candidate enrichment...")
+      postprocess_result <- postprocess_curation_candidates(
+        resolution_state = resolution_state,
+        column_tags = merged_chemical_tags,
+        dtxsid_cols = find_dtxsid_cols(resolution_state),
+        enrichment_cache = enrichment_cache
+      )
+      resolution_state <- postprocess_result$resolution_state
+      consensus_summary <- postprocess_result$consensus_summary
+      enrichment_cache <- postprocess_result$enrichment_cache
+      enrichment_failed <- postprocess_result$enrichment_failed
+      message(sprintf(
+        "[headless] Candidate postprocessing: %d auto-resolved, %d suggested",
+        postprocess_result$n_auto,
+        postprocess_result$n_suggested
+      ))
+    }
+
+    if (!is.null(review_overrides) && length(review_overrides) > 0) {
+      message("[headless] Applying review overrides...")
+      resolution_state <- apply_review_overrides(resolution_state, review_overrides)
+      consensus_summary <- recalc_consensus_summary(resolution_state)
+    }
 
     # ------------------------------------------------------------------
     # Step 8b: Run harmonization pipeline (when harmonize = TRUE)
@@ -219,10 +261,11 @@ curate_headless <- function(
       }
 
       # Identify tagged columns for harmonization (per D-04)
-      result_cols <- names(tag_map)[tag_map == "Result"]
-      unit_cols <- names(tag_map)[tag_map == "Unit"]
+      tag_values <- unlist(merged_tags, use.names = TRUE)
+      result_cols <- names(tag_values)[tag_values == "Result"]
+      unit_cols <- names(tag_values)[tag_values == "Unit"]
 
-      has_study <- any(tag_map %in% c("StudyDate", "Media"))
+      has_study <- any(tag_values %in% c("StudyDate", "Media"))
 
       if (length(result_cols) == 0 && !has_study) {
         stop(
@@ -237,12 +280,13 @@ curate_headless <- function(
       # Must run BEFORE Stage 3 (harmonize_units) so input_df$media is populated
       # for the three-tier media_for_harmonize cascade at Stage 3.
       message("[headless] Stage 3d: Harmonizing media...")
-      media_cols_pre <- names(tag_map)[tag_map == "Media"]
+      media_cols_pre <- names(tag_values)[tag_values == "Media"]
 
       if (length(media_cols_pre) > 0) {
         media_tibble_pre <- harmonize_media(
           raw_media = as.character(input_df[[media_cols_pre[1]]]),
-          orig_row_id = seq_len(nrow(input_df))
+          orig_row_id = seq_len(nrow(input_df)),
+          media_map = media_map
         )
         input_df$media <- media_tibble_pre$media_category[
           match(seq_len(nrow(input_df)), media_tibble_pre$orig_row_id)
@@ -344,8 +388,8 @@ curate_headless <- function(
 
       # Stage 3.5: Duration harmonization (D-13, DUR-03)
       message("[headless] Stage 3.5: Harmonizing durations...")
-      duration_cols <- names(tag_map)[tag_map == "Duration"]
-      duration_unit_cols <- names(tag_map)[tag_map == "DurationUnit"]
+      duration_cols <- names(tag_values)[tag_values == "Duration"]
+      duration_unit_cols <- names(tag_values)[tag_values == "DurationUnit"]
 
       if (length(duration_cols) > 0 && length(duration_unit_cols) > 0) {
         dur_tibble <- harmonize_units(
@@ -365,7 +409,7 @@ curate_headless <- function(
 
       # Stage 3c: Date parsing (DATE-05, DATE-06)
       message("[headless] Stage 3c: Parsing dates...")
-      date_cols <- names(tag_map)[tag_map == "StudyDate"]
+      date_cols <- names(tag_values)[tag_values == "StudyDate"]
 
       if (length(date_cols) > 0) {
         date_tibble <- parse_dates(
@@ -400,12 +444,13 @@ curate_headless <- function(
       sheets <- build_export_sheets(
         raw = raw_df,
         resolution_state = resolution_state,
-        consensus_summary = pipeline_result$consensus_summary,
+        consensus_summary = consensus_summary,
         cleaning_audit = cleaning_result$audit_trail,
         reference_lists = reference_lists,
         column_tags = merged_tags,
         detection = detection,
         file_info = file_info,
+        enrichment_cache = enrichment_cache,
         toxval_output = toxval_tibble
       )
 
@@ -440,8 +485,7 @@ curate_headless <- function(
       invisible(list(
         data = toxval_tibble,
         audit_trail = cleaning_result$audit_trail,
-        harmonize_audit = harmonize_audit_tibble,
-        curated_data = input_df
+        harmonize_audit = harmonize_audit_tibble
       ))
     } else {
       invisible(list(data = resolution_state, audit_trail = cleaning_result$audit_trail))

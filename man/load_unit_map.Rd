@@ -4,7 +4,7 @@
 \alias{load_unit_map}
 \title{Load unit conversion map}
 \usage{
-load_unit_map(cache_dir)
+load_unit_map(cache_dir = NULL)
 }
 \arguments{
 \item{cache_dir}{Directory for cache files (e.g., "inst/extdata")}
