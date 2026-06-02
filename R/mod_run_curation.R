@@ -194,30 +194,10 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
             # --- Enrichment: auto-trigger after curation ---
             tryCatch(
               {
-                # Collect ALL unique DTXSIDs for enrichment (disagree + agree/single)
-                all_unique_dtxsids <- character(0)
-
-                # From disagree rows: all candidate DTXSIDs across dtxsid_* columns
-                dtxsid_cols <- data_store$dtxsid_cols
-                disagree_idx <- which(pipeline_result$results$consensus_status == "disagree")
-                if (length(disagree_idx) > 0 && length(dtxsid_cols) > 0) {
-                  for (dc in dtxsid_cols) {
-                    vals <- pipeline_result$results[[dc]][disagree_idx]
-                    all_unique_dtxsids <- c(all_unique_dtxsids, vals[!is.na(vals)])
-                  }
-                }
-
-                # From agree/single/agree_caveat rows: consensus_dtxsid values
-                non_disagree_idx <- which(
-                  pipeline_result$results$consensus_status %in%
-                    c("agree", "agree_caveat", "single")
+                all_unique_dtxsids <- collect_candidate_dtxsids(
+                  data_store$resolution_state,
+                  data_store$dtxsid_cols
                 )
-                if (length(non_disagree_idx) > 0) {
-                  consensus_vals <- pipeline_result$results$consensus_dtxsid[non_disagree_idx]
-                  all_unique_dtxsids <- c(all_unique_dtxsids, consensus_vals[!is.na(consensus_vals)])
-                }
-
-                all_unique_dtxsids <- unique(all_unique_dtxsids)
 
                 if (length(all_unique_dtxsids) > 0) {
                   showNotification(
@@ -226,69 +206,50 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
                     duration = 3,
                     id = "enrich-progress"
                   )
+                }
 
-                  enrich_result <- enrich_candidates(
-                    dtxsids = all_unique_dtxsids,
-                    existing_cache = data_store$enrichment_cache
-                  )
+                postprocess_result <- postprocess_curation_candidates(
+                  resolution_state = data_store$resolution_state,
+                  column_tags = data_store$column_tags,
+                  dtxsid_cols = data_store$dtxsid_cols,
+                  enrichment_cache = data_store$enrichment_cache
+                )
 
-                  data_store$enrichment_cache <- enrich_result$cache
-                  data_store$enrichment_failed <- enrich_result$failed_dtxsids
+                data_store$resolution_state <- postprocess_result$resolution_state
+                data_store$enrichment_cache <- postprocess_result$enrichment_cache
+                data_store$enrichment_failed <- postprocess_result$enrichment_failed
+                data_store$consensus_summary <- postprocess_result$consensus_summary
 
-                  n_enriched <- sum(!is.na(enrich_result$cache$casrn))
-                  n_total <- nrow(enrich_result$cache)
-                  n_failed <- length(enrich_result$failed_dtxsids)
-
-                  if (n_failed > 0) {
+                if (postprocess_result$n_dtxsids > 0) {
+                  if (postprocess_result$n_failed > 0) {
                     showNotification(
-                      sprintf("Enrichment: %d of %d DTXSIDs enriched (%d failed)", n_enriched, n_total, n_failed),
+                      sprintf(
+                        "Enrichment: %d of %d DTXSIDs enriched (%d failed)",
+                        postprocess_result$n_enriched,
+                        postprocess_result$n_total,
+                        postprocess_result$n_failed
+                      ),
                       type = "warning",
                       duration = 8
                     )
                   } else {
                     showNotification(
-                      sprintf("Enrichment complete: %d of %d DTXSIDs enriched", n_enriched, n_total),
+                      sprintf(
+                        "Enrichment complete: %d of %d DTXSIDs enriched",
+                        postprocess_result$n_enriched,
+                        postprocess_result$n_total
+                      ),
                       type = "message",
                       duration = 5
                     )
                   }
                 }
 
-                # --- Synonym fetch (per D-01: fetch at enrichment time, read from cache at score time) ---
-                if (length(all_unique_dtxsids) > 0) {
-                  synonym_result <- enrich_synonyms(
-                    dtxsids = all_unique_dtxsids,
-                    existing_cache = data_store$enrichment_cache
-                  )
-                  data_store$enrichment_cache <- synonym_result$cache
-                }
-
-                # --- Similarity scoring (per D-03: max JW + rank bonus, clamped [0,1]) ---
-                if (
-                  !is.null(data_store$resolution_state) &&
-                    !is.null(data_store$dtxsid_cols) &&
-                    !is.null(data_store$column_tags)
-                ) {
-                  data_store$resolution_state <- compute_similarity_scores(
-                    resolution_state = data_store$resolution_state,
-                    enrichment_cache = data_store$enrichment_cache,
-                    dtxsid_cols = data_store$dtxsid_cols,
-                    column_tags = data_store$column_tags
-                  )
-
-                  # Phase 50: Classify auto-resolved and suggested rows
-                  data_store$resolution_state <- classify_auto_resolve(
-                    resolution_state = data_store$resolution_state,
-                    enrichment_cache = data_store$enrichment_cache,
-                    dtxsid_cols = data_store$dtxsid_cols,
-                    column_tags = data_store$column_tags
-                  )
-                  n_auto <- sum(data_store$resolution_state$consensus_status == "auto_resolved", na.rm = TRUE)
-                  n_sugg <- sum(data_store$resolution_state$consensus_status == "suggested", na.rm = TRUE)
-                  message(sprintf("[auto-resolve] %d auto-resolved, %d suggested", n_auto, n_sugg))
-
-                  data_store$consensus_summary <- recalc_consensus_summary(data_store$resolution_state)
-                }
+                message(sprintf(
+                  "[auto-resolve] %d auto-resolved, %d suggested",
+                  postprocess_result$n_auto,
+                  postprocess_result$n_suggested
+                ))
               },
               error = function(e) {
                 warning(sprintf("[enrich] Enrichment failed: %s", e$message))
@@ -299,6 +260,8 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
                 )
               }
             )
+
+            data_store$script_baseline_state <- data_store$resolution_state
 
             # Show tier breakdown notification
             notification_msg <- sprintf(

@@ -10,7 +10,7 @@ find_dtxsid_cols(df)
 \item{df}{Data frame with lookup results}
 }
 \value{
-Character vector of column names matching "dtxsid_*"
+Character vector of column names matching "dtxsid" or "dtxsid_*"
 }
 \description{
 Auto-detect DTXSID columns by name pattern

@@ -137,6 +137,7 @@ server <- function(input, output, session) {
     consensus_data = NULL,
     consensus_summary = NULL,
     resolution_state = NULL,
+    script_baseline_state = NULL,
     dtxsid_cols = NULL,
     priority_order = NULL,
     review_visible_cols = NULL,
@@ -158,6 +159,7 @@ server <- function(input, output, session) {
     # Phase 34: Harmonize working copies (session-local, initialized from reference_lists)
     unit_map_working = NULL,
     corrections_working = NULL,
+    media_map_working = NULL,
     # Phase 34-04: Stale results pattern for cascade reset UX
     harmonize_results_stale = FALSE,
     changed_units = character(0)
@@ -312,6 +314,7 @@ server <- function(input, output, session) {
     data_store$consensus_data <- NULL
     data_store$consensus_summary <- NULL
     data_store$resolution_state <- NULL
+    data_store$script_baseline_state <- NULL
     data_store$qc_results <- NULL
     data_store$dtxsid_cols <- NULL
     data_store$priority_order <- NULL
@@ -327,6 +330,7 @@ server <- function(input, output, session) {
     # Phase 34: Reset harmonize working copies
     data_store$unit_map_working <- NULL
     data_store$corrections_working <- NULL
+    data_store$media_map_working <- NULL
     bslib::nav_hide("main_tabs", target = "detection_info", session = session)
     bslib::nav_hide("main_tabs", target = "raw_data", session = session)
     bslib::nav_hide("main_tabs", target = "clean_data", session = session)
@@ -345,6 +349,7 @@ server <- function(input, output, session) {
     data_store$consensus_data <- NULL
     data_store$consensus_summary <- NULL
     data_store$resolution_state <- NULL
+    data_store$script_baseline_state <- NULL
     data_store$qc_results <- NULL
     data_store$toxval_output <- NULL
     data_store$review_visible_cols <- NULL

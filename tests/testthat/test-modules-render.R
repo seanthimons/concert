@@ -8,7 +8,8 @@ create_test_store <- function() {
     cleaning_audit = NULL, cleaned_data = NULL, reference_lists = NULL,
     curation_results = NULL, curation_report = NULL, curation_status = NULL,
     dedup_preview = NULL, consensus_data = NULL, consensus_summary = NULL,
-    resolution_state = NULL, dtxsid_cols = NULL, priority_order = NULL,
+    resolution_state = NULL, script_baseline_state = NULL,
+    dtxsid_cols = NULL, priority_order = NULL,
     review_visible_cols = NULL,
     error_filter_active = FALSE, display_row_map = NULL,
     selected_error_rows = NULL, manual_queue = list(),
@@ -25,7 +26,8 @@ create_test_store <- function() {
     prev_numeric_tags = NULL,
     # Phase 34: Editor working copies
     unit_map_working = NULL,
-    corrections_working = NULL
+    corrections_working = NULL,
+    media_map_working = NULL
   )
 }
 
@@ -193,6 +195,17 @@ test_that("UIPOL-04: re-tag modal uses named list choices to avoid jsonlite warn
     src
   )
   expect_equal(length(named_vector_lines), 0, info = "re-tag modal choices must not use c(...)")
+})
+
+test_that("Review Results renders replay Code controls after curation completion", {
+  src_path <- find_mod_review_results()
+  skip_if(is.null(src_path), "R/mod_review_results.R not found from test context")
+  src <- paste(readLines(src_path), collapse = "\n")
+
+  expect_match(src, "show_replay_code")
+  expect_match(src, "download_replay_script")
+  expect_match(src, "navigator.clipboard.writeText")
+  expect_match(src, "generate_concert_script")
 })
 
 test_that("Tag Columns table puts Type before Column Name", {

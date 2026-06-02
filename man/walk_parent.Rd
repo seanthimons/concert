@@ -15,11 +15,12 @@ walk_parent(norm_term, media_tbl)
 Integer row index or NA_integer_.
 }
 \description{
-Given a normalized (trimws + tolower) input string that did not produce an
-exact match, attempts to find the best ancestor by checking whether any
-table term is a sub-string of the input or vice-versa.  When a candidate is
-found, walks up the \code{parent} column until an entry with a non-NA
-\code{media_category} is reached.
+Given a normalized (trimws + tolower) input string that did not produce a
+resolved exact match, attempts to find the best ancestor by checking whether
+a table term appears as a full token/phrase in the input.  Embedded
+substrings such as \code{"water"} in \code{"wastewater"} are intentionally
+ignored.  When a candidate is found, walks up the \code{parent} column until
+an entry with both a canonical term and media category is reached.
 }
 \details{
 Returns the integer row index of the resolved entry, or \code{NA_integer_}.

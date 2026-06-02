@@ -10,12 +10,13 @@ init_resolution_state(df)
 \item{df}{Data frame (typically output of classify_consensus)}
 }
 \value{
-df with .pinned, .manual_entry, .resolution_method, and .resolution_reason columns
+df with .pinned, .manual_entry, row_flag, .resolution_method, and .resolution_reason columns
 }
 \description{
-Adds .pinned column (FALSE) and .manual_entry column (FALSE) if not already present.
-Also adds .resolution_method and .resolution_reason columns (NA_character_) for
-tracking how each row was resolved (per D-11).
+Adds .pinned column (FALSE), .manual_entry column (FALSE), and public
+row_flag column (NA_character_) if not already present. Also adds
+.resolution_method and .resolution_reason columns (NA_character_) for tracking
+how each row was resolved (per D-11).
 }
 \details{
 Valid .resolution_method values: "auto", "suggested-accept", "bulk-accept", "manual", NA.

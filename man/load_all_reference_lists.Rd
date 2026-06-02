@@ -4,7 +4,7 @@
 \alias{load_all_reference_lists}
 \title{Load all reference lists}
 \usage{
-load_all_reference_lists(cache_dir)
+load_all_reference_lists(cache_dir = NULL)
 }
 \arguments{
 \item{cache_dir}{Directory for cache files (e.g., "data/reference_cache")}

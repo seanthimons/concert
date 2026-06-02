@@ -4,7 +4,7 @@
 \alias{deduplicate_tagged_columns}
 \title{Deduplicate tagged column values before API calls}
 \usage{
-deduplicate_tagged_columns(df, tag_map, skip_flags = NULL)
+deduplicate_tagged_columns(df, tag_map, skip_flags = NULL, skip_rows = NULL)
 }
 \arguments{
 \item{df}{Data frame with chemical data}
@@ -14,6 +14,9 @@ deduplicate_tagged_columns(df, tag_map, skip_flags = NULL)
 \item{skip_flags}{Optional character vector of cleaning_flag values. Rows whose
 cleaning_flag contains any of these values are excluded from the search pool
 (their dedup_key_map entries are kept but marked as skipped).}
+
+\item{skip_rows}{Optional integer vector of explicit row indices to exclude from
+the search pool. When supplied, this takes precedence over skip_flags.}
 }
 \value{
 List with unique_names, unique_cas, dedup_key_map, and skipped_rows (integer vector)

@@ -23,7 +23,8 @@ harmonize_units(
 \item{unit_map}{Tibble from load_unit_map() with columns: from_unit, to_unit, multiplier}
 
 \item{media}{Optional character vector - media context for ppb/ppm routing.
-Values: "aqueous", "air", "solid", or NULL (defaults to aqueous per D-09)}
+Values: "aqueous", "air", "solid", or NULL. Unknown media falls back to
+the unit map instead of assuming aqueous.}
 
 \item{dtxsid}{Optional character vector - DTXSIDs for MW lookup when molarity detected}
 

@@ -783,6 +783,12 @@ mod_review_results_ui <- function(id) {
               icon = icon("copy"),
               class = "btn-sm btn-outline-secondary"
             ),
+            actionButton(
+              ns("show_replay_code"),
+              "Code",
+              icon = icon("code"),
+              class = "btn-sm btn-outline-secondary"
+            ),
             downloadButton(
               ns("download_csv"),
               "CSV",
@@ -2242,6 +2248,120 @@ mod_review_results_server <- function(id, data_store) {
         }
       )
     })
+
+    reference_value <- function(name) {
+      refs <- data_store$reference_lists
+      if (is.null(refs) || !name %in% names(refs)) {
+        return(NULL)
+      }
+      refs[[name]]
+    }
+
+    replay_script_text <- function() {
+      req(data_store$resolution_state)
+
+      file_name <- if (!is.null(data_store$file_info) && !is.null(data_store$file_info$name)) {
+        data_store$file_info$name
+      } else {
+        "input.csv"
+      }
+      file_base <- tools::file_path_sans_ext(basename(file_name))
+      full_tag_map <- combine_tag_maps(
+        data_store$column_tags,
+        data_store$numeric_tags,
+        data_store$metadata_tags,
+        data_store$study_type_tags
+      )
+
+      baseline_state <- data_store$script_baseline_state %||% data_store$resolution_state
+      review_overrides <- build_review_overrides(baseline_state, data_store$resolution_state)
+      should_harmonize <- !is.null(data_store$harmonize_results) || !is.null(data_store$toxval_output)
+
+      generate_concert_script(
+        input_path = file_name,
+        output_path = paste0(file_base, "_curated.xlsx"),
+        tag_map = full_tag_map,
+        header_row = if (!is.null(data_store$detection)) data_store$detection$header_row else NULL,
+        reference_lists = data_store$reference_lists,
+        unit_map = data_store$unit_map_working %||% reference_value("unit_map"),
+        corrections = data_store$corrections_working %||% reference_value("corrections"),
+        media_map = data_store$media_map_working %||% reference_value("media_map"),
+        review_overrides = review_overrides,
+        wqx_threshold = data_store$wqx_threshold %||% 0.85,
+        starts_with = isTRUE(data_store$starts_with),
+        harmonize = should_harmonize,
+        source_name = file_name
+      )
+    }
+
+    observeEvent(input$show_replay_code, {
+      script <- tryCatch(
+        replay_script_text(),
+        error = function(e) {
+          showNotification(
+            paste("Could not generate replay script:", conditionMessage(e)),
+            type = "error",
+            duration = 8
+          )
+          NULL
+        }
+      )
+      if (is.null(script)) {
+        return()
+      }
+
+      textarea_id <- session$ns("replay_code_text")
+      showModal(modalDialog(
+        title = "Replay Code",
+        tags$textarea(
+          id = textarea_id,
+          class = "form-control font-monospace",
+          readonly = "readonly",
+          spellcheck = "false",
+          style = "min-height: 60vh; white-space: pre; overflow-wrap: normal; overflow-x: auto;",
+          script
+        ),
+        footer = tagList(
+          tags$button(
+            "Copy",
+            type = "button",
+            class = "btn btn-outline-secondary",
+            onclick = sprintf(
+              "navigator.clipboard.writeText(document.getElementById('%s').value).then(function(){Shiny.setInputValue('%s', {t: Date.now()}, {priority: 'event'});});",
+              textarea_id,
+              session$ns("replay_code_copied")
+            )
+          ),
+          downloadButton(
+            session$ns("download_replay_script"),
+            "Download R script",
+            class = "btn-primary d-inline-flex align-items-center justify-content-center",
+            style = "line-height:1.5;"
+          ),
+          modalButton("Close")
+        ),
+        size = "xl",
+        easyClose = TRUE
+      ))
+    })
+
+    observeEvent(input$replay_code_copied, {
+      showNotification("Script copied", type = "message", duration = 2)
+    })
+
+    output$download_replay_script <- downloadHandler(
+      filename = function() {
+        file_base <- if (!is.null(data_store$file_info) && !is.null(data_store$file_info$name)) {
+          tools::file_path_sans_ext(data_store$file_info$name)
+        } else {
+          "concert"
+        }
+        paste0(file_base, "_replay.R")
+      },
+      content = function(file) {
+        writeLines(replay_script_text(), con = file)
+      }
+    )
 
     # Export Functionality
     output$download_curated <- downloadHandler(
