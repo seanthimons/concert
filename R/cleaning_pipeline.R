@@ -1097,7 +1097,7 @@ strip_quality_adjectives <- function(df, name_cols) {
   df_before <- df
 
   # Quality word pattern
-  pattern <- "\\b(pure|purif\\w*|tech\\w*|grade|chemical)\\b"
+  pattern <- "\\b(pure|purif\\w*|tech|technical|grade|chemical)\\b"
 
   # Apply to each name column
   df_after <- df

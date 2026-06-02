@@ -289,6 +289,23 @@ test_that("Pipeline expands isotope shortcodes", {
   expect_true("expand_isotope_shortcodes" %in% result$audit_trail$step)
 })
 
+test_that("Pipeline preserves Technetium-99 with non-CAS isotope code", {
+  df <- tibble::tibble(
+    analyte = "Technetium-99",
+    cas = "NA-TC99"
+  )
+  tag_map <- list(analyte = "Name", cas = "CASRN")
+
+  result <- run_cleaning_pipeline(df, tag_map)
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$analyte[1], "Technetium-99")
+  expect_false(any(
+    result$audit_trail$step == "strip_quality_adjectives" &
+      result$audit_trail$original_value == "Technetium-99"
+  ))
+})
+
 # Test Group 8: Pipeline protects chiral designations (Phase 23)
 test_that("Pipeline protects chiral designations", {
   df <- tibble::tibble(chemical = c("(+)-catechin", "acetone"))
