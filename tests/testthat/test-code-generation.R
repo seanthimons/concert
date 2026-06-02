@@ -28,7 +28,33 @@ test_that("generate_concert_script includes replay settings and combined tag map
   expect_match(script, "starts_with = TRUE", fixed = TRUE)
   expect_match(script, "postprocess_candidates = TRUE", fixed = TRUE)
   expect_match(script, "harmonize = TRUE", fixed = TRUE)
-  expect_match(script, "review_overrides <- NULL", fixed = TRUE)
+  expect_no_match(script, "review_overrides <- NULL", fixed = TRUE)
+  expect_no_match(script, "reference_lists", fixed = TRUE)
+  expect_no_match(script, "unit_map", fixed = TRUE)
+  expect_no_match(script, "corrections", fixed = TRUE)
+  expect_no_match(script, "media_map", fixed = TRUE)
+  expect_no_match(script, "write_files", fixed = TRUE)
+  expect_no_match(script, "verbose", fixed = TRUE)
+})
+
+test_that("generate_concert_script omits default arguments and keeps real overrides", {
+  script <- generate_concert_script(
+    input_path = "input.csv",
+    output_path = "input_curated.xlsx",
+    tag_map = list(chemical = "Name"),
+    header_row = 1L,
+    review_overrides = list(list(
+      row = 1L,
+      values = list(row_flag = "VERIFIED")
+    ))
+  )
+
+  expect_no_match(script, "wqx_threshold", fixed = TRUE)
+  expect_no_match(script, "starts_with", fixed = TRUE)
+  expect_no_match(script, "harmonize", fixed = TRUE)
+  expect_match(script, "review_overrides <- list", fixed = TRUE)
+  expect_match(script, "review_overrides = review_overrides", fixed = TRUE)
+  expect_match(script, 'row_flag = "VERIFIED"', fixed = TRUE)
 })
 
 test_that("build_review_overrides returns NULL for no-change sessions", {
