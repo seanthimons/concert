@@ -2,7 +2,7 @@
 % Please edit documentation in R/code_generation.R
 \name{build_review_overrides}
 \alias{build_review_overrides}
-\title{Build compact review overrides}
+\title{Build content-matched review overrides}
 \usage{
 build_review_overrides(baseline_state, final_state)
 }
@@ -13,10 +13,12 @@ and postprocessing.}
 \item{final_state}{Resolution state after Review Results edits.}
 }
 \value{
-NULL when no overrides are needed, otherwise a list of row/value
-override entries suitable for \code{apply_review_overrides()}.
+NULL when no overrides are needed, otherwise a content-match
+override spec with the edited column, edited scalar value, and a baseline
+row signature for each generated \code{case_when()} branch.
 }
 \description{
-Captures row-level Review Results edits by comparing the automated baseline
-state against the final user-curated state.
+Captures Review Results edits by comparing the automated baseline state
+against the final user-curated state. Overrides are matched by stable row
+contents, not by row position, when a replay script is generated.
 }

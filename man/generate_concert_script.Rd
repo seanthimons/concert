@@ -27,7 +27,9 @@ generate_concert_script(
 
 \item{header_row}{Detected header row to pin for replay.}
 
-\item{review_overrides}{Optional review overrides to embed.}
+\item{review_overrides}{Optional content-match override spec from
+\code{build_review_overrides()} to embed as generated \code{case_when()} replay
+logic.}
 
 \item{wqx_threshold}{WQX fuzzy match threshold.}
 
