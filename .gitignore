@@ -48,3 +48,6 @@ curation/
 
 # Lock files
 .~lock*
+
+#Agent files
+AGENTS.md
