@@ -155,19 +155,22 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         df <- data_store$clean
         tag_map <- data_store$column_tags
         name_cols <- names(tag_map)[tag_map == "Name"]
-        unit_cols <- names(tag_map)[tag_map == "Unit"]
+        numeric_tags_vec <- if (!is.null(data_store$numeric_tags)) {
+          unlist(data_store$numeric_tags, use.names = TRUE)
+        } else {
+          character(0)
+        }
+        unit_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Unit"]
+        dur_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Duration"]
+        dur_unit_cols <- names(numeric_tags_vec)[numeric_tags_vec == "DurationUnit"]
 
         # Extract study-type tags (NULL-safe)
         if (!is.null(data_store$study_type_tags)) {
           stv <- unlist(data_store$study_type_tags)
           date_cols <- names(stv)[stv == "StudyDate"]
-          dur_cols <- names(stv)[stv == "Duration"]
-          dur_unit_cols <- names(stv)[stv == "DurationUnit"]
           media_cols <- names(stv)[stv == "Media"]
         } else {
           date_cols <- character(0)
-          dur_cols <- character(0)
-          dur_unit_cols <- character(0)
           media_cols <- character(0)
         }
 

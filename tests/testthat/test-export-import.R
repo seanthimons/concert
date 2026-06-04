@@ -192,6 +192,60 @@ test_that("Sheet 8 ToxVal Output contains data when toxval_output provided", {
   expect_equal(sheets[["ToxVal Output"]]$dtxsid, "DTXSID7020182")
 })
 
+test_that("Harmonization Audit sheet is appended when harmonize_audit is provided", {
+  td <- create_test_data()
+  harmonize_audit <- tibble::tibble(
+    measurement_column = c("result", "reporting_limit"),
+    measurement_role = c("Result", "Numeric"),
+    orig_row_id = c(1L, 1L),
+    orig_result = c("5", "1000"),
+    numeric_value = c(5, 1000),
+    qualifier = c("", ""),
+    range_bin = c("as_is", "as_is"),
+    parse_flag = c("", ""),
+    orig_unit = c("ug/L", "ug/L"),
+    harmonized_value = c(0.005, 1),
+    harmonized_unit = c("mg/L", "mg/L"),
+    conversion_factor = c(0.001, 0.001),
+    unit_flag = c("", "")
+  )
+
+  sheets <- build_export_sheets(
+    raw = td$raw,
+    resolution_state = td$resolution_state,
+    consensus_summary = td$consensus_summary,
+    cleaning_audit = td$cleaning_audit,
+    reference_lists = td$reference_lists,
+    column_tags = td$column_tags,
+    detection = td$detection,
+    file_info = td$file_info,
+    harmonize_audit = harmonize_audit
+  )
+
+  expect_length(sheets, 9)
+  expect_true("Harmonization Audit" %in% names(sheets))
+  expect_equal(sheets[["Harmonization Audit"]], harmonize_audit)
+})
+
+test_that("Column Tags sheet preserves Numeric tags", {
+  td <- create_test_data()
+  td$column_tags$reporting_limit <- "Numeric"
+
+  sheets <- build_export_sheets(
+    raw = td$raw,
+    resolution_state = td$resolution_state,
+    consensus_summary = td$consensus_summary,
+    cleaning_audit = td$cleaning_audit,
+    reference_lists = td$reference_lists,
+    column_tags = td$column_tags,
+    detection = td$detection,
+    file_info = td$file_info
+  )
+
+  tag_row <- sheets[["Column Tags"]][sheets[["Column Tags"]]$Column == "reporting_limit", ]
+  expect_equal(unname(tag_row$Type), "Numeric")
+})
+
 test_that("Curated Data has needs_review column, no .pinned column", {
   test_data <- create_test_data()
 

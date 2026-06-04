@@ -2813,18 +2813,26 @@ mod_review_results_server <- function(id, data_store) {
           }
         )
 
-        # Build all 8 export sheets
+        full_tag_map <- combine_tag_maps(
+          data_store$column_tags,
+          data_store$numeric_tags,
+          data_store$metadata_tags,
+          data_store$study_type_tags
+        )
+
+        # Build export sheets
         sheets <- build_export_sheets(
           raw = data_store$raw,
           resolution_state = data_store$resolution_state,
           consensus_summary = data_store$consensus_summary,
           cleaning_audit = data_store$cleaning_audit,
           reference_lists = data_store$reference_lists,
-          column_tags = data_store$column_tags,
+          column_tags = full_tag_map,
           detection = data_store$detection,
           file_info = data_store$file_info,
           enrichment_cache = data_store$enrichment_cache,
-          toxval_output = data_store$toxval_output
+          toxval_output = data_store$toxval_output,
+          harmonize_audit = data_store$harmonize_audit
         )
 
         # Write to Excel

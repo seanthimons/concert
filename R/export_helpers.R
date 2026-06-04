@@ -1,11 +1,11 @@
 # Export Helper Functions for CONCERT Multi-Sheet Excel Export
 #
-# This module provides functions to build 8-sheet Excel exports from CONCERT
+# This module provides functions to build multi-sheet Excel exports from CONCERT
 # pipeline state and validate Excel file size limits.
 
 #' Build Export Sheets
 #'
-#' Converts CONCERT pipeline state into a named list of 8 data frames ready
+#' Converts CONCERT pipeline state into a named list of data frames ready
 #' for Excel export via writexl::write_xlsx().
 #'
 #' @param raw Original uploaded data frame
@@ -13,14 +13,17 @@
 #' @param consensus_summary List with n_agree, n_disagree, etc.
 #' @param cleaning_audit Data frame with audit trail (may be NULL)
 #' @param reference_lists List with $functional_categories, $stop_words, $block_patterns
-#' @param column_tags Named list (column_name = "CASRN"/"Name"/"Other")
+#' @param column_tags Named list of all applied column tags.
 #' @param detection List with $method, $confidence
 #' @param file_info List with $name, $size
 #' @param enrichment_cache Enrichment cache data frame (may be NULL)
 #' @param toxval_output Tibble with 56 ToxVal columns from map_to_toxval_schema(),
 #'   or NULL (default). When NULL, Sheet 8 contains a placeholder note row.
+#' @param harmonize_audit Tibble with numeric measurement harmonization audit rows,
+#'   or NULL (default). When provided, an additional Harmonization Audit sheet is
+#'   appended.
 #'
-#' @return Named list of 8 data frames with sheet names as keys
+#' @return Named list of 8 or 9 data frames with sheet names as keys
 #' @export
 build_export_sheets <- function(
   raw,
@@ -32,7 +35,8 @@ build_export_sheets <- function(
   detection,
   file_info,
   enrichment_cache = NULL,
-  toxval_output = NULL
+  toxval_output = NULL,
+  harmonize_audit = NULL
 ) {
   # Sheet 1: Raw Data (as-is)
   raw_data_sheet <- raw
@@ -168,7 +172,7 @@ build_export_sheets <- function(
   }
 
   # Return named list
-  list(
+  sheets <- list(
     "Raw Data" = raw_data_sheet,
     "Curated Data" = curated_data_sheet,
     "Summary" = summary_sheet,
@@ -178,6 +182,12 @@ build_export_sheets <- function(
     "Pipeline Config" = config_sheet,
     "ToxVal Output" = toxval_output_sheet
   )
+
+  if (!is.null(harmonize_audit)) {
+    sheets[["Harmonization Audit"]] <- harmonize_audit
+  }
+
+  sheets
 }
 
 #' Validate Excel Size Limits

@@ -14,7 +14,7 @@ classify_tags(tags)
 Named list with four elements:
 \describe{
 \item{chemical_tags}{Named list of chemical-related tags (Name, CASRN, Other)}
-\item{numeric_tags}{Named list of numeric/measurement tags (Result, Unit, Qualifier, Duration, DurationUnit)}
+\item{numeric_tags}{Named list of numeric/measurement tags (Result, Numeric, Unit, Qualifier, Duration, DurationUnit)}
 \item{metadata_tags}{Named list of study metadata tags (Species, ExposureRoute)}
 \item{study_type_tags}{Named list of study/contextual tags (StudyDate)}
 }
@@ -27,7 +27,7 @@ categories. This is the single source of truth for tag type membership.
 Tag type membership per design decisions:
 \itemize{
 \item D-06: Chemical types = Name, CASRN, Other
-\item D-07: Numeric types = Result, Unit, Qualifier, Duration, DurationUnit
+\item D-07: Numeric types = Result, Numeric, Unit, Qualifier, Duration, DurationUnit
 \item D-08: Metadata types = Species, ExposureRoute
 }
 }

@@ -15,10 +15,11 @@ test_that("classify_tags partitions chemical tags correctly", {
 test_that("classify_tags partitions numeric tags correctly", {
   tags <- list(
     col1 = "Result",
-    col2 = "Unit",
-    col3 = "Qualifier",
-    col4 = "Duration",
-    col5 = "DurationUnit"
+    col2 = "Numeric",
+    col3 = "Unit",
+    col4 = "Qualifier",
+    col5 = "Duration",
+    col6 = "DurationUnit"
   )
 
   result <- classify_tags(tags)
@@ -79,6 +80,13 @@ test_that("validate_tag_pairing returns NULL for paired Result/Unit", {
   expect_null(result)
 })
 
+test_that("validate_tag_pairing treats Unit paired with Numeric as valid", {
+  tags <- list(col1 = "Numeric", col2 = "Unit")
+  result <- validate_tag_pairing(tags)
+
+  expect_null(result)
+})
+
 test_that("validate_tag_pairing returns NULL for non-numeric tags", {
   tags <- list(col1 = "Name", col2 = "CASRN")
   result <- validate_tag_pairing(tags)
@@ -128,17 +136,18 @@ test_that("detect_tag_changes returns TRUE when column removed", {
   expect_true(detect_tag_changes(old_tags, new_tags))
 })
 
-test_that("classify_tags handles all 10 tag types correctly", {
+test_that("classify_tags handles all tag types correctly", {
   # Test all tag types per D-06, D-07, D-08
   all_tags <- list(
     c1 = "Name",
     c2 = "CASRN",
     c3 = "Other",
     n1 = "Result",
-    n2 = "Unit",
-    n3 = "Qualifier",
-    n4 = "Duration",
-    n5 = "DurationUnit",
+    n2 = "Numeric",
+    n3 = "Unit",
+    n4 = "Qualifier",
+    n5 = "Duration",
+    n6 = "DurationUnit",
     m1 = "Species",
     m2 = "ExposureRoute"
   )
@@ -152,10 +161,10 @@ test_that("classify_tags handles all 10 tag types correctly", {
 
 
   # Numeric: 5 types
-  expect_equal(length(result$numeric_tags), 5)
+  expect_equal(length(result$numeric_tags), 6)
   expect_equal(
     unlist(result$numeric_tags, use.names = FALSE),
-    c("Result", "Unit", "Qualifier", "Duration", "DurationUnit")
+    c("Result", "Numeric", "Unit", "Qualifier", "Duration", "DurationUnit")
   )
 
   # Metadata: 2 types

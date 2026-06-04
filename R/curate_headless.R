@@ -13,7 +13,7 @@
 #'   `write_files = TRUE`; ignored when `write_files = FALSE`.
 #' @param tag_map Named list mapping cleaned column names to tag roles. Keys
 #'   must match column names *after* `janitor::clean_names()` normalization.
-#'   Values are one of `"Name"`, `"CASRN"`, `"Other"`, `"Result"`, `"Unit"`,
+#'   Values are one of `"Name"`, `"CASRN"`, `"Other"`, `"Result"`, `"Numeric"`, `"Unit"`,
 #'   `"Qualifier"`, etc. Example:
 #'   `list(chemical_name = "Name", cas_number = "CASRN", result = "Result",
 #'         unit = "Unit")`.
@@ -265,13 +265,15 @@ curate_headless <- function(
       # Identify tagged columns for harmonization (per D-04)
       tag_values <- unlist(merged_tags, use.names = TRUE)
       result_cols <- names(tag_values)[tag_values == "Result"]
+      numeric_cols <- names(tag_values)[tag_values == "Numeric"]
       unit_cols <- names(tag_values)[tag_values == "Unit"]
+      duration_cols <- names(tag_values)[tag_values == "Duration"]
 
       has_study <- any(tag_values %in% c("StudyDate", "Media"))
 
-      if (length(result_cols) == 0 && !has_study) {
+      if (length(result_cols) == 0 && length(numeric_cols) == 0 && length(duration_cols) == 0 && !has_study) {
         stop(
-          "curate_headless: harmonize=TRUE requires at least one column tagged as 'Result', 'StudyDate', or 'Media' in tag_map."
+          "curate_headless: harmonize=TRUE requires at least one column tagged as 'Result', 'Numeric', 'Duration', 'StudyDate', or 'Media' in tag_map."
         )
       }
 
@@ -303,90 +305,29 @@ curate_headless <- function(
         input_df$media <- media
       }
 
-      if (length(result_cols) > 0) {
-        result_values <- as.character(input_df[[result_cols[1]]])
-
-        # Stage 1: Apply one-off corrections
-        message("[headless] Stage 1: Applying corrections...")
-        apply_corrections_headless <- function(values, corrections_tbl) {
-          if (is.null(corrections_tbl) || nrow(corrections_tbl) == 0) {
-            return(values)
-          }
-          result <- values
-          for (i in seq_len(nrow(corrections_tbl))) {
-            tryCatch(
-              result <- gsub(corrections_tbl$pattern[i], corrections_tbl$replacement[i], result),
-              error = function(e) NULL
-            )
-          }
-          result
-        }
-        corrected_values <- apply_corrections_headless(result_values, corrections)
-
-        # Stage 2: Parse numeric results
-        message("[headless] Stage 2: Parsing numeric results...")
-        parse_tibble <- parse_numeric_results(corrected_values)
-
-        # Stage 3: Harmonize units
-        message("[headless] Stage 3: Harmonizing units...")
-        if (length(unit_cols) > 0) {
-          unit_values <- as.character(input_df[[unit_cols[1]]])
-          # Ranges expand rows -- re-broadcast unit via orig_row_id (mod_harmonize.R pattern)
-          if (nrow(parse_tibble) > length(unit_values)) {
-            unit_values_expanded <- unit_values[parse_tibble$orig_row_id]
-          } else {
-            unit_values_expanded <- unit_values
-          }
-          # Three-tier cascade (D-12): tagged column > manual param > NULL (aqueous default)
-          media_for_harmonize <- if ("media" %in% names(input_df)) {
-            input_df$media[parse_tibble$orig_row_id] # per-row from tagged column
-          } else {
-            media # dataset-wide fallback
-          }
-          harmonize_tibble <- harmonize_units(
-            values = parse_tibble$numeric_value,
-            units = unit_values_expanded,
-            unit_map = unit_map,
-            media = media_for_harmonize
-          )
-          harmonize_tibble$orig_row_id <- parse_tibble$orig_row_id
-        } else {
-          # No Unit column -- placeholder harmonize output with NA units
-          harmonize_tibble <- tibble::tibble(
-            orig_row_id = parse_tibble$orig_row_id,
-            orig_unit = rep(NA_character_, nrow(parse_tibble)),
-            harmonized_value = parse_tibble$numeric_value,
-            harmonized_unit = rep(NA_character_, nrow(parse_tibble)),
-            conversion_factor = rep(1, nrow(parse_tibble)),
-            unit_flag = rep("", nrow(parse_tibble))
-          )
-        }
-
-        # Build harmonize audit (same as mod_harmonize.R pattern)
-        harmonize_audit_tibble <- dplyr::bind_cols(
-          parse_tibble,
-          harmonize_tibble[, c(
-            "orig_unit",
-            "harmonized_value",
-            "harmonized_unit",
-            "conversion_factor",
-            "unit_flag"
-          )]
-        )
+      # Stages 1-3: Apply corrections, parse measurements, and harmonize units.
+      if (length(result_cols) > 0 || length(numeric_cols) > 0) {
+        message("[headless] Stages 1-3: Harmonizing numeric measurements...")
       } else {
-        # StudyDate-only path: identity harmonize tibble
-        message("[headless] No Result column — skipping numeric stages.")
-        n <- nrow(input_df)
-        harmonize_tibble <- tibble::tibble(
-          orig_row_id = seq_len(n),
-          orig_unit = rep(NA_character_, n),
-          harmonized_value = rep(NA_real_, n),
-          harmonized_unit = rep(NA_character_, n),
-          conversion_factor = rep(1, n),
-          unit_flag = rep("", n)
-        )
-        harmonize_audit_tibble <- NULL
+        message("[headless] No Result or Numeric column - skipping numeric measurement stages.")
       }
+
+      media_for_harmonize <- if ("media" %in% names(input_df)) {
+        input_df$media
+      } else {
+        media
+      }
+
+      measurement_result <- harmonize_tagged_numeric_measurements(
+        input_df = input_df,
+        tag_values = tag_values,
+        unit_map = unit_map,
+        corrections = corrections,
+        media = media_for_harmonize,
+        apply_units = length(unit_cols) > 0
+      )
+      harmonize_tibble <- measurement_result$toxval_harmonized
+      harmonize_audit_tibble <- measurement_result$audit
 
       # Stage 3.5: Duration harmonization (D-13, DUR-03)
       message("[headless] Stage 3.5: Harmonizing durations...")
@@ -453,7 +394,8 @@ curate_headless <- function(
         detection = detection,
         file_info = file_info,
         enrichment_cache = enrichment_cache,
-        toxval_output = toxval_tibble
+        toxval_output = toxval_tibble,
+        harmonize_audit = harmonize_audit_tibble
       )
 
       fs::dir_create(dirname(output_path), recurse = TRUE)
