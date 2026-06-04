@@ -106,7 +106,12 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
                   choices = list(
                     "Select type..." = c("Select type..." = ""),
                     "Chemical" = c("Chemical Name" = "Name", "CASRN" = "CASRN", "Other" = "Other"),
-                    "Numeric" = c("Result Value" = "Result", "Unit" = "Unit", "Qualifier" = "Qualifier"),
+                    "Numeric" = c(
+                      "Result Value" = "Result",
+                      "Numeric Measurement" = "Numeric",
+                      "Unit" = "Unit",
+                      "Qualifier" = "Qualifier"
+                    ),
                     "Study / Contextual" = c(
                       "Duration" = "Duration",
                       "Duration Unit" = "DurationUnit",

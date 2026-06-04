@@ -222,13 +222,19 @@ mod_harmonize_server <- function(id, data_store) {
 
       numeric_tags_vec <- unlist(data_store$numeric_tags, use.names = TRUE)
       result_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Result"]
+      numeric_measurement_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Numeric"]
       unit_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Unit"]
+      duration_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Duration"]
+      duration_unit_cols <- names(numeric_tags_vec)[numeric_tags_vec == "DurationUnit"]
 
-      # Guard: require Result column when numeric tags are present (Pitfall 5)
-      # StudyDate-only runs skip numeric stages and proceed to date stage.
-      if (has_numeric && length(result_cols) == 0) {
+      has_measurement <- length(result_cols) > 0 || length(numeric_measurement_cols) > 0
+      has_duration_measurement <- length(duration_cols) > 0 && length(duration_unit_cols) > 0
+
+      # Guard: require a measurement-like tag when numeric tags are present.
+      # StudyDate/Media-only runs skip numeric stages and proceed to date/media stages.
+      if (has_numeric && !has_measurement && !has_duration_measurement) {
         showNotification(
-          "No Result column tagged. Tag a Result column before running harmonization.",
+          "No Result or Numeric Measurement column tagged. Tag a measurement column before running harmonization.",
           type = "warning",
           duration = 5
         )
@@ -292,15 +298,9 @@ mod_harmonize_server <- function(id, data_store) {
                   harmonized = new_harmonize,
                   input_data = existing$input_data
                 )
-                data_store$harmonize_audit <- dplyr::bind_cols(
+                data_store$harmonize_audit <- build_measurement_audit_from_results(
                   parse_tibble,
-                  new_harmonize[, c(
-                    "orig_unit",
-                    "harmonized_value",
-                    "harmonized_unit",
-                    "conversion_factor",
-                    "unit_flag"
-                  )]
+                  new_harmonize
                 )
 
                 # Invalidate toxval_output after incremental re-harmonization.
@@ -384,80 +384,30 @@ mod_harmonize_server <- function(id, data_store) {
                 }
               }
 
-              if (has_numeric) {
-                # Extract Result column (first Result-tagged column if multiple)
-                result_values <- as.character(input_df[[result_cols[1]]])
-
-                # Stage 1: Apply one-off corrections (PARS-06)
+              if (has_measurement) {
                 incProgress(0.15, detail = "Applying corrections...")
-                corrected_values <- apply_corrections(
-                  result_values,
-                  data_store$corrections_working
-                )
-
-                # Stage 2: Parse numeric results
-                incProgress(0.30, detail = "Parsing numeric results...")
-                parse_tibble <- parse_numeric_results(corrected_values)
-
-                # Stage 3: Harmonize units (if a Unit column is tagged and mask allows)
+                incProgress(0.30, detail = "Parsing numeric measurements...")
                 incProgress(0.15, detail = "Harmonizing units...")
-                if (h_mask$units && length(unit_cols) > 0) {
-                  unit_values <- as.character(input_df[[unit_cols[1]]])
-                  # Ranges expand rows -- re-broadcast unit via orig_row_id
-                  if (nrow(parse_tibble) > length(unit_values)) {
-                    unit_values_expanded <- unit_values[parse_tibble$orig_row_id]
-                  } else {
-                    unit_values_expanded <- unit_values
-                  }
-                  # media_for_harmonize: per-row from Media tag (D-12 tier 1), or NULL (tier 3 aqueous default)
-                  harmonize_tibble <- harmonize_units(
-                    values = parse_tibble$numeric_value,
-                    units = unit_values_expanded,
-                    unit_map = data_store$unit_map_working,
-                    media = media_for_harmonize
-                  )
-                } else {
-                  # No Unit column -- placeholder harmonize output with NA units
-                  harmonize_tibble <- tibble::tibble(
-                    orig_row_id = parse_tibble$orig_row_id,
-                    orig_unit = rep(NA_character_, nrow(parse_tibble)),
-                    harmonized_value = parse_tibble$numeric_value,
-                    harmonized_unit = rep(NA_character_, nrow(parse_tibble)),
-                    conversion_factor = rep(1, nrow(parse_tibble)),
-                    unit_flag = rep("", nrow(parse_tibble))
-                  )
-                }
 
-                # Stage 4: Store results
+                measurement_result <- harmonize_tagged_numeric_measurements(
+                  input_df = input_df,
+                  tag_values = numeric_tags_vec,
+                  unit_map = data_store$unit_map_working,
+                  corrections = data_store$corrections_working,
+                  media = media_for_harmonize,
+                  apply_units = isTRUE(h_mask$units) && length(unit_cols) > 0
+                )
+
+                harmonize_tibble <- measurement_result$toxval_harmonized
+
                 incProgress(0.15, detail = "Finalizing...")
-                data_store$harmonize_results <- list(
-                  parsed = parse_tibble,
-                  harmonized = harmonize_tibble,
-                  input_data = input_df
-                )
-                # Audit trail: joined tibble for export
-                data_store$harmonize_audit <- dplyr::bind_cols(
-                  parse_tibble,
-                  harmonize_tibble[, c(
-                    "orig_unit",
-                    "harmonized_value",
-                    "harmonized_unit",
-                    "conversion_factor",
-                    "unit_flag"
-                  )]
-                )
+                data_store$harmonize_results <- measurement_result$harmonize_results
+                data_store$harmonize_audit <- measurement_result$audit
               } else {
                 # StudyDate/Media-only: build identity harmonize_tibble (1:1 rows, no parse/harmonize)
                 incProgress(0.55, detail = "Preparing date/media pipeline...")
                 n_rows <- nrow(input_df)
-                harmonize_tibble <- tibble::tibble(
-                  orig_row_id = seq_len(n_rows),
-                  orig_unit = rep(NA_character_, n_rows),
-                  harmonized_value = rep(NA_real_, n_rows),
-                  harmonized_unit = rep(NA_character_, n_rows),
-                  conversion_factor = rep(1, n_rows),
-                  unit_flag = rep("", n_rows)
-                )
+                harmonize_tibble <- build_identity_harmonize_tibble(n_rows)
                 parse_tibble <- tibble::tibble(
                   orig_row_id = seq_len(n_rows),
                   raw_value = rep(NA_character_, n_rows),
@@ -469,6 +419,7 @@ mod_harmonize_server <- function(id, data_store) {
                   harmonized = harmonize_tibble,
                   input_data = input_df
                 )
+                data_store$harmonize_audit <- NULL
               }
 
               # Stage 4.5: Duration harmonization (D-13, DUR-03)

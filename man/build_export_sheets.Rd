@@ -14,7 +14,8 @@ build_export_sheets(
   detection,
   file_info,
   enrichment_cache = NULL,
-  toxval_output = NULL
+  toxval_output = NULL,
+  harmonize_audit = NULL
 )
 }
 \arguments{
@@ -28,7 +29,7 @@ build_export_sheets(
 
 \item{reference_lists}{List with $functional_categories, $stop_words, $block_patterns}
 
-\item{column_tags}{Named list (column_name = "CASRN"/"Name"/"Other")}
+\item{column_tags}{Named list of all applied column tags.}
 
 \item{detection}{List with $method, $confidence}
 
@@ -38,11 +39,15 @@ build_export_sheets(
 
 \item{toxval_output}{Tibble with 56 ToxVal columns from map_to_toxval_schema(),
 or NULL (default). When NULL, Sheet 8 contains a placeholder note row.}
+
+\item{harmonize_audit}{Tibble with numeric measurement harmonization audit rows,
+or NULL (default). When provided, an additional Harmonization Audit sheet is
+appended.}
 }
 \value{
-Named list of 8 data frames with sheet names as keys
+Named list of 8 or 9 data frames with sheet names as keys
 }
 \description{
-Converts CONCERT pipeline state into a named list of 8 data frames ready
+Converts CONCERT pipeline state into a named list of data frames ready
 for Excel export via writexl::write_xlsx().
 }

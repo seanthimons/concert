@@ -35,7 +35,7 @@ directories are created automatically if they do not exist. Required when
 
 \item{tag_map}{Named list mapping cleaned column names to tag roles. Keys
 must match column names \emph{after} \code{janitor::clean_names()} normalization.
-Values are one of \code{"Name"}, \code{"CASRN"}, \code{"Other"}, \code{"Result"}, \code{"Unit"},
+Values are one of \code{"Name"}, \code{"CASRN"}, \code{"Other"}, \code{"Result"}, \code{"Numeric"}, \code{"Unit"},
 \code{"Qualifier"}, etc. Example:
 \code{list(chemical_name = "Name", cas_number = "CASRN", result = "Result", unit = "Unit")}.}
 
