@@ -2,6 +2,77 @@
 # Tests for mod_review_results.R helper functions with WQX support
 # ============================================================================
 
+untagged_review_test_rows <- function(statuses) {
+  n <- length(statuses)
+  data.frame(
+    Chemical = paste("Chemical", seq_len(n)),
+    consensus_status = statuses,
+    consensus_dtxsid = rep(NA_character_, n),
+    row_flag = rep(NA_character_, n),
+    qc_flag = rep(NA_character_, n),
+    .pinned = rep(FALSE, n),
+    .manual_entry = rep(FALSE, n),
+    .resolution_method = rep(NA_character_, n),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+test_that("is_unassigned_untagged_review_row includes unresolved unassigned untagged rows", {
+  df <- untagged_review_test_rows(c("disagree", "suggested", "error", "unresolvable"))
+
+  expect_equal(is_unassigned_untagged_review_row(df), rep(TRUE, 4))
+})
+
+test_that("is_unassigned_untagged_review_row excludes rows with row flags", {
+  df <- untagged_review_test_rows(c("disagree", "error"))
+  df$row_flag <- c("BAD", " FOLLOW-UP ")
+
+  expect_equal(is_unassigned_untagged_review_row(df), c(FALSE, FALSE))
+})
+
+test_that("is_unassigned_untagged_review_row excludes rows with QC flags", {
+  df <- untagged_review_test_rows(c("disagree", "unresolvable"))
+  df$qc_flag <- c("WARN: non-ASCII", " WARN: other ")
+
+  expect_equal(is_unassigned_untagged_review_row(df), c(FALSE, FALSE))
+})
+
+test_that("is_unassigned_untagged_review_row excludes user action markers", {
+  df <- untagged_review_test_rows(rep("disagree", 4))
+  df$.pinned[1] <- TRUE
+  df$.manual_entry[2] <- TRUE
+  df$.resolution_method[3] <- "auto"
+  df$.resolution_method[4] <- "suggested-accept"
+
+  expect_equal(is_unassigned_untagged_review_row(df), rep(FALSE, 4))
+})
+
+test_that("is_unassigned_untagged_review_row excludes assigned and resolved statuses", {
+  df <- untagged_review_test_rows(c("disagree", "agree", "single", "manual", "auto_resolved", "wqx"))
+  df$consensus_dtxsid[1] <- "DTXSID7021360"
+
+  expect_equal(is_unassigned_untagged_review_row(df), rep(FALSE, 6))
+})
+
+test_that("untagged unresolved filter preserves original indices through deduplication", {
+  df <- untagged_review_test_rows(c("agree", "disagree", "disagree", "error"))
+  df$Chemical <- c("Resolved", "Duplicate", "Duplicate", "Unique")
+  df$consensus_dtxsid[1] <- "DTXSID7021360"
+
+  filtered <- filter_review_rows(df, unassigned_untagged_filter_active = TRUE)
+  deduped <- deduplicate_review_rows(
+    filtered$df,
+    filtered$original_indices,
+    group_cols = c("Chemical", "consensus_dtxsid", "consensus_status")
+  )
+
+  expect_equal(filtered$original_indices, c(2L, 3L, 4L))
+  expect_equal(deduped$display_row_map, c(2L, 4L))
+  expect_equal(unname(deduped$dedup_group_map[[1]]), c(2L, 3L))
+  expect_equal(deduped$df_display$n_rows, c(2L, 1L))
+})
+
 test_that("comptox_dashboard_url builds chemical details URL", {
   result <- comptox_dashboard_url("DTXSID7021360")
   expect_equal(result, "https://comptox.epa.gov/dashboard/chemical/details/DTXSID7021360")

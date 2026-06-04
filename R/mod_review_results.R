@@ -173,6 +173,111 @@ row_flag_filter_choices <- function(flags) {
   c("Untagged" = "__untagged__", stats::setNames(tagged_flags, tagged_flags))
 }
 
+review_blank_or_missing <- function(x, n) {
+  if (is.null(x)) {
+    return(rep(TRUE, n))
+  }
+
+  value <- trimws(as.character(x))
+  is.na(value) | value == ""
+}
+
+review_truthy <- function(x, n) {
+  if (is.null(x)) {
+    return(rep(FALSE, n))
+  }
+
+  if (is.logical(x)) {
+    value <- x
+  } else {
+    value <- tolower(trimws(as.character(x))) %in% c("true", "t", "1", "yes")
+  }
+
+  value[is.na(value)] <- FALSE
+  value
+}
+
+is_unassigned_untagged_review_row <- function(df) {
+  n <- nrow(df)
+  status <- if ("consensus_status" %in% names(df)) {
+    as.character(df$consensus_status)
+  } else {
+    rep(NA_character_, n)
+  }
+
+  status %in% c("disagree", "suggested", "error", "unresolvable") &
+    review_blank_or_missing(df[["consensus_dtxsid"]], n) &
+    review_blank_or_missing(df[["row_flag"]], n) &
+    review_blank_or_missing(df[["qc_flag"]], n) &
+    !review_truthy(df[[".pinned"]], n) &
+    !review_truthy(df[[".manual_entry"]], n) &
+    review_blank_or_missing(df[[".resolution_method"]], n)
+}
+
+filter_review_rows <- function(
+    df,
+    error_filter_active = FALSE,
+    unassigned_untagged_filter_active = FALSE) {
+  status <- if ("consensus_status" %in% names(df)) {
+    as.character(df$consensus_status)
+  } else {
+    rep(NA_character_, nrow(df))
+  }
+
+  if (isTRUE(error_filter_active)) {
+    filter_mask <- status %in% c("error", "unresolvable")
+  } else if (isTRUE(unassigned_untagged_filter_active)) {
+    filter_mask <- is_unassigned_untagged_review_row(df)
+  } else {
+    filter_mask <- rep(TRUE, nrow(df))
+  }
+
+  list(
+    df = df[filter_mask, , drop = FALSE],
+    original_indices = which(filter_mask)
+  )
+}
+
+deduplicate_review_rows <- function(df, original_indices, group_cols) {
+  group_cols <- intersect(group_cols, names(df))
+
+  if (length(group_cols) > 0 && nrow(df) > 0) {
+    group_key <- do.call(
+      paste,
+      c(
+        lapply(group_cols, function(col) {
+          v <- df[[col]]
+          ifelse(is.na(v), "\x02NA\x02", as.character(v))
+        }),
+        sep = "\x1F"
+      )
+    )
+
+    first_idx <- which(!duplicated(group_key))
+    dedup_keys <- group_key[first_idx]
+    key_counts <- tabulate(match(group_key, dedup_keys))
+    group_split <- split(original_indices, match(group_key, dedup_keys))
+    rep_indices <- original_indices[first_idx]
+    df_display <- df[first_idx, , drop = FALSE]
+    df_display$n_rows <- key_counts
+
+    return(list(
+      df_display = df_display,
+      dedup_group_map = group_split,
+      display_row_map = rep_indices,
+      rep_indices = rep_indices
+    ))
+  }
+
+  df$n_rows <- rep(1L, nrow(df))
+  list(
+    df_display = df,
+    dedup_group_map = as.list(original_indices),
+    display_row_map = original_indices,
+    rep_indices = original_indices
+  )
+}
+
 # Vectorized Resolution column builder (replaces row-by-row sapply)
 derive_resolution_html <- function(df, row_indices) {
   n <- nrow(df)
