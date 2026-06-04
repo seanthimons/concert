@@ -219,6 +219,217 @@ test_that("derive_resolution_html uses consensus_source preferredName for single
   expect_no_match(result, "Benzo\\(a\\)anthracene-D12")
 })
 
+test_that("derive_resolution_html exposes expert override for every row status", {
+  statuses <- c(
+    "single",
+    "agree",
+    "agree_caveat",
+    "suggested",
+    "auto_resolved",
+    "error",
+    "manual",
+    "wqx",
+    "disagree",
+    "unresolvable"
+  )
+  n <- length(statuses)
+  df <- data.frame(
+    consensus_status = statuses,
+    consensus_dtxsid = c(
+      "DTXSID0000001",
+      "DTXSID0000002",
+      "DTXSID0000003",
+      "DTXSID0000004",
+      "DTXSID0000005",
+      NA_character_,
+      "DTXSID0000007",
+      NA_character_,
+      NA_character_,
+      NA_character_
+    ),
+    consensus_source = rep("Chemical", n),
+    preferredName_Chemical = paste("Preferred", seq_len(n)),
+    manual_preferredName = c(rep(NA_character_, 6), "Manual Preferred", rep(NA_character_, 3)),
+    .pinned = rep(FALSE, n),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  result <- derive_resolution_html(df, row_indices = seq_len(n))
+
+  expect_true(all(grepl("expert-override-btn", result, fixed = TRUE)))
+  expect_true(all(grepl("Override", result, fixed = TRUE)))
+})
+
+review_override_test_state <- function(statuses) {
+  n <- length(statuses)
+  old_dtxsid <- paste0("DTXSID9", sprintf("%06d", seq_len(n)))
+  old_dtxsid[statuses %in% c("error", "unresolvable", "wqx")] <- NA_character_
+
+  init_resolution_state(data.frame(
+    Chemical = paste("Chemical", seq_len(n)),
+    consensus_status = statuses,
+    consensus_dtxsid = old_dtxsid,
+    consensus_source = rep("Chemical", n),
+    preferredName_Chemical = paste("Original", seq_len(n)),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  ))
+}
+
+review_override_validation <- function(dtxsids, valid = TRUE) {
+  tibble::tibble(
+    searchValue = dtxsids,
+    dtxsid = if (valid) dtxsids else NA_character_,
+    preferredName = if (valid) paste("Validated", seq_along(dtxsids)) else NA_character_,
+    rank = if (valid) rep(1L, length(dtxsids)) else rep(NA_integer_, length(dtxsids)),
+    is_valid = rep(valid, length(dtxsids))
+  )
+}
+
+review_override_wqx_dictionary <- function() {
+  tibble::tibble(
+    name = c("Canonical WQX", "WQX Alias"),
+    canonical_name = c("Canonical WQX", "Canonical WQX"),
+    type = c("canonical", "alias")
+  )
+}
+
+test_that("queued DTXSID overrides apply across review statuses", {
+  statuses <- c("single", "agree", "suggested", "auto_resolved", "error", "manual", "wqx")
+  df <- review_override_test_state(statuses)
+  dtxsids <- paste0("DTXSID7", sprintf("%06d", seq_along(statuses)))
+  queue <- list()
+  for (i in seq_along(statuses)) {
+    queue <- queue_review_override(queue, row = i, group_rows = i, override_type = "dtxsid", value = dtxsids[i])
+  }
+
+  result <- apply_queued_review_overrides(
+    df,
+    queue,
+    validation_results = review_override_validation(dtxsids)
+  )
+  updated <- result$resolution_state
+
+  expect_equal(updated$consensus_status, rep("manual", length(statuses)))
+  expect_equal(updated$consensus_dtxsid, dtxsids)
+  expect_equal(updated$consensus_source, rep("manual_entry", length(statuses)))
+  expect_true(all(updated$.manual_entry))
+  expect_true(all(updated$.pinned))
+  expect_equal(updated$.resolution_method, rep("manual", length(statuses)))
+  expect_equal(updated$manual_preferredName, paste("Validated", seq_along(statuses)))
+  expect_equal(result$invalid_entries, 0L)
+})
+
+test_that("queued WQX overrides apply across review statuses", {
+  statuses <- c("single", "agree", "suggested", "auto_resolved", "error", "manual", "wqx")
+  df <- review_override_test_state(statuses)
+  queue <- list()
+  for (i in seq_along(statuses)) {
+    queue <- queue_review_override(queue, row = i, group_rows = i, override_type = "wqx", value = "Canonical WQX")
+  }
+
+  result <- apply_queued_review_overrides(
+    df,
+    queue,
+    wqx_dictionary = review_override_wqx_dictionary()
+  )
+  updated <- result$resolution_state
+
+  expect_equal(updated$consensus_status, rep("wqx", length(statuses)))
+  expect_true(all(is.na(updated$consensus_dtxsid)))
+  expect_equal(updated$consensus_source, rep("manual_wqx", length(statuses)))
+  expect_equal(updated$wqx_override_name, rep("Canonical WQX", length(statuses)))
+  expect_true(all(updated$.pinned))
+  expect_equal(updated$.resolution_method, rep("manual_wqx", length(statuses)))
+  expect_false(any(updated$.manual_entry))
+  expect_equal(result$invalid_entries, 0L)
+})
+
+test_that("queued overrides propagate across dedup groups", {
+  df <- review_override_test_state(c("error", "agree", "wqx", "manual"))
+  dtxsid_queue <- queue_review_override(list(), row = 1L, group_rows = c(1L, 3L), override_type = "dtxsid", value = "DTXSID7000001")
+
+  dtxsid_result <- apply_queued_review_overrides(
+    df,
+    dtxsid_queue,
+    validation_results = review_override_validation("DTXSID7000001")
+  )$resolution_state
+
+  expect_equal(dtxsid_result$consensus_status[c(1, 3)], c("manual", "manual"))
+  expect_equal(dtxsid_result$consensus_dtxsid[c(1, 3)], c("DTXSID7000001", "DTXSID7000001"))
+  expect_equal(dtxsid_result$consensus_status[2], "agree")
+
+  wqx_queue <- queue_review_override(list(), row = 2L, group_rows = c(2L, 4L), override_type = "wqx", value = "Canonical WQX")
+  wqx_result <- apply_queued_review_overrides(
+    df,
+    wqx_queue,
+    wqx_dictionary = review_override_wqx_dictionary()
+  )$resolution_state
+
+  expect_equal(wqx_result$consensus_status[c(2, 4)], c("wqx", "wqx"))
+  expect_true(all(is.na(wqx_result$consensus_dtxsid[c(2, 4)])))
+  expect_equal(wqx_result$wqx_override_name[c(2, 4)], c("Canonical WQX", "Canonical WQX"))
+  expect_equal(wqx_result$consensus_status[1], "error")
+})
+
+test_that("newest queued override wins for the same dedup group", {
+  queue <- queue_review_override(list(), row = 1L, group_rows = c(1L, 2L), override_type = "dtxsid", value = "DTXSID7000001")
+  queue <- queue_review_override(queue, row = 2L, group_rows = c(1L, 2L), override_type = "wqx", value = "Canonical WQX")
+  entries <- normalize_review_override_queue(queue)
+
+  expect_length(entries, 1)
+  expect_equal(entries[[1]]$override_type, "wqx")
+  expect_equal(entries[[1]]$row, 2L)
+  expect_equal(entries[[1]]$group_rows, c(1L, 2L))
+})
+
+test_that("failed DTXSID validation leaves previously resolved row unchanged", {
+  df <- review_override_test_state("agree")
+  before <- init_resolution_state(df)
+  queue <- queue_review_override(list(), row = 1L, group_rows = 1L, override_type = "dtxsid", value = "DTXSID7000001")
+
+  result <- apply_queued_review_overrides(
+    df,
+    queue,
+    validation_results = review_override_validation("DTXSID7000001", valid = FALSE)
+  )
+
+  expect_equal(result$resolution_state, before)
+  expect_equal(result$invalid_entries, 1L)
+  expect_match(result$invalid_details, "DTXSID7000001", fixed = TRUE)
+})
+
+test_that("WQX override converts non-WQX row to WQX name-only resolution", {
+  df <- review_override_test_state("agree")
+  queue <- queue_review_override(list(), row = 1L, group_rows = 1L, override_type = "wqx", value = "WQX Alias")
+
+  result <- apply_queued_review_overrides(
+    df,
+    queue,
+    wqx_dictionary = review_override_wqx_dictionary()
+  )$resolution_state
+
+  expect_equal(result$consensus_status, "wqx")
+  expect_true(is.na(result$consensus_dtxsid))
+  expect_equal(result$consensus_source, "manual_wqx")
+  expect_equal(result$wqx_override_name, "Canonical WQX")
+  expect_true(result$.pinned)
+  expect_equal(result$.resolution_method, "manual_wqx")
+})
+
+test_that("WQX override without dictionary validation leaves row unchanged", {
+  df <- review_override_test_state("agree")
+  before <- init_resolution_state(df)
+  queue <- queue_review_override(list(), row = 1L, group_rows = 1L, override_type = "wqx", value = "Canonical WQX")
+
+  result <- apply_queued_review_overrides(df, queue, wqx_dictionary = NULL)
+
+  expect_equal(result$resolution_state, before)
+  expect_equal(result$invalid_entries, 1L)
+  expect_match(result$invalid_details, "WQX 'Canonical WQX'", fixed = TRUE)
+})
+
 # ============================================================================
 # Test Group 4: wqx_confidence computation
 # ============================================================================
@@ -286,6 +497,7 @@ test_that("derive_resolution_html includes wqx-review-btn for WQX rows", {
   )
   result <- derive_resolution_html(df, row_indices = 1L)
   expect_match(result, "wqx-review-btn")
+  expect_match(result, "expert-override-btn")
   expect_match(result, 'data-row="1"')
 })
 
@@ -315,9 +527,12 @@ test_that("derive_resolution_html keeps compare actions for reviewable rows", {
   result <- derive_resolution_html(df, row_indices = 1:3)
 
   expect_match(result[1], "compare-btn")
+  expect_match(result[1], "expert-override-btn")
   expect_match(result[2], "compare-btn")
   expect_match(result[2], "Review Suggestion")
+  expect_match(result[2], "expert-override-btn")
   expect_match(result[3], "compare-btn")
+  expect_match(result[3], "expert-override-btn")
 })
 
 # ============================================================================
