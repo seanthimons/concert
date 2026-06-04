@@ -39,15 +39,15 @@ test_that("generate_concert_script includes replay settings and combined tag map
 
 test_that("generate_concert_script emits content-matched case_when overrides", {
   baseline <- init_resolution_state(tibble::tibble(
-    chemical = "Acetone",
-    cas_number = "67-64-1",
-    consensus_status = "agree",
-    consensus_dtxsid = "DTXSID7020182",
-    consensus_source = "consensus",
-    qc_tier = 1L
+    chemical = c("Acetone", "Benzene"),
+    cas_number = c("67-64-1", "71-43-2"),
+    consensus_status = c("agree", "agree"),
+    consensus_dtxsid = c("DTXSID7020182", "DTXSID9020453"),
+    consensus_source = c("consensus", "consensus"),
+    qc_tier = c(1L, 1L)
   ))
   final <- baseline
-  final$row_flag <- "VERIFIED"
+  final$row_flag[1] <- "VERIFIED"
 
   script <- generate_concert_script(
     input_path = "input.csv",
@@ -64,7 +64,7 @@ test_that("generate_concert_script emits content-matched case_when overrides", {
   expect_match(script, "dplyr::mutate(", fixed = TRUE)
   expect_match(script, "row_flag = dplyr::case_when(", fixed = TRUE)
   expect_match(script, 'chemical == "Acetone"', fixed = TRUE)
-  expect_match(script, 'cas_number == "67-64-1"', fixed = TRUE)
+  expect_no_match(script, 'cas_number == "67-64-1"', fixed = TRUE)
   expect_match(script, 'TRUE ~ row_flag', fixed = TRUE)
   expect_match(script, 'attr(apply_review_overrides, "review_override_columns")', fixed = TRUE)
   expect_match(script, "review_overrides = apply_review_overrides", fixed = TRUE)
@@ -184,12 +184,12 @@ test_that("content-matched review overrides survive row reordering", {
 
 test_that("duplicate stable-content rows require identical intended edits", {
   baseline <- init_resolution_state(tibble::tibble(
-    chemical = c("Acetone", "Acetone"),
-    cas_number = c("67-64-1", "67-64-1"),
-    consensus_status = c("agree", "agree"),
-    consensus_dtxsid = c("DTXSID1", "DTXSID1"),
-    consensus_source = c("consensus", "consensus"),
-    qc_tier = c(1L, 1L)
+    chemical = c("Acetone", "Acetone", "Benzene"),
+    cas_number = c("67-64-1", "67-64-1", "71-43-2"),
+    consensus_status = c("agree", "agree", "agree"),
+    consensus_dtxsid = c("DTXSID1", "DTXSID1", "DTXSID2"),
+    consensus_source = c("consensus", "consensus", "consensus"),
+    qc_tier = c(1L, 1L, 1L)
   ))
 
   ambiguous <- baseline
@@ -200,12 +200,59 @@ test_that("duplicate stable-content rows require identical intended edits", {
   )
 
   identical_edits <- baseline
-  identical_edits$row_flag <- c("VERIFIED", "VERIFIED")
+  identical_edits$row_flag <- c("VERIFIED", "VERIFIED", NA_character_)
   overrides <- build_review_overrides(baseline, identical_edits)
 
   expect_equal(nrow(overrides), 1L)
+  expect_named(overrides$signature[[1]], "chemical")
   replayed <- apply_review_overrides(baseline, overrides)
-  expect_equal(replayed$row_flag, c("VERIFIED", "VERIFIED"))
+  expect_equal(replayed$row_flag, c("VERIFIED", "VERIFIED", NA_character_))
+
+  script <- generate_concert_script(
+    input_path = "input.csv",
+    output_path = "input_curated.xlsx",
+    tag_map = list(chemical = "Name", cas_number = "CASRN"),
+    header_row = 1L,
+    review_overrides = overrides
+  )
+  branch_matches <- gregexpr('~ "VERIFIED"', script, fixed = TRUE)[[1]]
+  expect_equal(sum(branch_matches > 0), 1L)
+})
+
+test_that("minimal row signatures add only enough columns to disambiguate near duplicates", {
+  baseline <- init_resolution_state(tibble::tibble(
+    site = c("A", "A", "A", "B", "C"),
+    chemical = c("Acetone", "Acetone", "Benzene", "Acetone", "Toluene"),
+    cas_number = c("67-64-1", "67-64-1", "71-43-2", "75-07-0", "67-64-1"),
+    sample_id = c("S1", "S2", "S1", "S1", "S1"),
+    consensus_status = rep("agree", 5),
+    consensus_dtxsid = paste0("DTXSID", 1:5),
+    consensus_source = rep("consensus", 5),
+    qc_tier = rep(1L, 5)
+  ))
+  final <- baseline
+  final$row_flag[1] <- "FOLLOW-UP"
+
+  overrides <- build_review_overrides(baseline, final)
+
+  expect_equal(nrow(overrides), 1L)
+  expect_named(overrides$signature[[1]], c("site", "chemical", "sample_id"))
+  replayed <- apply_review_overrides(baseline, overrides)
+  expect_equal(replayed$row_flag, c("FOLLOW-UP", rep(NA_character_, 4)))
+
+  script <- generate_concert_script(
+    input_path = "input.csv",
+    output_path = "input_curated.xlsx",
+    tag_map = list(chemical = "Name"),
+    header_row = 1L,
+    review_overrides = overrides
+  )
+  expect_match(
+    script,
+    'site == "A" & chemical == "Acetone" & sample_id == "S1" ~ "FOLLOW-UP"',
+    fixed = TRUE
+  )
+  expect_no_match(script, 'cas_number == "67-64-1"', fixed = TRUE)
 })
 
 test_that("generated case_when branches preserve typed NA values", {
