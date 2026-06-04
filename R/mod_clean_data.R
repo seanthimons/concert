@@ -1249,18 +1249,21 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       )
     })
 
+    filter_multi_cas_rows <- function(cleaned_data) {
+      if (!("multi_cas" %in% names(cleaned_data))) {
+        return(cleaned_data[0, , drop = FALSE])
+      }
+
+      cleaned_data[cleaned_data$multi_cas %in% TRUE, , drop = FALSE]
+    }
+
     # Multi-CAS flagged rows section
     output$multi_cas_section <- renderUI({
       req(data_store$cleaned_data)
 
       cleaned_data <- data_store$cleaned_data
 
-      # Check if multi_cas column exists and has any TRUE values
-      if (!("multi_cas" %in% names(cleaned_data))) {
-        return(NULL)
-      }
-
-      multi_cas_rows <- cleaned_data[cleaned_data$multi_cas == TRUE, ]
+      multi_cas_rows <- filter_multi_cas_rows(cleaned_data)
 
       if (nrow(multi_cas_rows) == 0) {
         return(NULL)
@@ -1276,9 +1279,9 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         div(
           class = "card-body",
           p("These rows contain multiple CAS-RNs. Review them and split if they represent separate chemicals."),
-          reactable::reactableOutput(ns("multi_cas_table")),
+          reactable::reactableOutput(session$ns("multi_cas_table")),
           actionButton(
-            ns("split_row"),
+            session$ns("split_row"),
             "Split Selected Row",
             class = "btn-warning mt-2",
             icon = icon("scissors")
@@ -1292,7 +1295,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       req(data_store$cleaned_data)
 
       cleaned_data <- data_store$cleaned_data
-      multi_cas_rows <- cleaned_data[cleaned_data$multi_cas == TRUE, ]
+      multi_cas_rows <- filter_multi_cas_rows(cleaned_data)
 
       reactable::reactable(
         multi_cas_rows,
@@ -1324,7 +1327,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
 
       # Get multi-CAS rows
       cleaned_data <- data_store$cleaned_data
-      multi_cas_rows <- cleaned_data[cleaned_data$multi_cas == TRUE, ]
+      multi_cas_rows <- filter_multi_cas_rows(cleaned_data)
       row_to_split <- multi_cas_rows[selected, ]
 
       # Get all CASRN columns
@@ -1353,7 +1356,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         ),
         footer = tagList(
           modalButton("Cancel"),
-          actionButton(ns("confirm_split"), "Confirm Split", class = "btn-warning")
+          actionButton(session$ns("confirm_split"), "Confirm Split", class = "btn-warning")
         )
       ))
     })
@@ -1365,7 +1368,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       # Get selected row
       selected <- reactable::getReactableState("multi_cas_table", "selected")
       cleaned_data <- data_store$cleaned_data
-      multi_cas_rows <- cleaned_data[cleaned_data$multi_cas == TRUE, ]
+      multi_cas_rows <- filter_multi_cas_rows(cleaned_data)
       row_to_split <- multi_cas_rows[selected, ]
 
       # Get all CASRN columns
