@@ -142,8 +142,10 @@ server <- function(input, output, session) {
     priority_order = NULL,
     review_visible_cols = NULL,
     error_filter_active = FALSE,
+    unassigned_untagged_filter_active = FALSE,
     display_row_map = NULL,
     selected_error_rows = NULL,
+    selected_visible_rows = NULL,
     manual_queue = list(),
     qc_results = NULL,
     enrichment_cache = NULL,
@@ -319,6 +321,11 @@ server <- function(input, output, session) {
     data_store$dtxsid_cols <- NULL
     data_store$priority_order <- NULL
     data_store$review_visible_cols <- NULL
+    data_store$error_filter_active <- FALSE
+    data_store$unassigned_untagged_filter_active <- FALSE
+    data_store$display_row_map <- NULL
+    data_store$selected_error_rows <- NULL
+    data_store$selected_visible_rows <- NULL
     # Phase 33: Reset extended tag types and harmonization state
     data_store$numeric_tags <- NULL
     data_store$metadata_tags <- NULL
@@ -353,6 +360,11 @@ server <- function(input, output, session) {
     data_store$qc_results <- NULL
     data_store$toxval_output <- NULL
     data_store$review_visible_cols <- NULL
+    data_store$error_filter_active <- FALSE
+    data_store$unassigned_untagged_filter_active <- FALSE
+    data_store$display_row_map <- NULL
+    data_store$selected_error_rows <- NULL
+    data_store$selected_visible_rows <- NULL
   }
 
   reset_numeric_downstream <- function() {
