@@ -245,6 +245,39 @@ signature_key <- function(signature) {
   script_literal(signature)
 }
 
+minimal_stable_row_signature <- function(baseline_state, full_signature, target_rows) {
+  stable_cols <- names(full_signature)
+  if (length(stable_cols) <= 1L) {
+    return(full_signature)
+  }
+
+  target_mask <- rep(FALSE, nrow(baseline_state))
+  target_mask[target_rows] <- TRUE
+
+  signature_masks <- lapply(stable_cols, function(col) {
+    vapply(
+      seq_len(nrow(baseline_state)),
+      function(row_idx) {
+        scalar_value_matches(baseline_state[[col]][row_idx], full_signature[[col]])
+      },
+      logical(1)
+    )
+  })
+  names(signature_masks) <- stable_cols
+
+  for (subset_size in seq_len(length(stable_cols) - 1L)) {
+    candidates <- utils::combn(stable_cols, subset_size, simplify = FALSE)
+    for (candidate_cols in candidates) {
+      mask <- Reduce(`&`, signature_masks[candidate_cols])
+      if (identical(mask, target_mask)) {
+        return(full_signature[candidate_cols])
+      }
+    }
+  }
+
+  full_signature
+}
+
 new_review_override_spec <- function(columns, values, signatures, signature_columns) {
   spec <- tibble::tibble(
     column = columns,
@@ -322,8 +355,8 @@ ambiguous_review_override_error <- function(col, rows, stable_cols) {
 #' @param final_state Resolution state after Review Results edits.
 #'
 #' @return NULL when no overrides are needed, otherwise a content-match
-#'   override spec with the edited column, edited scalar value, and a baseline
-#'   row signature for each generated `case_when()` branch.
+#'   override spec with the edited column, edited scalar value, and a
+#'   minimal stable row signature for each generated `case_when()` branch.
 #' @export
 build_review_overrides <- function(baseline_state, final_state) {
   if (is.null(baseline_state) || is.null(final_state)) {
@@ -372,7 +405,11 @@ build_review_overrides <- function(baseline_state, final_state) {
 
       columns <- c(columns, col)
       values[[length(values) + 1L]] <- review_value_scalar(intended_value)
-      branch_signatures[[length(branch_signatures) + 1L]] <- signatures[[group_rows[1]]]
+      branch_signatures[[length(branch_signatures) + 1L]] <- minimal_stable_row_signature(
+        baseline_state,
+        signatures[[group_rows[1]]],
+        group_rows
+      )
     }
   }
 

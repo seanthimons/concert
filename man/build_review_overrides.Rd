@@ -14,8 +14,8 @@ and postprocessing.}
 }
 \value{
 NULL when no overrides are needed, otherwise a content-match
-override spec with the edited column, edited scalar value, and a baseline
-row signature for each generated \code{case_when()} branch.
+override spec with the edited column, edited scalar value, and a
+minimal stable row signature for each generated \code{case_when()} branch.
 }
 \description{
 Captures Review Results edits by comparing the automated baseline state
