@@ -1163,6 +1163,12 @@ mod_review_results_ui <- function(id) {
               icon = icon("filter"),
               class = "btn-sm btn-outline-secondary"
             ),
+            actionButton(
+              ns("filter_unassigned_untagged"),
+              "Show Untagged Unresolved",
+              icon = icon("filter"),
+              class = "btn-sm btn-outline-secondary"
+            ),
             shinyjs::hidden(
               actionButton(
                 ns("accept_all_suggestions"),
@@ -1605,52 +1611,27 @@ mod_review_results_server <- function(id, data_store) {
         df <- dplyr::relocate(df, qc_flag, .after = match_type)
       }
 
-      # Error filter
-      if (isTRUE(data_store$error_filter_active)) {
-        filter_mask <- df$consensus_status %in% c("error", "unresolvable")
-        df <- df[filter_mask, , drop = FALSE]
-        original_indices <- which(filter_mask)
-      } else {
-        original_indices <- seq_len(nrow(df))
-      }
+      filtered <- filter_review_rows(
+        df,
+        error_filter_active = isTRUE(data_store$error_filter_active),
+        unassigned_untagged_filter_active = isTRUE(data_store$unassigned_untagged_filter_active)
+      )
+      df <- filtered$df
+      original_indices <- filtered$original_indices
 
       # --- Deduplication ---
       name_cols <- names(data_store$column_tags)[data_store$column_tags == "Name"]
       cas_cols <- names(data_store$column_tags)[data_store$column_tags == "CASRN"]
-      group_cols <- intersect(
-        c(name_cols, cas_cols, "consensus_dtxsid", "consensus_status", "match_type"),
-        names(df)
-      )
+      group_cols <- c(name_cols, cas_cols, "consensus_dtxsid", "consensus_status", "match_type")
+      deduped <- deduplicate_review_rows(df, original_indices, group_cols)
+      data_store$dedup_group_map <- deduped$dedup_group_map
+      data_store$display_row_map <- deduped$display_row_map
+      rep_indices <- deduped$rep_indices
+      df_display <- deduped$df_display
 
-      if (length(group_cols) > 0 && nrow(df) > 0) {
-        group_key <- do.call(
-          paste,
-          c(
-            lapply(group_cols, function(col) {
-              v <- df[[col]]
-              ifelse(is.na(v), "\x02NA\x02", as.character(v))
-            }),
-            sep = "\x1F"
-          )
-        )
-
-        first_idx <- which(!duplicated(group_key))
-        dedup_keys <- group_key[first_idx]
-        key_counts <- tabulate(match(group_key, dedup_keys))
-
-        group_split <- split(original_indices, match(group_key, dedup_keys))
-        data_store$dedup_group_map <- group_split
-        rep_indices <- original_indices[first_idx]
-        data_store$display_row_map <- rep_indices
-
-        df_display <- df[first_idx, , drop = FALSE]
-        df_display$n_rows <- key_counts
-      } else {
-        data_store$dedup_group_map <- as.list(original_indices)
-        data_store$display_row_map <- original_indices
-        rep_indices <- original_indices
-        df_display <- df
-        df_display$n_rows <- rep(1L, nrow(df))
+      if (length(data_store$display_row_map) == 0) {
+        data_store$selected_error_rows <- NULL
+        data_store$selected_visible_rows <- NULL
       }
 
       # Vectorized Resolution column
@@ -2949,7 +2930,10 @@ mod_review_results_server <- function(id, data_store) {
 
     # Filter toggle observer
     observeEvent(input$filter_errors, {
-      data_store$error_filter_active <- !data_store$error_filter_active
+      data_store$error_filter_active <- !isTRUE(data_store$error_filter_active)
+      if (isTRUE(data_store$error_filter_active)) {
+        data_store$unassigned_untagged_filter_active <- FALSE
+      }
 
       # Update button label
       updateActionButton(
@@ -2957,13 +2941,30 @@ mod_review_results_server <- function(id, data_store) {
         "filter_errors",
         label = if (data_store$error_filter_active) "Show All" else "Show Errors"
       )
+      updateActionButton(session, "filter_unassigned_untagged", label = "Show Untagged Unresolved")
+    })
+
+    observeEvent(input$filter_unassigned_untagged, {
+      data_store$unassigned_untagged_filter_active <- !isTRUE(data_store$unassigned_untagged_filter_active)
+      if (isTRUE(data_store$unassigned_untagged_filter_active)) {
+        data_store$error_filter_active <- FALSE
+      }
+
+      updateActionButton(session, "filter_errors", label = "Show Errors")
+      updateActionButton(
+        session,
+        "filter_unassigned_untagged",
+        label = if (data_store$unassigned_untagged_filter_active) "Show All" else "Show Untagged Unresolved"
+      )
     })
 
     observeEvent(input$clear_table_filters, {
       data_store$error_filter_active <- FALSE
+      data_store$unassigned_untagged_filter_active <- FALSE
       data_store$selected_error_rows <- NULL
       data_store$selected_visible_rows <- NULL
       updateActionButton(session, "filter_errors", label = "Show Errors")
+      updateActionButton(session, "filter_unassigned_untagged", label = "Show Untagged Unresolved")
       shinyjs::hide("retag_selected")
     })
 
@@ -3170,8 +3171,10 @@ mod_review_results_server <- function(id, data_store) {
 
       # Reset filter and selection state
       data_store$error_filter_active <- FALSE
+      data_store$unassigned_untagged_filter_active <- FALSE
       data_store$selected_error_rows <- NULL
       updateActionButton(session, "filter_errors", label = "Show Errors")
+      updateActionButton(session, "filter_unassigned_untagged", label = "Show Untagged Unresolved")
 
       # Update consensus summary
       updated_df <- data_store$resolution_state
