@@ -187,6 +187,14 @@ derive_resolution_html <- function(df, row_indices) {
 
   # Pre-compute search icon once (used by multiple blocks below)
   search_icon <- as.character(shiny::icon("search"))
+  override_icon <- as.character(shiny::icon("edit"))
+  override_btn_vec <- paste0(
+    ' <button class="expert-override-btn btn btn-sm btn-outline-secondary" data-row="',
+    row_indices,
+    '" title="Expert override">',
+    override_icon,
+    " Override</button>"
+  )
 
   # WQX override: prefer user-selected name over pipeline result (per D-08)
   wqx_override <- if ("wqx_override_name" %in% names(df)) df$wqx_override_name else rep(NA_character_, n)
@@ -354,6 +362,12 @@ derive_resolution_html <- function(df, row_indices) {
     review_btn[wqx_mask & !wqx_has_pref]
   )
 
+  if (n > 0) {
+    empty_result <- is.na(result) | !nzchar(result)
+    result[empty_result] <- override_btn_vec[empty_result]
+    result[!empty_result] <- paste0(result[!empty_result], override_btn_vec[!empty_result])
+  }
+
   result
 }
 
@@ -382,6 +396,297 @@ get_group_rows <- function(original_idx, dedup_group_map) {
     return(original_idx)
   }
   dedup_group_map[[grp_idx]]
+}
+
+normalize_review_override_type <- function(override_type) {
+  override_type <- tolower(trimws(as.character(override_type)[1]))
+  if (!override_type %in% c("dtxsid", "wqx")) {
+    stop("override_type must be 'dtxsid' or 'wqx'.", call. = FALSE)
+  }
+  override_type
+}
+
+new_review_override_entry <- function(row, group_rows, override_type, value) {
+  row <- suppressWarnings(as.integer(row)[1])
+  if (is.na(row) || row < 1L) {
+    stop("row must be a valid 1-based row index.", call. = FALSE)
+  }
+
+  group_rows <- suppressWarnings(as.integer(group_rows))
+  group_rows <- unique(group_rows[!is.na(group_rows) & group_rows >= 1L])
+  if (length(group_rows) == 0) {
+    group_rows <- row
+  }
+
+  override_type <- normalize_review_override_type(override_type)
+  value <- trimws(as.character(value)[1])
+  if (is.na(value) || !nzchar(value)) {
+    stop("override value must be non-empty.", call. = FALSE)
+  }
+  if (override_type == "dtxsid") {
+    value <- toupper(value)
+  }
+
+  list(
+    row = row,
+    group_rows = group_rows,
+    override_type = override_type,
+    value = value
+  )
+}
+
+normalize_review_override_queue <- function(queue) {
+  if (is.null(queue) || length(queue) == 0) {
+    return(list())
+  }
+
+  entries <- list()
+  queue_names <- names(queue)
+  for (i in seq_along(queue)) {
+    item <- queue[[i]]
+
+    if (is.list(item) && all(c("row", "group_rows", "override_type", "value") %in% names(item))) {
+      entries[[length(entries) + 1L]] <- new_review_override_entry(
+        row = item$row,
+        group_rows = item$group_rows,
+        override_type = item$override_type,
+        value = item$value
+      )
+      next
+    }
+
+    row_name <- if (!is.null(queue_names) && length(queue_names) >= i) queue_names[[i]] else NA_character_
+    row <- suppressWarnings(as.integer(row_name))
+    if (is.na(row)) {
+      next
+    }
+
+    entries[[length(entries) + 1L]] <- new_review_override_entry(
+      row = row,
+      group_rows = row,
+      override_type = "dtxsid",
+      value = item
+    )
+  }
+
+  names(entries) <- vapply(entries, function(entry) {
+    paste0(entry$override_type, ":", entry$row)
+  }, character(1))
+  entries
+}
+
+queue_review_override <- function(queue, row, group_rows, override_type, value) {
+  entry <- new_review_override_entry(row, group_rows, override_type, value)
+  entries <- normalize_review_override_queue(queue)
+
+  entries <- Filter(function(existing) {
+    length(intersect(existing$group_rows, entry$group_rows)) == 0
+  }, entries)
+
+  entries[[length(entries) + 1L]] <- entry
+  names(entries) <- vapply(entries, function(item) {
+    paste0(item$override_type, ":", item$row)
+  }, character(1))
+  entries
+}
+
+review_override_queue_length <- function(queue) {
+  length(normalize_review_override_queue(queue))
+}
+
+queued_dtxsid_values <- function(queue) {
+  entries <- normalize_review_override_queue(queue)
+  dtxsid_entries <- Filter(function(entry) identical(entry$override_type, "dtxsid"), entries)
+  values <- unname(unlist(lapply(dtxsid_entries, function(entry) entry$value), use.names = FALSE))
+  unique(values[!is.na(values) & nzchar(values)])
+}
+
+has_wqx_overrides <- function(queue) {
+  entries <- normalize_review_override_queue(queue)
+  any(vapply(entries, function(entry) identical(entry$override_type, "wqx"), logical(1)))
+}
+
+build_wqx_override_choices <- function(wqx_dictionary) {
+  if (is.null(wqx_dictionary) || !all(c("name", "canonical_name") %in% names(wqx_dictionary))) {
+    return(character(0))
+  }
+
+  canonical <- as.character(wqx_dictionary$canonical_name)
+  names_vec <- as.character(wqx_dictionary$name)
+  keep <- !is.na(canonical) & nzchar(canonical) & !is.na(names_vec) & nzchar(names_vec)
+  if (!any(keep)) {
+    return(character(0))
+  }
+
+  display_type <- if ("type" %in% names(wqx_dictionary)) {
+    ifelse(wqx_dictionary$type == "canonical", "canonical", "alias")
+  } else {
+    rep("canonical", nrow(wqx_dictionary))
+  }
+  labels <- paste0(names_vec[keep], " (", display_type[keep], ")")
+  stats::setNames(canonical[keep], labels)
+}
+
+validate_wqx_override_name <- function(value, wqx_dictionary) {
+  if (is.null(wqx_dictionary) || !all(c("name", "canonical_name") %in% names(wqx_dictionary))) {
+    return(NA_character_)
+  }
+
+  value <- trimws(as.character(value)[1])
+  if (is.na(value) || !nzchar(value)) {
+    return(NA_character_)
+  }
+
+  canonical <- trimws(as.character(wqx_dictionary$canonical_name))
+  names_vec <- trimws(as.character(wqx_dictionary$name))
+
+  canonical_match <- which(!is.na(canonical) & canonical == value)
+  if (length(canonical_match) > 0) {
+    return(canonical[canonical_match[1]])
+  }
+
+  name_match <- which(!is.na(names_vec) & names_vec == value & !is.na(canonical) & nzchar(canonical))
+  if (length(name_match) > 0) {
+    return(canonical[name_match[1]])
+  }
+
+  NA_character_
+}
+
+apply_queued_review_overrides <- function(resolution_state, queue, validation_results = NULL, wqx_dictionary = NULL) {
+  entries <- normalize_review_override_queue(queue)
+  updated_df <- init_resolution_state(resolution_state)
+
+  valid_entries <- 0L
+  valid_rows <- 0L
+  invalid_entries <- 0L
+  invalid_details <- character(0)
+
+  for (entry in entries) {
+    target_rows <- unique(as.integer(entry$group_rows))
+    target_rows <- target_rows[!is.na(target_rows) & target_rows >= 1L & target_rows <= nrow(updated_df)]
+    if (length(target_rows) == 0) {
+      invalid_entries <- invalid_entries + 1L
+      invalid_details <- c(invalid_details, sprintf("Row %d: invalid row target", entry$row))
+      next
+    }
+
+    if (identical(entry$override_type, "dtxsid")) {
+      val_row <- NULL
+      if (!is.null(validation_results) && all(c("searchValue", "dtxsid", "preferredName", "is_valid") %in% names(validation_results))) {
+        val_row <- validation_results[as.character(validation_results$searchValue) == entry$value, , drop = FALSE]
+      }
+
+      if (!is.null(val_row) && nrow(val_row) > 0 && isTRUE(val_row$is_valid[1])) {
+        if (!"consensus_dtxsid" %in% names(updated_df)) {
+          updated_df$consensus_dtxsid <- NA_character_
+        }
+        if (!"consensus_source" %in% names(updated_df)) {
+          updated_df$consensus_source <- NA_character_
+        }
+        if (!"manual_preferredName" %in% names(updated_df)) {
+          updated_df$manual_preferredName <- NA_character_
+        }
+
+        updated_df$consensus_status[target_rows] <- "manual"
+        updated_df$consensus_dtxsid[target_rows] <- val_row$dtxsid[1]
+        updated_df$consensus_source[target_rows] <- "manual_entry"
+        updated_df$.manual_entry[target_rows] <- TRUE
+        updated_df$.pinned[target_rows] <- TRUE
+        updated_df$.resolution_method[target_rows] <- "manual"
+        updated_df$manual_preferredName[target_rows] <- val_row$preferredName[1]
+        if ("wqx_override_name" %in% names(updated_df)) {
+          updated_df$wqx_override_name[target_rows] <- NA_character_
+        }
+
+        valid_entries <- valid_entries + 1L
+        valid_rows <- valid_rows + length(target_rows)
+      } else {
+        invalid_entries <- invalid_entries + 1L
+        invalid_details <- c(invalid_details, sprintf("Row %d: %s", entry$row, entry$value))
+      }
+      next
+    }
+
+    canonical_name <- validate_wqx_override_name(entry$value, wqx_dictionary)
+    if (!is.na(canonical_name) && nzchar(canonical_name)) {
+      if (!"consensus_dtxsid" %in% names(updated_df)) {
+        updated_df$consensus_dtxsid <- NA_character_
+      }
+      if (!"consensus_source" %in% names(updated_df)) {
+        updated_df$consensus_source <- NA_character_
+      }
+      if (!"wqx_override_name" %in% names(updated_df)) {
+        updated_df$wqx_override_name <- NA_character_
+      }
+
+      updated_df$consensus_status[target_rows] <- "wqx"
+      updated_df$consensus_dtxsid[target_rows] <- NA_character_
+      updated_df$consensus_source[target_rows] <- "manual_wqx"
+      updated_df$wqx_override_name[target_rows] <- canonical_name
+      updated_df$.pinned[target_rows] <- TRUE
+      updated_df$.resolution_method[target_rows] <- "manual_wqx"
+      updated_df$.manual_entry[target_rows] <- FALSE
+      if ("manual_preferredName" %in% names(updated_df)) {
+        updated_df$manual_preferredName[target_rows] <- NA_character_
+      }
+
+      valid_entries <- valid_entries + 1L
+      valid_rows <- valid_rows + length(target_rows)
+    } else {
+      invalid_entries <- invalid_entries + 1L
+      invalid_details <- c(invalid_details, sprintf("Row %d: WQX '%s'", entry$row, entry$value))
+    }
+  }
+
+  list(
+    resolution_state = updated_df,
+    valid_entries = valid_entries,
+    valid_rows = valid_rows,
+    invalid_entries = invalid_entries,
+    invalid_details = invalid_details
+  )
+}
+
+review_override_controls <- function(session) {
+  div(
+    class = "border rounded p-3 mt-3 bg-light",
+    tags$h6(class = "mb-3", "Expert Override"),
+    div(
+      class = "row g-3",
+      div(
+        class = "col-md-6",
+        textInput(
+          session$ns("expert_override_dtxsid"),
+          "CompTox DTXSID",
+          value = "",
+          placeholder = "DTXSID..."
+        ),
+        actionButton(
+          session$ns("queue_dtxsid_override"),
+          "Queue DTXSID",
+          class = "btn-outline-primary"
+        )
+      ),
+      div(
+        class = "col-md-6",
+        selectizeInput(
+          session$ns("expert_override_wqx"),
+          "WQX Characteristic",
+          choices = NULL,
+          options = list(
+            placeholder = "Type to search WQX names...",
+            maxOptions = 20
+          )
+        ),
+        actionButton(
+          session$ns("queue_wqx_override"),
+          "Queue WQX",
+          class = "btn-outline-success"
+        )
+      )
+    )
+  )
 }
 
 clean_column_names <- function(x) {
@@ -587,12 +892,18 @@ mod_review_results_ui <- function(id) {
       var row = $(this).data('row');
       Shiny.setInputValue('%s', {row: row, t: Math.random()}, {priority: 'event'});
     });
+
+    $(document).on('click', '.expert-override-btn', function() {
+      var row = $(this).data('row');
+      Shiny.setInputValue('%s', {row: row, t: Math.random()}, {priority: 'event'});
+    });
   ",
     ns("compare_row_click"),
     ns("compare_row_click"),
     ns("modal_candidate_select"),
     ns("confirm_container"),
-    ns("wqx_review_click")
+    ns("wqx_review_click"),
+    ns("expert_override_click")
   )))
 
   # Inline DTXSID editing JavaScript (namespace-aware)
@@ -850,6 +1161,105 @@ mod_review_results_ui <- function(id) {
 #' @export
 mod_review_results_server <- function(id, data_store) {
   moduleServer(id, function(input, output, session) {
+    load_wqx_override_choices <- function() {
+      tryCatch(
+        {
+          cache_dir <- resolve_reference_cache_dir()
+          build_wqx_override_choices(load_wqx_dictionary(cache_dir))
+        },
+        error = function(e) {
+          showNotification(
+            paste0("WQX dictionary unavailable: ", conditionMessage(e)),
+            type = "warning",
+            duration = 6
+          )
+          character(0)
+        }
+      )
+    }
+
+    update_wqx_override_selectize <- function(input_id = "expert_override_wqx") {
+      choices <- load_wqx_override_choices()
+      session$onFlushed(
+        function() {
+          updateSelectizeInput(session, input_id, choices = choices, selected = character(0), server = TRUE)
+        },
+        once = TRUE
+      )
+      invisible(choices)
+    }
+
+    show_expert_override_modal <- function(row_idx) {
+      req(data_store$resolution_state)
+
+      row_idx <- suppressWarnings(as.integer(row_idx)[1])
+      if (is.na(row_idx) || row_idx < 1L || row_idx > nrow(data_store$resolution_state)) {
+        return()
+      }
+
+      data_store$override_modal_row_idx <- row_idx
+      row_status <- as.character(data_store$resolution_state$consensus_status[row_idx])
+
+      showModal(modalDialog(
+        title = "Expert Override",
+        tagList(
+          div(class = "text-muted small mb-2", sprintf("Row %d - %s", row_idx, row_status)),
+          review_override_controls(session)
+        ),
+        footer = modalButton("Close"),
+        size = "l",
+        easyClose = TRUE
+      ))
+
+      update_wqx_override_selectize()
+    }
+
+    queue_current_review_override <- function(override_type, value) {
+      row_idx <- data_store$override_modal_row_idx
+      if (is.null(row_idx)) {
+        showNotification("No row selected for override", type = "warning")
+        return(FALSE)
+      }
+
+      override_type <- normalize_review_override_type(override_type)
+      value <- trimws(as.character(value)[1])
+      if (is.na(value) || !nzchar(value)) {
+        showNotification("Enter an override value first", type = "warning")
+        return(FALSE)
+      }
+      if (override_type == "dtxsid" && !grepl("^DTXSID\\d+$", value, ignore.case = TRUE)) {
+        showNotification(
+          paste0("Invalid format: ", value, ". Expected: DTXSIDxxxxxxx"),
+          type = "warning",
+          duration = 5
+        )
+        return(FALSE)
+      }
+
+      group_rows <- get_group_rows(row_idx, isolate(data_store$dedup_group_map))
+      data_store$manual_queue <- queue_review_override(
+        queue = data_store$manual_queue,
+        row = row_idx,
+        group_rows = group_rows,
+        override_type = override_type,
+        value = value
+      )
+
+      label <- if (override_type == "dtxsid") "DTXSID" else "WQX"
+      showNotification(
+        sprintf("%s override queued for %d row(s)", label, length(group_rows)),
+        type = "message",
+        duration = 3
+      )
+
+      removeModal()
+      data_store$override_modal_row_idx <- NULL
+      data_store$modal_row_idx <- NULL
+      data_store$modal_selected_column <- NULL
+      data_store$wqx_modal_row_idx <- NULL
+      TRUE
+    }
+
     # Curation statistics
     output$curation_stats <- renderUI({
       req(data_store$consensus_summary, data_store$resolution_state)
@@ -1580,9 +1990,13 @@ mod_review_results_server <- function(id, data_store) {
       }
 
       group_rows <- get_group_rows(row_idx, isolate(data_store$dedup_group_map))
-      for (r in group_rows) {
-        data_store$manual_queue[[as.character(r)]] <- new_value
-      }
+      data_store$manual_queue <- queue_review_override(
+        queue = data_store$manual_queue,
+        row = row_idx,
+        group_rows = group_rows,
+        override_type = "dtxsid",
+        value = new_value
+      )
 
       n_grp <- length(group_rows)
       msg <- if (n_grp > 1) {
@@ -1595,12 +2009,24 @@ mod_review_results_server <- function(id, data_store) {
 
     # Toggle Validate All button visibility based on queue length
     observe({
-      has_queued <- length(data_store$manual_queue) > 0
+      has_queued <- review_override_queue_length(data_store$manual_queue) > 0
       if (has_queued) {
         shinyjs::show("validate_all")
       } else {
         shinyjs::hide("validate_all")
       }
+    })
+
+    observeEvent(input$expert_override_click, {
+      show_expert_override_modal(input$expert_override_click$row)
+    })
+
+    observeEvent(input$queue_dtxsid_override, {
+      queue_current_review_override("dtxsid", input$expert_override_dtxsid)
+    })
+
+    observeEvent(input$queue_wqx_override, {
+      queue_current_review_override("wqx", input$expert_override_wqx)
     })
 
     # Show/hide Accept All Suggestions based on suggested row count
@@ -1693,6 +2119,7 @@ mod_review_results_server <- function(id, data_store) {
 
       # Store modal state
       data_store$modal_row_idx <- row_idx
+      data_store$override_modal_row_idx <- row_idx
       data_store$modal_selected_column <- NULL
 
       current_flag <- if ("row_flag" %in% names(data_store$resolution_state)) {
@@ -1898,11 +2325,13 @@ mod_review_results_server <- function(id, data_store) {
       # Show modal
       showModal(modalDialog(
         title = "Compare Candidates",
-        tagList(tagged_summary, flag_controls, cards_container),
+        tagList(tagged_summary, flag_controls, cards_container, review_override_controls(session)),
         footer = footer,
         size = "l",
         easyClose = TRUE
       ))
+
+      update_wqx_override_selectize()
     })
 
     observeEvent(input$modal_row_flag, {
@@ -1975,6 +2404,7 @@ mod_review_results_server <- function(id, data_store) {
 
       data_store$modal_row_idx <- NULL
       data_store$modal_selected_column <- NULL
+      data_store$override_modal_row_idx <- NULL
     })
 
     # Handle Accept Suggestion from modal (suggested rows only)
@@ -2020,6 +2450,7 @@ mod_review_results_server <- function(id, data_store) {
 
           data_store$modal_row_idx <- NULL
           data_store$modal_selected_column <- NULL
+          data_store$override_modal_row_idx <- NULL
         },
         error = function(e) {
           showNotification(paste0("Error accepting suggestion: ", e$message), type = "error")
@@ -2049,79 +2480,81 @@ mod_review_results_server <- function(id, data_store) {
 
       data_store$modal_row_idx <- NULL
       data_store$modal_selected_column <- NULL
+      data_store$override_modal_row_idx <- NULL
     })
 
     # Handle Validate All button for manual DTXSID entries
     observeEvent(input$validate_all, {
       queue <- data_store$manual_queue
-      if (length(queue) == 0) {
-        showNotification("No manual entries to validate", type = "warning", duration = 3)
+      entries <- normalize_review_override_queue(queue)
+      if (length(entries) == 0) {
+        showNotification("No overrides to validate", type = "warning", duration = 3)
         return()
       }
 
-      row_indices <- as.integer(names(queue))
-      all_dtxsids <- unname(unlist(queue))
-      unique_dtxsids <- unique(all_dtxsids)
+      unique_dtxsids <- queued_dtxsid_values(entries)
+      needs_wqx_dictionary <- has_wqx_overrides(entries)
 
       # Disable button during validation
       shinyjs::disable("validate_all")
       on.exit(shinyjs::enable("validate_all"))
 
-      withProgress(message = "Validating manual DTXSIDs...", value = 0, {
-        incProgress(0.1, detail = sprintf("Validating %d entries...", length(unique_dtxsids)))
-
-        validation_results <- validate_manual_dtxsids(unique_dtxsids)
-
-        incProgress(0.6, detail = "Updating results...")
-
-        updated_df <- data_store$resolution_state
-        n_valid <- 0
-        n_invalid <- 0
-        invalid_details <- c()
-
-        for (i in seq_along(row_indices)) {
-          row_idx <- row_indices[i]
-          entered_dtxsid <- queue[[as.character(row_idx)]]
-
-          val_row <- validation_results[validation_results$searchValue == entered_dtxsid, ]
-
-          if (nrow(val_row) > 0 && isTRUE(val_row$is_valid[1])) {
-            # Valid: update consensus
-            updated_df$consensus_dtxsid[row_idx] <- val_row$dtxsid[1]
-            updated_df$consensus_status[row_idx] <- "manual"
-            updated_df$consensus_source[row_idx] <- "manual_entry"
-            updated_df$.manual_entry[row_idx] <- TRUE
-
-            # Store preferredName in manual_preferredName column
-            if (!"manual_preferredName" %in% names(updated_df)) {
-              updated_df$manual_preferredName <- NA_character_
-            }
-            updated_df$manual_preferredName[row_idx] <- val_row$preferredName[1]
-
-            n_valid <- n_valid + 1
-          } else {
-            # Invalid: keep error status, track for feedback
-            invalid_details <- c(invalid_details, sprintf("Row %d: %s", row_idx, entered_dtxsid))
-            n_invalid <- n_invalid + 1
-          }
+      apply_result <- NULL
+      withProgress(message = "Validating queued overrides...", value = 0, {
+        validation_results <- NULL
+        if (length(unique_dtxsids) > 0) {
+          incProgress(0.2, detail = sprintf("Validating %d DTXSID(s)...", length(unique_dtxsids)))
+          validation_results <- validate_manual_dtxsids(unique_dtxsids)
+        } else {
+          incProgress(0.2, detail = "No DTXSID overrides queued")
         }
 
-        data_store$resolution_state <- updated_df
+        wqx_dictionary <- NULL
+        if (needs_wqx_dictionary) {
+          incProgress(0.2, detail = "Loading WQX dictionary...")
+          wqx_dictionary <- tryCatch(
+            load_wqx_dictionary(resolve_reference_cache_dir()),
+            error = function(e) {
+              showNotification(
+                paste0("WQX dictionary unavailable: ", conditionMessage(e)),
+                type = "warning",
+                duration = 6
+              )
+              NULL
+            }
+          )
+        } else {
+          incProgress(0.2, detail = "No WQX overrides queued")
+        }
+
+        incProgress(0.4, detail = "Updating results...")
+        apply_result <- apply_queued_review_overrides(
+          resolution_state = data_store$resolution_state,
+          queue = entries,
+          validation_results = validation_results,
+          wqx_dictionary = wqx_dictionary
+        )
+
+        data_store$resolution_state <- apply_result$resolution_state
 
         # Clear queue
         data_store$manual_queue <- list()
 
-        incProgress(0.3, detail = "Done")
+        incProgress(0.2, detail = "Done")
       })
 
       # Summary notification
-      msg <- sprintf("Validation complete: %d validated, %d failed", n_valid, n_invalid)
-      showNotification(msg, type = if (n_invalid > 0) "warning" else "message", duration = 8)
+      msg <- sprintf(
+        "Validation complete: %d row(s) updated, %d failed",
+        apply_result$valid_rows,
+        apply_result$invalid_entries
+      )
+      showNotification(msg, type = if (apply_result$invalid_entries > 0) "warning" else "message", duration = 8)
 
       # Detail notification for failures
-      if (n_invalid > 0) {
+      if (apply_result$invalid_entries > 0) {
         showNotification(
-          paste("Failed entries:", paste(invalid_details, collapse = "; ")),
+          paste("Failed entries:", paste(apply_result$invalid_details, collapse = "; ")),
           type = "error",
           duration = NULL # Stays until dismissed
         )
@@ -2643,6 +3076,7 @@ mod_review_results_server <- function(id, data_store) {
 
       row <- data_store$resolution_state[row_idx, ]
       data_store$wqx_modal_row_idx <- row_idx
+      data_store$override_modal_row_idx <- row_idx
 
       # Read display context
       name_cols <- names(data_store$column_tags)[data_store$column_tags == "Name"]
@@ -2701,37 +3135,15 @@ mod_review_results_server <- function(id, data_store) {
         }
       )
 
-      # Type-ahead section (per D-06, UI-SPEC)
-      typeahead_section <- div(
-        tags$h6(class = "mt-3 mb-2", "Find a Different WQX Name"),
-        selectizeInput(
-          session$ns("wqx_typeahead"),
-          label = NULL,
-          choices = NULL,
-          options = list(
-            placeholder = "Type to search WQX names...",
-            maxOptions = 20
-          )
-        )
-      )
+      override_section <- review_override_controls(session)
 
-      # Modal footer: Accept Current, Use Selected Name (hidden), Reject Match
+      # Modal footer: Accept Current, Reject Match
       footer <- tagList(
         tags$button(
           class = "btn btn-outline-secondary",
           `data-dismiss` = "modal",
           `data-bs-dismiss` = "modal",
           "Accept Current"
-        ),
-        div(
-          id = session$ns("wqx_confirm_container"),
-          style = "display:inline-block;",
-          actionButton(
-            session$ns("wqx_modal_confirm"),
-            "Use Selected Name",
-            class = "btn-primary",
-            style = "display:none;"
-          )
         ),
         tags$button(
           class = "btn btn-outline-danger",
@@ -2745,7 +3157,7 @@ mod_review_results_server <- function(id, data_store) {
 
       showModal(modalDialog(
         title = "Review WQX Match",
-        tagList(context_card, typeahead_section),
+        tagList(context_card, override_section),
         footer = footer,
         size = "l",
         easyClose = TRUE
@@ -2755,17 +3167,7 @@ mod_review_results_server <- function(id, data_store) {
       # both showModal and updateSelectizeInput land in the same flush — and Shiny's
       # client processes inputMessages before modal, so the update targets a DOM
       # element that doesn't exist yet and is silently dropped.
-      cache_dir <- resolve_reference_cache_dir()
-      wqx_dict <- load_wqx_dictionary(cache_dir)
-      display_type <- ifelse(wqx_dict$type == "canonical", "canonical", "alias")
-      wqx_labels <- paste0(wqx_dict$name, " (", display_type, ")")
-      wqx_choices <- stats::setNames(wqx_dict$canonical_name, wqx_labels)
-      session$onFlushed(
-        function() {
-          updateSelectizeInput(session, "wqx_typeahead", choices = wqx_choices, server = TRUE)
-        },
-        once = TRUE
-      )
+      update_wqx_override_selectize()
     })
 
     # Show "Use Selected Name" button when type-ahead selection is made
@@ -2784,36 +3186,7 @@ mod_review_results_server <- function(id, data_store) {
 
     # Handle WQX modal confirm — override with type-ahead selection
     observeEvent(input$wqx_modal_confirm, {
-      row_idx <- data_store$wqx_modal_row_idx
-      new_name <- input$wqx_typeahead
-
-      if (is.null(new_name) || new_name == "") {
-        showNotification("Please select a WQX name first", type = "warning")
-        return()
-      }
-
-      # Group-propagated mutation (per D-08: consensus_status stays "wqx", preferredName updated)
-      group_rows <- get_group_rows(row_idx, isolate(data_store$dedup_group_map))
-      updated_df <- data_store$resolution_state
-
-      # Initialize wqx_override_name column if it doesn't exist
-      if (!"wqx_override_name" %in% names(updated_df)) {
-        updated_df$wqx_override_name <- NA_character_
-      }
-
-      for (r in group_rows) {
-        updated_df$wqx_override_name[r] <- new_name
-        # consensus_status stays "wqx" per D-08 — no change
-      }
-      data_store$resolution_state <- updated_df
-      data_store$consensus_summary <- recalc_consensus_summary(updated_df)
-
-      removeModal()
-      showNotification(
-        sprintf("WQX match overridden for %d row(s): %s", length(group_rows), new_name),
-        type = "message"
-      )
-      data_store$wqx_modal_row_idx <- NULL
+      queue_current_review_override("wqx", input$wqx_typeahead)
     })
 
     # Handle WQX reject — mark row unresolvable
@@ -2843,6 +3216,7 @@ mod_review_results_server <- function(id, data_store) {
         type = "message"
       )
       data_store$wqx_modal_row_idx <- NULL
+      data_store$override_modal_row_idx <- NULL
     })
 
     # Curation completed indicator
