@@ -79,6 +79,34 @@ test_that("mod_clean_data_server initializes without error", {
   })
 })
 
+test_that("mod_clean_data_server renders multi-CAS section with generated CAS column", {
+  data_store <- create_test_store()
+  data_store$column_tags <- list(
+    cas_number = "CASRN",
+    cas_extract_cas_number_2 = "CASRN",
+    chemical_name = "Name"
+  )
+  data_store$cleaned_data <- tibble::tibble(
+    original_row_id = 1L,
+    cas_number = "67-64-1",
+    cas_extract_cas_number_2 = "64-17-5",
+    chemical_name = "acetone",
+    multi_cas = TRUE,
+    multi_cas_count = 2L
+  )
+
+  shiny::testServer(mod_clean_data_server, args = list(
+    data_store = data_store,
+    on_cleaning_complete = NULL
+  ), {
+    session$flushReact()
+    section <- NULL
+
+    expect_error(section <- output$multi_cas_section, NA)
+    expect_false(is.null(section))
+  })
+})
+
 test_that("mod_tag_columns_server initializes without error", {
   shiny::testServer(mod_tag_columns_server, args = list(
     data_store = create_test_store(),
