@@ -230,6 +230,7 @@ server <- function(input, output, session) {
             data_store$reference_lists,
             imported_config()$reference_lists
           )
+          concert::save_user_reference_lists(data_store$reference_lists)
           shiny::showNotification(
             "Reference lists imported and merged successfully",
             type = "message",

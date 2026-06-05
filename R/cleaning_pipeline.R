@@ -1806,8 +1806,13 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
   # Pre-compile all regex patterns ONCE (outside all loops) - fixes O(rows*terms) compilation
 
   ref_terms_lower <- tolower(active_refs$term)
+  use_regex_patterns <- identical(flag_label, "block pattern")
   compiled_patterns <- lapply(active_refs$term, function(term) {
-    escaped_term <- stringr::str_replace_all(term, "([/.])", "\\\\\\1")
+    if (use_regex_patterns) {
+      return(stringr::regex(term, ignore_case = TRUE))
+    }
+
+    escaped_term <- stringr::str_replace_all(term, "([\\\\/.\\[\\](){}|?+*^$])", "\\\\\\1")
     stringr::regex(paste0("\\b", escaped_term, "\\b"), ignore_case = TRUE)
   })
 

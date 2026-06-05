@@ -12,7 +12,8 @@
 #' @param resolution_state Curated data with consensus_dtxsid, consensus_status
 #' @param consensus_summary List with n_agree, n_disagree, etc.
 #' @param cleaning_audit Data frame with audit trail (may be NULL)
-#' @param reference_lists List with $functional_categories, $stop_words, $block_patterns
+#' @param reference_lists List with $functional_categories, $stop_words,
+#'   $block_patterns, and $strip_terms
 #' @param column_tags Named list of all applied column tags.
 #' @param detection List with $method, $confidence
 #' @param file_info List with $name, $size
@@ -118,10 +119,14 @@ build_export_sheets <- function(
   }
 
   # Sheet 5: Reference Lists (combined with type column)
+  strip_terms <- reference_lists$strip_terms %||%
+    tibble::tibble(term = character(), source = character(), active = logical())
+
   reference_lists_sheet <- dplyr::bind_rows(
     reference_lists$functional_categories %>% dplyr::mutate(type = "functional_category"),
     reference_lists$stop_words %>% dplyr::mutate(type = "stop_word"),
-    reference_lists$block_patterns %>% dplyr::mutate(type = "block_pattern")
+    reference_lists$block_patterns %>% dplyr::mutate(type = "block_pattern"),
+    strip_terms %>% dplyr::mutate(type = "strip_term")
   ) %>%
     dplyr::select(type, term, source, active)
 
