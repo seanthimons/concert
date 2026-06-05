@@ -59,6 +59,11 @@ create_test_data <- function() {
       term = c("^\\s*$", "^-+$"),
       source = c("app_default", "app_default"),
       active = c(TRUE, TRUE)
+    ),
+    strip_terms = tibble::tibble(
+      term = c("pure", "modified"),
+      source = c("app_default", "legacy_review"),
+      active = c(TRUE, FALSE)
     )
   )
 
@@ -398,11 +403,38 @@ test_that("Reference Lists type values are singular (no plurals)", {
   expect_true("functional_category" %in% unique_types)
   expect_true("stop_word" %in% unique_types)
   expect_true("block_pattern" %in% unique_types)
+  expect_true("strip_term" %in% unique_types)
 
   # Should NOT have plural forms
   expect_false("functional_categories" %in% unique_types)
   expect_false("stop_words" %in% unique_types)
   expect_false("block_patterns" %in% unique_types)
+  expect_false("strip_terms" %in% unique_types)
+})
+
+test_that("Reference Lists strip_term round-trips through Excel export parsing", {
+  test_data <- create_test_data()
+
+  sheets <- build_export_sheets(
+    raw = test_data$raw,
+    resolution_state = test_data$resolution_state,
+    consensus_summary = test_data$consensus_summary,
+    cleaning_audit = test_data$cleaning_audit,
+    reference_lists = test_data$reference_lists,
+    column_tags = test_data$column_tags,
+    detection = test_data$detection,
+    file_info = test_data$file_info
+  )
+
+  temp_file <- tempfile(fileext = ".xlsx")
+  writexl::write_xlsx(sheets, temp_file)
+  on.exit(unlink(temp_file), add = TRUE)
+
+  parsed <- parse_concert_export(temp_file)
+  strip_rows <- parsed$reference_lists %>%
+    dplyr::filter(type == "strip_term")
+
+  expect_equal(sort(strip_rows$term), c("modified", "pure"))
 })
 
 test_that("Pipeline Config has key and value columns", {
@@ -606,15 +638,20 @@ test_that("merge_reference_lists with non-overlapping terms appends imported ent
       term = c("^\\s*$", "^-+$"),
       source = c("app_default", "app_default"),
       active = c(TRUE, TRUE)
+    ),
+    strip_terms = tibble::tibble(
+      term = c("pure", "grade"),
+      source = c("app_default", "app_default"),
+      active = c(TRUE, TRUE)
     )
   )
 
   # Imported data (non-overlapping)
   imported <- tibble::tibble(
-    type = c("functional_category", "stop_word", "block_pattern"),
-    term = c("catalyst", "blank", "^[.]+$"),
-    source = c("imported", "imported", "imported"),
-    active = c(TRUE, TRUE, TRUE)
+    type = c("functional_category", "stop_word", "block_pattern", "strip_term"),
+    term = c("catalyst", "blank", "^[.]+$", "modified"),
+    source = c("imported", "imported", "imported", "imported"),
+    active = c(TRUE, TRUE, TRUE, FALSE)
   )
 
   result <- merge_reference_lists(existing, imported)
@@ -623,11 +660,13 @@ test_that("merge_reference_lists with non-overlapping terms appends imported ent
   expect_true("catalyst" %in% result$functional_categories$term)
   expect_true("blank" %in% result$stop_words$term)
   expect_true("^[.]+$" %in% result$block_patterns$term)
+  expect_true("modified" %in% result$strip_terms$term)
 
   # Check counts
   expect_equal(nrow(result$functional_categories), 3) # 2 existing + 1 imported
   expect_equal(nrow(result$stop_words), 3)
   expect_equal(nrow(result$block_patterns), 3)
+  expect_equal(nrow(result$strip_terms), 3)
 })
 
 test_that("merge_reference_lists with overlapping terms keeps imported version", {
@@ -647,15 +686,20 @@ test_that("merge_reference_lists with overlapping terms keeps imported version",
       term = c("^\\s*$", "^-+$"),
       source = c("app_default", "app_default"),
       active = c(TRUE, TRUE)
+    ),
+    strip_terms = tibble::tibble(
+      term = c("pure", "grade"),
+      source = c("app_default", "app_default"),
+      active = c(TRUE, TRUE)
     )
   )
 
-  # Imported data (overlapping term "solvent")
+  # Imported data (overlapping terms)
   imported <- tibble::tibble(
-    type = c("functional_category"),
-    term = c("solvent"),
-    source = c("user_edit"), # Will be overwritten to "imported"
-    active = c(FALSE)
+    type = c("functional_category", "strip_term"),
+    term = c("solvent", "pure"),
+    source = c("user_edit", "user_edit"), # Will be overwritten to "imported"
+    active = c(FALSE, FALSE)
   )
 
   result <- merge_reference_lists(existing, imported)
@@ -670,9 +714,15 @@ test_that("merge_reference_lists with overlapping terms keeps imported version",
 
   # Should still have 2 entries (not duplicated)
   expect_equal(nrow(result$functional_categories), 2)
+
+  pure_entry <- result$strip_terms %>%
+    dplyr::filter(term == "pure")
+  expect_equal(pure_entry$source, "imported")
+  expect_false(pure_entry$active)
+  expect_equal(nrow(result$strip_terms), 2)
 })
 
-test_that("merge_reference_lists preserves all three list types", {
+test_that("merge_reference_lists preserves all four reference list types", {
   existing <- list(
     functional_categories = tibble::tibble(
       term = c("solvent"),
@@ -688,25 +738,32 @@ test_that("merge_reference_lists preserves all three list types", {
       term = c("^\\s*$"),
       source = c("app_default"),
       active = c(TRUE)
+    ),
+    strip_terms = tibble::tibble(
+      term = c("pure"),
+      source = c("app_default"),
+      active = c(TRUE)
     )
   )
 
   imported <- tibble::tibble(
-    type = c("functional_category", "stop_word", "block_pattern"),
-    term = c("catalyst", "blank", "^[.]+$"),
-    source = c("imported", "imported", "imported"),
-    active = c(TRUE, TRUE, TRUE)
+    type = c("functional_category", "stop_word", "block_pattern", "strip_term"),
+    term = c("catalyst", "blank", "^[.]+$", "modified"),
+    source = c("imported", "imported", "imported", "imported"),
+    active = c(TRUE, TRUE, TRUE, FALSE)
   )
 
   result <- merge_reference_lists(existing, imported)
 
-  # All three list types should exist
+  # All four reference list types should exist
   expect_true("functional_categories" %in% names(result))
   expect_true("stop_words" %in% names(result))
   expect_true("block_patterns" %in% names(result))
+  expect_true("strip_terms" %in% names(result))
 
   # Each should have 2 entries
   expect_equal(nrow(result$functional_categories), 2)
   expect_equal(nrow(result$stop_words), 2)
   expect_equal(nrow(result$block_patterns), 2)
+  expect_equal(nrow(result$strip_terms), 2)
 })
