@@ -131,6 +131,16 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       }
     })
 
+    update_persistent_reference_list <- function(type, term, active = TRUE, action = c("add", "remove", "toggle")) {
+      data_store$reference_lists[[type]] <- update_user_reference_list(
+        type = type,
+        term = term,
+        active = active,
+        action = action,
+        cache_dir = resolve_reference_cache_dir()
+      )
+    }
+
     # Has data indicator for conditionalPanel
     # Requires both Name AND CASRN columns tagged for cleaning pipeline
     output$has_data <- reactive({
@@ -1058,6 +1068,11 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       msg <- input$chip_toggle
       req(msg$type, msg$term)
 
+      if (msg$type %in% user_reference_list_names()) {
+        update_persistent_reference_list(msg$type, msg$term, action = "toggle")
+        return()
+      }
+
       tbl <- data_store$reference_lists[[msg$type]]
       idx <- which(tbl$term == msg$term)
       if (length(idx) > 0) {
@@ -1070,6 +1085,11 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
     observeEvent(input$chip_remove, {
       msg <- input$chip_remove
       req(msg$type, msg$term)
+
+      if (msg$type %in% user_reference_list_names()) {
+        update_persistent_reference_list(msg$type, msg$term, action = "remove")
+        return()
+      }
 
       tbl <- data_store$reference_lists[[msg$type]]
       idx <- which(tbl$term == msg$term & tbl$source != "app_default")
@@ -1097,7 +1117,11 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       }
 
       new_row <- tibble::tibble(term = msg$term, source = "user", active = TRUE)
-      data_store$reference_lists[[msg$type]] <- dplyr::bind_rows(tbl, new_row)
+      if (msg$type %in% user_reference_list_names()) {
+        update_persistent_reference_list(msg$type, msg$term, action = "add")
+      } else {
+        data_store$reference_lists[[msg$type]] <- dplyr::bind_rows(tbl, new_row)
+      }
     })
 
     # CSV upload handler
@@ -1114,7 +1138,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
             showModal(modalDialog(
               title = "Invalid CSV",
               "The CSV must have a 'type' column.",
-              "Allowed values: functional_category, stop_word, block_pattern",
+              "Allowed values: functional_category, stop_word, block_pattern, strip_term",
               easyClose = TRUE,
               footer = modalButton("OK")
             ))
@@ -1152,6 +1176,12 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
           for (i in seq_len(nrow(uploaded_data))) {
             type_val <- uploaded_data$type[i]
             term_val <- uploaded_data$term[i]
+            active_val <- if ("active" %in% names(uploaded_data)) {
+              active_parsed <- as.logical(uploaded_data$active[i])
+              if (is.na(active_parsed)) TRUE else active_parsed
+            } else {
+              TRUE
+            }
 
             if (is.na(term_val) || term_val == "") {
               next
@@ -1160,7 +1190,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
             new_row <- tibble::tibble(
               term = term_val,
               source = "user",
-              active = TRUE
+              active = active_val
             )
 
             if (type_val == "functional_category") {
@@ -1170,22 +1200,13 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
               )
               n_added <- n_added + 1
             } else if (type_val == "stop_word") {
-              data_store$reference_lists$stop_words <- dplyr::bind_rows(
-                data_store$reference_lists$stop_words,
-                new_row
-              )
+              update_persistent_reference_list("stop_words", term_val, active = active_val, action = "add")
               n_added <- n_added + 1
             } else if (type_val == "block_pattern") {
-              data_store$reference_lists$block_patterns <- dplyr::bind_rows(
-                data_store$reference_lists$block_patterns,
-                new_row
-              )
+              update_persistent_reference_list("block_patterns", term_val, active = active_val, action = "add")
               n_added <- n_added + 1
             } else if (type_val == "strip_term") {
-              data_store$reference_lists$strip_terms <- dplyr::bind_rows(
-                data_store$reference_lists$strip_terms,
-                new_row
-              )
+              update_persistent_reference_list("strip_terms", term_val, active = active_val, action = "add")
               n_added <- n_added + 1
             }
           }
