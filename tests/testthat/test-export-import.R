@@ -12,6 +12,18 @@ create_test_data <- function() {
     quantity = c(500, 1000, 250)
   )
 
+  ingest_raw <- tibble::tibble(
+    V1 = c("chemical_name", "Acetone", "Ethanol", "Benzene"),
+    V2 = c("cas_number", "67-64-1", "64-17-5", "71-43-2"),
+    V3 = c("quantity", "500", "1000", "250")
+  )
+
+  cleaned_data <- raw %>%
+    dplyr::mutate(
+      original_row_id = dplyr::row_number(),
+      cleaning_flag = c(NA_character_, "WARN: functional category [exact]", NA_character_)
+    )
+
   # Resolution state (curated data)
   resolution_state <- tibble::tibble(
     chemical_name = c("Acetone", "Ethanol", "Benzene"),
@@ -19,7 +31,9 @@ create_test_data <- function() {
     consensus_dtxsid = c("DTXSID3020001", "DTXSID5020584", NA),
     consensus_status = c("agree", "agree_caveat", "error"),
     .pinned = c(FALSE, FALSE, TRUE),
-    .manual_entry = c(FALSE, FALSE, TRUE)
+    .manual_entry = c(FALSE, FALSE, TRUE),
+    .suggested_column = c(NA_character_, "dtxsid_cas_number", NA_character_),
+    row_flag = c(NA_character_, "FOLLOW-UP", "VERIFIED")
   )
 
   # Consensus summary
@@ -77,7 +91,8 @@ create_test_data <- function() {
   # Detection info
   detection <- list(
     method = "heuristic",
-    confidence = 0.95
+    confidence = 0.95,
+    header_row = 1L
   )
 
   # File info
@@ -88,6 +103,8 @@ create_test_data <- function() {
 
   list(
     raw = raw,
+    ingest_raw = ingest_raw,
+    cleaned_data = cleaned_data,
     resolution_state = resolution_state,
     consensus_summary = consensus_summary,
     cleaning_audit = cleaning_audit,
@@ -100,7 +117,7 @@ create_test_data <- function() {
 
 # ===== Test Suite: multi-sheet export =====
 
-test_that("build_export_sheets returns list of length 8", {
+test_that("build_export_sheets returns list of length 9 without optional cleaned data", {
   test_data <- create_test_data()
 
   sheets <- build_export_sheets(
@@ -115,7 +132,7 @@ test_that("build_export_sheets returns list of length 8", {
   )
 
   expect_type(sheets, "list")
-  expect_length(sheets, 8)
+  expect_length(sheets, 9)
 })
 
 test_that("Sheet names match expected", {
@@ -140,10 +157,59 @@ test_that("Sheet names match expected", {
     "Reference Lists",
     "Column Tags",
     "Pipeline Config",
+    "Session State",
     "ToxVal Output"
   )
 
   expect_equal(names(sheets), expected_names)
+})
+
+test_that("Cleaned Data sheet is included when cleaned_data is provided", {
+  test_data <- create_test_data()
+
+  sheets <- build_export_sheets(
+    raw = test_data$raw,
+    resolution_state = test_data$resolution_state,
+    consensus_summary = test_data$consensus_summary,
+    cleaning_audit = test_data$cleaning_audit,
+    reference_lists = test_data$reference_lists,
+    column_tags = test_data$column_tags,
+    detection = test_data$detection,
+    file_info = test_data$file_info,
+    cleaned_data = test_data$cleaned_data
+  )
+
+  expect_true("Cleaned Data" %in% names(sheets))
+  expect_equal(sheets[["Cleaned Data"]], test_data$cleaned_data)
+})
+
+test_that("Session State sheet contains internal state and zero summary counts", {
+  test_data <- create_test_data()
+
+  sheets <- build_export_sheets(
+    raw = test_data$raw,
+    resolution_state = test_data$resolution_state,
+    consensus_summary = test_data$consensus_summary,
+    cleaning_audit = test_data$cleaning_audit,
+    reference_lists = test_data$reference_lists,
+    column_tags = test_data$column_tags,
+    detection = test_data$detection,
+    file_info = test_data$file_info
+  )
+
+  session_state <- sheets[["Session State"]]
+  row_state <- session_state %>% dplyr::filter(record_type == "row_state")
+  summary_state <- session_state %>% dplyr::filter(record_type == "consensus_summary")
+
+  expect_equal(row_state$.pinned, test_data$resolution_state$.pinned)
+  expect_equal(row_state$.manual_entry, test_data$resolution_state$.manual_entry)
+  expect_equal(row_state$.suggested_column, test_data$resolution_state$.suggested_column)
+  expect_equal(row_state$row_flag, test_data$resolution_state$row_flag)
+
+  zero_counts <- summary_state %>%
+    dplyr::filter(key %in% c("n_disagree", "n_manual")) %>%
+    dplyr::pull(value)
+  expect_equal(zero_counts, c("0", "0"))
 })
 
 test_that("Sheet 8 ToxVal Output contains placeholder when toxval_output is NULL", {
@@ -159,9 +225,9 @@ test_that("Sheet 8 ToxVal Output contains placeholder when toxval_output is NULL
     file_info = td$file_info
   )
 
-  expect_equal(length(sheets), 8)
+  expect_equal(length(sheets), 9)
   expect_true("ToxVal Output" %in% names(sheets))
-  expect_equal(names(sheets[[8]]), "note")
+  expect_equal(names(sheets[["ToxVal Output"]]), "note")
   expect_true(grepl("Harmonization not run", sheets[["ToxVal Output"]]$note))
 })
 
@@ -192,7 +258,7 @@ test_that("Sheet 8 ToxVal Output contains data when toxval_output provided", {
     toxval_output = toxval_data
   )
 
-  expect_equal(length(sheets), 8)
+  expect_equal(length(sheets), 9)
   expect_equal(ncol(sheets[["ToxVal Output"]]), 56)
   expect_equal(sheets[["ToxVal Output"]]$dtxsid, "DTXSID7020182")
 })
@@ -227,7 +293,7 @@ test_that("Harmonization Audit sheet is appended when harmonize_audit is provide
     harmonize_audit = harmonize_audit
   )
 
-  expect_length(sheets, 9)
+  expect_length(sheets, 10)
   expect_true("Harmonization Audit" %in% names(sheets))
   expect_equal(sheets[["Harmonization Audit"]], harmonize_audit)
 })
@@ -302,6 +368,7 @@ test_that("Curated Data includes row_flag without extra flag metadata", {
 test_that("Curated Data initializes missing row_flag and keeps BAD separate from needs_review", {
   test_data <- create_test_data()
   test_data$resolution_state$consensus_status[1] <- "agree"
+  test_data$resolution_state$row_flag <- NULL
 
   sheets <- build_export_sheets(
     raw = test_data$raw,
@@ -527,7 +594,7 @@ test_that("Pipeline Config contains export_timestamp key", {
   expect_true("export_timestamp" %in% config$key)
 })
 
-test_that("Raw Data sheet equals input raw data exactly", {
+test_that("Pipeline Config contains header_row key", {
   test_data <- create_test_data()
 
   sheets <- build_export_sheets(
@@ -541,9 +608,33 @@ test_that("Raw Data sheet equals input raw data exactly", {
     file_info = test_data$file_info
   )
 
+  config <- sheets[["Pipeline Config"]]
+  header_row <- config %>%
+    dplyr::filter(key == "header_row") %>%
+    dplyr::pull(value)
+
+  expect_equal(header_row, as.character(test_data$detection$header_row))
+})
+
+test_that("Raw Data sheet uses detected column names instead of ingest V columns", {
+  test_data <- create_test_data()
+
+  sheets <- build_export_sheets(
+    raw = test_data$ingest_raw,
+    resolution_state = test_data$resolution_state,
+    consensus_summary = test_data$consensus_summary,
+    cleaning_audit = test_data$cleaning_audit,
+    reference_lists = test_data$reference_lists,
+    column_tags = test_data$column_tags,
+    detection = test_data$detection,
+    file_info = test_data$file_info,
+    detected_data = test_data$raw
+  )
+
   raw_sheet <- sheets[["Raw Data"]]
 
   expect_equal(raw_sheet, test_data$raw)
+  expect_false(any(names(raw_sheet) %in% c("V1", "V2", "V3")))
 })
 
 # ===== Test Suite: Excel validation =====
@@ -566,7 +657,7 @@ test_that("Error messages include sheet name", {
 
 # ===== Test Suite: config import =====
 
-test_that("parse_concert_export on valid export returns non-NULL with 3 elements", {
+test_that("parse_concert_export on valid export returns all known sheets", {
   # Create a temp CONCERT export file
   test_data <- create_test_data()
 
@@ -588,13 +679,162 @@ test_that("parse_concert_export on valid export returns non-NULL with 3 elements
   result <- parse_concert_export(temp_file)
 
   expect_type(result, "list")
-  expect_length(result, 3)
   expect_true("reference_lists" %in% names(result))
   expect_true("column_tags" %in% names(result))
   expect_true("config" %in% names(result))
+  expect_true("session_state" %in% names(result))
+  expect_true("raw_data" %in% names(result))
+  expect_true(result$has_full_session_state)
 
   # Clean up
   unlink(temp_file)
+})
+
+test_that("hydrate_session_state restores full session state from parsed export", {
+  test_data <- create_test_data()
+  test_data$column_tags$quantity <- "Result"
+
+  toxval_output <- tibble::tibble(
+    dtxsid = "DTXSID3020001",
+    toxval_numeric = 0.5
+  )
+  harmonize_audit <- tibble::tibble(
+    measurement_column = "quantity",
+    measurement_role = "Result",
+    orig_row_id = 1L,
+    orig_result = "500",
+    numeric_value = 500,
+    qualifier = "",
+    range_bin = "as_is",
+    parse_flag = "",
+    orig_unit = "ug/L",
+    harmonized_value = 0.5,
+    harmonized_unit = "mg/L",
+    conversion_factor = 0.001,
+    unit_flag = ""
+  )
+
+  sheets <- build_export_sheets(
+    raw = test_data$ingest_raw,
+    resolution_state = test_data$resolution_state,
+    consensus_summary = test_data$consensus_summary,
+    cleaning_audit = test_data$cleaning_audit,
+    reference_lists = test_data$reference_lists,
+    column_tags = test_data$column_tags,
+    detection = test_data$detection,
+    file_info = test_data$file_info,
+    detected_data = test_data$raw,
+    cleaned_data = test_data$cleaned_data,
+    toxval_output = toxval_output,
+    harmonize_audit = harmonize_audit
+  )
+
+  temp_file <- tempfile(fileext = ".xlsx")
+  writexl::write_xlsx(sheets, temp_file)
+  on.exit(unlink(temp_file), add = TRUE)
+
+  parsed <- parse_concert_export(temp_file)
+  hydrated <- hydrate_session_state(parsed, test_data$reference_lists)
+  state <- hydrated$state
+
+  expect_equal(hydrated$warnings, character(0))
+  expect_equal(names(state$raw), names(test_data$raw))
+  expect_equal(state$cleaned_data$cleaning_flag, test_data$cleaned_data$cleaning_flag)
+  expect_equal(state$cleaning_audit$step, test_data$cleaning_audit$step)
+  expect_equal(state$resolution_state$.pinned, test_data$resolution_state$.pinned)
+  expect_equal(state$resolution_state$.manual_entry, test_data$resolution_state$.manual_entry)
+  expect_equal(state$resolution_state$.suggested_column, test_data$resolution_state$.suggested_column)
+  expect_equal(state$resolution_state$row_flag, test_data$resolution_state$row_flag)
+  expect_equal(state$consensus_summary$n_disagree, 0)
+  expect_equal(state$consensus_summary$n_manual, 0)
+  expect_equal(state$detection$header_row, test_data$detection$header_row)
+  expect_equal(state$toxval_output$toxval_numeric, 0.5)
+  expect_equal(state$harmonize_audit$harmonized_value, 0.5)
+  expect_equal(state$harmonize_results$harmonized$harmonized_unit, "mg/L")
+  expect_false(detect_tag_changes(state$prev_chemical_tags, state$column_tags))
+  expect_false(detect_tag_changes(state$prev_numeric_tags, state$numeric_tags))
+})
+
+test_that("hydrate_session_state tolerates missing optional sheets", {
+  test_data <- create_test_data()
+
+  sheets <- build_export_sheets(
+    raw = test_data$raw,
+    resolution_state = test_data$resolution_state,
+    consensus_summary = test_data$consensus_summary,
+    cleaning_audit = test_data$cleaning_audit,
+    reference_lists = test_data$reference_lists,
+    column_tags = test_data$column_tags,
+    detection = test_data$detection,
+    file_info = test_data$file_info
+  )
+  sheets[["Cleaning Audit"]] <- NULL
+  sheets[["ToxVal Output"]] <- NULL
+  sheets[["Harmonization Audit"]] <- NULL
+
+  temp_file <- tempfile(fileext = ".xlsx")
+  writexl::write_xlsx(sheets, temp_file)
+  on.exit(unlink(temp_file), add = TRUE)
+
+  parsed <- parse_concert_export(temp_file)
+  hydrated <- hydrate_session_state(parsed, test_data$reference_lists)
+
+  expect_true(parsed$has_full_session_state)
+  expect_s3_class(hydrated$state$cleaning_audit, "tbl_df")
+  expect_null(hydrated$state$toxval_output)
+  expect_null(hydrated$state$harmonize_audit)
+})
+
+test_that("parse_concert_export keeps older exports partial when Session State is missing", {
+  test_data <- create_test_data()
+
+  sheets <- build_export_sheets(
+    raw = test_data$raw,
+    resolution_state = test_data$resolution_state,
+    consensus_summary = test_data$consensus_summary,
+    cleaning_audit = test_data$cleaning_audit,
+    reference_lists = test_data$reference_lists,
+    column_tags = test_data$column_tags,
+    detection = test_data$detection,
+    file_info = test_data$file_info
+  )
+  sheets[["Session State"]] <- NULL
+
+  temp_file <- tempfile(fileext = ".xlsx")
+  writexl::write_xlsx(sheets, temp_file)
+  on.exit(unlink(temp_file), add = TRUE)
+
+  parsed <- parse_concert_export(temp_file)
+
+  expect_false(parsed$has_full_session_state)
+  expect_true("reference_lists" %in% names(parsed))
+  expect_true("column_tags" %in% names(parsed))
+})
+
+test_that("hydrate_session_state warns but restores when row counts mismatch", {
+  test_data <- create_test_data()
+
+  sheets <- build_export_sheets(
+    raw = test_data$raw,
+    resolution_state = test_data$resolution_state,
+    consensus_summary = test_data$consensus_summary,
+    cleaning_audit = test_data$cleaning_audit,
+    reference_lists = test_data$reference_lists,
+    column_tags = test_data$column_tags,
+    detection = test_data$detection,
+    file_info = test_data$file_info
+  )
+  sheets[["Raw Data"]] <- sheets[["Raw Data"]][1:2, ]
+
+  temp_file <- tempfile(fileext = ".xlsx")
+  writexl::write_xlsx(sheets, temp_file)
+  on.exit(unlink(temp_file), add = TRUE)
+
+  parsed <- parse_concert_export(temp_file)
+  hydrated <- hydrate_session_state(parsed, test_data$reference_lists)
+
+  expect_match(paste(hydrated$warnings, collapse = "\n"), "row count")
+  expect_equal(nrow(hydrated$state$resolution_state), 3)
 })
 
 test_that("parse_concert_export on regular Excel file returns NULL", {
