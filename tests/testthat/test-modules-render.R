@@ -19,6 +19,7 @@ create_test_store <- function() {
     # Phase 33: Extended tag types
     numeric_tags = NULL,
     metadata_tags = NULL,
+    study_type_tags = NULL,
     harmonize_results = NULL,
     harmonize_audit = NULL,
     toxval_output = NULL,
@@ -27,7 +28,9 @@ create_test_store <- function() {
     # Phase 34: Editor working copies
     unit_map_working = NULL,
     corrections_working = NULL,
-    media_map_working = NULL
+    media_map_working = NULL,
+    harmonize_results_stale = FALSE,
+    changed_units = character(0)
   )
 }
 
@@ -174,6 +177,18 @@ find_mod_tag_columns <- function() {
   NULL
 }
 
+find_mod_file_upload <- function() {
+  candidates <- c(
+    file.path(here::here(), "R", "mod_file_upload.R"),
+    file.path(getwd(), "R", "mod_file_upload.R"),
+    file.path(dirname(dirname(testthat::test_path())), "R", "mod_file_upload.R")
+  )
+  for (p in candidates) {
+    if (file.exists(p)) return(p)
+  }
+  NULL
+}
+
 # UIPOL-01: Verify reactable call uses wrap = TRUE (not wrap = FALSE)
 test_that("UIPOL-01: review results reactable uses wrap=TRUE", {
   src_path <- find_mod_review_results()
@@ -257,4 +272,16 @@ test_that("Tag Columns rows have selected-state styling hook", {
   expect_match(src, "tag-column-row")
   expect_match(src, "tag-column-selected")
   expect_match(src, "shiny:inputchanged")
+})
+
+test_that("File Upload detects full CONCERT exports before raw processing", {
+  src_path <- find_mod_file_upload()
+  skip_if(is.null(src_path), "R/mod_file_upload.R not found from test context")
+  src <- paste(readLines(src_path), collapse = "\n")
+
+  expect_match(src, "parse_concert_export")
+  expect_match(src, "has_full_session_state")
+  expect_match(src, "resume_export_session")
+  expect_match(src, "treat_export_as_raw")
+  expect_match(src, "hydrate_session_state")
 })
