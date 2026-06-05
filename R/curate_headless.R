@@ -394,6 +394,8 @@ curate_headless <- function(
         detection = detection,
         file_info = file_info,
         enrichment_cache = enrichment_cache,
+        detected_data = clean_data,
+        cleaned_data = cleaning_result$cleaned_data,
         toxval_output = toxval_tibble,
         harmonize_audit = harmonize_audit_tibble
       )
