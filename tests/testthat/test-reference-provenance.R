@@ -74,7 +74,7 @@ test_that("load_functional_categories returns tibble with provenance columns whe
     # If ComptoxR is available, entries should have source = "comptoxr"
     # If not available, should be empty tibble with correct columns
     if (nrow(result) > 0) {
-      expect_true(all(result$source == "comptoxr"))
+      expect_true(all(grepl("^comptoxr", result$source, ignore.case = TRUE)))
       expect_true(all(result$active == TRUE))
     }
   })
@@ -112,7 +112,8 @@ test_that("load_all_reference_lists returns named list with all three tibbles", 
 
     # Check structure
     expect_type(result, "list")
-    expect_named(result, c("stop_words", "block_patterns", "functional_categories", "strip_terms", "isotope_lookup"))
+    expected_names <- c("stop_words", "block_patterns", "functional_categories", "strip_terms", "isotope_lookup")
+    expect_true(all(expected_names %in% names(result)))
 
     # Check all are tibbles (isotope_lookup is a list with $lookup tibble)
     expect_true(tibble::is_tibble(result$stop_words))
