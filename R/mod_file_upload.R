@@ -109,13 +109,107 @@ mod_file_upload_ui <- function(id) {
 #' @param id Module namespace ID
 #' @param data_store Reactive values store from main app
 #' @param reset_all_downstream Optional callback function to reset downstream state (app navigation)
+#' @param on_session_restored Optional callback after a CONCERT export session is
+#'   hydrated
 #'
 #' @return Reactive list with file processing outputs
 #' @export
-mod_file_upload_server <- function(id, data_store, reset_all_downstream = NULL) {
+mod_file_upload_server <- function(
+  id,
+  data_store,
+  reset_all_downstream = NULL,
+  on_session_restored = NULL
+) {
   moduleServer(id, function(input, output, session) {
+    pending_concert_export <- reactiveVal(NULL)
 
     # --- Internal Functions ---
+
+    detect_full_concert_export <- function(file_info) {
+      file_ext <- tolower(tools::file_ext(file_info$name))
+      if (!file_ext %in% c("xlsx", "xls")) {
+        return(NULL)
+      }
+
+      parsed <- parse_concert_export(file_info$datapath)
+      if (!is.null(parsed) && isTRUE(parsed$has_full_session_state)) {
+        return(parsed)
+      }
+
+      NULL
+    }
+
+    show_concert_export_modal <- function() {
+      showModal(modalDialog(
+        title = "CONCERT Export Detected",
+        p("This workbook contains a saved CONCERT session."),
+        p("Resume restores the exported review state and opens Review Results. Treat as Raw Data processes the Raw Data sheet as a fresh upload."),
+        if (!is.null(data_store$clean)) {
+          p(class = "text-muted small", "Your current session will be replaced.")
+        },
+        footer = tagList(
+          modalButton("Cancel"),
+          actionButton(session$ns("treat_export_as_raw"), "Treat as Raw Data", class = "btn-outline-secondary"),
+          actionButton(session$ns("resume_export_session"), "Resume Session", class = "btn-primary")
+        ),
+        easyClose = TRUE
+      ))
+    }
+
+    assign_hydrated_state <- function(state) {
+      for (name in names(state)) {
+        data_store[[name]] <- state[[name]]
+      }
+    }
+
+    restore_concert_export_session <- function(file_info, parsed) {
+      notification_id <- showNotification(
+        "Restoring CONCERT session...",
+        type = "message",
+        duration = NULL
+      )
+
+      tryCatch(
+        {
+          hydrated <- hydrate_session_state(parsed, data_store$reference_lists)
+
+          if (!is.null(reset_all_downstream)) {
+            reset_all_downstream()
+          }
+
+          assign_hydrated_state(hydrated$state)
+
+          if (!is.null(data_store$clean)) {
+            suggested_rows <- calculate_smart_preview_rows(data_store$clean)
+            updateSliderInput(session, "preview_rows", value = suggested_rows)
+          }
+
+          removeNotification(notification_id)
+
+          for (warning_msg in hydrated$warnings) {
+            showNotification(warning_msg, type = "warning", duration = 10)
+          }
+
+          showNotification(
+            "CONCERT session restored successfully.",
+            type = "message",
+            duration = 5
+          )
+
+          if (!is.null(on_session_restored)) {
+            on_session_restored(hydrated$warnings)
+          }
+        },
+        error = function(e) {
+          removeNotification(notification_id)
+          showNotification(
+            paste("Failed to restore CONCERT session:", conditionMessage(e)),
+            type = "error",
+            duration = NULL
+          )
+        }
+      )
+    }
 
     # Process uploaded file (extracted for re-use by modal confirm)
     process_uploaded_file <- function(file_info) {
@@ -272,6 +366,16 @@ mod_file_upload_server <- function(id, data_store, reset_all_downstream = NULL) 
     observeEvent(input$file_upload, {
       req(input$file_upload)
 
+      parsed_export <- detect_full_concert_export(input$file_upload)
+      if (!is.null(parsed_export)) {
+        pending_concert_export(list(
+          file_info = input$file_upload,
+          parsed = parsed_export
+        ))
+        show_concert_export_modal()
+        return()
+      }
+
       if (!is.null(data_store$clean)) {
         # Re-upload: data already exists — show confirmation modal
         showModal(modalDialog(
@@ -294,6 +398,33 @@ mod_file_upload_server <- function(id, data_store, reset_all_downstream = NULL) 
     observeEvent(input$cancel_reupload, {
       removeModal()
       shinyjs::reset("file_upload")
+    })
+
+    observeEvent(input$resume_export_session, {
+      export_data <- pending_concert_export()
+      req(export_data)
+
+      removeModal()
+      pending_concert_export(NULL)
+      restore_concert_export_session(export_data$file_info, export_data$parsed)
+    })
+
+    observeEvent(input$treat_export_as_raw, {
+      export_data <- pending_concert_export()
+      req(export_data)
+
+      removeModal()
+      pending_concert_export(NULL)
+
+      if (!is.null(reset_all_downstream)) {
+        reset_all_downstream()
+      }
+      data_store$raw <- NULL
+      data_store$clean <- NULL
+      data_store$detection <- NULL
+      data_store$file_info <- NULL
+
+      process_uploaded_file(export_data$file_info)
     })
 
     # Re-upload modal: Confirm — reset all downstream state, process new file

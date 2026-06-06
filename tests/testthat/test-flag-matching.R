@@ -119,6 +119,23 @@ test_that("flag_reference_matches skips inactive entries", {
   expect_true(is.na(result$cleaned_data$cleaning_flag[3]) || result$cleaned_data$cleaning_flag[3] == "")
 })
 
+test_that("flag_reference_matches does not flag inactive broad legacy review terms", {
+  df <- tibble::tibble(
+    chemical_name = c("ingredient", "surfactant blend", "acetone")
+  )
+
+  reference_list <- tibble::tibble(
+    term = c("ingredient", "surfactant", "blend"),
+    source = "legacy_review",
+    active = FALSE
+  )
+
+  result <- flag_reference_matches(df, c("chemical_name"), reference_list, "warning", "stop word")
+
+  expect_true(all(is.na(result$cleaned_data$cleaning_flag) | result$cleaned_data$cleaning_flag == ""))
+  expect_equal(nrow(result$audit_trail), 0)
+})
+
 test_that("flag_reference_matches supports blocking flag type", {
   df <- tibble::tibble(
     chemical_name = c("proprietary", "acetone")
@@ -137,6 +154,24 @@ test_that("flag_reference_matches supports blocking flag type", {
 
   # acetone should NOT be flagged
   expect_true(is.na(result$cleaned_data$cleaning_flag[2]) || result$cleaned_data$cleaning_flag[2] == "")
+})
+
+test_that("flag_reference_matches evaluates block patterns as regex patterns", {
+  df <- tibble::tibble(
+    chemical_name = c("proprietary blend", "confidential business information", "acetone")
+  )
+
+  reference_list <- tibble::tibble(
+    term = c("propriet", "confid"),
+    source = "legacy_seed",
+    active = TRUE
+  )
+
+  result <- flag_reference_matches(df, c("chemical_name"), reference_list, "blocking", "block pattern")
+
+  expect_equal(result$cleaned_data$cleaning_flag[1], "BLOCK: block pattern [substring]")
+  expect_equal(result$cleaned_data$cleaning_flag[2], "BLOCK: block pattern [substring]")
+  expect_true(is.na(result$cleaned_data$cleaning_flag[3]) || result$cleaned_data$cleaning_flag[3] == "")
 })
 
 test_that("flag_reference_matches records match source in audit trail", {

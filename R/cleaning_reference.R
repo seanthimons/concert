@@ -251,6 +251,225 @@ load_strip_terms <- function(cache_dir) {
   load_or_fetch_reference(cache_path, fetch_fn, "strip terms")
 }
 
+user_reference_list_names <- function() {
+  c("stop_words", "block_patterns", "strip_terms")
+}
+
+empty_reference_list_tbl <- function() {
+  tibble::tibble(term = character(), source = character(), active = logical())
+}
+
+empty_user_reference_lists <- function() {
+  stats::setNames(
+    rep(list(empty_reference_list_tbl()), length(user_reference_list_names())),
+    user_reference_list_names()
+  )
+}
+
+normalize_reference_list_type <- function(type) {
+  type_map <- c(
+    stop_word = "stop_words",
+    stop_words = "stop_words",
+    block_pattern = "block_patterns",
+    block_patterns = "block_patterns",
+    strip_term = "strip_terms",
+    strip_terms = "strip_terms"
+  )
+
+  normalized <- unname(type_map[[type]])
+  if (is.null(normalized)) {
+    stop(
+      sprintf(
+        "Unknown reference list type '%s'. Expected one of: %s",
+        type,
+        paste(names(type_map), collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+
+  normalized
+}
+
+normalize_reference_list_tbl <- function(tbl) {
+  if (is.null(tbl)) {
+    return(empty_reference_list_tbl())
+  }
+
+  required_cols <- c("term", "source", "active")
+  if (!is.data.frame(tbl) || !all(required_cols %in% names(tbl))) {
+    stop("Reference list entries must be data frames with term, source, and active columns.", call. = FALSE)
+  }
+
+  tibble::as_tibble(tbl) %>%
+    dplyr::transmute(
+      term = trimws(as.character(term)),
+      source = as.character(source),
+      active = as.logical(active)
+    ) %>%
+    dplyr::filter(!is.na(term), nzchar(term))
+}
+
+merge_reference_list_rows <- function(default_tbl, user_tbl) {
+  dplyr::bind_rows(
+    normalize_reference_list_tbl(user_tbl),
+    normalize_reference_list_tbl(default_tbl)
+  ) %>%
+    dplyr::distinct(term, .keep_all = TRUE)
+}
+
+load_default_user_reference_list <- function(type, cache_dir) {
+  switch(
+    normalize_reference_list_type(type),
+    stop_words = load_stop_words(cache_dir),
+    block_patterns = load_block_patterns(cache_dir),
+    strip_terms = load_strip_terms(cache_dir)
+  )
+}
+
+#' Load user reference list overrides
+#'
+#' Loads the sidecar RDS containing user-editable reference list rows. Missing or
+#' malformed sidecars return an empty typed list so packaged defaults still load.
+#'
+#' @param cache_dir Directory for reference cache files. Defaults to the bundled
+#'   package/source reference cache.
+#' @return List with stop_words, block_patterns, and strip_terms tibbles.
+#' @export
+load_user_reference_lists <- function(cache_dir = NULL) {
+  cache_dir <- resolve_reference_cache_dir(cache_dir)
+  cache_path <- file.path(cache_dir, "user_reference_lists.rds")
+  empty_lists <- empty_user_reference_lists()
+
+  if (!file.exists(cache_path)) {
+    return(empty_lists)
+  }
+
+  raw <- tryCatch(
+    readRDS(cache_path),
+    error = function(e) {
+      warning(
+        sprintf("Failed to load user reference lists from %s: %s", cache_path, conditionMessage(e)),
+        call. = FALSE
+      )
+      NULL
+    }
+  )
+
+  if (is.null(raw)) {
+    return(empty_lists)
+  }
+
+  if (!is.list(raw) || is.data.frame(raw)) {
+    warning("User reference lists sidecar is malformed; using empty user lists.", call. = FALSE)
+    return(empty_lists)
+  }
+
+  tryCatch(
+    {
+      for (type in user_reference_list_names()) {
+        empty_lists[[type]] <- normalize_reference_list_tbl(raw[[type]])
+      }
+      empty_lists
+    },
+    error = function(e) {
+      warning(
+        sprintf("User reference lists sidecar is malformed; using empty user lists: %s", conditionMessage(e)),
+        call. = FALSE
+      )
+      empty_user_reference_lists()
+    }
+  )
+}
+
+#' Save user reference list overrides
+#'
+#' Persists only rows whose source is not `app_default`, leaving packaged
+#' defaults untouched. Rows are saved to `user_reference_lists.rds`.
+#'
+#' @param reference_lists List containing stop_words, block_patterns, and/or
+#'   strip_terms tibbles.
+#' @param cache_dir Directory for reference cache files. Defaults to the bundled
+#'   package/source reference cache.
+#' @return Invisibly returns the saved sidecar list.
+#' @export
+save_user_reference_lists <- function(reference_lists, cache_dir = NULL) {
+  cache_dir <- resolve_reference_cache_dir(cache_dir)
+  sidecar <- empty_user_reference_lists()
+
+  for (type in user_reference_list_names()) {
+    sidecar[[type]] <- normalize_reference_list_tbl(reference_lists[[type]]) %>%
+      dplyr::filter(source != "app_default") %>%
+      dplyr::distinct(term, .keep_all = TRUE)
+  }
+
+  fs::dir_create(cache_dir, recurse = TRUE)
+  saveRDS(sidecar, file.path(cache_dir, "user_reference_lists.rds"), compress = FALSE)
+
+  invisible(sidecar)
+}
+
+#' Update a user reference list override
+#'
+#' Adds, removes, or toggles one user-editable reference term in the sidecar and
+#' returns the merged list for that type.
+#'
+#' @param type One of stop_words/stop_word, block_patterns/block_pattern, or
+#'   strip_terms/strip_term.
+#' @param term Term or pattern to update.
+#' @param active Active value to use when adding or replacing a term.
+#' @param action One of add, remove, or toggle.
+#' @param cache_dir Directory for reference cache files. Defaults to the bundled
+#'   package/source reference cache.
+#' @return Tibble containing packaged defaults merged with user overrides.
+#' @export
+update_user_reference_list <- function(
+  type,
+  term,
+  active = TRUE,
+  action = c("add", "remove", "toggle"),
+  cache_dir = NULL
+) {
+  action <- match.arg(action)
+  type <- normalize_reference_list_type(type)
+  cache_dir <- resolve_reference_cache_dir(cache_dir)
+  term <- trimws(as.character(term))
+
+  if (length(term) != 1 || is.na(term) || !nzchar(term)) {
+    stop("term must be a non-empty scalar string.", call. = FALSE)
+  }
+
+  defaults <- load_default_user_reference_list(type, cache_dir)
+  user_lists <- load_user_reference_lists(cache_dir)
+  user_tbl <- user_lists[[type]]
+  current_tbl <- merge_reference_list_rows(defaults, user_tbl)
+  current_idx <- which(tolower(current_tbl$term) == tolower(term))
+  user_idx <- which(tolower(user_tbl$term) == tolower(term))
+
+  if (action == "remove") {
+    if (length(user_idx) > 0) {
+      user_tbl <- user_tbl[-user_idx[1], , drop = FALSE]
+    }
+  } else {
+    new_active <- if (action == "toggle") {
+      if (length(current_idx) > 0) !isTRUE(current_tbl$active[current_idx[1]]) else isTRUE(active)
+    } else {
+      isTRUE(active)
+    }
+
+    new_row <- tibble::tibble(term = term, source = "user", active = new_active)
+    if (length(user_idx) > 0) {
+      user_tbl[user_idx[1], ] <- new_row
+    } else {
+      user_tbl <- dplyr::bind_rows(user_tbl, new_row)
+    }
+  }
+
+  user_lists[[type]] <- user_tbl
+  save_user_reference_lists(user_lists, cache_dir)
+  merge_reference_list_rows(defaults, user_tbl)
+}
+
 #' Load one-off corrections table
 #'
 #' Returns a tibble of (pattern, replacement) pairs for correcting source-specific
@@ -615,7 +834,7 @@ load_media_map <- function(cache_dir) {
 load_all_reference_lists <- function(cache_dir = NULL) {
   cache_dir <- resolve_reference_cache_dir(cache_dir)
 
-  list(
+  reference_lists <- list(
     stop_words = load_stop_words(cache_dir),
     block_patterns = load_block_patterns(cache_dir),
     functional_categories = load_functional_categories(cache_dir),
@@ -627,6 +846,16 @@ load_all_reference_lists <- function(cache_dir = NULL) {
     toxval_schema = load_toxval_schema(cache_dir),
     media_map = load_media_map(cache_dir) # Phase 42: merged user + AMOS media map
   )
+
+  user_reference_lists <- load_user_reference_lists(cache_dir)
+  for (type in user_reference_list_names()) {
+    reference_lists[[type]] <- merge_reference_list_rows(
+      reference_lists[[type]],
+      user_reference_lists[[type]]
+    )
+  }
+
+  reference_lists
 }
 
 # Internal function — builds WQX dictionary from EPA domain value CSVs
