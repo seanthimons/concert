@@ -2917,6 +2917,8 @@ mod_review_results_server <- function(id, data_store) {
           detection = data_store$detection,
           file_info = data_store$file_info,
           enrichment_cache = data_store$enrichment_cache,
+          detected_data = data_store$clean,
+          cleaned_data = data_store$cleaned_data,
           toxval_output = data_store$toxval_output,
           harmonize_audit = data_store$harmonize_audit
         )

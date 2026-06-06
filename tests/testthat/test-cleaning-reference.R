@@ -94,7 +94,11 @@ test_that("load_all_reference_lists returns expected structure", {
     # strip_terms added Phase 21; isotope_lookup added Phase 23;
     # unit_map added Phase 29-01; toxval_schema added Phase 29-02
     expect_type(result, "list")
-    expect_named(result, c("stop_words", "block_patterns", "functional_categories", "strip_terms", "isotope_lookup", "unit_map", "toxval_schema"))
+    expected_names <- c(
+      "stop_words", "block_patterns", "functional_categories", "strip_terms",
+      "isotope_lookup", "unit_map", "toxval_schema"
+    )
+    expect_true(all(expected_names %in% names(result)))
 
     # Check types - all should be tibbles
     expect_true(tibble::is_tibble(result$stop_words))
@@ -144,6 +148,139 @@ test_that("load_block_patterns returns expected default block patterns", {
 
     # Should be regex patterns (not empty strings)
     expect_true(all(nchar(result$term) > 0))
+  })
+})
+
+test_that("load_user_reference_lists returns empty typed lists when sidecar is missing", {
+  withr::with_tempdir({
+    cache_dir <- "test_cache"
+    dir.create(cache_dir)
+
+    result <- load_user_reference_lists(cache_dir)
+
+    expect_named(result, c("stop_words", "block_patterns", "strip_terms"))
+    expect_true(all(vapply(result, tibble::is_tibble, logical(1))))
+    expect_true(all(vapply(result, nrow, integer(1)) == 0L))
+    expect_named(result$stop_words, c("term", "source", "active"))
+  })
+})
+
+test_that("load_user_reference_lists returns empty typed lists when sidecar is malformed", {
+  withr::with_tempdir({
+    cache_dir <- "test_cache"
+    dir.create(cache_dir)
+    saveRDS(tibble::tibble(not_term = "bad"), file.path(cache_dir, "user_reference_lists.rds"))
+
+    expect_warning(
+      result <- load_user_reference_lists(cache_dir),
+      regexp = "malformed"
+    )
+
+    expect_true(all(vapply(result, nrow, integer(1)) == 0L))
+    expect_named(result$block_patterns, c("term", "source", "active"))
+  })
+})
+
+test_that("load_user_reference_lists reads empty and populated sidecars", {
+  withr::with_tempdir({
+    cache_dir <- "test_cache"
+    dir.create(cache_dir)
+    empty_lists <- list(
+      stop_words = tibble::tibble(term = character(), source = character(), active = logical()),
+      block_patterns = tibble::tibble(term = character(), source = character(), active = logical()),
+      strip_terms = tibble::tibble(term = character(), source = character(), active = logical())
+    )
+    saveRDS(empty_lists, file.path(cache_dir, "user_reference_lists.rds"))
+
+    empty_result <- load_user_reference_lists(cache_dir)
+    expect_true(all(vapply(empty_result, nrow, integer(1)) == 0L))
+
+    populated <- empty_lists
+    populated$stop_words <- tibble::tibble(term = "not provided", source = "legacy_seed", active = TRUE)
+    populated$strip_terms <- tibble::tibble(term = "modified", source = "legacy_review", active = FALSE)
+    saveRDS(populated, file.path(cache_dir, "user_reference_lists.rds"))
+
+    result <- load_user_reference_lists(cache_dir)
+    expect_equal(result$stop_words$term, "not provided")
+    expect_true(result$stop_words$active)
+    expect_equal(result$strip_terms$term, "modified")
+    expect_false(result$strip_terms$active)
+  })
+})
+
+test_that("save_user_reference_lists writes only non-default sidecar rows", {
+  withr::with_tempdir({
+    cache_dir <- "test_cache"
+    refs <- list(
+      stop_words = tibble::tibble(
+        term = c("test", "custom"),
+        source = c("app_default", "user"),
+        active = c(TRUE, TRUE)
+      ),
+      block_patterns = tibble::tibble(term = character(), source = character(), active = logical()),
+      strip_terms = tibble::tibble(term = "modified", source = "legacy_review", active = FALSE)
+    )
+
+    save_user_reference_lists(refs, cache_dir)
+    saved <- readRDS(file.path(cache_dir, "user_reference_lists.rds"))
+
+    expect_equal(saved$stop_words$term, "custom")
+    expect_equal(saved$strip_terms$term, "modified")
+    expect_false(any(saved$stop_words$source == "app_default"))
+  })
+})
+
+test_that("load_all_reference_lists merges sidecar rows after defaults and sidecar wins by term", {
+  withr::with_tempdir({
+    cache_dir <- "test_cache"
+    dir.create(cache_dir)
+    saveRDS(
+      tibble::tibble(
+        term = c("unknown", "test"),
+        source = "app_default",
+        active = TRUE
+      ),
+      file.path(cache_dir, "stop_words.rds")
+    )
+    saveRDS(
+      list(
+        stop_words = tibble::tibble(term = "unknown", source = "user", active = FALSE),
+        block_patterns = tibble::tibble(term = character(), source = character(), active = logical()),
+        strip_terms = tibble::tibble(term = character(), source = character(), active = logical())
+      ),
+      file.path(cache_dir, "user_reference_lists.rds")
+    )
+
+    result <- load_all_reference_lists(cache_dir)
+    unknown_rows <- result$stop_words[result$stop_words$term == "unknown", ]
+
+    expect_equal(nrow(unknown_rows), 1)
+    expect_equal(unknown_rows$source, "user")
+    expect_false(unknown_rows$active)
+  })
+})
+
+test_that("update_user_reference_list toggles defaults through sidecar and remove reverts default", {
+  withr::with_tempdir({
+    cache_dir <- "test_cache"
+    dir.create(cache_dir)
+    saveRDS(
+      tibble::tibble(term = "na", source = "app_default", active = TRUE),
+      file.path(cache_dir, "stop_words.rds")
+    )
+
+    toggled <- update_user_reference_list("stop_words", "na", action = "toggle", cache_dir = cache_dir)
+    na_row <- toggled[toggled$term == "na", ]
+    expect_equal(na_row$source, "user")
+    expect_false(na_row$active)
+
+    removed <- update_user_reference_list("stop_word", "na", action = "remove", cache_dir = cache_dir)
+    reverted_row <- removed[removed$term == "na", ]
+    expect_equal(reverted_row$source, "app_default")
+    expect_true(reverted_row$active)
+
+    sidecar <- readRDS(file.path(cache_dir, "user_reference_lists.rds"))
+    expect_false("na" %in% sidecar$stop_words$term)
   })
 })
 

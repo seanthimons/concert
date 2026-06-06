@@ -153,6 +153,7 @@ server <- function(input, output, session) {
     # Phase 33: Extended tag types and harmonization state
     numeric_tags = NULL,
     metadata_tags = NULL,
+    study_type_tags = NULL,
     harmonize_results = NULL,
     harmonize_audit = NULL,
     toxval_output = NULL,
@@ -230,6 +231,7 @@ server <- function(input, output, session) {
             data_store$reference_lists,
             imported_config()$reference_lists
           )
+          concert::save_user_reference_lists(data_store$reference_lists)
           shiny::showNotification(
             "Reference lists imported and merged successfully",
             type = "message",
@@ -329,6 +331,7 @@ server <- function(input, output, session) {
     # Phase 33: Reset extended tag types and harmonization state
     data_store$numeric_tags <- NULL
     data_store$metadata_tags <- NULL
+    data_store$study_type_tags <- NULL
     data_store$harmonize_results <- NULL
     data_store$harmonize_audit <- NULL
     data_store$toxval_output <- NULL
@@ -425,7 +428,21 @@ server <- function(input, output, session) {
   })
 
   # --- Initialize Modules ---
-  upload_result <- concert::mod_file_upload_server("upload", data_store, reset_all_downstream)
+  upload_result <- concert::mod_file_upload_server(
+    "upload",
+    data_store,
+    reset_all_downstream,
+    on_session_restored = function(warnings = character(0)) {
+      show_tab_with_pulse("detection_info")
+      show_tab_with_pulse("raw_data")
+      show_tab_with_pulse("tag_columns")
+      show_tab_with_pulse("clean_data")
+      show_tab_with_pulse("run_curation_tab")
+      show_tab_with_pulse("harmonize_tab")
+      show_tab_with_pulse("review_results")
+      bslib::nav_select("main_tabs", "review_results", session = session)
+    }
+  )
 
   preview_rows <- upload_result$preview_rows
   concert::mod_data_preview_server("preview", data_store, preview_rows)
