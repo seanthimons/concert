@@ -581,6 +581,12 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
               }
 
               if (length(name_cols) > 0 && mask$names) {
+                # Truncated compound detection (after all name cleaning)
+                incProgress(0.05, detail = "Detecting truncated compound names...")
+                truncated_result <- detect_truncated_compound_names(df, name_cols)
+                df <- truncated_result$cleaned_data
+                all_audits[[length(all_audits) + 1]] <- truncated_result$audit_trail
+
                 # Bare formula detection (after all name cleaning)
                 incProgress(0.05, detail = "Detecting bare formulas...")
                 formula_result <- detect_bare_formulas(df, name_cols)

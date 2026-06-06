@@ -1610,6 +1610,147 @@ split_synonyms <- function(df, name_cols, tag_map) {
   )
 }
 
+#' Detect likely truncated compound names
+#'
+#' Flags Name-tagged fields with unbalanced parentheses/brackets or ellipsis
+#' markers that indicate a likely truncated compound name. This is a flag-only
+#' detector: original Name values are preserved.
+#'
+#' @param df Dataframe with name columns
+#' @param name_cols Character vector of Name-tagged column names
+#' @return List with cleaned_data and audit_trail
+#'
+#' @examples
+#' df <- tibble::tibble(chemical_name = c("Bisphenol A (BPA", "acetone"))
+#' detect_truncated_compound_names(df, c("chemical_name"))
+#' @export
+detect_truncated_compound_names <- function(df, name_cols) {
+  empty_audit <- tibble::tibble(
+    row_id = integer(),
+    field = character(),
+    step = character(),
+    original_value = character(),
+    new_value = character(),
+    reason = character()
+  )
+
+  df_result <- df
+
+  if (!"cleaning_flag" %in% names(df_result)) {
+    df_result$cleaning_flag <- NA_character_
+  }
+
+  if (nrow(df_result) == 0 || length(name_cols) == 0) {
+    return(list(cleaned_data = df_result, audit_trail = empty_audit))
+  }
+
+  append_flag <- function(existing, new_flag) {
+    vapply(existing, function(flag_value) {
+      if (is.na(flag_value) || flag_value == "") {
+        return(new_flag)
+      }
+
+      flag_parts <- strsplit(flag_value, "\\s*;\\s*")[[1]]
+      if (new_flag %in% flag_parts) {
+        flag_value
+      } else {
+        paste0(flag_value, "; ", new_flag)
+      }
+    }, character(1))
+  }
+
+  row_ids <- if ("original_row_id" %in% names(df_result)) {
+    df_result$original_row_id
+  } else {
+    seq_len(nrow(df_result))
+  }
+
+  audit_row_ids <- integer()
+  audit_fields <- character()
+  audit_originals <- character()
+  audit_reasons <- character()
+
+  for (col_name in name_cols) {
+    if (!col_name %in% names(df_result)) {
+      next
+    }
+
+    col_values <- as.character(df_result[[col_name]])
+    valid_values <- !is.na(col_values) & col_values != ""
+
+    paren_open <- stringr::str_count(col_values, "\\(")
+    paren_close <- stringr::str_count(col_values, "\\)")
+    bracket_open <- stringr::str_count(col_values, "\\[")
+    bracket_close <- stringr::str_count(col_values, "\\]")
+
+    has_unbalanced_delimiter <- valid_values &
+      ((paren_open != paren_close) | (bracket_open != bracket_close))
+    has_unbalanced_delimiter[is.na(has_unbalanced_delimiter)] <- FALSE
+
+    has_ellipsis <- valid_values &
+      stringr::str_detect(col_values, "\\.\\.\\.+|\u2026")
+    has_ellipsis[is.na(has_ellipsis)] <- FALSE
+
+    delimiter_idx <- which(has_unbalanced_delimiter)
+    if (length(delimiter_idx) > 0) {
+      new_flag <- "BLOCK: truncated compound [unbalanced delimiter]"
+      df_result$cleaning_flag[delimiter_idx] <- append_flag(
+        df_result$cleaning_flag[delimiter_idx],
+        new_flag
+      )
+
+      audit_row_ids <- c(audit_row_ids, as.integer(row_ids[delimiter_idx]))
+      audit_fields <- c(audit_fields, rep(col_name, length(delimiter_idx)))
+      audit_originals <- c(audit_originals, col_values[delimiter_idx])
+      audit_reasons <- c(
+        audit_reasons,
+        rep(
+          paste0("Unbalanced delimiter count detected in ", col_name),
+          length(delimiter_idx)
+        )
+      )
+    }
+
+    ellipsis_idx <- which(has_ellipsis)
+    if (length(ellipsis_idx) > 0) {
+      new_flag <- "BLOCK: truncated compound [ellipsis]"
+      df_result$cleaning_flag[ellipsis_idx] <- append_flag(
+        df_result$cleaning_flag[ellipsis_idx],
+        new_flag
+      )
+
+      audit_row_ids <- c(audit_row_ids, as.integer(row_ids[ellipsis_idx]))
+      audit_fields <- c(audit_fields, rep(col_name, length(ellipsis_idx)))
+      audit_originals <- c(audit_originals, col_values[ellipsis_idx])
+      audit_reasons <- c(
+        audit_reasons,
+        rep(
+          paste0("Ellipsis marker detected in ", col_name),
+          length(ellipsis_idx)
+        )
+      )
+    }
+  }
+
+  audit_trail <- if (length(audit_row_ids) == 0) {
+    empty_audit
+  } else {
+    tibble::tibble(
+      row_id = audit_row_ids,
+      field = audit_fields,
+      step = rep("detect_truncated_compound", length(audit_row_ids)),
+      original_value = audit_originals,
+      new_value = audit_originals,
+      reason = audit_reasons
+    )
+  }
+
+  list(
+    cleaned_data = df_result,
+    audit_trail = audit_trail
+  )
+}
+
 #' Detect bare molecular formulas
 #'
 #' Uses ComptoxR's validator regex to identify bare molecular formulas (H2O, NaCl, CuSO4).
@@ -2385,6 +2526,10 @@ run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL, us
           build_skip_result(df_final, "chiral_restore")$audit_trail
         )
       }
+
+      truncated_result <- detect_truncated_compound_names(df_final, name_cols)
+      df_final <- truncated_result$cleaned_data
+      audit_combined <- dplyr::bind_rows(audit_combined, truncated_result$audit_trail)
     } else {
       # No name columns - skip name cleaning
       df_final <- df_after_multi_cas
