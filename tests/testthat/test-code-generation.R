@@ -129,7 +129,8 @@ test_that("review overrides capture and replay manual, suggestion, skip, flags, 
 
   overrides <- build_review_overrides(baseline, final)
   expect_s3_class(overrides, "concert_review_override_spec")
-  expect_named(overrides, c("column", "value", "signature"))
+  expect_named(overrides, c("workflow", "column", "value", "signature"))
+  expect_true(all(overrides$workflow == "review"))
   expect_true(inherits(overrides$value, "list"))
   expect_true(inherits(overrides$signature, "list"))
   expect_false("row" %in% names(overrides))
@@ -285,6 +286,187 @@ test_that("generated case_when branches preserve typed NA values", {
   expect_match(script, "NA_integer_", fixed = TRUE)
   expect_match(script, "consensus_dtxsid = dplyr::case_when(", fixed = TRUE)
   expect_match(script, "qc_tier = dplyr::case_when(", fixed = TRUE)
+})
+
+test_that("review replay predicates ignore tagged measurement columns", {
+  baseline <- init_resolution_state(tibble::tibble(
+    chemical = c("Acetone", "Benzene"),
+    result = c("1.2", "3.4"),
+    consensus_status = c("agree", "agree"),
+    consensus_dtxsid = c("DTXSID1", "DTXSID2"),
+    consensus_source = c("consensus", "consensus"),
+    qc_tier = c(1L, 1L)
+  ))
+  final <- baseline
+  final$row_flag[1] <- "VERIFIED"
+
+  script <- generate_concert_script(
+    input_path = "input.csv",
+    output_path = "input_curated.xlsx",
+    tag_map = list(chemical = "Name", result = "Result"),
+    header_row = 1L,
+    review_overrides = build_review_overrides(
+      baseline,
+      final,
+      tag_map = list(chemical = "Name", result = "Result")
+    )
+  )
+
+  expect_match(script, "row_flag = dplyr::case_when(", fixed = TRUE)
+  expect_match(script, 'chemical == "Acetone" ~ "VERIFIED"', fixed = TRUE)
+  expect_no_match(script, "result ==", fixed = TRUE)
+})
+
+test_that("tagged Result edits replay in a measurement workflow block", {
+  baseline <- init_resolution_state(tibble::tibble(
+    chemical = c("Acetone", "Benzene"),
+    sample_id = c("S1", "S2"),
+    result = c("1.2", "3.4"),
+    consensus_status = c("agree", "agree"),
+    consensus_dtxsid = c("DTXSID1", "DTXSID2"),
+    consensus_source = c("consensus", "consensus"),
+    qc_tier = c(1L, 1L)
+  ))
+  final <- baseline
+  final$result[1] <- "1.5"
+
+  overrides <- build_review_overrides(
+    baseline,
+    final,
+    tag_map = list(chemical = "Name", result = "Result")
+  )
+  expect_equal(unique(overrides$workflow), "measurement_tags")
+
+  replayed <- apply_review_overrides(baseline, overrides)
+  expect_equal(replayed$result, c("1.5", "3.4"))
+
+  script <- generate_concert_script(
+    input_path = "input.csv",
+    output_path = "input_curated.xlsx",
+    tag_map = list(chemical = "Name", result = "Result"),
+    header_row = 1L,
+    review_overrides = overrides
+  )
+
+  expect_match(script, "result = dplyr::case_when(", fixed = TRUE)
+  expect_match(script, 'chemical == "Acetone" ~ "1.5"', fixed = TRUE)
+  expect_no_match(script, "row_flag = dplyr::case_when(", fixed = TRUE)
+})
+
+test_that("mixed replay edits are grouped by workflow blocks", {
+  baseline <- init_resolution_state(tibble::tibble(
+    chemical = c("Acetone", "Benzene"),
+    sample_id = c("S1", "S2"),
+    result = c("1.2", "3.4"),
+    unit = c("mg/L", "ug/L"),
+    media = c("water", "sediment"),
+    species = c("Daphnia", "Fish"),
+    consensus_status = c("agree", "agree"),
+    consensus_dtxsid = c("DTXSID1", "DTXSID2"),
+    consensus_source = c("consensus", "consensus"),
+    qc_tier = c(1L, 1L)
+  ))
+  final <- baseline
+  final$row_flag[1] <- "FOLLOW-UP"
+  final$result[1] <- "1.5"
+  final$unit[1] <- "ug/L"
+  final$media[1] <- "surface water"
+  final$species[1] <- "Daphnia magna"
+
+  tag_map <- list(
+    chemical = "Name",
+    result = "Result",
+    unit = "Unit",
+    media = "Media",
+    species = "Species"
+  )
+  overrides <- build_review_overrides(baseline, final, tag_map = tag_map)
+
+  expect_equal(
+    unique(overrides$workflow),
+    c("review", "measurement_tags", "study_tags", "metadata_tags")
+  )
+
+  replayed <- apply_review_overrides(baseline, overrides)
+  expect_equal(replayed$row_flag, final$row_flag)
+  expect_equal(replayed$result, final$result)
+  expect_equal(replayed$unit, final$unit)
+  expect_equal(replayed$media, final$media)
+  expect_equal(replayed$species, final$species)
+
+  script <- generate_concert_script(
+    input_path = "input.csv",
+    output_path = "input_curated.xlsx",
+    tag_map = tag_map,
+    header_row = 1L,
+    review_overrides = overrides
+  )
+  mutate_matches <- gregexpr("dplyr::mutate(", script, fixed = TRUE)[[1]]
+
+  expect_equal(sum(mutate_matches > 0), 4L)
+  expect_match(script, "row_flag = dplyr::case_when(", fixed = TRUE)
+  expect_match(script, "result = dplyr::case_when(", fixed = TRUE)
+  expect_match(script, "unit = dplyr::case_when(", fixed = TRUE)
+  expect_match(script, "media = dplyr::case_when(", fixed = TRUE)
+  expect_match(script, "species = dplyr::case_when(", fixed = TRUE)
+  expect_silent(parse(text = script))
+})
+
+test_that("tagged measurement edits fail when only the edited field disambiguates duplicates", {
+  baseline <- init_resolution_state(tibble::tibble(
+    chemical = c("Acetone", "Acetone"),
+    result = c("1.2", "3.4"),
+    consensus_status = c("agree", "agree"),
+    consensus_dtxsid = c("DTXSID1", "DTXSID1"),
+    consensus_source = c("consensus", "consensus"),
+    qc_tier = c(1L, 1L)
+  ))
+  final <- baseline
+  final$result[1] <- "1.5"
+
+  expect_error(
+    build_review_overrides(
+      baseline,
+      final,
+      tag_map = list(chemical = "Name", result = "Result")
+    ),
+    "ambiguous"
+  )
+})
+
+test_that("stable context disambiguates tagged measurement edits without Result predicates", {
+  baseline <- init_resolution_state(tibble::tibble(
+    chemical = c("Acetone", "Acetone"),
+    sample_id = c("S1", "S2"),
+    result = c("1.2", "3.4"),
+    consensus_status = c("agree", "agree"),
+    consensus_dtxsid = c("DTXSID1", "DTXSID1"),
+    consensus_source = c("consensus", "consensus"),
+    qc_tier = c(1L, 1L)
+  ))
+  final <- baseline
+  final$result[1] <- "1.5"
+
+  overrides <- build_review_overrides(
+    baseline,
+    final,
+    tag_map = list(chemical = "Name", result = "Result")
+  )
+
+  expect_named(overrides$signature[[1]], "sample_id")
+  replayed <- apply_review_overrides(baseline, overrides)
+  expect_equal(replayed$result, c("1.5", "3.4"))
+
+  script <- generate_concert_script(
+    input_path = "input.csv",
+    output_path = "input_curated.xlsx",
+    tag_map = list(chemical = "Name", result = "Result"),
+    header_row = 1L,
+    review_overrides = overrides
+  )
+
+  expect_match(script, 'sample_id == "S1" ~ "1.5"', fixed = TRUE)
+  expect_no_match(script, "result ==", fixed = TRUE)
 })
 
 test_that("function review overrides initialize target columns before replay", {
