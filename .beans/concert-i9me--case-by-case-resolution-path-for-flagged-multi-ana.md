@@ -1,13 +1,13 @@
 ---
 # concert-i9me
 title: Case-by-case resolution path for flagged multi-analytes
-status: todo
+status: done
 type: feature
 priority: normal
 tags:
     - github:issue
 created_at: 2026-05-11T22:37:00Z
-updated_at: 2026-06-17T16:03:35Z
+updated_at: 2026-06-17T13:08:14-04:00
 parent: concert-vwkd
 ---
 
@@ -71,3 +71,12 @@ When a user chooses "Keep", the `cleaning_flag` WARNING must be cleared or repla
 ## GitHub
 
 - GitHub #40: https://github.com/seanthimons/concert/issues/40
+
+## Resolution
+
+- [x] Added a case-by-case resolver for rows flagged by `flag_multi_analyte()`.
+- [x] Supported `Split`, `Keep combined`, and `Rename` actions with `multi_analyte_resolution` audit records.
+- [x] Preserved original row lineage for split rows and tracked split part index/count metadata.
+- [x] Added a Shiny cleaning-review panel so resolved rows flow into the existing curation pipeline.
+- [x] Added a headless `multi_analyte_resolutions` hook so scripted runs can apply the same decisions before curation.
+- [x] Prevented kept/renamed/split rows from surfacing again as unresolved multi-analyte warnings in the current cleaned data.
