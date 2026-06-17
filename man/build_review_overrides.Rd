@@ -4,13 +4,17 @@
 \alias{build_review_overrides}
 \title{Build content-matched review overrides}
 \usage{
-build_review_overrides(baseline_state, final_state)
+build_review_overrides(baseline_state, final_state, tag_map = NULL)
 }
 \arguments{
 \item{baseline_state}{Resolution state immediately after automated curation
 and postprocessing.}
 
 \item{final_state}{Resolution state after Review Results edits.}
+
+\item{tag_map}{Optional named list mapping source columns to tag types. When
+supplied, edits to tagged input columns are captured and replayed in
+workflow-specific blocks.}
 }
 \value{
 NULL when no overrides are needed, otherwise a content-match

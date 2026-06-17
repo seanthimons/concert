@@ -38,6 +38,49 @@ review_signature_excluded_columns <- function() {
   ))
 }
 
+replay_tag_workflow_groups <- function() {
+  list(
+    chemical_tags = c("Name", "CASRN", "Other"),
+    measurement_tags = c("Result", "Numeric", "Unit", "Qualifier", "Duration", "DurationUnit"),
+    study_tags = c("StudyDate", "Media"),
+    metadata_tags = c("Species", "ExposureRoute")
+  )
+}
+
+replay_workflow_order <- function() {
+  c("review", "measurement_tags", "study_tags", "metadata_tags", "chemical_tags")
+}
+
+tag_column_workflows <- function(tag_map = NULL) {
+  if (is.null(tag_map) || length(tag_map) == 0) {
+    return(character())
+  }
+
+  tag_values <- unlist(as.list(tag_map), recursive = FALSE, use.names = TRUE)
+  if (length(tag_values) == 0 || is.null(names(tag_values))) {
+    return(character())
+  }
+
+  tag_names <- names(tag_values)
+  tag_values <- as.character(tag_values)
+  names(tag_values) <- tag_names
+  workflows <- character()
+  groups <- replay_tag_workflow_groups()
+
+  for (workflow in names(groups)) {
+    matched <- names(tag_values)[tag_values %in% groups[[workflow]]]
+    if (length(matched) > 0) {
+      workflows[matched] <- workflow
+    }
+  }
+
+  workflows
+}
+
+workflow_columns <- function(column_workflows, workflow) {
+  names(column_workflows)[column_workflows == workflow]
+}
+
 combine_tag_maps <- function(...) {
   parts <- list(...)
   parts <- parts[!vapply(parts, is.null, logical(1))]
@@ -228,9 +271,30 @@ is_stable_signature_column <- function(value) {
   !inherits(value, "data.frame") && !is.list(value)
 }
 
-stable_review_signature_columns <- function(df) {
-  candidates <- setdiff(names(df), review_signature_excluded_columns())
+stable_override_signature_columns <- function(df, target_col, workflow, column_workflows = character()) {
+  tagged_cols <- names(column_workflows)
+  chemical_cols <- workflow_columns(column_workflows, "chemical_tags")
+  nonchemical_tagged_cols <- setdiff(tagged_cols, chemical_cols)
+
+  workflow_exclusions <- switch(
+    workflow,
+    review = nonchemical_tagged_cols,
+    chemical_tags = tagged_cols,
+    measurement_tags = nonchemical_tagged_cols,
+    study_tags = nonchemical_tagged_cols,
+    metadata_tags = nonchemical_tagged_cols,
+    tagged_cols
+  )
+
+  candidates <- setdiff(
+    names(df),
+    unique(c(review_signature_excluded_columns(), workflow_exclusions, target_col))
+  )
   candidates[vapply(df[candidates], is_stable_signature_column, logical(1))]
+}
+
+stable_review_signature_columns <- function(df) {
+  stable_override_signature_columns(df, target_col = NULL, workflow = "review")
 }
 
 row_signature <- function(df, row_idx, cols) {
@@ -279,8 +343,13 @@ minimal_stable_row_signature <- function(baseline_state, full_signature, target_
   full_signature
 }
 
-new_review_override_spec <- function(columns, values, signatures, signature_columns) {
+new_review_override_spec <- function(columns, values, signatures, signature_columns, workflows = NULL) {
+  if (is.null(workflows)) {
+    workflows <- rep("review", length(columns))
+  }
+
   spec <- tibble::tibble(
+    workflow = workflows,
     column = columns,
     value = values,
     signature = signatures
@@ -303,6 +372,21 @@ validate_review_override_spec <- function(spec) {
   if (!all(c("column", "value", "signature") %in% names(spec))) {
     stop("review_overrides is missing column, value, or signature fields.", call. = FALSE)
   }
+
+  if (!"workflow" %in% names(spec)) {
+    spec$workflow <- rep("review", nrow(spec))
+  }
+
+  workflows <- as.character(spec$workflow)
+  valid_workflows <- replay_workflow_order()
+  if (
+    length(workflows) != nrow(spec) ||
+      any(is.na(workflows)) ||
+      any(!workflows %in% valid_workflows)
+  ) {
+    stop("review_overrides contains an invalid workflow.", call. = FALSE)
+  }
+  spec$workflow <- workflows
 
   columns <- as.character(spec$column)
   if (length(columns) != nrow(spec) || any(is.na(columns)) || any(!nzchar(columns))) {
@@ -354,12 +438,15 @@ ambiguous_review_override_error <- function(col, rows, stable_cols) {
 #' @param baseline_state Resolution state immediately after automated curation
 #'   and postprocessing.
 #' @param final_state Resolution state after Review Results edits.
+#' @param tag_map Optional named list mapping source columns to tag types. When
+#'   supplied, edits to tagged input columns are captured and replayed in
+#'   workflow-specific blocks.
 #'
 #' @return NULL when no overrides are needed, otherwise a content-match
 #'   override spec with the edited column, edited scalar value, and a
 #'   minimal stable row signature for each generated `case_when()` branch.
 #' @export
-build_review_overrides <- function(baseline_state, final_state) {
+build_review_overrides <- function(baseline_state, final_state, tag_map = NULL) {
   if (is.null(baseline_state) || is.null(final_state)) {
     return(NULL)
   }
@@ -368,22 +455,38 @@ build_review_overrides <- function(baseline_state, final_state) {
     stop("baseline_state and final_state must have the same number of rows.", call. = FALSE)
   }
 
-  cols <- intersect(review_override_columns(), names(final_state))
-  if (length(cols) == 0) {
+  column_workflows <- tag_column_workflows(tag_map)
+  review_cols <- intersect(review_override_columns(), names(final_state))
+  tagged_cols <- intersect(names(column_workflows), names(final_state))
+
+  target_workflows <- c(
+    stats::setNames(rep("review", length(review_cols)), review_cols),
+    column_workflows[tagged_cols]
+  )
+  target_workflows <- target_workflows[!duplicated(names(target_workflows))]
+
+  if (length(target_workflows) == 0) {
     return(NULL)
   }
 
-  stable_cols <- stable_review_signature_columns(baseline_state)
-  signatures <- lapply(seq_len(nrow(baseline_state)), function(row_idx) {
-    row_signature(baseline_state, row_idx, stable_cols)
-  })
-  keys <- vapply(signatures, signature_key, character(1))
-
+  workflows <- character()
   columns <- character()
   values <- list()
   branch_signatures <- list()
 
-  for (col in cols) {
+  for (col in names(target_workflows)) {
+    workflow <- unname(target_workflows[[col]])
+    stable_cols <- stable_override_signature_columns(
+      baseline_state,
+      target_col = col,
+      workflow = workflow,
+      column_workflows = column_workflows
+    )
+    signatures <- lapply(seq_len(nrow(baseline_state)), function(row_idx) {
+      row_signature(baseline_state, row_idx, stable_cols)
+    })
+    keys <- vapply(signatures, signature_key, character(1))
+
     for (key in unique(keys)) {
       group_rows <- which(keys == key)
 
@@ -404,6 +507,7 @@ build_review_overrides <- function(baseline_state, final_state) {
         ambiguous_review_override_error(col, group_rows, stable_cols)
       }
 
+      workflows <- c(workflows, workflow)
       columns <- c(columns, col)
       values[[length(values) + 1L]] <- review_value_scalar(intended_value)
       branch_signatures[[length(branch_signatures) + 1L]] <- minimal_stable_row_signature(
@@ -418,7 +522,7 @@ build_review_overrides <- function(baseline_state, final_state) {
     return(NULL)
   }
 
-  new_review_override_spec(columns, values, branch_signatures, stable_cols)
+  new_review_override_spec(columns, values, branch_signatures, NULL, workflows)
 }
 
 empty_column_for_value <- function(value, n) {
@@ -490,7 +594,10 @@ apply_review_override_spec <- function(resolution_state, review_overrides) {
     return(resolution_state)
   }
 
-  updated <- init_review_override_columns(resolution_state, unique(as.character(spec$column)))
+  updated <- init_review_override_columns(
+    resolution_state,
+    intersect(unique(as.character(spec$column)), review_override_columns())
+  )
 
   for (i in seq_len(nrow(spec))) {
     col <- as.character(spec$column[i])
@@ -634,11 +741,10 @@ format_case_when_assignment <- function(col, entries) {
   )
 }
 
-review_overrides_function_literal <- function(review_overrides) {
-  spec <- validate_review_override_spec(review_overrides)
+format_workflow_mutate_block <- function(spec, append_pipe = FALSE) {
   columns <- unique(as.character(spec$column))
-
   assignments <- character()
+
   for (i in seq_along(columns)) {
     col <- columns[i]
     entries <- spec[spec$column == col, , drop = FALSE]
@@ -649,13 +755,38 @@ review_overrides_function_literal <- function(review_overrides) {
     assignments <- c(assignments, assignment)
   }
 
+  block <- c(
+    "    dplyr::mutate(",
+    assignments,
+    "    )"
+  )
+  if (append_pipe) {
+    block[length(block)] <- paste0(block[length(block)], " |>")
+  }
+  block
+}
+
+review_overrides_function_literal <- function(review_overrides) {
+  spec <- validate_review_override_spec(review_overrides)
+  present_workflows <- unique(as.character(spec$workflow))
+  workflows <- replay_workflow_order()[replay_workflow_order() %in% present_workflows]
+
+  blocks <- character()
+  for (i in seq_along(workflows)) {
+    workflow_spec <- spec[spec$workflow == workflows[i], , drop = FALSE]
+    blocks <- c(
+      blocks,
+      format_workflow_mutate_block(workflow_spec, append_pipe = i < length(workflows))
+    )
+  }
+
+  columns <- unique(as.character(spec$column))
+
   paste(
     c(
       "apply_review_overrides <- function(resolution_state) {",
       "  resolution_state |>",
-      "    dplyr::mutate(",
-      assignments,
-      "    )",
+      blocks,
       "}",
       paste0(
         "attr(apply_review_overrides, \"review_override_columns\") <- ",
