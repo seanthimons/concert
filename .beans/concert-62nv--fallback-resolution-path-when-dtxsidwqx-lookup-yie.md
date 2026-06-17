@@ -1,13 +1,13 @@
 ---
 # concert-62nv
 title: Fallback resolution path when DTXSID/WQX lookup yields no match
-status: done
+status: completed
 type: feature
 priority: normal
 tags:
     - github:issue
 created_at: 2026-05-11T21:19:20Z
-updated_at: 2026-06-17T12:59:57-04:00
+updated_at: 2026-06-17T13:09:28-04:00
 parent: concert-vwkd
 ---
 
