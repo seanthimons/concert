@@ -34,9 +34,14 @@ test_that("unresolved isotope matches remain searchable while pre-resolved isoto
 
 test_that("BLOCK flagged rows are skipped from curation search pool", {
   clean_data <- tibble::tibble(
-    Chemical = c("proprietary", "Acetone", "Radium-226"),
-    cleaning_flag = c("BLOCK: block pattern [exact]", NA_character_, "isotope_match"),
-    isotope_dtxsid = c(NA_character_, NA_character_, "DTXSID8021241")
+    Chemical = c("proprietary", "trade secret", "Acetone", "Radium-226"),
+    cleaning_flag = c(
+      "BLOCK: block pattern [exact]",
+      "WARN: stop word [substring]; BLOCK: block pattern [substring]",
+      NA_character_,
+      "isotope_match"
+    ),
+    isotope_dtxsid = c(NA_character_, NA_character_, NA_character_, "DTXSID8021241")
   )
 
   skip_rows <- sort(unique(c(
@@ -49,8 +54,9 @@ test_that("BLOCK flagged rows are skipped from curation search pool", {
     skip_rows = skip_rows
   )
 
-  expect_equal(skip_rows, c(1L, 3L))
+  expect_equal(skip_rows, c(1L, 2L, 4L))
   expect_false("proprietary" %in% dedup$unique_names)
+  expect_false("trade secret" %in% dedup$unique_names)
   expect_true("Acetone" %in% dedup$unique_names)
   expect_false("Radium-226" %in% dedup$unique_names)
 })
