@@ -1308,8 +1308,8 @@ strip_terminal_unspecified <- function(df, name_cols) {
 #' Strip user-defined reference terms from name fields
 #'
 #' Removes terms from the strip_terms reference list from Name-tagged columns.
-#' Terms containing regex metacharacters (\w, +, *, ^, $) are applied as-is.
-#' Plain terms are wrapped in word boundaries for clean removal.
+#' Matching behavior is controlled by each row's `match_mode`: `literal_word`,
+#' `literal_exact`, or `regex`.
 #'
 #' @param df Dataframe with name columns
 #' @param name_cols Character vector of Name-tagged column names
@@ -1326,7 +1326,7 @@ strip_reference_terms <- function(df, name_cols, strip_terms_tbl) {
   df_before <- df
 
   # Filter to active terms
-  active_terms <- strip_terms_tbl %>%
+  active_terms <- normalize_reference_list_tbl(strip_terms_tbl, "strip_terms") %>%
     dplyr::filter(active)
 
   # Skip if no active terms
@@ -1344,31 +1344,35 @@ strip_reference_terms <- function(df, name_cols, strip_terms_tbl) {
     ))
   }
 
-  # Regex metacharacters that indicate a term is already a regex pattern
-  regex_meta <- c("\\\\w", "\\+", "\\*", "\\^", "\\$", "\\?", "\\(", "\\)", "\\[", "\\]", "\\{", "\\}", "\\|")
+  validation <- validate_reference_list_patterns(active_terms, "strip_terms")
+  errors <- validation$severity == "error"
+  if (any(errors)) {
+    stop(paste(validation$message[errors], collapse = " "), call. = FALSE)
+  }
+
+  compiled_patterns <- lapply(seq_len(nrow(active_terms)), function(i) {
+    pattern <- active_terms$pattern[i]
+    match_mode <- active_terms$match_mode[i]
+
+    if (identical(match_mode, "regex")) {
+      return(stringr::regex(pattern, ignore_case = TRUE))
+    }
+
+    escaped_pattern <- stringr::str_replace_all(pattern, "([\\\\/.\\[\\](){}|?+*^$])", "\\\\\\1")
+    if (identical(match_mode, "literal_exact")) {
+      stringr::regex(paste0("^\\s*", escaped_pattern, "\\s*$"), ignore_case = TRUE)
+    } else {
+      stringr::regex(paste0("\\b", escaped_pattern, "\\b"), ignore_case = TRUE)
+    }
+  })
 
   # Apply each term to each name column
   df_after <- df
   for (col_name in name_cols) {
-    for (i in seq_len(nrow(active_terms))) {
-      term <- active_terms$term[i]
-
-      # Check if term contains regex metacharacters
-      is_regex <- any(sapply(regex_meta, function(m) grepl(m, term, fixed = FALSE)))
-
-      if (is_regex) {
-        # Apply as-is (it's already a regex pattern)
-        df_after[[col_name]] <- df_after[[col_name]] %>%
-          stringr::str_remove_all(stringr::regex(term, ignore_case = TRUE)) %>%
-          stringr::str_squish()
-      } else {
-        # Escape all regex metacharacters, then wrap in word boundaries
-        escaped_term <- stringr::str_replace_all(term, "([\\\\/.\\[\\](){}|?+*^$])", "\\\\\\1")
-        pattern <- paste0("\\b", escaped_term, "\\b")
-        df_after[[col_name]] <- df_after[[col_name]] %>%
-          stringr::str_remove_all(stringr::regex(pattern, ignore_case = TRUE)) %>%
-          stringr::str_squish()
-      }
+    for (pattern in compiled_patterns) {
+      df_after[[col_name]] <- df_after[[col_name]] %>%
+        stringr::str_remove_all(pattern) %>%
+        stringr::str_squish()
     }
   }
 
@@ -1922,8 +1926,10 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
     df_result$cleaning_flag <- NA_character_
   }
 
+  reference_type <- reference_list_type_from_label(flag_label)
+
   # Filter to active entries only
-  active_refs <- reference_list %>%
+  active_refs <- normalize_reference_list_tbl(reference_list, reference_type) %>%
     dplyr::filter(active)
 
   # Skip if no active references
@@ -1941,20 +1947,31 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
     ))
   }
 
+  validation <- validate_reference_list_patterns(active_refs, reference_type)
+  errors <- validation$severity == "error"
+  if (any(errors)) {
+    stop(paste(validation$message[errors], collapse = " "), call. = FALSE)
+  }
+
   # Determine flag prefix
   flag_prefix <- if (flag_type == "blocking") "BLOCK" else "WARN"
 
   # Pre-compile all regex patterns ONCE (outside all loops) - fixes O(rows*terms) compilation
+  exact_ref_indices <- which(active_refs$match_mode %in% c("literal_exact", "literal_word"))
+  exact_patterns_lower <- tolower(active_refs$pattern[exact_ref_indices])
+  compiled_patterns <- lapply(seq_len(nrow(active_refs)), function(i) {
+    pattern <- active_refs$pattern[i]
+    match_mode <- active_refs$match_mode[i]
 
-  ref_terms_lower <- tolower(active_refs$term)
-  use_regex_patterns <- identical(flag_label, "block pattern")
-  compiled_patterns <- lapply(active_refs$term, function(term) {
-    if (use_regex_patterns) {
-      return(stringr::regex(term, ignore_case = TRUE))
+    if (identical(match_mode, "literal_exact")) {
+      return(NULL)
+    }
+    if (identical(match_mode, "regex")) {
+      return(stringr::regex(pattern, ignore_case = TRUE))
     }
 
-    escaped_term <- stringr::str_replace_all(term, "([\\\\/.\\[\\](){}|?+*^$])", "\\\\\\1")
-    stringr::regex(paste0("\\b", escaped_term, "\\b"), ignore_case = TRUE)
+    escaped_pattern <- stringr::str_replace_all(pattern, "([\\\\/.\\[\\](){}|?+*^$])", "\\\\\\1")
+    stringr::regex(paste0("\\b", escaped_pattern, "\\b"), ignore_case = TRUE)
   })
 
   # Pre-allocate audit trail vectors (avoids O(n^2) growing-list pattern)
@@ -1965,13 +1982,18 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
   audit_news <- character()
   audit_reasons <- character()
 
-  # Track which rows already have a flag (for "first flag wins")
-  already_flagged <- !is.na(df_result$cleaning_flag) & df_result$cleaning_flag != ""
+  # Track which rows already have a flag. Blocking rules may supersede warnings.
+  flag_populated <- !is.na(df_result$cleaning_flag) & df_result$cleaning_flag != ""
+  already_flagged <- if (identical(flag_type, "blocking")) {
+    flag_populated & startsWith(df_result$cleaning_flag, "BLOCK:")
+  } else {
+    flag_populated
+  }
 
   # Process each name column
   for (col_name in name_cols) {
     col_values <- df_result[[col_name]]
-    col_values_lower <- tolower(col_values)
+    col_values_lower <- tolower(trimws(col_values))
 
     # Get row IDs (use original_row_id if available)
     row_ids <- if ("original_row_id" %in% names(df_result)) {
@@ -1981,12 +2003,16 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
     }
 
     # === PASS 1: Exact match (vectorized via match()) ===
-    exact_match_idx <- match(col_values_lower, ref_terms_lower)
-    has_exact_match <- !is.na(exact_match_idx) & !already_flagged & !is.na(col_values)
+    exact_match_idx <- match(col_values_lower, exact_patterns_lower)
+    has_exact_match <- if (length(exact_ref_indices) > 0) {
+      !is.na(exact_match_idx) & !already_flagged & !is.na(col_values)
+    } else {
+      rep(FALSE, length(col_values))
+    }
 
     if (any(has_exact_match)) {
       matched_indices <- which(has_exact_match)
-      ref_indices <- exact_match_idx[matched_indices]
+      ref_indices <- exact_ref_indices[exact_match_idx[matched_indices]]
 
       # Set flags (vectorized assignment)
       df_result$cleaning_flag[matched_indices] <- paste0(flag_prefix, ": ", flag_label, " [exact]")
@@ -2017,6 +2043,10 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
 
     if (length(candidates) > 0) {
       for (ref_idx in seq_along(compiled_patterns)) {
+        if (is.null(compiled_patterns[[ref_idx]])) {
+          next
+        }
+
         # Skip if no candidates left
         if (length(candidates) == 0) {
           break

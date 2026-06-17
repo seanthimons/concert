@@ -1,7 +1,7 @@
 ---
 # concert-hsnd
 title: Add reference-list tooltips explaining stop words, block patterns, strip terms, and functional categories
-status: todo
+status: completed
 type: task
 priority: normal
 tags:
@@ -13,7 +13,7 @@ tags:
     - area:ui
     - reference-lists
 created_at: 2026-06-17T00:52:07Z
-updated_at: 2026-06-17T00:52:07Z
+updated_at: 2026-06-17T16:52:33Z
 parent: concert-06o2
 ---
 
@@ -71,14 +71,14 @@ Suggested tooltip copy:
 
 ## Acceptance criteria
 
-- [ ] Tooltip/help marker exists for Functional Categories.
-- [ ] Tooltip/help marker exists for Stop Words.
-- [ ] Tooltip/help marker exists for Block Patterns.
-- [ ] Tooltip/help marker exists for Strip Terms.
-- [ ] Block Patterns tooltip explicitly warns that entries are regex and should be anchored for exact matches.
-- [ ] Stop Words tooltip explains warning semantics and literal/word-boundary intent.
-- [ ] Strip Terms tooltip explains that the rule mutates/rewrites the name field.
-- [ ] UI tests or snapshot coverage are added if the project has a suitable Shiny UI testing path; otherwise add a lightweight helper/unit test for generated tooltip content.
+- [x] Tooltip/help marker exists for Functional Categories.
+- [x] Tooltip/help marker exists for Stop Words.
+- [x] Tooltip/help marker exists for Block Patterns.
+- [x] Tooltip/help marker exists for Strip Terms.
+- [x] Block Patterns tooltip explicitly warns that entries are regex and should be anchored for exact matches.
+- [x] Stop Words tooltip explains warning semantics and literal/word-boundary intent.
+- [x] Strip Terms tooltip explains that the rule mutates/rewrites the name field.
+- [x] UI tests or snapshot coverage are added if the project has a suitable Shiny UI testing path; otherwise add a lightweight helper/unit test for generated tooltip content.
 
 ## Suggested implementation area
 

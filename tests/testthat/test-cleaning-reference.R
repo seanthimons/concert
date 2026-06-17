@@ -3,6 +3,8 @@
 
 library(withr)
 
+reference_schema <- c("term", "pattern", "match_mode", "source", "active", "notes")
+
 test_that("load_or_fetch_reference reads from existing cache", {
   withr::with_tempdir({
     # Create a test cache directory
@@ -121,7 +123,7 @@ test_that("load_stop_words returns expected default stop words", {
 
     # Check type - now returns tibble (Phase 13 change)
     expect_true(tibble::is_tibble(result))
-    expect_named(result, c("term", "source", "active"))
+    expect_named(result, reference_schema)
 
     # Check for expected keywords in term column
     expect_true("test" %in% result$term)
@@ -140,7 +142,7 @@ test_that("load_block_patterns returns expected default block patterns", {
 
     # Check type - now returns tibble (Phase 13 change)
     expect_true(tibble::is_tibble(result))
-    expect_named(result, c("term", "source", "active"))
+    expect_named(result, reference_schema)
 
     # Check for expected patterns in term column (partial match since they're regex)
     expect_true(any(grepl("proprietary", result$term, ignore.case = TRUE)))
@@ -161,7 +163,7 @@ test_that("load_user_reference_lists returns empty typed lists when sidecar is m
     expect_named(result, c("stop_words", "block_patterns", "strip_terms"))
     expect_true(all(vapply(result, tibble::is_tibble, logical(1))))
     expect_true(all(vapply(result, nrow, integer(1)) == 0L))
-    expect_named(result$stop_words, c("term", "source", "active"))
+    expect_named(result$stop_words, reference_schema)
   })
 })
 
@@ -177,8 +179,46 @@ test_that("load_user_reference_lists returns empty typed lists when sidecar is m
     )
 
     expect_true(all(vapply(result, nrow, integer(1)) == 0L))
-    expect_named(result$block_patterns, c("term", "source", "active"))
+    expect_named(result$block_patterns, reference_schema)
   })
+})
+
+test_that("legacy reference lists are normalized with default match semantics", {
+  legacy_stop <- tibble::tibble(term = "na", source = "app_default", active = TRUE)
+  legacy_block <- tibble::tibble(term = "^not\\s+disclosed", source = "app_default", active = TRUE)
+  legacy_strip <- tibble::tibble(term = "and its \\w+ salts", source = "app_default", active = TRUE)
+
+  stop_result <- normalize_reference_list_tbl(legacy_stop, "stop_words")
+  block_result <- normalize_reference_list_tbl(legacy_block, "block_patterns")
+  strip_result <- normalize_reference_list_tbl(legacy_strip, "strip_terms")
+
+  expect_equal(stop_result$pattern, "na")
+  expect_equal(stop_result$match_mode, "literal_word")
+  expect_equal(block_result$match_mode, "regex")
+  expect_equal(strip_result$match_mode, "regex")
+})
+
+test_that("reference list validation catches invalid and risky regex patterns", {
+  invalid <- tibble::tibble(
+    term = "(",
+    pattern = "(",
+    match_mode = "regex",
+    source = "user",
+    active = TRUE
+  )
+  invalid_result <- validate_reference_list_patterns(invalid, "block_patterns")
+  expect_equal(invalid_result$severity, "error")
+
+  broad <- tibble::tibble(
+    term = "alcohol",
+    pattern = "alcohol",
+    match_mode = "regex",
+    source = "user",
+    active = TRUE
+  )
+  broad_result <- validate_reference_list_patterns(broad, "block_patterns")
+  expect_equal(broad_result$severity, "warning")
+  expect_match(broad_result$message, "Unanchored")
 })
 
 test_that("load_user_reference_lists reads empty and populated sidecars", {

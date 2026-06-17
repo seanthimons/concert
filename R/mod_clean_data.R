@@ -1001,27 +1001,39 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
     output$reference_editors_section <- renderUI({
       req(ref_lists_ready())
 
+      reference_title <- function(label, type) {
+        tagList(
+          label,
+          tags$span(
+            class = "text-muted ms-1",
+            title = reference_list_help_text(type),
+            `aria-label` = reference_list_help_text(type),
+            bsicons::bs_icon("info-circle")
+          )
+        )
+      }
+
       bslib::accordion(
         id = session$ns("reference_editors"),
         open = FALSE,
         multiple = TRUE,
         bslib::accordion_panel(
-          title = "Functional Categories",
+          title = reference_title("Functional Categories", "functional_categories"),
           icon = bsicons::bs_icon("tag"),
           uiOutput(session$ns("chip_func_cats"))
         ),
         bslib::accordion_panel(
-          title = "Stop Words",
+          title = reference_title("Stop Words", "stop_words"),
           icon = bsicons::bs_icon("hand-thumbs-down"),
           uiOutput(session$ns("chip_stop_words"))
         ),
         bslib::accordion_panel(
-          title = "Block Patterns",
+          title = reference_title("Block Patterns", "block_patterns"),
           icon = bsicons::bs_icon("calculator"),
           uiOutput(session$ns("chip_block_patterns"))
         ),
         bslib::accordion_panel(
-          title = "Strip Terms",
+          title = reference_title("Strip Terms", "strip_terms"),
           icon = bsicons::bs_icon("eraser"),
           uiOutput(session$ns("chip_strip_terms"))
         )

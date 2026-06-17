@@ -131,16 +131,21 @@ build_export_sheets <- function(
   }
 
   # Sheet 5: Reference Lists (combined with type column)
-  strip_terms <- reference_lists$strip_terms %||%
-    tibble::tibble(term = character(), source = character(), active = logical())
+  functional_categories <- normalize_reference_list_tbl(
+    reference_lists$functional_categories,
+    "functional_categories"
+  )
+  stop_words <- normalize_reference_list_tbl(reference_lists$stop_words, "stop_words")
+  block_patterns <- normalize_reference_list_tbl(reference_lists$block_patterns, "block_patterns")
+  strip_terms <- normalize_reference_list_tbl(reference_lists$strip_terms, "strip_terms")
 
   reference_lists_sheet <- dplyr::bind_rows(
-    reference_lists$functional_categories %>% dplyr::mutate(type = "functional_category"),
-    reference_lists$stop_words %>% dplyr::mutate(type = "stop_word"),
-    reference_lists$block_patterns %>% dplyr::mutate(type = "block_pattern"),
+    functional_categories %>% dplyr::mutate(type = "functional_category"),
+    stop_words %>% dplyr::mutate(type = "stop_word"),
+    block_patterns %>% dplyr::mutate(type = "block_pattern"),
     strip_terms %>% dplyr::mutate(type = "strip_term")
   ) %>%
-    dplyr::select(type, term, source, active)
+    dplyr::select(type, term, pattern, match_mode, source, active, notes)
 
   # Sheet 6: Column Tags
   column_tags_sheet <- tibble::tibble(
