@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-qamg
 title: Stability & Reliability
 status: todo

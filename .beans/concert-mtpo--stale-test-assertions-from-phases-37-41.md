@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-mtpo
 title: Stale test assertions from Phases 37-41
 status: todo

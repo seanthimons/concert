@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-uhnt
 title: Column names with special characters break tagging UI
 status: todo

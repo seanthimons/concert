@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-i9me
 title: Case-by-case resolution path for flagged multi-analytes
 status: draft

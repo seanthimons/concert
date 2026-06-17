@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-xy1e
 title: Fix WQX resolution shadowed by NA-dtxsid exact results
 status: completed

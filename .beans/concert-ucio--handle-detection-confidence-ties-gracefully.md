@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-ucio
 title: Handle detection confidence ties gracefully
 status: todo

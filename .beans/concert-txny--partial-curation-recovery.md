@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-txny
 title: Partial curation recovery
 status: draft

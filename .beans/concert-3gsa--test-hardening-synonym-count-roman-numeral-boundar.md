@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-3gsa
 title: 'Test hardening: synonym_count, roman numeral boundary, no-space paren'
 status: todo

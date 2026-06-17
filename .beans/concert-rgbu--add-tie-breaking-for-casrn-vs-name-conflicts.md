@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-rgbu
 title: Add tie-breaking for CASRN vs Name conflicts
 status: todo

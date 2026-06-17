@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-vwkd
 title: Conflict Resolution & Enrichment
 status: todo

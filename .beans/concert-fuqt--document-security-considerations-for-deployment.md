@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-fuqt
 title: Document security considerations for deployment
 status: todo

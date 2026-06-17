@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-s9pu
 title: Auto-Resolved and Suggested value boxes show 0 after curation
 status: completed

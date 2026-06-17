@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-4itn
 title: Document API key setup for ComptoxR
 status: todo

@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-3wja
 title: Reference list editors are crushed
 status: todo

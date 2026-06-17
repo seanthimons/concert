@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-w9uv
 title: Add string hashing workflow
 status: todo
