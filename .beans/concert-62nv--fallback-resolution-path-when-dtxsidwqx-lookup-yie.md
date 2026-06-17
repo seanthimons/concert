@@ -4,8 +4,10 @@ title: Fallback resolution path when DTXSID/WQX lookup yields no match
 status: todo
 type: feature
 priority: normal
+tags:
+    - github:issue
 created_at: 2026-05-11T21:19:20Z
-updated_at: 2026-05-11T21:19:20Z
+updated_at: 2026-06-17T00:54:48Z
 ---
 
 When curation finds no Resolution for DTXSID or WQX, there is currently no recovery path. We need a way to:
@@ -20,3 +22,9 @@ When curation finds no Resolution for DTXSID or WQX, there is currently no recov
 - [ ] Offer fallback query options (direct WQX search, direct DTXSID search)
 - [ ] Allow marking unresolvable records as 'bad' with a reason
 - [ ] Works in both Shiny UI and headless mode
+
+
+
+## GitHub
+
+- GitHub #39: https://github.com/seanthimons/concert/issues/39

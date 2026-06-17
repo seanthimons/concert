@@ -4,8 +4,10 @@ title: Case-by-case resolution path for flagged multi-analytes
 status: draft
 type: feature
 priority: normal
+tags:
+    - github:issue
 created_at: 2026-05-11T22:37:00Z
-updated_at: 2026-05-11T22:37:00Z
+updated_at: 2026-06-17T00:54:48Z
 ---
 
 ## Proposal
@@ -62,3 +64,9 @@ If the user resolves multi-analytes but hasn't exported yet, the resolutions mus
 
 ### Flag clearing semantics
 When a user chooses "Keep", the `cleaning_flag` WARNING must be cleared or replaced with a resolved status (e.g., `"multi_analyte_kept"`). The current flag column is a simple character field â€” there's no distinction between "unreviewed warning" and "reviewed and accepted". This matters for export filtering and reporting.
+
+
+
+## GitHub
+
+- GitHub #40: https://github.com/seanthimons/concert/issues/40
