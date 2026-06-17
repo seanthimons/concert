@@ -75,7 +75,7 @@ build_export_sheets <- function(
 
   curated_data_sheet <- curated_data_sheet %>%
     dplyr::relocate(
-      tidyselect::any_of(c(".resolution_method", ".resolution_reason", "row_flag")),
+      tidyselect::any_of(c(".resolution_method", ".resolution_reason", "row_flag", "row_flag_reason")),
       .after = tidyselect::any_of("consensus_source")
     )
 
@@ -258,6 +258,7 @@ build_session_state_sheet <- function(resolution_state, consensus_summary) {
     ".resolution_method",
     ".resolution_reason",
     "row_flag",
+    "row_flag_reason",
     "manual_preferredName",
     "wqx_override_name"
   )

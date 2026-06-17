@@ -753,6 +753,35 @@ apply_queued_review_overrides <- function(resolution_state, queue, validation_re
   )
 }
 
+row_flag_review_controls <- function(session, current_flag = "", current_reason = "") {
+  current_flag <- if (!is.na(current_flag) && nzchar(current_flag)) current_flag else ""
+  current_reason <- if (!is.na(current_reason) && nzchar(current_reason)) current_reason else ""
+
+  div(
+    class = "border rounded p-2 mb-3",
+    radioButtons(
+      session$ns("modal_row_flag"),
+      "Row Flag",
+      choices = c("Unset" = "", "BAD" = "BAD", "FOLLOW-UP" = "FOLLOW-UP", "VERIFIED" = "VERIFIED"),
+      selected = current_flag,
+      inline = TRUE
+    ),
+    textAreaInput(
+      session$ns("modal_row_flag_reason"),
+      "Reason",
+      value = current_reason,
+      rows = 2,
+      placeholder = "Reason for BAD or FOLLOW-UP"
+    ),
+    actionButton(
+      session$ns("modal_apply_row_flag"),
+      "Apply Flag",
+      icon = icon("tags"),
+      class = "btn-sm btn-outline-primary"
+    )
+  )
+}
+
 review_override_controls <- function(session) {
   div(
     class = "border rounded p-3 mt-3 bg-light",
@@ -1145,6 +1174,13 @@ mod_review_results_ui <- function(id) {
               ),
               width = "150px"
             ),
+            textInput(
+              ns("batch_row_flag_reason"),
+              label = NULL,
+              value = "",
+              placeholder = "Reason",
+              width = "220px"
+            ),
             actionButton(
               ns("apply_batch_row_flag"),
               "Apply Flag",
@@ -1309,12 +1345,24 @@ mod_review_results_server <- function(id, data_store) {
       }
 
       data_store$override_modal_row_idx <- row_idx
+      data_store$modal_row_idx <- row_idx
       row_status <- as.character(data_store$resolution_state$consensus_status[row_idx])
+      current_flag <- if ("row_flag" %in% names(data_store$resolution_state)) {
+        data_store$resolution_state$row_flag[row_idx]
+      } else {
+        NA_character_
+      }
+      current_reason <- if ("row_flag_reason" %in% names(data_store$resolution_state)) {
+        data_store$resolution_state$row_flag_reason[row_idx]
+      } else {
+        NA_character_
+      }
 
       showModal(modalDialog(
         title = "Expert Override",
         tagList(
           div(class = "text-muted small mb-2", sprintf("Row %d - %s", row_idx, row_status)),
+          row_flag_review_controls(session, current_flag, current_reason),
           review_override_controls(session)
         ),
         footer = modalButton("Close"),
@@ -2198,11 +2246,6 @@ mod_review_results_server <- function(id, data_store) {
         enrichment_cache = data_store$enrichment_cache
       )
 
-      if (length(options) == 0) {
-        showNotification("No candidates available for this row", type = "warning")
-        return()
-      }
-
       # Store modal state
       data_store$modal_row_idx <- row_idx
       data_store$override_modal_row_idx <- row_idx
@@ -2214,6 +2257,11 @@ mod_review_results_server <- function(id, data_store) {
         NA_character_
       }
       current_flag <- if (!is.na(current_flag)) current_flag else ""
+      current_reason <- if ("row_flag_reason" %in% names(data_store$resolution_state)) {
+        data_store$resolution_state$row_flag_reason[row_idx]
+      } else {
+        NA_character_
+      }
 
       # Build tagged column summary for context
       tagged_summary <- if (!is.null(data_store$column_tags) && length(data_store$column_tags) > 0) {
@@ -2362,18 +2410,13 @@ mod_review_results_server <- function(id, data_store) {
       })
 
       # Build scrollable container
-      cards_container <- div(style = "max-height: 60vh; overflow-y: auto;", cards)
+      cards_container <- if (length(cards) == 0) {
+        div(class = "alert alert-warning mb-3", "No candidate matches available.")
+      } else {
+        div(style = "max-height: 60vh; overflow-y: auto;", cards)
+      }
 
-      flag_controls <- div(
-        class = "border rounded p-2 mb-3",
-        radioButtons(
-          session$ns("modal_row_flag"),
-          "Row Flag",
-          choices = c("Unset" = "", "BAD" = "BAD", "FOLLOW-UP" = "FOLLOW-UP", "VERIFIED" = "VERIFIED"),
-          selected = current_flag,
-          inline = TRUE
-        )
-      )
+      flag_controls <- row_flag_review_controls(session, current_flag, current_reason)
 
       # "Accept Suggestion" button only shown for suggested rows
       accept_suggestion_btn <- if (row_status == "suggested") {
@@ -2420,7 +2463,7 @@ mod_review_results_server <- function(id, data_store) {
       update_wqx_override_selectize()
     })
 
-    observeEvent(input$modal_row_flag, {
+    observeEvent(input$modal_apply_row_flag, {
       row_idx <- data_store$modal_row_idx
       if (is.null(row_idx)) {
         return()
@@ -2429,7 +2472,12 @@ mod_review_results_server <- function(id, data_store) {
       tryCatch(
         {
           group_rows <- get_group_rows(row_idx, isolate(data_store$dedup_group_map))
-          updated_df <- set_row_flags(data_store$resolution_state, group_rows, input$modal_row_flag)
+          updated_df <- set_row_flags(
+            data_store$resolution_state,
+            group_rows,
+            input$modal_row_flag,
+            reason = input$modal_row_flag_reason
+          )
           data_store$resolution_state <- updated_df
 
           flag <- normalize_row_flag(input$modal_row_flag)
@@ -3011,7 +3059,12 @@ mod_review_results_server <- function(id, data_store) {
 
       tryCatch(
         {
-          updated_df <- set_row_flags(data_store$resolution_state, selected_rows, input$batch_row_flag)
+          updated_df <- set_row_flags(
+            data_store$resolution_state,
+            selected_rows,
+            input$batch_row_flag,
+            reason = input$batch_row_flag_reason
+          )
           data_store$resolution_state <- updated_df
 
           flag <- normalize_row_flag(input$batch_row_flag)
@@ -3022,6 +3075,7 @@ mod_review_results_server <- function(id, data_store) {
           }
           showNotification(msg, type = "message")
           updateSelectInput(session, "batch_row_flag", selected = "")
+          updateTextInput(session, "batch_row_flag_reason", value = "")
         },
         error = function(e) {
           showNotification(paste0("Error applying row flag: ", e$message), type = "error")

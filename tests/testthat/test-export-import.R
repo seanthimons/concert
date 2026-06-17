@@ -33,7 +33,8 @@ create_test_data <- function() {
     .pinned = c(FALSE, FALSE, TRUE),
     .manual_entry = c(FALSE, FALSE, TRUE),
     .suggested_column = c(NA_character_, "dtxsid_cas_number", NA_character_),
-    row_flag = c(NA_character_, "FOLLOW-UP", "VERIFIED")
+    row_flag = c(NA_character_, "FOLLOW-UP", "VERIFIED"),
+    row_flag_reason = c(NA_character_, "Needs review after reimport", NA_character_)
   )
 
   # Consensus summary
@@ -205,6 +206,7 @@ test_that("Session State sheet contains internal state and zero summary counts",
   expect_equal(row_state$.manual_entry, test_data$resolution_state$.manual_entry)
   expect_equal(row_state$.suggested_column, test_data$resolution_state$.suggested_column)
   expect_equal(row_state$row_flag, test_data$resolution_state$row_flag)
+  expect_equal(row_state$row_flag_reason, test_data$resolution_state$row_flag_reason)
 
   zero_counts <- summary_state %>%
     dplyr::filter(key %in% c("n_disagree", "n_manual")) %>%
@@ -341,9 +343,10 @@ test_that("Curated Data has needs_review column, no .pinned column", {
   expect_equal(curated$needs_review, c(FALSE, FALSE, TRUE))
 })
 
-test_that("Curated Data includes row_flag without extra flag metadata", {
+test_that("Curated Data includes row_flag reason without extra flag metadata", {
   test_data <- create_test_data()
   test_data$resolution_state$row_flag <- c("BAD", NA_character_, "VERIFIED")
+  test_data$resolution_state$row_flag_reason <- c("No DTXSID or WQX match", NA_character_, NA_character_)
 
   sheets <- build_export_sheets(
     raw = test_data$raw,
@@ -359,7 +362,9 @@ test_that("Curated Data includes row_flag without extra flag metadata", {
   curated <- sheets[["Curated Data"]]
 
   expect_true("row_flag" %in% names(curated))
+  expect_true("row_flag_reason" %in% names(curated))
   expect_equal(curated$row_flag, c("BAD", NA_character_, "VERIFIED"))
+  expect_equal(curated$row_flag_reason, c("No DTXSID or WQX match", NA_character_, NA_character_))
   expect_false("row_flag_timestamp" %in% names(curated))
   expect_false("row_flag_method" %in% names(curated))
   expect_false("row_flag_note" %in% names(curated))
@@ -369,6 +374,7 @@ test_that("Curated Data initializes missing row_flag and keeps BAD separate from
   test_data <- create_test_data()
   test_data$resolution_state$consensus_status[1] <- "agree"
   test_data$resolution_state$row_flag <- NULL
+  test_data$resolution_state$row_flag_reason <- NULL
 
   sheets <- build_export_sheets(
     raw = test_data$raw,
@@ -383,10 +389,13 @@ test_that("Curated Data initializes missing row_flag and keeps BAD separate from
 
   curated <- sheets[["Curated Data"]]
   expect_true("row_flag" %in% names(curated))
+  expect_true("row_flag_reason" %in% names(curated))
   expect_true(all(is.na(curated$row_flag)))
+  expect_true(all(is.na(curated$row_flag_reason)))
 
   flagged_state <- test_data$resolution_state
   flagged_state$row_flag <- c("BAD", NA_character_, NA_character_)
+  flagged_state$row_flag_reason <- c("No recovery path", NA_character_, NA_character_)
   flagged_sheets <- build_export_sheets(
     raw = test_data$raw,
     resolution_state = flagged_state,
@@ -400,6 +409,7 @@ test_that("Curated Data initializes missing row_flag and keeps BAD separate from
 
   flagged_curated <- flagged_sheets[["Curated Data"]]
   expect_equal(flagged_curated$row_flag[1], "BAD")
+  expect_equal(flagged_curated$row_flag_reason[1], "No recovery path")
   expect_false(flagged_curated$needs_review[1])
 })
 
@@ -778,6 +788,7 @@ test_that("hydrate_session_state restores full session state from parsed export"
   expect_equal(state$resolution_state$.manual_entry, test_data$resolution_state$.manual_entry)
   expect_equal(state$resolution_state$.suggested_column, test_data$resolution_state$.suggested_column)
   expect_equal(state$resolution_state$row_flag, test_data$resolution_state$row_flag)
+  expect_equal(state$resolution_state$row_flag_reason, test_data$resolution_state$row_flag_reason)
   expect_equal(state$consensus_summary$n_disagree, 0)
   expect_equal(state$consensus_summary$n_manual, 0)
   expect_equal(state$detection$header_row, test_data$detection$header_row)
