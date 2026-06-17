@@ -27,8 +27,12 @@ ui <- page_sidebar(
   # Enable shinyjs
   shinyjs::useShinyjs(),
 
-  # Tab pulse animation CSS
-  tags$head(tags$style(
+  # Browser favicon and tab pulse animation CSS
+  tags$head(
+    tags$link(rel = "shortcut icon", href = "favicon.ico"),
+    tags$link(rel = "icon", type = "image/png", sizes = "32x32", href = "favicon-32x32.png"),
+    tags$link(rel = "icon", type = "image/png", sizes = "16x16", href = "favicon-16x16.png"),
+    tags$style(
     "
     @keyframes tab-pulse {
       0% { background-color: transparent; }
@@ -39,7 +43,8 @@ ui <- page_sidebar(
       animation: tab-pulse 0.5s ease-in-out 2;
     }
   "
-  )),
+    )
+  ),
 
   # Theme
   theme = bs_theme(
