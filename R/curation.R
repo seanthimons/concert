@@ -128,7 +128,17 @@ get_blocked_cleaning_rows <- function(clean_data) {
     return(integer(0))
   }
 
-  which(!is.na(clean_data$cleaning_flag) & startsWith(clean_data$cleaning_flag, "BLOCK:"))
+  flags <- as.character(clean_data$cleaning_flag)
+  blocked <- vapply(flags, function(flag) {
+    if (is.na(flag) || !nzchar(flag)) {
+      return(FALSE)
+    }
+
+    tokens <- trimws(strsplit(flag, ";", fixed = TRUE)[[1]])
+    any(startsWith(tokens, "BLOCK:"))
+  }, logical(1))
+
+  which(blocked)
 }
 
 #' Resolve reference cache directory for curation-time dictionary lookups
