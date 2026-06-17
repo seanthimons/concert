@@ -2,7 +2,7 @@
 # concert-06o2
 title: Clarify and enforce Stop Words vs Block Patterns vs Strip Terms semantics
 status: todo
-type: feature
+type: epic
 priority: normal
 tags:
     - source:github
@@ -12,7 +12,8 @@ tags:
     - priority:medium
     - reference-lists
 created_at: 2026-06-17T00:52:06Z
-updated_at: 2026-06-17T00:52:06Z
+updated_at: 2026-06-17T01:14:58Z
+parent: concert-fpqt
 ---
 
 GitHub: #32 https://github.com/seanthimons/concert/issues/32
