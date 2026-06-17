@@ -33,6 +33,7 @@ test_that("clean data chip operations persist sidecar-backed reference lists", {
       sidecar <- readRDS(file.path(cache_dir, "user_reference_lists.rds"))
       expect_true("persisted" %in% sidecar$stop_words$term)
       expect_true(sidecar$stop_words$active[sidecar$stop_words$term == "persisted"])
+      expect_equal(sidecar$stop_words$match_mode[sidecar$stop_words$term == "persisted"], "literal_word")
 
       session$setInputs(chip_toggle = list(type = "stop_words", term = "test", ts = 2))
       session$flushReact()
@@ -48,4 +49,12 @@ test_that("clean data chip operations persist sidecar-backed reference lists", {
       expect_true("test" %in% sidecar$stop_words$term)
     })
   })
+})
+
+test_that("reference list help text describes each editor semantics", {
+  expect_match(reference_list_help_text("functional_categories"), "warning flags")
+  expect_match(reference_list_help_text("stop_words"), "generic")
+  expect_match(reference_list_help_text("block_patterns"), "Regex")
+  expect_match(reference_list_help_text("block_patterns"), "anchors")
+  expect_match(reference_list_help_text("strip_terms"), "modify|remove")
 })

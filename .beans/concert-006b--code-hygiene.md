@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-006b
 title: Code Hygiene
 status: todo

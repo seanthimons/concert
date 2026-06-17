@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-36z2
 title: Remove redundant V alternative in ROMAN_NUMERAL_PATTERN
 status: todo

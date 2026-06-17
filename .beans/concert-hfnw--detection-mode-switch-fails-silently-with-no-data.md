@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-hfnw
 title: Detection mode switch fails silently with no data
 status: todo

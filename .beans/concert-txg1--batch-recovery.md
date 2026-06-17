@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-txg1
 title: Batch & Recovery
 status: draft

@@ -9,6 +9,7 @@ untagged_review_test_rows <- function(statuses) {
     consensus_status = statuses,
     consensus_dtxsid = rep(NA_character_, n),
     row_flag = rep(NA_character_, n),
+    row_flag_reason = rep(NA_character_, n),
     qc_flag = rep(NA_character_, n),
     .pinned = rep(FALSE, n),
     .manual_entry = rep(FALSE, n),
@@ -22,6 +23,14 @@ test_that("is_unassigned_untagged_review_row includes unresolved unassigned unta
   df <- untagged_review_test_rows(c("disagree", "suggested", "error", "unresolvable"))
 
   expect_equal(is_unassigned_untagged_review_row(df), rep(TRUE, 4))
+})
+
+test_that("is_unassigned_untagged_review_row detects DTXSID/WQX no-match fallback rows", {
+  df <- untagged_review_test_rows(c("error", "unresolvable", "wqx", "manual"))
+  df$wqx_override_name <- c(NA_character_, NA_character_, "Dissolved oxygen", NA_character_)
+  df$consensus_dtxsid[4] <- "DTXSID7021360"
+
+  expect_equal(is_unassigned_untagged_review_row(df), c(TRUE, TRUE, FALSE, FALSE))
 })
 
 test_that("is_unassigned_untagged_review_row excludes rows with row flags", {
@@ -583,6 +592,21 @@ test_that("derive_resolution_html Review button absent for non-WQX rows", {
   )
   result <- derive_resolution_html(df, row_indices = 1L)
   expect_no_match(result, "wqx-review-btn")
+})
+
+test_that("derive_resolution_html exposes expert override for error and unresolvable rows", {
+  df <- data.frame(
+    consensus_status = c("error", "unresolvable"),
+    consensus_dtxsid = c(NA_character_, NA_character_),
+    .pinned = c(FALSE, FALSE),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  result <- derive_resolution_html(df, row_indices = 1:2)
+
+  expect_match(result[1], "expert-override-btn")
+  expect_match(result[2], "expert-override-btn")
 })
 
 test_that("derive_resolution_html keeps compare actions for reviewable rows", {

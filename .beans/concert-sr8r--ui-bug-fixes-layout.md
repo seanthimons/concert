@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-sr8r
 title: UI Bug Fixes & Layout
 status: todo

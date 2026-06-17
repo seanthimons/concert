@@ -332,19 +332,23 @@ test_that("init_resolution_state adds public row_flag column", {
   result <- init_resolution_state(df)
 
   expect_true("row_flag" %in% names(result))
+  expect_true("row_flag_reason" %in% names(result))
   expect_false(".row_flag" %in% names(result))
   expect_true(is.na(result$row_flag[1]))
+  expect_true(is.na(result$row_flag_reason[1]))
 })
 
-test_that("init_resolution_state preserves existing row_flag values", {
+test_that("init_resolution_state preserves existing row_flag values and reasons", {
   df <- data.frame(
     Chemical = c("Toluene", "Ethanol"),
     row_flag = c("BAD", "VERIFIED"),
+    row_flag_reason = c("No CASRN or name match", NA_character_),
     stringsAsFactors = FALSE
   )
   result <- init_resolution_state(df)
 
   expect_equal(result$row_flag, c("BAD", "VERIFIED"))
+  expect_equal(result$row_flag_reason, c("No CASRN or name match", NA_character_))
 })
 
 test_that("set_row_flag validates, sets, clears, and preserves consensus status", {
@@ -365,22 +369,45 @@ test_that("set_row_flag validates, sets, clears, and preserves consensus status"
   expect_equal(result$.resolution_method, df$.resolution_method)
   expect_equal(result$.resolution_reason, df$.resolution_reason)
 
-  result <- set_row_flag(result, 2L, "FOLLOW-UP")
+  result <- set_row_flag(result, 2L, "FOLLOW-UP", reason = "needs lab confirmation")
   result <- set_row_flag(result, 3L, "VERIFIED")
   expect_equal(result$row_flag, c("BAD", "FOLLOW-UP", "VERIFIED"))
+  expect_equal(result$row_flag_reason, c(NA_character_, "needs lab confirmation", NA_character_))
 
   result <- set_row_flag(result, 1L, "CLEAR")
   expect_true(is.na(result$row_flag[1]))
+  expect_true(is.na(result$row_flag_reason[1]))
 })
 
 test_that("set_row_flags updates multiple rows and rejects invalid input", {
   df <- data.frame(consensus_status = rep("agree", 4), stringsAsFactors = FALSE)
 
-  result <- set_row_flags(df, c(2L, 4L), "verified")
+  result <- set_row_flags(df, c(2L, 4L), "verified", reason = "audited duplicate group")
   expect_equal(result$row_flag, c(NA_character_, "VERIFIED", NA_character_, "VERIFIED"))
+  expect_equal(result$row_flag_reason, c(NA_character_, "audited duplicate group", NA_character_, "audited duplicate group"))
 
   expect_error(set_row_flag(result, 1L, "MAYBE"), "Valid flags")
   expect_error(set_row_flags(result, 5L, "BAD"), "valid 1-based")
+})
+
+test_that("set_row_flags trims and clears row flag reasons", {
+  df <- data.frame(
+    consensus_status = rep("error", 2),
+    row_flag_reason = c("old", "old"),
+    stringsAsFactors = FALSE
+  )
+
+  result <- set_row_flags(df, 1:2, "BAD", reason = "  no DTXSID or WQX match  ")
+  expect_equal(result$row_flag, c("BAD", "BAD"))
+  expect_equal(result$row_flag_reason, rep("no DTXSID or WQX match", 2))
+
+  cleared <- set_row_flag(result, 1L, "CLEAR", reason = "ignored")
+  expect_true(is.na(cleared$row_flag[1]))
+  expect_true(is.na(cleared$row_flag_reason[1]))
+
+  blank_reason <- set_row_flag(result, 2L, "FOLLOW-UP", reason = " ")
+  expect_equal(blank_reason$row_flag[2], "FOLLOW-UP")
+  expect_true(is.na(blank_reason$row_flag_reason[2]))
 })
 
 # ============================================================================

@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-rc89
 title: Optimize detection algorithm performance
 status: todo

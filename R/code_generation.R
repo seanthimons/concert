@@ -13,6 +13,7 @@ review_override_columns <- function() {
     ".suggested_column",
     "manual_preferredName",
     "row_flag",
+    "row_flag_reason",
     "wqx_override_name"
   )
 }

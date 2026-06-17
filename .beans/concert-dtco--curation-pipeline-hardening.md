@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-dtco
 title: Curation Pipeline Hardening
 status: todo

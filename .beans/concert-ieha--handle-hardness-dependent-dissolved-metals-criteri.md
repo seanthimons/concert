@@ -2,16 +2,18 @@
 # concert-ieha
 title: Handle hardness-dependent dissolved metals criteria
 status: todo
-type: task
+type: epic
 priority: high
 tags:
+    - criteria
+    - github:issue
     - aquatic-life
     - dissolved-metals
     - hardness
-    - criteria
 created_at: 2026-05-26T20:20:25Z
-updated_at: 2026-05-26T20:20:25Z
+updated_at: 2026-06-17T16:20:12Z
 ---
+
 
 ## Problem
 
@@ -79,3 +81,9 @@ If user/sample hardness is absent but spatial context is available:
 ## Notes
 
 This is related to aquatic life criteria curation and water-quality benchmark crosswalking. The important thing is to avoid treating hardness-dependent dissolved metals as ordinary fixed thresholds.
+
+
+
+## GitHub
+
+- GitHub #36: https://github.com/seanthimons/concert/issues/36

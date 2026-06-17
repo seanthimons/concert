@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-a2ae
 title: Dependency & Deployment Readiness
 status: todo

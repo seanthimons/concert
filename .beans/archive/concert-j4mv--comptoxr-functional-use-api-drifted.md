@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-j4mv
 title: ComptoxR functional use API drifted
 status: completed

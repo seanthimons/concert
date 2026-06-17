@@ -39,7 +39,15 @@ parse_concert_export <- function(file_path) {
         file_path,
         sheets,
         "Reference Lists",
-        tibble::tibble(type = character(), term = character(), source = character(), active = logical())
+        tibble::tibble(
+          type = character(),
+          term = character(),
+          pattern = character(),
+          match_mode = character(),
+          source = character(),
+          active = logical(),
+          notes = character()
+        )
       )
 
       column_tags_df <- read_export_sheet(
@@ -475,40 +483,46 @@ merge_reference_lists <- function(existing_lists, imported_ref_df) {
     )
   }
 
-  merge_type <- function(existing_tibble, imported_subset) {
+  merge_type <- function(existing_tibble, imported_subset, type) {
     if (is.null(existing_tibble)) {
-      existing_tibble <- tibble::tibble(term = character(), source = character(), active = logical())
+      existing_tibble <- empty_reference_list_tbl()
     }
 
     imported_subset <- imported_subset %>%
       dplyr::mutate(
         source = "imported",
         active = if ("active" %in% names(imported_subset)) as.logical(active) else TRUE
-      ) %>%
-      dplyr::select(term, source, active)
+      )
+
+    imported_subset <- normalize_reference_list_tbl(imported_subset, type)
+    existing_tibble <- normalize_reference_list_tbl(existing_tibble, type)
 
     dplyr::bind_rows(
       imported_subset,
-      existing_tibble %>% dplyr::select(term, source, active)
+      existing_tibble
     ) %>%
       dplyr::distinct(term, .keep_all = TRUE)
   }
 
   existing_lists$functional_categories <- merge_type(
     existing_lists$functional_categories,
-    imported_ref_df %>% dplyr::filter(type == "functional_category") %>% dplyr::select(-type)
+    imported_ref_df %>% dplyr::filter(type == "functional_category") %>% dplyr::select(-type),
+    "functional_categories"
   )
   existing_lists$stop_words <- merge_type(
     existing_lists$stop_words,
-    imported_ref_df %>% dplyr::filter(type == "stop_word") %>% dplyr::select(-type)
+    imported_ref_df %>% dplyr::filter(type == "stop_word") %>% dplyr::select(-type),
+    "stop_words"
   )
   existing_lists$block_patterns <- merge_type(
     existing_lists$block_patterns,
-    imported_ref_df %>% dplyr::filter(type == "block_pattern") %>% dplyr::select(-type)
+    imported_ref_df %>% dplyr::filter(type == "block_pattern") %>% dplyr::select(-type),
+    "block_patterns"
   )
   existing_lists$strip_terms <- merge_type(
     existing_lists$strip_terms,
-    imported_ref_df %>% dplyr::filter(type == "strip_term") %>% dplyr::select(-type)
+    imported_ref_df %>% dplyr::filter(type == "strip_term") %>% dplyr::select(-type),
+    "strip_terms"
   )
 
   existing_lists

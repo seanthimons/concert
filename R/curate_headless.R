@@ -47,6 +47,9 @@
 #'   `generate_concert_script()`, content-match spec from
 #'   `build_review_overrides()`, or legacy positional override table/list to
 #'   replay Review Results edits.
+#' @param multi_analyte_resolutions Optional data frame/list with `row_index`
+#'   (or `row`), `action`, and optional `value`/`values` columns. Applied after
+#'   cleaning and before curation.
 #' @param media_map Optional media harmonization map passed to
 #'   `harmonize_media()`.
 #' @param write_files Logical. If TRUE (default), writes XLSX and optional
@@ -92,6 +95,7 @@ curate_headless <- function(
   starts_with = FALSE,
   postprocess_candidates = FALSE,
   review_overrides = NULL,
+  multi_analyte_resolutions = NULL,
   media_map = NULL,
   write_files = TRUE,
   source_name = NULL
@@ -198,6 +202,21 @@ curate_headless <- function(
     cleaning_result <- run_cleaning_pipeline(clean_data, chemical_tag_map, reference_lists)
     merged_chemical_tags <- combine_tag_maps(chemical_tag_map, cleaning_result$new_tags)
     merged_tags <- combine_tag_maps(tag_map, cleaning_result$new_tags)
+
+    if (!is.null(multi_analyte_resolutions) && length(multi_analyte_resolutions) > 0) {
+      message("[headless] Applying multi-analyte resolutions...")
+      name_cols <- names(merged_chemical_tags)[merged_chemical_tags == "Name"]
+      multi_result <- apply_multi_analyte_resolutions(
+        cleaning_result$cleaned_data,
+        name_cols,
+        multi_analyte_resolutions
+      )
+      cleaning_result$cleaned_data <- multi_result$cleaned_data
+      cleaning_result$audit_trail <- dplyr::bind_rows(
+        cleaning_result$audit_trail,
+        multi_result$audit_trail
+      )
+    }
 
     # ------------------------------------------------------------------
     # Step 8: Run curation pipeline (CompTox API search)

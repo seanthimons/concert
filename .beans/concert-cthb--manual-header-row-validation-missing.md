@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-cthb
 title: Manual header row validation missing
 status: todo

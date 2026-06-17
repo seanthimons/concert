@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-zlg2
 title: Scalability
 status: draft

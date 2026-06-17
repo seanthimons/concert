@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-sqmg
 title: Pin ComptoxR package to specific version
 status: todo

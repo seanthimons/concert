@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-xnv9
 title: Add test coverage for curation functions
 status: todo

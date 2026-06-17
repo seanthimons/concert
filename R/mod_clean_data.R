@@ -83,6 +83,8 @@ mod_clean_data_ui <- function(id) {
 
       reactable::reactableOutput(ns("cleaned_table")),
 
+      uiOutput(ns("multi_analyte_section")),
+
       uiOutput(ns("audit_section")),
 
       # Reference list editors
@@ -1001,27 +1003,39 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
     output$reference_editors_section <- renderUI({
       req(ref_lists_ready())
 
+      reference_title <- function(label, type) {
+        tagList(
+          label,
+          tags$span(
+            class = "text-muted ms-1",
+            title = reference_list_help_text(type),
+            `aria-label` = reference_list_help_text(type),
+            bsicons::bs_icon("info-circle")
+          )
+        )
+      }
+
       bslib::accordion(
         id = session$ns("reference_editors"),
         open = FALSE,
         multiple = TRUE,
         bslib::accordion_panel(
-          title = "Functional Categories",
+          title = reference_title("Functional Categories", "functional_categories"),
           icon = bsicons::bs_icon("tag"),
           uiOutput(session$ns("chip_func_cats"))
         ),
         bslib::accordion_panel(
-          title = "Stop Words",
+          title = reference_title("Stop Words", "stop_words"),
           icon = bsicons::bs_icon("hand-thumbs-down"),
           uiOutput(session$ns("chip_stop_words"))
         ),
         bslib::accordion_panel(
-          title = "Block Patterns",
+          title = reference_title("Block Patterns", "block_patterns"),
           icon = bsicons::bs_icon("calculator"),
           uiOutput(session$ns("chip_block_patterns"))
         ),
         bslib::accordion_panel(
-          title = "Strip Terms",
+          title = reference_title("Strip Terms", "strip_terms"),
           icon = bsicons::bs_icon("eraser"),
           uiOutput(session$ns("chip_strip_terms"))
         )
@@ -1240,7 +1254,17 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       df <- data_store$cleaned_data
 
       # Hidden columns
-      hidden_col_names <- intersect(c("original_row_id", "multi_cas", "multi_cas_count"), names(df))
+      hidden_col_names <- intersect(
+        c(
+          "original_row_id",
+          "multi_cas",
+          "multi_cas_count",
+          "multi_analyte_source_value",
+          "multi_analyte_part_index",
+          "multi_analyte_part_count"
+        ),
+        names(df)
+      )
 
       # Build column definitions
       col_defs <- list()
@@ -1276,6 +1300,167 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         striped = TRUE,
         compact = TRUE,
         rowStyle = row_style_fn
+      )
+    })
+
+    filter_multi_analyte_rows <- function(cleaned_data) {
+      if (is.null(cleaned_data) || nrow(cleaned_data) == 0) {
+        return(tibble::tibble())
+      }
+
+      rows <- which(is_multi_analyte_review_row(cleaned_data))
+      if (length(rows) == 0) {
+        return(cleaned_data[0, , drop = FALSE])
+      }
+
+      dplyr::mutate(cleaned_data[rows, , drop = FALSE], .row_index = rows, .before = 1)
+    }
+
+    output$multi_analyte_section <- renderUI({
+      req(data_store$cleaned_data)
+
+      tag_map <- data_store$column_tags %||% list()
+      name_cols <- names(tag_map)[tag_map == "Name"]
+      if (length(name_cols) == 0) {
+        return(NULL)
+      }
+
+      multi_analyte_rows <- filter_multi_analyte_rows(data_store$cleaned_data)
+      if (nrow(multi_analyte_rows) == 0) {
+        return(NULL)
+      }
+
+      div(
+        class = "card mt-4",
+        div(
+          class = "card-header bg-warning text-dark",
+          h5(class = "mb-0", "Multi-Analyte Review")
+        ),
+        div(
+          class = "card-body",
+          reactable::reactableOutput(session$ns("multi_analyte_table")),
+          div(
+            class = "d-flex gap-2 align-items-end flex-wrap mt-3",
+            selectInput(
+              session$ns("multi_analyte_action"),
+              label = NULL,
+              choices = c("Split" = "split", "Keep combined" = "keep", "Rename" = "rename"),
+              width = "180px"
+            ),
+            textAreaInput(
+              session$ns("multi_analyte_values"),
+              label = NULL,
+              value = "",
+              rows = 3,
+              placeholder = "One split part per line, or one rename value",
+              width = "360px"
+            ),
+            actionButton(
+              session$ns("apply_multi_analyte_resolution"),
+              "Apply",
+              icon = icon("check"),
+              class = "btn-warning"
+            )
+          )
+        )
+      )
+    })
+
+    output$multi_analyte_table <- reactable::renderReactable({
+      req(data_store$cleaned_data)
+
+      multi_analyte_rows <- filter_multi_analyte_rows(data_store$cleaned_data)
+      col_defs <- list(.row_index = reactable::colDef(show = FALSE))
+
+      reactable::reactable(
+        multi_analyte_rows,
+        columns = col_defs,
+        selection = "single",
+        onClick = "select",
+        defaultPageSize = 10,
+        resizable = TRUE,
+        wrap = FALSE,
+        striped = TRUE,
+        compact = TRUE
+      )
+    })
+
+    observe({
+      req(data_store$cleaned_data)
+      selected <- reactable::getReactableState("multi_analyte_table", "selected")
+      if (is.null(selected) || length(selected) == 0) {
+        return()
+      }
+
+      multi_analyte_rows <- filter_multi_analyte_rows(data_store$cleaned_data)
+      if (nrow(multi_analyte_rows) == 0 || selected[1] > nrow(multi_analyte_rows)) {
+        return()
+      }
+
+      target_row <- multi_analyte_rows$.row_index[selected[1]]
+      if (identical(data_store$multi_analyte_selected_row, target_row)) {
+        return()
+      }
+      data_store$multi_analyte_selected_row <- target_row
+
+      tag_map <- data_store$column_tags %||% list()
+      name_cols <- names(tag_map)[tag_map == "Name"]
+      field <- multi_analyte_field_for_row(data_store$cleaned_data, target_row, name_cols)
+      suggestions <- suggest_multi_analyte_parts(data_store$cleaned_data[[field]][target_row])
+      updateTextAreaInput(session, "multi_analyte_values", value = paste(suggestions, collapse = "\n"))
+    })
+
+    observeEvent(input$apply_multi_analyte_resolution, {
+      req(data_store$cleaned_data)
+
+      selected <- reactable::getReactableState("multi_analyte_table", "selected")
+      if (is.null(selected) || length(selected) == 0) {
+        showNotification("Select a multi-analyte row first.", type = "warning")
+        return()
+      }
+
+      multi_analyte_rows <- filter_multi_analyte_rows(data_store$cleaned_data)
+      if (nrow(multi_analyte_rows) == 0 || selected[1] > nrow(multi_analyte_rows)) {
+        showNotification("Selected multi-analyte row is no longer available.", type = "warning")
+        return()
+      }
+
+      tag_map <- data_store$column_tags %||% list()
+      name_cols <- names(tag_map)[tag_map == "Name"]
+      values <- input$multi_analyte_values
+      if (is.null(values) || !nzchar(trimws(values))) {
+        values <- NULL
+      }
+
+      tryCatch(
+        {
+          result <- resolve_multi_analyte_row(
+            data_store$cleaned_data,
+            name_cols = name_cols,
+            row_index = multi_analyte_rows$.row_index[selected[1]],
+            action = input$multi_analyte_action,
+            values = values
+          )
+
+          data_store$cleaned_data <- result$cleaned_data
+          data_store$cleaning_audit <- dplyr::bind_rows(
+            data_store$cleaning_audit %||% empty_cleaning_audit(),
+            result$audit_trail
+          )
+          data_store$curation_results <- NULL
+          data_store$consensus_data <- NULL
+          data_store$consensus_summary <- NULL
+          data_store$resolution_state <- NULL
+          data_store$resolved_data <- NULL
+          data_store$review_visible_cols <- NULL
+          data_store$curation_status <- NULL
+          data_store$multi_analyte_selected_row <- NULL
+
+          showNotification("Multi-analyte resolution applied.", type = "message", duration = 4)
+        },
+        error = function(e) {
+          showNotification(paste("Multi-analyte resolution failed:", e$message), type = "error", duration = NULL)
+        }
       )
     })
 
