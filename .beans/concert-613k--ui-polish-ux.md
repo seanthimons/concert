@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-613k
 title: UI Polish & UX
 status: todo

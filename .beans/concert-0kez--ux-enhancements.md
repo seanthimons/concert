@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-0kez
 title: UX Enhancements
 status: todo

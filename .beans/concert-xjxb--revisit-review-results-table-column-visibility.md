@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-xjxb
 title: Revisit Review Results table column visibility
 status: todo

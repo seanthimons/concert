@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-eauz
 title: Add shinytest2 tests for UI logic
 status: todo

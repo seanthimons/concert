@@ -3,6 +3,8 @@
 
 library(withr)
 
+reference_schema <- c("term", "pattern", "match_mode", "source", "active", "notes")
+
 test_that("load_stop_words returns tibble with provenance columns", {
   withr::with_tempdir({
     cache_dir <- "test_cache"
@@ -11,10 +13,12 @@ test_that("load_stop_words returns tibble with provenance columns", {
 
     # Check structure: should be tibble with term, source, active columns
     expect_true(tibble::is_tibble(result))
-    expect_named(result, c("term", "source", "active"))
+    expect_named(result, reference_schema)
 
     # Check column types
     expect_type(result$term, "character")
+    expect_type(result$pattern, "character")
+    expect_type(result$match_mode, "character")
     expect_type(result$source, "character")
     expect_type(result$active, "logical")
 
@@ -38,10 +42,12 @@ test_that("load_block_patterns returns tibble with provenance columns", {
 
     # Check structure
     expect_true(tibble::is_tibble(result))
-    expect_named(result, c("term", "source", "active"))
+    expect_named(result, reference_schema)
 
     # Check column types
     expect_type(result$term, "character")
+    expect_type(result$pattern, "character")
+    expect_type(result$match_mode, "character")
     expect_type(result$source, "character")
     expect_type(result$active, "logical")
 
@@ -64,10 +70,12 @@ test_that("load_functional_categories returns tibble with provenance columns whe
 
     # Check structure
     expect_true(tibble::is_tibble(result))
-    expect_named(result, c("term", "source", "active"))
+    expect_named(result, reference_schema)
 
     # Check column types
     expect_type(result$term, "character")
+    expect_type(result$pattern, "character")
+    expect_type(result$match_mode, "character")
     expect_type(result$source, "character")
     expect_type(result$active, "logical")
 
@@ -94,11 +102,13 @@ test_that("load_functional_categories returns empty tibble with correct columns 
 
     # Should return empty tibble with correct columns
     expect_true(tibble::is_tibble(result))
-    expect_named(result, c("term", "source", "active"))
+    expect_named(result, reference_schema)
     expect_equal(nrow(result), 0)
 
     # Check column types
     expect_type(result$term, "character")
+    expect_type(result$pattern, "character")
+    expect_type(result$match_mode, "character")
     expect_type(result$source, "character")
     expect_type(result$active, "logical")
   })
@@ -124,8 +134,8 @@ test_that("load_all_reference_lists returns named list with all three tibbles", 
     expect_true(tibble::is_tibble(result$isotope_lookup$lookup))
 
     # Check all have correct columns
-    expect_named(result$stop_words, c("term", "source", "active"))
-    expect_named(result$block_patterns, c("term", "source", "active"))
-    expect_named(result$functional_categories, c("term", "source", "active"))
+    expect_named(result$stop_words, reference_schema)
+    expect_named(result$block_patterns, reference_schema)
+    expect_named(result$functional_categories, reference_schema)
   })
 })

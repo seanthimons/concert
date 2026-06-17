@@ -1308,8 +1308,8 @@ strip_terminal_unspecified <- function(df, name_cols) {
 #' Strip user-defined reference terms from name fields
 #'
 #' Removes terms from the strip_terms reference list from Name-tagged columns.
-#' Terms containing regex metacharacters (\w, +, *, ^, $) are applied as-is.
-#' Plain terms are wrapped in word boundaries for clean removal.
+#' Matching behavior is controlled by each row's `match_mode`: `literal_word`,
+#' `literal_exact`, or `regex`.
 #'
 #' @param df Dataframe with name columns
 #' @param name_cols Character vector of Name-tagged column names
@@ -1326,7 +1326,7 @@ strip_reference_terms <- function(df, name_cols, strip_terms_tbl) {
   df_before <- df
 
   # Filter to active terms
-  active_terms <- strip_terms_tbl %>%
+  active_terms <- normalize_reference_list_tbl(strip_terms_tbl, "strip_terms") %>%
     dplyr::filter(active)
 
   # Skip if no active terms
@@ -1344,31 +1344,35 @@ strip_reference_terms <- function(df, name_cols, strip_terms_tbl) {
     ))
   }
 
-  # Regex metacharacters that indicate a term is already a regex pattern
-  regex_meta <- c("\\\\w", "\\+", "\\*", "\\^", "\\$", "\\?", "\\(", "\\)", "\\[", "\\]", "\\{", "\\}", "\\|")
+  validation <- validate_reference_list_patterns(active_terms, "strip_terms")
+  errors <- validation$severity == "error"
+  if (any(errors)) {
+    stop(paste(validation$message[errors], collapse = " "), call. = FALSE)
+  }
+
+  compiled_patterns <- lapply(seq_len(nrow(active_terms)), function(i) {
+    pattern <- active_terms$pattern[i]
+    match_mode <- active_terms$match_mode[i]
+
+    if (identical(match_mode, "regex")) {
+      return(stringr::regex(pattern, ignore_case = TRUE))
+    }
+
+    escaped_pattern <- stringr::str_replace_all(pattern, "([\\\\/.\\[\\](){}|?+*^$])", "\\\\\\1")
+    if (identical(match_mode, "literal_exact")) {
+      stringr::regex(paste0("^\\s*", escaped_pattern, "\\s*$"), ignore_case = TRUE)
+    } else {
+      stringr::regex(paste0("\\b", escaped_pattern, "\\b"), ignore_case = TRUE)
+    }
+  })
 
   # Apply each term to each name column
   df_after <- df
   for (col_name in name_cols) {
-    for (i in seq_len(nrow(active_terms))) {
-      term <- active_terms$term[i]
-
-      # Check if term contains regex metacharacters
-      is_regex <- any(sapply(regex_meta, function(m) grepl(m, term, fixed = FALSE)))
-
-      if (is_regex) {
-        # Apply as-is (it's already a regex pattern)
-        df_after[[col_name]] <- df_after[[col_name]] %>%
-          stringr::str_remove_all(stringr::regex(term, ignore_case = TRUE)) %>%
-          stringr::str_squish()
-      } else {
-        # Escape all regex metacharacters, then wrap in word boundaries
-        escaped_term <- stringr::str_replace_all(term, "([\\\\/.\\[\\](){}|?+*^$])", "\\\\\\1")
-        pattern <- paste0("\\b", escaped_term, "\\b")
-        df_after[[col_name]] <- df_after[[col_name]] %>%
-          stringr::str_remove_all(stringr::regex(pattern, ignore_case = TRUE)) %>%
-          stringr::str_squish()
-      }
+    for (pattern in compiled_patterns) {
+      df_after[[col_name]] <- df_after[[col_name]] %>%
+        stringr::str_remove_all(pattern) %>%
+        stringr::str_squish()
     }
   }
 
@@ -1922,8 +1926,10 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
     df_result$cleaning_flag <- NA_character_
   }
 
+  reference_type <- reference_list_type_from_label(flag_label)
+
   # Filter to active entries only
-  active_refs <- reference_list %>%
+  active_refs <- normalize_reference_list_tbl(reference_list, reference_type) %>%
     dplyr::filter(active)
 
   # Skip if no active references
@@ -1941,20 +1947,31 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
     ))
   }
 
+  validation <- validate_reference_list_patterns(active_refs, reference_type)
+  errors <- validation$severity == "error"
+  if (any(errors)) {
+    stop(paste(validation$message[errors], collapse = " "), call. = FALSE)
+  }
+
   # Determine flag prefix
   flag_prefix <- if (flag_type == "blocking") "BLOCK" else "WARN"
 
   # Pre-compile all regex patterns ONCE (outside all loops) - fixes O(rows*terms) compilation
+  exact_ref_indices <- which(active_refs$match_mode %in% c("literal_exact", "literal_word"))
+  exact_patterns_lower <- tolower(active_refs$pattern[exact_ref_indices])
+  compiled_patterns <- lapply(seq_len(nrow(active_refs)), function(i) {
+    pattern <- active_refs$pattern[i]
+    match_mode <- active_refs$match_mode[i]
 
-  ref_terms_lower <- tolower(active_refs$term)
-  use_regex_patterns <- identical(flag_label, "block pattern")
-  compiled_patterns <- lapply(active_refs$term, function(term) {
-    if (use_regex_patterns) {
-      return(stringr::regex(term, ignore_case = TRUE))
+    if (identical(match_mode, "literal_exact")) {
+      return(NULL)
+    }
+    if (identical(match_mode, "regex")) {
+      return(stringr::regex(pattern, ignore_case = TRUE))
     }
 
-    escaped_term <- stringr::str_replace_all(term, "([\\\\/.\\[\\](){}|?+*^$])", "\\\\\\1")
-    stringr::regex(paste0("\\b", escaped_term, "\\b"), ignore_case = TRUE)
+    escaped_pattern <- stringr::str_replace_all(pattern, "([\\\\/.\\[\\](){}|?+*^$])", "\\\\\\1")
+    stringr::regex(paste0("\\b", escaped_pattern, "\\b"), ignore_case = TRUE)
   })
 
   # Pre-allocate audit trail vectors (avoids O(n^2) growing-list pattern)
@@ -1965,13 +1982,18 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
   audit_news <- character()
   audit_reasons <- character()
 
-  # Track which rows already have a flag (for "first flag wins")
-  already_flagged <- !is.na(df_result$cleaning_flag) & df_result$cleaning_flag != ""
+  # Track which rows already have a flag. Blocking rules may supersede warnings.
+  flag_populated <- !is.na(df_result$cleaning_flag) & df_result$cleaning_flag != ""
+  already_flagged <- if (identical(flag_type, "blocking")) {
+    flag_populated & startsWith(df_result$cleaning_flag, "BLOCK:")
+  } else {
+    flag_populated
+  }
 
   # Process each name column
   for (col_name in name_cols) {
     col_values <- df_result[[col_name]]
-    col_values_lower <- tolower(col_values)
+    col_values_lower <- tolower(trimws(col_values))
 
     # Get row IDs (use original_row_id if available)
     row_ids <- if ("original_row_id" %in% names(df_result)) {
@@ -1981,12 +2003,16 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
     }
 
     # === PASS 1: Exact match (vectorized via match()) ===
-    exact_match_idx <- match(col_values_lower, ref_terms_lower)
-    has_exact_match <- !is.na(exact_match_idx) & !already_flagged & !is.na(col_values)
+    exact_match_idx <- match(col_values_lower, exact_patterns_lower)
+    has_exact_match <- if (length(exact_ref_indices) > 0) {
+      !is.na(exact_match_idx) & !already_flagged & !is.na(col_values)
+    } else {
+      rep(FALSE, length(col_values))
+    }
 
     if (any(has_exact_match)) {
       matched_indices <- which(has_exact_match)
-      ref_indices <- exact_match_idx[matched_indices]
+      ref_indices <- exact_ref_indices[exact_match_idx[matched_indices]]
 
       # Set flags (vectorized assignment)
       df_result$cleaning_flag[matched_indices] <- paste0(flag_prefix, ": ", flag_label, " [exact]")
@@ -2017,6 +2043,10 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
 
     if (length(candidates) > 0) {
       for (ref_idx in seq_along(compiled_patterns)) {
+        if (is.null(compiled_patterns[[ref_idx]])) {
+          next
+        }
+
         # Skip if no candidates left
         if (length(candidates) == 0) {
           break
@@ -3096,6 +3126,19 @@ flag_multi_analyte <- function(df, name_cols) {
 
     # Find rows to flag (non-NA values that match either pattern)
     to_flag <- which(!is.na(col_values) & (has_naked_plus | has_naked_and))
+    if (length(to_flag) > 0) {
+      already_reviewed <- rep(FALSE, length(col_values))
+      if ("multi_analyte_resolution" %in% names(df_result)) {
+        reviewed_state <- trimws(as.character(df_result$multi_analyte_resolution))
+        already_reviewed <- already_reviewed | (!is.na(reviewed_state) & nzchar(reviewed_state))
+      }
+      if ("cleaning_flag" %in% names(df_result)) {
+        existing_flag <- as.character(df_result$cleaning_flag)
+        already_reviewed <- already_reviewed |
+          (!is.na(existing_flag) & grepl("(^|;\\s*)REVIEWED: multi-analyte", existing_flag, perl = TRUE))
+      }
+      to_flag <- to_flag[!already_reviewed[to_flag]]
+    }
 
     if (length(to_flag) > 0) {
       # Vectorized flag update
@@ -3139,5 +3182,337 @@ flag_multi_analyte <- function(df, name_cols) {
   list(
     cleaned_data = df_result,
     audit_trail = audit_trail
+  )
+}
+
+multi_analyte_warning_label <- function() {
+  "WARNING: potential multi-analyte"
+}
+
+empty_cleaning_audit <- function() {
+  tibble::tibble(
+    row_id = integer(),
+    field = character(),
+    step = character(),
+    original_value = character(),
+    new_value = character(),
+    reason = character()
+  )
+}
+
+#' Identify rows still needing multi-analyte review
+#'
+#' @param df Cleaned data frame.
+#' @return Logical vector, TRUE for rows containing the unresolved multi-analyte warning.
+#' @export
+is_multi_analyte_review_row <- function(df) {
+  if (is.null(df) || nrow(df) == 0 || !"cleaning_flag" %in% names(df)) {
+    return(rep(FALSE, nrow(df %||% data.frame())))
+  }
+
+  flag <- as.character(df$cleaning_flag)
+  !is.na(flag) & grepl(
+    paste0("(^|;\\s*)", gsub("([\\^$.|?*+(){}\\[\\]\\\\])", "\\\\\\1", multi_analyte_warning_label()), "($|\\s*;)"),
+    flag,
+    perl = TRUE
+  )
+}
+
+append_reviewed_multi_analyte_flag <- function(flag, status) {
+  reviewed <- paste0("REVIEWED: multi-analyte ", status)
+  if (is.na(flag) || !nzchar(trimws(as.character(flag)))) {
+    return(reviewed)
+  }
+
+  parts <- trimws(unlist(strsplit(as.character(flag), ";", fixed = TRUE)))
+  parts <- parts[nzchar(parts)]
+  parts <- parts[parts != multi_analyte_warning_label()]
+  paste(unique(c(parts, reviewed)), collapse = "; ")
+}
+
+carry_forward_isotope_element <- function(parts) {
+  last_prefix <- NA_character_
+
+  vapply(parts, function(part) {
+    value <- trimws(part)
+    if (!nzchar(value)) {
+      return(value)
+    }
+
+    if (grepl("^\\d{2,3}$", value) && !is.na(last_prefix)) {
+      return(paste0(last_prefix, "-", value))
+    }
+
+    match <- regexec("^([A-Za-z][A-Za-z ]*?)[ -]+(\\d{2,3})$", value, perl = TRUE)
+    pieces <- regmatches(value, match)[[1]]
+    if (length(pieces) == 3) {
+      last_prefix <<- trimws(pieces[2])
+      return(paste0(last_prefix, "-", pieces[3]))
+    }
+
+    value
+  }, character(1), USE.NAMES = FALSE)
+}
+
+#' Suggest split parts for a multi-analyte value
+#'
+#' @param value Character analyte value.
+#' @return Character vector of suggested parts. Returns character(0) for blank values.
+#' @export
+suggest_multi_analyte_parts <- function(value) {
+  if (is.null(value) || length(value) == 0 || is.na(value[1])) {
+    return(character(0))
+  }
+
+  value <- trimws(as.character(value[1]))
+  if (!nzchar(value)) {
+    return(character(0))
+  }
+
+  normalized <- gsub("(?<!\\()\\s\\+\\s(?!\\))", "\n", value, perl = TRUE)
+  normalized <- gsub("(?i)\\s+and\\s+", "\n", normalized, perl = TRUE)
+  parts <- trimws(unlist(strsplit(normalized, "\n", fixed = TRUE)))
+  parts <- parts[nzchar(parts)]
+
+  unique(carry_forward_isotope_element(parts))
+}
+
+multi_analyte_field_for_row <- function(df, row_index, name_cols) {
+  valid_name_cols <- intersect(name_cols, names(df))
+  if (length(valid_name_cols) == 0) {
+    stop("No Name columns are available for multi-analyte resolution.", call. = FALSE)
+  }
+
+  row_values <- df[row_index, valid_name_cols, drop = FALSE]
+  split_counts <- vapply(row_values, function(value) length(suggest_multi_analyte_parts(value)), integer(1))
+  if (any(split_counts > 1L)) {
+    return(names(split_counts)[which(split_counts > 1L)[1]])
+  }
+
+  non_blank <- vapply(row_values, function(value) {
+    value <- as.character(value[1])
+    !is.na(value) && nzchar(trimws(value))
+  }, logical(1))
+  if (any(non_blank)) {
+    return(names(non_blank)[which(non_blank)[1]])
+  }
+
+  valid_name_cols[1]
+}
+
+normalize_multi_analyte_action <- function(action) {
+  normalized <- tolower(trimws(as.character(action)[1]))
+  normalized <- gsub("[ _-]+", "_", normalized)
+  if (normalized %in% c("keep", "keep_combined", "combined")) {
+    return("keep")
+  }
+  if (normalized %in% c("split", "rename")) {
+    return(normalized)
+  }
+  stop("action must be one of: split, keep, rename.", call. = FALSE)
+}
+
+normalize_multi_analyte_values <- function(values) {
+  if (is.null(values) || length(values) == 0) {
+    return(character(0))
+  }
+
+  if (length(values) == 1 && is.character(values)) {
+    values <- unlist(strsplit(values, "\r\n|\n|;", perl = TRUE))
+  }
+
+  values <- trimws(as.character(values))
+  values[!is.na(values) & nzchar(values)]
+}
+
+ensure_multi_analyte_resolution_columns <- function(df) {
+  if (!"multi_analyte_resolution" %in% names(df)) {
+    df$multi_analyte_resolution <- NA_character_
+  }
+  if (!"multi_analyte_source_value" %in% names(df)) {
+    df$multi_analyte_source_value <- NA_character_
+  }
+  if (!"multi_analyte_part_index" %in% names(df)) {
+    df$multi_analyte_part_index <- NA_integer_
+  }
+  if (!"multi_analyte_part_count" %in% names(df)) {
+    df$multi_analyte_part_count <- NA_integer_
+  }
+  if (!"cleaning_flag" %in% names(df)) {
+    df$cleaning_flag <- NA_character_
+  }
+  df
+}
+
+multi_analyte_row_id <- function(df, row_index) {
+  if ("original_row_id" %in% names(df)) {
+    return(as.integer(df$original_row_id[row_index]))
+  }
+  as.integer(row_index)
+}
+
+#' Resolve one flagged multi-analyte row
+#'
+#' @param df Cleaned data frame.
+#' @param name_cols Character vector of Name-tagged column names.
+#' @param row_index One-based row position in `df`.
+#' @param action One of `"split"`, `"keep"`, or `"rename"`.
+#' @param values Split parts or rename value. For split, NULL uses
+#'   `suggest_multi_analyte_parts()` on the selected Name value.
+#' @return List with `cleaned_data` and `audit_trail`.
+#' @export
+resolve_multi_analyte_row <- function(df, name_cols, row_index, action, values = NULL) {
+  df_result <- ensure_multi_analyte_resolution_columns(tibble::as_tibble(df))
+  action <- normalize_multi_analyte_action(action)
+  row_index <- suppressWarnings(as.integer(row_index)[1])
+
+  if (is.na(row_index) || row_index < 1L || row_index > nrow(df_result)) {
+    stop("row_index must be a valid 1-based row position.", call. = FALSE)
+  }
+
+  field <- multi_analyte_field_for_row(df_result, row_index, name_cols)
+  original_value <- as.character(df_result[[field]][row_index])
+  if (is.na(original_value)) {
+    original_value <- NA_character_
+  }
+  row_id <- multi_analyte_row_id(df_result, row_index)
+
+  if (action == "keep") {
+    df_result$cleaning_flag[row_index] <- append_reviewed_multi_analyte_flag(
+      df_result$cleaning_flag[row_index],
+      "kept combined"
+    )
+    df_result$multi_analyte_resolution[row_index] <- "keep_combined"
+    df_result$multi_analyte_source_value[row_index] <- original_value
+    df_result$multi_analyte_part_index[row_index] <- 1L
+    df_result$multi_analyte_part_count[row_index] <- 1L
+
+    return(list(
+      cleaned_data = df_result,
+      audit_trail = tibble::tibble(
+        row_id = row_id,
+        field = field,
+        step = "multi_analyte_resolution",
+        original_value = original_value,
+        new_value = original_value,
+        reason = "Kept as combined analyte"
+      )
+    ))
+  }
+
+  normalized_values <- normalize_multi_analyte_values(values)
+  if (action == "rename") {
+    if (length(normalized_values) != 1L) {
+      stop("rename requires exactly one non-empty value.", call. = FALSE)
+    }
+
+    df_result[[field]][row_index] <- normalized_values[1]
+    df_result$cleaning_flag[row_index] <- append_reviewed_multi_analyte_flag(
+      df_result$cleaning_flag[row_index],
+      "renamed"
+    )
+    df_result$multi_analyte_resolution[row_index] <- "rename"
+    df_result$multi_analyte_source_value[row_index] <- original_value
+    df_result$multi_analyte_part_index[row_index] <- 1L
+    df_result$multi_analyte_part_count[row_index] <- 1L
+
+    return(list(
+      cleaned_data = df_result,
+      audit_trail = tibble::tibble(
+        row_id = row_id,
+        field = field,
+        step = "multi_analyte_resolution",
+        original_value = original_value,
+        new_value = normalized_values[1],
+        reason = "Renamed multi-analyte value"
+      )
+    ))
+  }
+
+  parts <- normalized_values
+  if (length(parts) == 0) {
+    parts <- suggest_multi_analyte_parts(original_value)
+  }
+  if (length(parts) < 2L) {
+    stop("split requires at least two non-empty values.", call. = FALSE)
+  }
+
+  part_count <- length(parts)
+  expanded <- df_result[rep(row_index, part_count), , drop = FALSE]
+  expanded[[field]] <- parts
+  expanded$cleaning_flag <- vapply(
+    expanded$cleaning_flag,
+    append_reviewed_multi_analyte_flag,
+    character(1),
+    status = "split"
+  )
+  expanded$multi_analyte_resolution <- "split"
+  expanded$multi_analyte_source_value <- original_value
+  expanded$multi_analyte_part_index <- seq_len(part_count)
+  expanded$multi_analyte_part_count <- part_count
+
+  before <- if (row_index > 1L) df_result[seq_len(row_index - 1L), , drop = FALSE] else df_result[0, , drop = FALSE]
+  after <- if (row_index < nrow(df_result)) df_result[(row_index + 1L):nrow(df_result), , drop = FALSE] else df_result[0, , drop = FALSE]
+
+  list(
+    cleaned_data = dplyr::bind_rows(before, expanded, after),
+    audit_trail = tibble::tibble(
+      row_id = rep(row_id, part_count),
+      field = rep(field, part_count),
+      step = rep("multi_analyte_resolution", part_count),
+      original_value = rep(original_value, part_count),
+      new_value = parts,
+      reason = sprintf("Split multi-analyte into part %d of %d", seq_len(part_count), part_count)
+    )
+  )
+}
+
+#' Apply multiple multi-analyte resolutions
+#'
+#' @param df Cleaned data frame.
+#' @param name_cols Character vector of Name-tagged column names.
+#' @param resolutions Data frame/list with `row` or `row_index`, `action`, and
+#'   optional `value` or `values`.
+#' @return List with `cleaned_data` and `audit_trail`.
+#' @export
+apply_multi_analyte_resolutions <- function(df, name_cols, resolutions = NULL) {
+  if (is.null(resolutions) || length(resolutions) == 0) {
+    return(list(cleaned_data = df, audit_trail = empty_cleaning_audit()))
+  }
+
+  spec <- tibble::as_tibble(resolutions)
+  row_col <- intersect(c("row_index", "row"), names(spec))[1]
+  if (is.na(row_col) || !"action" %in% names(spec)) {
+    stop("resolutions must include row_index (or row) and action columns.", call. = FALSE)
+  }
+
+  spec$.row_order <- seq_len(nrow(spec))
+  spec <- spec[order(suppressWarnings(as.integer(spec[[row_col]])), decreasing = TRUE), , drop = FALSE]
+
+  df_result <- df
+  audit_parts <- list()
+  for (i in seq_len(nrow(spec))) {
+    values <- if ("values" %in% names(spec)) {
+      spec$values[[i]]
+    } else if ("value" %in% names(spec)) {
+      spec$value[[i]]
+    } else {
+      NULL
+    }
+
+    resolved <- resolve_multi_analyte_row(
+      df_result,
+      name_cols,
+      row_index = spec[[row_col]][[i]],
+      action = spec$action[[i]],
+      values = values
+    )
+    df_result <- resolved$cleaned_data
+    audit_parts[[length(audit_parts) + 1L]] <- resolved$audit_trail
+  }
+
+  list(
+    cleaned_data = df_result,
+    audit_trail = dplyr::bind_rows(audit_parts)
   )
 }

@@ -174,6 +174,74 @@ test_that("flag_reference_matches evaluates block patterns as regex patterns", {
   expect_true(is.na(result$cleaned_data$cleaning_flag[3]) || result$cleaned_data$cleaning_flag[3] == "")
 })
 
+test_that("flag_reference_matches supports explicit literal exact mode", {
+  df <- tibble::tibble(
+    chemical_name = c("alcohol", "benzyl alcohol", "polyvinyl alcohol")
+  )
+
+  reference_list <- tibble::tibble(
+    term = "alcohol",
+    pattern = "alcohol",
+    match_mode = "literal_exact",
+    source = "user",
+    active = TRUE
+  )
+
+  result <- flag_reference_matches(df, c("chemical_name"), reference_list, "blocking", "block pattern")
+
+  expect_equal(result$cleaned_data$cleaning_flag[1], "BLOCK: block pattern [exact]")
+  expect_true(is.na(result$cleaned_data$cleaning_flag[2]) || result$cleaned_data$cleaning_flag[2] == "")
+  expect_true(is.na(result$cleaned_data$cleaning_flag[3]) || result$cleaned_data$cleaning_flag[3] == "")
+})
+
+test_that("flag_reference_matches supports explicit regex mode and invalid regex errors", {
+  df <- tibble::tibble(
+    chemical_name = c("proprietary blend", "acetone")
+  )
+
+  regex_ref <- tibble::tibble(
+    term = "^proprietary",
+    pattern = "^proprietary",
+    match_mode = "regex",
+    source = "user",
+    active = TRUE
+  )
+  regex_result <- flag_reference_matches(df, c("chemical_name"), regex_ref, "blocking", "block pattern")
+  expect_equal(regex_result$cleaned_data$cleaning_flag[1], "BLOCK: block pattern [substring]")
+
+  invalid_ref <- tibble::tibble(
+    term = "(",
+    pattern = "(",
+    match_mode = "regex",
+    source = "user",
+    active = TRUE
+  )
+  expect_error(
+    flag_reference_matches(df, c("chemical_name"), invalid_ref, "blocking", "block pattern"),
+    "invalid"
+  )
+})
+
+test_that("blocking reference matches supersede prior warning flags", {
+  df <- tibble::tibble(
+    chemical_name = c("proprietary", "acetone"),
+    cleaning_flag = c("WARN: stop word [exact]", "WARN: stop word [exact]")
+  )
+
+  reference_list <- tibble::tibble(
+    term = "^proprietary$",
+    pattern = "^proprietary$",
+    match_mode = "regex",
+    source = "user",
+    active = TRUE
+  )
+
+  result <- flag_reference_matches(df, c("chemical_name"), reference_list, "blocking", "block pattern")
+
+  expect_equal(result$cleaned_data$cleaning_flag[1], "BLOCK: block pattern [substring]")
+  expect_equal(result$cleaned_data$cleaning_flag[2], "WARN: stop word [exact]")
+})
+
 test_that("flag_reference_matches records match source in audit trail", {
   df <- tibble::tibble(
     chemical_name = c("plasticizer", "solvent")

@@ -121,6 +121,7 @@ test_that("review overrides capture and replay manual, suggestion, skip, flags, 
   final$.pinned[3] <- TRUE
   final$consensus_dtxsid[4] <- NA_character_
   final$row_flag[4] <- "BAD"
+  final$row_flag_reason[4] <- "No valid DTXSID or WQX match"
   final$wqx_override_name <- NA_character_
   final$wqx_override_name[5] <- "User WQX Name"
   final$consensus_status[6] <- "unresolvable"
@@ -156,6 +157,7 @@ test_that("review overrides capture and replay manual, suggestion, skip, flags, 
     ".resolution_method",
     "manual_preferredName",
     "row_flag",
+    "row_flag_reason",
     "wqx_override_name"
   )
   for (col in cols) {
@@ -174,12 +176,15 @@ test_that("content-matched review overrides survive row reordering", {
   ))
   final <- baseline
   final$row_flag[2] <- "FOLLOW-UP"
+  final$row_flag_reason[2] <- "Needs second pass"
 
   overrides <- build_review_overrides(baseline, final)
   replayed <- apply_review_overrides(baseline[c(3, 1, 2), ], overrides)
 
   expect_equal(replayed$row_flag[replayed$chemical == "Benzene"], "FOLLOW-UP")
+  expect_equal(replayed$row_flag_reason[replayed$chemical == "Benzene"], "Needs second pass")
   expect_true(all(is.na(replayed$row_flag[replayed$chemical != "Benzene"])))
+  expect_true(all(is.na(replayed$row_flag_reason[replayed$chemical != "Benzene"])))
 })
 
 test_that("duplicate stable-content rows require identical intended edits", {

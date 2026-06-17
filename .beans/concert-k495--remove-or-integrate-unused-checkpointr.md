@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-k495
 title: Remove or integrate unused checkpoint.R
 status: todo

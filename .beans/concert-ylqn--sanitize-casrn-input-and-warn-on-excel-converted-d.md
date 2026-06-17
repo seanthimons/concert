@@ -8,9 +8,12 @@ tags:
     - casrn
     - preflight
     - data-cleaning
+    - github:issue
 created_at: 2026-05-21T14:32:56Z
-updated_at: 2026-05-21T14:32:56Z
+updated_at: 2026-06-17T01:14:58Z
+parent: concert-d6hb
 ---
+
 
 ## Problem
 
@@ -48,3 +51,9 @@ Add a CASRN sanitization/cleaning step that is used before CASRN validation and 
 ## Implementation notes
 
 This should sit upstream of matching/resolution so bad CASRN input fails loudly before producing false negatives or misleading unresolved rows.
+
+
+
+## GitHub
+
+- GitHub #35: https://github.com/seanthimons/concert/issues/35

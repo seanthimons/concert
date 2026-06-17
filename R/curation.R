@@ -123,6 +123,24 @@ get_pre_resolved_isotope_rows <- function(clean_data) {
   )
 }
 
+get_blocked_cleaning_rows <- function(clean_data) {
+  if (!"cleaning_flag" %in% names(clean_data)) {
+    return(integer(0))
+  }
+
+  flags <- as.character(clean_data$cleaning_flag)
+  blocked <- vapply(flags, function(flag) {
+    if (is.na(flag) || !nzchar(flag)) {
+      return(FALSE)
+    }
+
+    tokens <- trimws(strsplit(flag, ";", fixed = TRUE)[[1]])
+    any(startsWith(tokens, "BLOCK:"))
+  }, logical(1))
+
+  which(blocked)
+}
+
 #' Resolve reference cache directory for curation-time dictionary lookups
 #'
 #' @return Character path to bundled/source reference cache
@@ -687,6 +705,7 @@ run_curation_pipeline <- function(
   # radiochemical canonical names such as Potassium-40, Lead-212, and Thallium-208.
   pre_resolved <- NULL
   isotope_skip_rows <- get_pre_resolved_isotope_rows(clean_data)
+  blocked_skip_rows <- get_blocked_cleaning_rows(clean_data)
   if (length(isotope_skip_rows) > 0) {
     pre_resolved <- tibble::tibble(
       row_idx = isotope_skip_rows,
@@ -696,9 +715,13 @@ run_curation_pipeline <- function(
     )
     message(sprintf("[pipeline] %d isotope-matched rows with DTXSID will skip API search", length(isotope_skip_rows)))
   }
+  if (length(blocked_skip_rows) > 0) {
+    message(sprintf("[pipeline] %d BLOCK-flagged rows will skip API search", length(blocked_skip_rows)))
+  }
 
-  # Stage 1: Deduplication (skip only isotope_match rows that already have DTXSID)
-  dedup_result <- deduplicate_tagged_columns(clean_data, column_tags, skip_rows = isotope_skip_rows)
+  # Stage 1: Deduplication (skip pre-resolved isotopes and hard BLOCK rows)
+  search_skip_rows <- sort(unique(c(isotope_skip_rows, blocked_skip_rows)))
+  dedup_result <- deduplicate_tagged_columns(clean_data, column_tags, skip_rows = search_skip_rows)
 
   n_other <- sum(column_tags == "Other")
   dedup_msg <- sprintf(
@@ -1270,8 +1293,11 @@ enrich_synonyms <- function(dtxsids, existing_cache = NULL) {
 #' @return List with n_names and n_cas
 #' @export
 get_dedup_preview <- function(clean_data, column_tags) {
-  isotope_skip_rows <- get_pre_resolved_isotope_rows(clean_data)
-  dedup_result <- deduplicate_tagged_columns(clean_data, column_tags, skip_rows = isotope_skip_rows)
+  search_skip_rows <- sort(unique(c(
+    get_pre_resolved_isotope_rows(clean_data),
+    get_blocked_cleaning_rows(clean_data)
+  )))
+  dedup_result <- deduplicate_tagged_columns(clean_data, column_tags, skip_rows = search_skip_rows)
 
   list(
     n_names = length(dedup_result$unique_names),

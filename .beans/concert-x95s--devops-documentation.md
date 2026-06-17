@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-x95s
 title: DevOps & Documentation
 status: todo
