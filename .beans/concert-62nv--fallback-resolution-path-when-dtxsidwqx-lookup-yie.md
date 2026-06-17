@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-62nv
 title: Fallback resolution path when DTXSID/WQX lookup yields no match
 status: todo

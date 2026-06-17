@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-wccj
 title: Add progress indicator for curation
 status: todo

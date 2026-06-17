@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-9vtm
 title: Make detection thresholds configurable
 status: todo

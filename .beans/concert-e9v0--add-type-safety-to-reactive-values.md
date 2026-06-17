@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-e9v0
 title: Add type safety to reactive values
 status: todo

@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-178l
 title: Name constant for split_synonyms max protection iterations
 status: todo

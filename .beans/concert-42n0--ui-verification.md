@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-42n0
 title: UI verification
 status: todo

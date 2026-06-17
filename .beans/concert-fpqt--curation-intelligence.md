@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-fpqt
 title: Curation Intelligence
 status: in-progress

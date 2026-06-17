@@ -1,4 +1,4 @@
-﻿---
+---
 # concert-sbs2
 title: Batch file processing
 status: draft
