@@ -2,7 +2,7 @@
 # concert-ieha
 title: Handle hardness-dependent dissolved metals criteria
 status: todo
-type: task
+type: epic
 priority: high
 tags:
     - criteria
@@ -11,8 +11,7 @@ tags:
     - dissolved-metals
     - hardness
 created_at: 2026-05-26T20:20:25Z
-updated_at: 2026-06-17T01:14:59Z
-parent: concert-fpqt
+updated_at: 2026-06-17T16:20:12Z
 ---
 
 
