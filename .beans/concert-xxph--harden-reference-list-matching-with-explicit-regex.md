@@ -1,7 +1,7 @@
 ---
 # concert-xxph
 title: Harden reference-list matching with explicit regex/literal pattern modes
-status: todo
+status: completed
 type: task
 priority: high
 tags:
@@ -12,7 +12,7 @@ tags:
     - priority:high
     - reference-lists
 created_at: 2026-06-17T00:52:07Z
-updated_at: 2026-06-17T00:52:07Z
+updated_at: 2026-06-17T16:52:33Z
 parent: concert-06o2
 ---
 
@@ -97,13 +97,13 @@ Suggested defaults for backward compatibility:
 
 ## Acceptance criteria
 
-- [ ] Reference-list entries support explicit `match_mode` / pattern semantics without breaking existing cache files or user sidecars.
-- [ ] Stop words, block patterns, and strip terms no longer rely on regex metacharacter guessing to determine behavior.
-- [ ] Block patterns are audited for unsafe naked strings and migrated, anchored, or left inactive with review notes.
-- [ ] Strip terms that need context-aware behavior are represented as explicit regex patterns, not heuristic naked strings.
-- [ ] Invalid regex patterns are caught before the cleaning pipeline runs.
-- [ ] Tests cover literal exact, literal word-boundary, regex, invalid regex, and over-broad block-pattern cases.
-- [ ] Import/export preserves the new pattern semantics while remaining backward compatible with older exports.
+- [x] Reference-list entries support explicit `match_mode` / pattern semantics without breaking existing cache files or user sidecars.
+- [x] Stop words, block patterns, and strip terms no longer rely on regex metacharacter guessing to determine behavior.
+- [x] Block patterns are audited for unsafe naked strings and migrated, anchored, or left inactive with review notes.
+- [x] Strip terms that need context-aware behavior are represented as explicit regex patterns, not heuristic naked strings.
+- [x] Invalid regex patterns are caught before the cleaning pipeline runs.
+- [x] Tests cover literal exact, literal word-boundary, regex, invalid regex, and over-broad block-pattern cases.
+- [x] Import/export preserves the new pattern semantics while remaining backward compatible with older exports.
 
 ## Relationship to existing work
 

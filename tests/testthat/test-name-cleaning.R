@@ -750,6 +750,32 @@ test_that("strip_reference_terms applies regex terms as-is", {
   expect_equal(cleaned$chemical_name[3], "benzene extra")
 })
 
+test_that("strip_reference_terms honors explicit match_mode instead of regex-looking terms", {
+  df <- tibble::tibble(
+    chemical_name = c("acetone 99%", "ethanol ACS+", "benzene ACS+")
+  )
+  literal_terms <- tibble::tibble(
+    term = c("\\d+%", "ACS\\+"),
+    pattern = c("\\d+%", "ACS\\+"),
+    match_mode = "literal_word",
+    source = "user",
+    active = TRUE
+  )
+  regex_terms <- tibble::tibble(
+    term = c("\\d+%", "ACS\\+"),
+    pattern = c("\\d+%", "ACS\\+"),
+    match_mode = "regex",
+    source = "user",
+    active = TRUE
+  )
+
+  literal_result <- strip_reference_terms(df, "chemical_name", literal_terms)
+  regex_result <- strip_reference_terms(df, "chemical_name", regex_terms)
+
+  expect_equal(literal_result$cleaned_data$chemical_name, df$chemical_name)
+  expect_equal(regex_result$cleaned_data$chemical_name, c("acetone", "ethanol", "benzene"))
+})
+
 test_that("strip_reference_terms skips inactive terms", {
   df <- tibble::tibble(
     chemical_name = c("pure acetone", "technical ethanol")

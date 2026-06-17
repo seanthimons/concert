@@ -445,8 +445,11 @@ test_that("Reference Lists has type, term, source, active columns", {
 
   expect_true("type" %in% names(ref_lists))
   expect_true("term" %in% names(ref_lists))
+  expect_true("pattern" %in% names(ref_lists))
+  expect_true("match_mode" %in% names(ref_lists))
   expect_true("source" %in% names(ref_lists))
   expect_true("active" %in% names(ref_lists))
+  expect_true("notes" %in% names(ref_lists))
 })
 
 test_that("Reference Lists type values are singular (no plurals)", {
@@ -502,6 +505,36 @@ test_that("Reference Lists strip_term round-trips through Excel export parsing",
     dplyr::filter(type == "strip_term")
 
   expect_equal(sort(strip_rows$term), c("modified", "pure"))
+  expect_true(all(c("pattern", "match_mode") %in% names(strip_rows)))
+})
+
+test_that("Reference Lists preserve explicit match semantics through merge", {
+  existing <- list(
+    functional_categories = tibble::tibble(term = "solvent", source = "app_default", active = TRUE),
+    stop_words = tibble::tibble(term = "test", source = "app_default", active = TRUE),
+    block_patterns = tibble::tibble(term = "^\\s*$", source = "app_default", active = TRUE),
+    strip_terms = tibble::tibble(term = "pure", source = "app_default", active = TRUE)
+  )
+  imported <- tibble::tibble(
+    type = c("block_pattern", "strip_term"),
+    term = c("alcohol", "and its salts"),
+    pattern = c("^alcohol$", "and its\\s+salts"),
+    match_mode = c("regex", "regex"),
+    source = c("user", "user"),
+    active = c(TRUE, TRUE),
+    notes = c("exact pseudo-analyte", "context-aware strip")
+  )
+
+  result <- merge_reference_lists(existing, imported)
+
+  alcohol <- result$block_patterns %>% dplyr::filter(term == "alcohol")
+  salt <- result$strip_terms %>% dplyr::filter(term == "and its salts")
+
+  expect_equal(alcohol$pattern, "^alcohol$")
+  expect_equal(alcohol$match_mode, "regex")
+  expect_equal(alcohol$notes, "exact pseudo-analyte")
+  expect_equal(salt$pattern, "and its\\s+salts")
+  expect_equal(salt$match_mode, "regex")
 })
 
 test_that("Pipeline Config has key and value columns", {

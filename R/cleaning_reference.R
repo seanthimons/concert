@@ -70,6 +70,204 @@ resolve_reference_cache_dir <- function(cache_dir = NULL) {
   file.path("data", "reference_cache")
 }
 
+reference_list_schema_cols <- function() {
+  c("term", "pattern", "match_mode", "source", "active", "notes")
+}
+
+reference_list_valid_match_modes <- function() {
+  c("literal_exact", "literal_word", "regex")
+}
+
+reference_list_type_from_label <- function(label) {
+  label_map <- c(
+    "functional category" = "functional_categories",
+    "stop word" = "stop_words",
+    "block pattern" = "block_patterns",
+    "strip term" = "strip_terms"
+  )
+
+  if (!label %in% names(label_map)) {
+    return(NULL)
+  }
+  unname(label_map[[label]])
+}
+
+legacy_regex_term <- function(term) {
+  tokens <- c("\\w", "\\d", "\\s", "+", "*", "^", "$", "?", "(", ")", "[", "]", "{", "}", "|")
+  vapply(
+    as.character(term),
+    function(value) {
+      if (is.na(value) || !nzchar(value)) {
+        return(FALSE)
+      }
+      any(vapply(tokens, grepl, logical(1), x = value, fixed = TRUE))
+    },
+    logical(1)
+  )
+}
+
+reference_list_default_match_mode <- function(type = NULL, term = character()) {
+  n <- length(term)
+  if (n == 0) {
+    return(character(0))
+  }
+
+  type <- if (is.null(type)) NULL else normalize_reference_list_type(type, allow_functional = TRUE)
+
+  if (identical(type, "block_patterns")) {
+    return(rep("regex", n))
+  }
+
+  if (identical(type, "strip_terms")) {
+    return(ifelse(legacy_regex_term(term), "regex", "literal_word"))
+  }
+
+  rep("literal_word", n)
+}
+
+normalize_reference_pattern <- function(pattern, term) {
+  pattern <- as.character(pattern)
+  term <- as.character(term)
+  pattern[is.na(pattern) | !nzchar(trimws(pattern))] <- term[is.na(pattern) | !nzchar(trimws(pattern))]
+  trimws(pattern)
+}
+
+normalize_reference_list_tbl <- function(tbl, type = NULL) {
+  if (is.null(tbl)) {
+    return(empty_reference_list_tbl())
+  }
+
+  required_cols <- c("term", "source", "active")
+  if (!is.data.frame(tbl) || !all(required_cols %in% names(tbl))) {
+    stop("Reference list entries must be data frames with term, source, and active columns.", call. = FALSE)
+  }
+
+  raw <- tibble::as_tibble(tbl)
+  term <- trimws(as.character(raw$term))
+  keep <- !is.na(term) & nzchar(term)
+
+  if (!any(keep)) {
+    return(empty_reference_list_tbl())
+  }
+
+  term <- term[keep]
+  pattern <- if ("pattern" %in% names(raw)) raw$pattern[keep] else term
+  pattern <- normalize_reference_pattern(pattern, term)
+
+  match_mode <- if ("match_mode" %in% names(raw)) {
+    tolower(trimws(as.character(raw$match_mode[keep])))
+  } else {
+    reference_list_default_match_mode(type, term)
+  }
+  default_modes <- reference_list_default_match_mode(type, term)
+  match_mode[is.na(match_mode) | !nzchar(match_mode)] <- default_modes[is.na(match_mode) | !nzchar(match_mode)]
+
+  invalid_modes <- setdiff(unique(match_mode), reference_list_valid_match_modes())
+  if (length(invalid_modes) > 0) {
+    stop(
+      sprintf(
+        "Invalid reference list match_mode value(s): %s. Expected one of: %s",
+        paste(invalid_modes, collapse = ", "),
+        paste(reference_list_valid_match_modes(), collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+
+  notes <- if ("notes" %in% names(raw)) as.character(raw$notes[keep]) else rep(NA_character_, length(term))
+  notes[is.na(notes) | notes == "NA"] <- NA_character_
+
+  tibble::tibble(
+    term = unname(term),
+    pattern = unname(pattern),
+    match_mode = unname(match_mode),
+    source = unname(as.character(raw$source[keep])),
+    active = unname(as.logical(raw$active[keep])),
+    notes = unname(notes)
+  )
+}
+
+validate_reference_list_patterns <- function(reference_list, type = NULL) {
+  refs <- normalize_reference_list_tbl(reference_list, type)
+  if (nrow(refs) == 0) {
+    return(tibble::tibble(
+      term = character(),
+      severity = character(),
+      message = character()
+    ))
+  }
+
+  issues <- list()
+  add_issue <- function(term, severity, message) {
+    issues[[length(issues) + 1]] <<- tibble::tibble(
+      term = term,
+      severity = severity,
+      message = message
+    )
+  }
+
+  type <- if (is.null(type)) NULL else normalize_reference_list_type(type, allow_functional = TRUE)
+
+  for (i in seq_len(nrow(refs))) {
+    pattern <- refs$pattern[i]
+    if (is.na(pattern) || !nzchar(trimws(pattern))) {
+      add_issue(refs$term[i], "error", "Pattern is empty.")
+      next
+    }
+
+    if (identical(refs$match_mode[i], "regex")) {
+      valid_regex <- tryCatch(
+        {
+          suppressWarnings(grepl(pattern, "", perl = TRUE))
+          TRUE
+        },
+        error = function(e) FALSE
+      )
+      if (!valid_regex) {
+        add_issue(refs$term[i], "error", "Regex pattern is invalid.")
+        next
+      }
+
+      unanchored <- !startsWith(pattern, "^") && !endsWith(pattern, "$")
+      simple_literal <- grepl("^[[:alnum:][:space:]/-]+$", pattern)
+      if (identical(type, "block_patterns") && unanchored && simple_literal) {
+        add_issue(
+          refs$term[i],
+          "warning",
+          "Unanchored literal-like block regex can match inside valid chemical names; use anchors for exact-value blocking."
+        )
+      } else if (identical(type, "block_patterns") && unanchored && nchar(pattern) < 4) {
+        add_issue(
+          refs$term[i],
+          "warning",
+          "Very short unanchored block regex is likely to over-match."
+        )
+      }
+    }
+  }
+
+  if (length(issues) == 0) {
+    return(tibble::tibble(
+      term = character(),
+      severity = character(),
+      message = character()
+    ))
+  }
+
+  dplyr::bind_rows(issues)
+}
+
+reference_list_help_text <- function(type) {
+  type <- normalize_reference_list_type(type, allow_functional = TRUE)
+  switch(
+    type,
+    functional_categories = "Terms that indicate product function or use category rather than a specific chemical identity. Matches create warning flags for curator review.",
+    stop_words = "Literal words or phrases that suggest the name is generic, ambiguous, placeholder-like, or not a specific analyte. These create warning flags; they do not rewrite the name.",
+    block_patterns = "Regex patterns for hard invalid, redacted, or not-searchable values. These create BLOCK flags. Use anchors like ^alcohol$ for exact-value blocking; unanchored regex can match inside valid chemical names.",
+    strip_terms = "Words or regex patterns to remove from names when deletion preserves the intended chemical identity, such as pure acetone to acetone. These modify the name field."
+  )
+}
+
 #' Load stop words list
 #'
 #' Returns a tibble of chemistry-specific stop words with provenance tracking.
@@ -112,7 +310,7 @@ load_stop_words <- function(cache_dir) {
     )
   }
 
-  load_or_fetch_reference(cache_path, fetch_fn, "stop words")
+  normalize_reference_list_tbl(load_or_fetch_reference(cache_path, fetch_fn, "stop words"), "stop_words")
 }
 
 #' Load block patterns list
@@ -150,7 +348,7 @@ load_block_patterns <- function(cache_dir) {
     )
   }
 
-  load_or_fetch_reference(cache_path, fetch_fn, "block patterns")
+  normalize_reference_list_tbl(load_or_fetch_reference(cache_path, fetch_fn, "block patterns"), "block_patterns")
 }
 
 #' Load functional use categories
@@ -216,7 +414,7 @@ load_functional_categories <- function(cache_dir) {
     )
   }
 
-  load_or_fetch_reference(cache_path, fetch_fn, "functional categories")
+  normalize_reference_list_tbl(load_or_fetch_reference(cache_path, fetch_fn, "functional categories"), "functional_categories")
 }
 
 #' Load strip terms list
@@ -248,7 +446,7 @@ load_strip_terms <- function(cache_dir) {
     )
   }
 
-  load_or_fetch_reference(cache_path, fetch_fn, "strip terms")
+  normalize_reference_list_tbl(load_or_fetch_reference(cache_path, fetch_fn, "strip terms"), "strip_terms")
 }
 
 user_reference_list_names <- function() {
@@ -256,7 +454,14 @@ user_reference_list_names <- function() {
 }
 
 empty_reference_list_tbl <- function() {
-  tibble::tibble(term = character(), source = character(), active = logical())
+  tibble::tibble(
+    term = character(),
+    pattern = character(),
+    match_mode = character(),
+    source = character(),
+    active = logical(),
+    notes = character()
+  )
 }
 
 empty_user_reference_lists <- function() {
@@ -266,8 +471,10 @@ empty_user_reference_lists <- function() {
   )
 }
 
-normalize_reference_list_type <- function(type) {
+normalize_reference_list_type <- function(type, allow_functional = FALSE) {
   type_map <- c(
+    functional_category = "functional_categories",
+    functional_categories = "functional_categories",
     stop_word = "stop_words",
     stop_words = "stop_words",
     block_pattern = "block_patterns",
@@ -275,6 +482,10 @@ normalize_reference_list_type <- function(type) {
     strip_term = "strip_terms",
     strip_terms = "strip_terms"
   )
+
+  if (!allow_functional) {
+    type_map <- type_map[!type_map %in% "functional_categories"]
+  }
 
   normalized <- unname(type_map[[type]])
   if (is.null(normalized)) {
@@ -291,29 +502,10 @@ normalize_reference_list_type <- function(type) {
   normalized
 }
 
-normalize_reference_list_tbl <- function(tbl) {
-  if (is.null(tbl)) {
-    return(empty_reference_list_tbl())
-  }
-
-  required_cols <- c("term", "source", "active")
-  if (!is.data.frame(tbl) || !all(required_cols %in% names(tbl))) {
-    stop("Reference list entries must be data frames with term, source, and active columns.", call. = FALSE)
-  }
-
-  tibble::as_tibble(tbl) %>%
-    dplyr::transmute(
-      term = trimws(as.character(term)),
-      source = as.character(source),
-      active = as.logical(active)
-    ) %>%
-    dplyr::filter(!is.na(term), nzchar(term))
-}
-
-merge_reference_list_rows <- function(default_tbl, user_tbl) {
+merge_reference_list_rows <- function(default_tbl, user_tbl, type = NULL) {
   dplyr::bind_rows(
-    normalize_reference_list_tbl(user_tbl),
-    normalize_reference_list_tbl(default_tbl)
+    normalize_reference_list_tbl(user_tbl, type),
+    normalize_reference_list_tbl(default_tbl, type)
   ) %>%
     dplyr::distinct(term, .keep_all = TRUE)
 }
@@ -368,7 +560,7 @@ load_user_reference_lists <- function(cache_dir = NULL) {
   tryCatch(
     {
       for (type in user_reference_list_names()) {
-        empty_lists[[type]] <- normalize_reference_list_tbl(raw[[type]])
+        empty_lists[[type]] <- normalize_reference_list_tbl(raw[[type]], type)
       }
       empty_lists
     },
@@ -398,7 +590,7 @@ save_user_reference_lists <- function(reference_lists, cache_dir = NULL) {
   sidecar <- empty_user_reference_lists()
 
   for (type in user_reference_list_names()) {
-    sidecar[[type]] <- normalize_reference_list_tbl(reference_lists[[type]]) %>%
+    sidecar[[type]] <- normalize_reference_list_tbl(reference_lists[[type]], type) %>%
       dplyr::filter(source != "app_default") %>%
       dplyr::distinct(term, .keep_all = TRUE)
   }
@@ -427,6 +619,9 @@ update_user_reference_list <- function(
   type,
   term,
   active = TRUE,
+  match_mode = NULL,
+  pattern = NULL,
+  notes = NA_character_,
   action = c("add", "remove", "toggle"),
   cache_dir = NULL
 ) {
@@ -442,7 +637,7 @@ update_user_reference_list <- function(
   defaults <- load_default_user_reference_list(type, cache_dir)
   user_lists <- load_user_reference_lists(cache_dir)
   user_tbl <- user_lists[[type]]
-  current_tbl <- merge_reference_list_rows(defaults, user_tbl)
+  current_tbl <- merge_reference_list_rows(defaults, user_tbl, type)
   current_idx <- which(tolower(current_tbl$term) == tolower(term))
   user_idx <- which(tolower(user_tbl$term) == tolower(term))
 
@@ -457,7 +652,43 @@ update_user_reference_list <- function(
       isTRUE(active)
     }
 
-    new_row <- tibble::tibble(term = term, source = "user", active = new_active)
+    new_row <- if (length(current_idx) > 0) {
+      current_tbl[current_idx[1], , drop = FALSE]
+    } else {
+      tibble::tibble(
+        term = term,
+        pattern = if (is.null(pattern)) term else pattern,
+        match_mode = if (is.null(match_mode)) reference_list_default_match_mode(type, term) else match_mode,
+        source = "user",
+        active = new_active,
+        notes = notes
+      )
+    }
+    new_row$source <- "user"
+    new_row$active <- new_active
+    if (!is.null(match_mode)) {
+      new_row$match_mode <- match_mode
+    }
+    if (!is.null(pattern)) {
+      new_row$pattern <- pattern
+    }
+    if (!is.null(notes)) {
+      new_row$notes <- notes
+    }
+    new_row <- normalize_reference_list_tbl(new_row, type)
+
+    if (isTRUE(new_row$active[1])) {
+      validation <- validate_reference_list_patterns(new_row, type)
+      errors <- validation$severity == "error"
+      if (any(errors)) {
+        stop(paste(validation$message[errors], collapse = " "), call. = FALSE)
+      }
+      warnings <- validation$severity == "warning"
+      if (any(warnings)) {
+        warning(paste(validation$message[warnings], collapse = " "), call. = FALSE)
+      }
+    }
+
     if (length(user_idx) > 0) {
       user_tbl[user_idx[1], ] <- new_row
     } else {
@@ -467,7 +698,7 @@ update_user_reference_list <- function(
 
   user_lists[[type]] <- user_tbl
   save_user_reference_lists(user_lists, cache_dir)
-  merge_reference_list_rows(defaults, user_tbl)
+  merge_reference_list_rows(defaults, user_tbl, type)
 }
 
 #' Load one-off corrections table
@@ -851,7 +1082,8 @@ load_all_reference_lists <- function(cache_dir = NULL) {
   for (type in user_reference_list_names()) {
     reference_lists[[type]] <- merge_reference_list_rows(
       reference_lists[[type]],
-      user_reference_lists[[type]]
+      user_reference_lists[[type]],
+      type
     )
   }
 

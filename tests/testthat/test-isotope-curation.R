@@ -32,6 +32,29 @@ test_that("unresolved isotope matches remain searchable while pre-resolved isoto
   expect_false("Radium-226" %in% dedup$unique_names)
 })
 
+test_that("BLOCK flagged rows are skipped from curation search pool", {
+  clean_data <- tibble::tibble(
+    Chemical = c("proprietary", "Acetone", "Radium-226"),
+    cleaning_flag = c("BLOCK: block pattern [exact]", NA_character_, "isotope_match"),
+    isotope_dtxsid = c(NA_character_, NA_character_, "DTXSID8021241")
+  )
+
+  skip_rows <- sort(unique(c(
+    get_blocked_cleaning_rows(clean_data),
+    get_pre_resolved_isotope_rows(clean_data)
+  )))
+  dedup <- deduplicate_tagged_columns(
+    clean_data,
+    list(Chemical = "Name"),
+    skip_rows = skip_rows
+  )
+
+  expect_equal(skip_rows, c(1L, 3L))
+  expect_false("proprietary" %in% dedup$unique_names)
+  expect_true("Acetone" %in% dedup$unique_names)
+  expect_false("Radium-226" %in% dedup$unique_names)
+})
+
 test_that("single-column WQX rows classify as wqx consensus", {
   df <- tibble::tibble(
     Chemical = "Potassium-40",

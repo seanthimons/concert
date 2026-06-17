@@ -1,7 +1,7 @@
 ---
 # concert-06o2
 title: Clarify and enforce Stop Words vs Block Patterns vs Strip Terms semantics
-status: todo
+status: completed
 type: epic
 priority: normal
 tags:
@@ -12,7 +12,7 @@ tags:
     - priority:medium
     - reference-lists
 created_at: 2026-06-17T00:52:06Z
-updated_at: 2026-06-17T01:14:58Z
+updated_at: 2026-06-17T16:52:33Z
 parent: concert-fpqt
 ---
 
@@ -143,11 +143,11 @@ Examples:
 
 ## Acceptance criteria
 
-- [ ] Reference-list semantics are documented in code comments and/or app help text.
-- [ ] Broad legacy terms are not active as unanchored block regex by default.
-- [ ] `BLOCK:` behavior is either enforced as skip/exclusion or renamed so it does not imply exclusion.
-- [ ] Block flags have clear priority over warning-only reference matches.
-- [ ] Tests cover:
+- [x] Reference-list semantics are documented in code comments and/or app help text.
+- [x] Broad legacy terms are not active as unanchored block regex by default.
+- [x] `BLOCK:` behavior is either enforced as skip/exclusion or renamed so it does not imply exclusion.
+- [x] Block flags have clear priority over warning-only reference matches.
+- [x] Tests cover:
   - stop-word literal/word-boundary behavior
   - block-pattern regex behavior
   - anchored exact block terms
@@ -155,9 +155,9 @@ Examples:
   - curation skip/override behavior for blocked rows
 
 ## Sub-issues
-- [ ] #34 Harden reference-list matching with explicit regex/literal pattern modes
+- [x] #34 Harden reference-list matching with explicit regex/literal pattern modes
 
-- [ ] #33 Add reference-list tooltips explaining stop words, block patterns, strip terms, and functional categories
+- [x] #33 Add reference-list tooltips explaining stop words, block patterns, strip terms, and functional categories
 
 ## Notes
 
