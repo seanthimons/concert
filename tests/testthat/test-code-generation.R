@@ -37,7 +37,7 @@ test_that("generate_concert_script includes replay settings and combined tag map
   expect_no_match(script, "verbose", fixed = TRUE)
 })
 
-test_that("generate_concert_script emits content-matched case_when overrides", {
+test_that("generate_concert_script emits content-matched rows_update tables", {
   baseline <- init_resolution_state(tibble::tibble(
     chemical = c("Acetone", "Benzene"),
     cas_number = c("67-64-1", "71-43-2"),
@@ -61,16 +61,24 @@ test_that("generate_concert_script emits content-matched case_when overrides", {
   expect_no_match(script, "starts_with", fixed = TRUE)
   expect_no_match(script, "harmonize", fixed = TRUE)
   expect_match(script, "apply_review_overrides <- function(resolution_state)", fixed = TRUE)
-  expect_match(script, "dplyr::mutate(", fixed = TRUE)
-  expect_match(script, "row_flag = dplyr::case_when(", fixed = TRUE)
-  expect_match(script, 'chemical == "Acetone"', fixed = TRUE)
-  expect_no_match(script, 'cas_number == "67-64-1"', fixed = TRUE)
-  expect_match(script, 'TRUE ~ row_flag', fixed = TRUE)
+  expect_match(script, "state <- resolution_state", fixed = TRUE)
+  expect_match(script, "# Review Results — row_flag corrections (1)", fixed = TRUE)
+  expect_match(script, "row_flag_fixes <- tibble::tibble(", fixed = TRUE)
+  expect_match(script, 'chemical = "Acetone"', fixed = TRUE)
+  expect_match(script, 'row_flag = "VERIFIED"', fixed = TRUE)
+  expect_match(
+    script,
+    'state <- dplyr::rows_update(state, row_flag_fixes, by = "chemical", unmatched = "ignore")',
+    fixed = TRUE
+  )
+  expect_no_match(script, 'cas_number = "67-64-1"', fixed = TRUE)
+  expect_no_match(script, "dplyr::case_when(", fixed = TRUE)
   expect_match(script, 'attr(apply_review_overrides, "review_override_columns")', fixed = TRUE)
   expect_match(script, "review_overrides = apply_review_overrides", fixed = TRUE)
   expect_no_match(script, "review_overrides <- tibble::tibble", fixed = TRUE)
   expect_no_match(script, "row = c(", fixed = TRUE)
   expect_no_match(script, "list(list", fixed = TRUE)
+  expect_silent(parse(text = script))
 })
 
 test_that("build_review_overrides returns NULL for no-change sessions", {
@@ -221,7 +229,7 @@ test_that("duplicate stable-content rows require identical intended edits", {
     header_row = 1L,
     review_overrides = overrides
   )
-  branch_matches <- gregexpr('~ "VERIFIED"', script, fixed = TRUE)[[1]]
+  branch_matches <- gregexpr('row_flag = "VERIFIED"', script, fixed = TRUE)[[1]]
   expect_equal(sum(branch_matches > 0), 1L)
 })
 
@@ -255,13 +263,14 @@ test_that("minimal row signatures add only enough columns to disambiguate near d
   )
   expect_match(
     script,
-    'site == "A" & chemical == "Acetone" & sample_id == "S1" ~ "FOLLOW-UP"',
+    'by = c("site", "chemical", "sample_id"), unmatched = "ignore"',
     fixed = TRUE
   )
-  expect_no_match(script, 'cas_number == "67-64-1"', fixed = TRUE)
+  expect_match(script, 'row_flag = "FOLLOW-UP"', fixed = TRUE)
+  expect_no_match(script, "cas_number", fixed = TRUE)
 })
 
-test_that("generated case_when branches preserve typed NA values", {
+test_that("generated rows_update tables preserve typed NA values", {
   baseline <- init_resolution_state(tibble::tibble(
     chemical = c("Acetone", "Benzene"),
     cas_number = c("67-64-1", "71-43-2"),
@@ -282,10 +291,11 @@ test_that("generated case_when branches preserve typed NA values", {
     review_overrides = build_review_overrides(baseline, final)
   )
 
-  expect_match(script, "NA_character_", fixed = TRUE)
-  expect_match(script, "NA_integer_", fixed = TRUE)
-  expect_match(script, "consensus_dtxsid = dplyr::case_when(", fixed = TRUE)
-  expect_match(script, "qc_tier = dplyr::case_when(", fixed = TRUE)
+  expect_match(script, "consensus_dtxsid = NA_character_", fixed = TRUE)
+  expect_match(script, "qc_tier = NA_integer_", fixed = TRUE)
+  expect_match(script, "consensus_dtxsid_fixes <- tibble::tibble(", fixed = TRUE)
+  expect_match(script, "qc_tier_fixes <- tibble::tibble(", fixed = TRUE)
+  expect_silent(parse(text = script))
 })
 
 test_that("review replay predicates ignore tagged measurement columns", {
@@ -312,9 +322,15 @@ test_that("review replay predicates ignore tagged measurement columns", {
     )
   )
 
-  expect_match(script, "row_flag = dplyr::case_when(", fixed = TRUE)
-  expect_match(script, 'chemical == "Acetone" ~ "VERIFIED"', fixed = TRUE)
-  expect_no_match(script, "result ==", fixed = TRUE)
+  expect_match(script, "row_flag_fixes <- tibble::tibble(", fixed = TRUE)
+  expect_match(script, 'chemical = "Acetone"', fixed = TRUE)
+  expect_match(script, 'row_flag = "VERIFIED"', fixed = TRUE)
+  expect_match(
+    script,
+    'state <- dplyr::rows_update(state, row_flag_fixes, by = "chemical", unmatched = "ignore")',
+    fixed = TRUE
+  )
+  expect_no_match(script, "result_fixes", fixed = TRUE)
 })
 
 test_that("tagged Result edits replay in a measurement workflow block", {
@@ -348,9 +364,11 @@ test_that("tagged Result edits replay in a measurement workflow block", {
     review_overrides = overrides
   )
 
-  expect_match(script, "result = dplyr::case_when(", fixed = TRUE)
-  expect_match(script, 'chemical == "Acetone" ~ "1.5"', fixed = TRUE)
-  expect_no_match(script, "row_flag = dplyr::case_when(", fixed = TRUE)
+  expect_match(script, "# Measurement tags — result corrections (1)", fixed = TRUE)
+  expect_match(script, "result_fixes <- tibble::tibble(", fixed = TRUE)
+  expect_match(script, 'chemical = "Acetone"', fixed = TRUE)
+  expect_match(script, 'result = "1.5"', fixed = TRUE)
+  expect_no_match(script, "row_flag", fixed = TRUE)
 })
 
 test_that("mixed replay edits are grouped by workflow blocks", {
@@ -401,14 +419,20 @@ test_that("mixed replay edits are grouped by workflow blocks", {
     header_row = 1L,
     review_overrides = overrides
   )
-  mutate_matches <- gregexpr("dplyr::mutate(", script, fixed = TRUE)[[1]]
+  update_matches <- gregexpr("state <- dplyr::rows_update(", script, fixed = TRUE)[[1]]
 
-  expect_equal(sum(mutate_matches > 0), 4L)
-  expect_match(script, "row_flag = dplyr::case_when(", fixed = TRUE)
-  expect_match(script, "result = dplyr::case_when(", fixed = TRUE)
-  expect_match(script, "unit = dplyr::case_when(", fixed = TRUE)
-  expect_match(script, "media = dplyr::case_when(", fixed = TRUE)
-  expect_match(script, "species = dplyr::case_when(", fixed = TRUE)
+  expect_equal(sum(update_matches > 0), 5L)
+  expect_match(script, "# Review Results — row_flag corrections (1)", fixed = TRUE)
+  expect_match(script, 'row_flag = "FOLLOW-UP"', fixed = TRUE)
+  expect_match(script, 'result = "1.5"', fixed = TRUE)
+  expect_match(script, 'unit = "ug/L"', fixed = TRUE)
+  expect_match(script, 'media = "surface water"', fixed = TRUE)
+  expect_match(script, 'species = "Daphnia magna"', fixed = TRUE)
+  # Review Results section renders before the chemical-identity-keyed workflows.
+  expect_lt(
+    regexpr("row_flag_fixes", script, fixed = TRUE),
+    regexpr("species_fixes", script, fixed = TRUE)
+  )
   expect_silent(parse(text = script))
 })
 
@@ -453,7 +477,7 @@ test_that("stable context disambiguates tagged measurement edits without Result 
     tag_map = list(chemical = "Name", result = "Result")
   )
 
-  expect_named(overrides$signature[[1]], "sample_id")
+  expect_named(overrides$signature[[1]], c("chemical", "sample_id"))
   replayed <- apply_review_overrides(baseline, overrides)
   expect_equal(replayed$result, c("1.5", "3.4"))
 
@@ -465,8 +489,13 @@ test_that("stable context disambiguates tagged measurement edits without Result 
     review_overrides = overrides
   )
 
-  expect_match(script, 'sample_id == "S1" ~ "1.5"', fixed = TRUE)
-  expect_no_match(script, "result ==", fixed = TRUE)
+  expect_match(script, 'chemical = "Acetone"', fixed = TRUE)
+  expect_match(script, 'sample_id = "S1"', fixed = TRUE)
+  expect_match(
+    script,
+    'by = c("chemical", "sample_id"), unmatched = "ignore"',
+    fixed = TRUE
+  )
 })
 
 test_that("function review overrides initialize target columns before replay", {
@@ -622,4 +651,120 @@ test_that("curate_headless applies function review overrides after automated cur
 
   expect_equal(result$data$row_flag, "VERIFIED")
   expect_equal(seen_tags, list(chemical = "Name"))
+})
+
+test_that("generated rows_update function matches the in-memory spec apply", {
+  baseline <- init_resolution_state(tibble::tibble(
+    chemical = c("Acetone", "Benzene", "Toluene"),
+    sample_id = c("S1", "S2", "S1"),
+    result = c("1.2", "3.4", "5.6"),
+    unit = c("mg/L", "ug/L", "mg/L"),
+    consensus_status = rep("agree", 3),
+    consensus_dtxsid = paste0("DTXSID", 1:3),
+    consensus_source = rep("consensus", 3),
+    qc_tier = rep(1L, 3)
+  ))
+  final <- baseline
+  final$row_flag[1] <- "VERIFIED"
+  final$result[2] <- "9.9"
+  final$unit[3] <- "ug/L"
+
+  tag_map <- list(chemical = "Name", result = "Result", unit = "Unit")
+  spec <- build_review_overrides(baseline, final, tag_map = tag_map)
+
+  fn_src <- review_overrides_function_literal(spec)
+  env <- new.env(parent = globalenv())
+  eval(parse(text = fn_src), envir = env)
+  target_cols <- attr(env$apply_review_overrides, "review_override_columns")
+  prepared <- init_review_override_columns(
+    baseline,
+    intersect(target_cols, review_override_columns())
+  )
+  generated <- env$apply_review_overrides(prepared)
+  in_memory <- apply_review_overrides(baseline, spec)
+
+  for (col in unique(spec$column)) {
+    expect_equal(generated[[col]], in_memory[[col]], info = col)
+    expect_equal(generated[[col]], final[[col]], info = col)
+  }
+})
+
+test_that("large replay sessions emit deterministic, parseable grouped tables", {
+  n <- 300L
+  baseline <- init_resolution_state(tibble::tibble(
+    chemical = paste0("Chem", seq_len(n)),
+    sample_id = paste0("S", seq_len(n)),
+    result = as.character(seq_len(n)),
+    unit = rep("mg/L", n),
+    consensus_status = rep("agree", n),
+    consensus_dtxsid = paste0("DTXSID", seq_len(n)),
+    consensus_source = rep("consensus", n),
+    qc_tier = rep(1L, n)
+  ))
+  final <- baseline
+  edited <- seq_len(120L)
+  final$result[edited] <- paste0(final$result[edited], ".5")
+  final$unit[edited] <- "ug/L"
+
+  tag_map <- list(chemical = "Name", result = "Result", unit = "Unit")
+  script <- generate_concert_script(
+    input_path = "input.csv",
+    output_path = "input_curated.xlsx",
+    tag_map = tag_map,
+    header_row = 1L,
+    review_overrides = build_review_overrides(baseline, final, tag_map = tag_map)
+  )
+
+  expect_silent(parse(text = script))
+  expect_match(script, "# Measurement tags — result corrections (120)", fixed = TRUE)
+  expect_match(script, "# Measurement tags — unit corrections (120)", fixed = TRUE)
+  expect_match(script, "result_fixes <- tibble::tibble(", fixed = TRUE)
+  expect_match(script, "unit_fixes <- tibble::tibble(", fixed = TRUE)
+
+  script2 <- generate_concert_script(
+    input_path = "input.csv",
+    output_path = "input_curated.xlsx",
+    tag_map = tag_map,
+    header_row = 1L,
+    review_overrides = build_review_overrides(baseline, final, tag_map = tag_map)
+  )
+  expect_identical(script, script2)
+})
+
+test_that("chemical-tag edits render after other workflows and replay correctly", {
+  baseline <- init_resolution_state(tibble::tibble(
+    chemical = c("Acetone", "Benzene"),
+    sample_id = c("S1", "S2"),
+    result = c("1.2", "3.4"),
+    consensus_status = c("agree", "agree"),
+    consensus_dtxsid = c("DTXSID1", "DTXSID2"),
+    consensus_source = c("consensus", "consensus"),
+    qc_tier = c(1L, 1L)
+  ))
+  final <- baseline
+  final$result[1] <- "1.5"
+  final$chemical[1] <- "Acetone (verified)"
+
+  tag_map <- list(chemical = "Name", result = "Result")
+  spec <- build_review_overrides(baseline, final, tag_map = tag_map)
+
+  expect_setequal(unique(spec$workflow), c("measurement_tags", "chemical_tags"))
+
+  script <- generate_concert_script(
+    input_path = "input.csv",
+    output_path = "input_curated.xlsx",
+    tag_map = tag_map,
+    header_row = 1L,
+    review_overrides = spec
+  )
+  expect_silent(parse(text = script))
+  # The measurement table keyed on chemical must run before the rename.
+  expect_lt(
+    regexpr("result_fixes", script, fixed = TRUE),
+    regexpr("chemical_fixes", script, fixed = TRUE)
+  )
+
+  replayed <- apply_review_overrides(baseline, spec)
+  expect_equal(replayed$result, c("1.5", "3.4"))
+  expect_equal(replayed$chemical, c("Acetone (verified)", "Benzene"))
 })

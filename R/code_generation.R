@@ -310,7 +310,7 @@ signature_key <- function(signature) {
   script_literal(signature)
 }
 
-minimal_stable_row_signature <- function(baseline_state, full_signature, target_rows) {
+minimal_stable_row_signature <- function(baseline_state, full_signature, target_rows, identity_cols = character()) {
   stable_cols <- names(full_signature)
   if (length(stable_cols) <= 1L) {
     return(full_signature)
@@ -330,12 +330,25 @@ minimal_stable_row_signature <- function(baseline_state, full_signature, target_
   })
   names(signature_masks) <- stable_cols
 
-  for (subset_size in seq_len(length(stable_cols) - 1L)) {
-    candidates <- utils::combn(stable_cols, subset_size, simplify = FALSE)
-    for (candidate_cols in candidates) {
+  # Seed the signature with chemical-identity columns so generated predicates read
+  # like recognizable rows, then add only the extra columns needed to disambiguate.
+  seed <- stable_cols[stable_cols %in% identity_cols]
+  optional <- setdiff(stable_cols, seed)
+
+  for (subset_size in seq.int(0L, length(optional))) {
+    candidates <- if (subset_size == 0L) {
+      list(character())
+    } else {
+      utils::combn(optional, subset_size, simplify = FALSE)
+    }
+    for (extra_cols in candidates) {
+      candidate_cols <- c(seed, extra_cols)
+      if (length(candidate_cols) == 0L) {
+        next
+      }
       mask <- Reduce(`&`, signature_masks[candidate_cols])
       if (identical(mask, target_mask)) {
-        return(full_signature[candidate_cols])
+        return(full_signature[stable_cols[stable_cols %in% candidate_cols]])
       }
     }
   }
@@ -444,7 +457,8 @@ ambiguous_review_override_error <- function(col, rows, stable_cols) {
 #'
 #' @return NULL when no overrides are needed, otherwise a content-match
 #'   override spec with the edited column, edited scalar value, and a
-#'   minimal stable row signature for each generated `case_when()` branch.
+#'   minimal stable row signature used as the key for each generated
+#'   `dplyr::rows_update()` override table.
 #' @export
 build_review_overrides <- function(baseline_state, final_state, tag_map = NULL) {
   if (is.null(baseline_state) || is.null(final_state)) {
@@ -482,11 +496,21 @@ build_review_overrides <- function(baseline_state, final_state, tag_map = NULL) 
       workflow = workflow,
       column_workflows = column_workflows
     )
+    identity_cols <- if (identical(workflow, "chemical_tags")) {
+      character()
+    } else {
+      intersect(workflow_columns(column_workflows, "chemical_tags"), stable_cols)
+    }
     signatures <- lapply(seq_len(nrow(baseline_state)), function(row_idx) {
       row_signature(baseline_state, row_idx, stable_cols)
     })
     keys <- vapply(signatures, signature_key, character(1))
 
+    # First pass: find changed groups, validate ambiguity, and collect each
+    # group's minimal-readable signature.
+    group_rows_list <- list()
+    group_values <- list()
+    group_min_cols <- character()
     for (key in unique(keys)) {
       group_rows <- which(keys == key)
 
@@ -507,13 +531,32 @@ build_review_overrides <- function(baseline_state, final_state, tag_map = NULL) 
         ambiguous_review_override_error(col, group_rows, stable_cols)
       }
 
-      workflows <- c(workflows, workflow)
-      columns <- c(columns, col)
-      values[[length(values) + 1L]] <- review_value_scalar(intended_value)
-      branch_signatures[[length(branch_signatures) + 1L]] <- minimal_stable_row_signature(
+      min_sig <- minimal_stable_row_signature(
         baseline_state,
         signatures[[group_rows[1]]],
-        group_rows
+        group_rows,
+        identity_cols
+      )
+      group_rows_list[[length(group_rows_list) + 1L]] <- group_rows
+      group_values[[length(group_values) + 1L]] <- review_value_scalar(intended_value)
+      group_min_cols <- union(group_min_cols, names(min_sig))
+    }
+
+    if (length(group_values) == 0) {
+      next
+    }
+
+    # A single rows_update table needs one uniform key set, so key every group on
+    # the union of the columns any group needed (ordered by data-frame columns).
+    key_cols <- stable_cols[stable_cols %in% group_min_cols]
+    for (i in seq_along(group_values)) {
+      workflows <- c(workflows, workflow)
+      columns <- c(columns, col)
+      values[[length(values) + 1L]] <- group_values[[i]]
+      branch_signatures[[length(branch_signatures) + 1L]] <- row_signature(
+        baseline_state,
+        group_rows_list[[i]][1],
+        key_cols
       )
     }
   }
@@ -599,7 +642,12 @@ apply_review_override_spec <- function(resolution_state, review_overrides) {
     intersect(unique(as.character(spec$column)), review_override_columns())
   )
 
-  for (i in seq_len(nrow(spec))) {
+  # Apply in workflow order (chemical-tags last) so edits to chemical-identity
+  # columns do not invalidate the stable signatures of earlier workflows. This
+  # mirrors the order the generated rows_update tables run in.
+  apply_order <- order(match(as.character(spec$workflow), replay_workflow_order()))
+
+  for (i in apply_order) {
     col <- as.character(spec$column[i])
     value <- review_value_scalar(spec$value[[i]])
     mask <- signature_match_mask(updated, spec$signature[[i]])
@@ -700,70 +748,56 @@ apply_review_overrides <- function(resolution_state, review_overrides = NULL) {
   updated
 }
 
-format_signature_term <- function(col, value) {
-  col_expr <- r_name(col)
-  if (isTRUE(tryCatch(is.na(value), error = function(e) FALSE))) {
-    return(paste0("is.na(", col_expr, ")"))
-  }
-  paste0(col_expr, " == ", script_literal(value))
-}
-
-format_signature_predicate <- function(signature) {
-  if (length(signature) == 0) {
-    return("TRUE")
-  }
-
-  terms <- mapply(
-    format_signature_term,
-    names(signature),
-    signature,
-    SIMPLIFY = TRUE,
-    USE.NAMES = FALSE
+replay_workflow_label <- function(workflow) {
+  switch(
+    workflow,
+    review = "Review Results",
+    measurement_tags = "Measurement tags",
+    study_tags = "Study tags",
+    metadata_tags = "Metadata tags",
+    chemical_tags = "Chemical tags",
+    workflow
   )
-  paste(terms, collapse = " & ")
 }
 
-format_case_when_assignment <- function(col, entries) {
-  col_expr <- r_name(col)
-  branch_lines <- character()
+# Combine a list of scalar values into a single typed vector literal. Combining
+# with c() preserves the column type (including typed NA) so the generated table
+# matches the resolution-state column type that dplyr::rows_update() requires.
+column_vector_literal <- function(values) {
+  script_literal(do.call(c, values))
+}
 
-  for (i in seq_len(nrow(entries))) {
-    predicate <- format_signature_predicate(entries$signature[[i]])
-    value <- script_literal(review_value_scalar(entries$value[[i]]))
-    branch_lines <- c(branch_lines, paste0("      ", predicate, " ~ ", value, ","))
+format_rows_update_block <- function(workflow, col, entries) {
+  key_cols <- names(entries$signature[[1]])
+  tbl_var <- make.names(paste0(col, "_fixes"))
+
+  col_lines <- character()
+  for (key_col in key_cols) {
+    key_values <- lapply(seq_len(nrow(entries)), function(i) entries$signature[[i]][[key_col]])
+    col_lines <- c(col_lines, paste0("    ", r_name(key_col), " = ", column_vector_literal(key_values)))
+  }
+  target_values <- lapply(seq_len(nrow(entries)), function(i) review_value_scalar(entries$value[[i]]))
+  col_lines <- c(col_lines, paste0("    ", r_name(col), " = ", column_vector_literal(target_values)))
+  col_lines[-length(col_lines)] <- paste0(col_lines[-length(col_lines)], ",")
+
+  by_literal <- if (length(key_cols) == 1L) {
+    script_literal(key_cols)
+  } else {
+    character_vector_literal(key_cols)
   }
 
   c(
-    paste0("    ", col_expr, " = dplyr::case_when("),
-    branch_lines,
-    paste0("      TRUE ~ ", col_expr),
-    "    )"
+    sprintf("  # %s — %s corrections (%d)", replay_workflow_label(workflow), col, nrow(entries)),
+    paste0("  ", tbl_var, " <- tibble::tibble("),
+    col_lines,
+    "  )",
+    sprintf(
+      "  state <- dplyr::rows_update(state, %s, by = %s, unmatched = \"ignore\")",
+      tbl_var,
+      by_literal
+    ),
+    ""
   )
-}
-
-format_workflow_mutate_block <- function(spec, append_pipe = FALSE) {
-  columns <- unique(as.character(spec$column))
-  assignments <- character()
-
-  for (i in seq_along(columns)) {
-    col <- columns[i]
-    entries <- spec[spec$column == col, , drop = FALSE]
-    assignment <- format_case_when_assignment(col, entries)
-    if (i < length(columns)) {
-      assignment[length(assignment)] <- paste0(assignment[length(assignment)], ",")
-    }
-    assignments <- c(assignments, assignment)
-  }
-
-  block <- c(
-    "    dplyr::mutate(",
-    assignments,
-    "    )"
-  )
-  if (append_pipe) {
-    block[length(block)] <- paste0(block[length(block)], " |>")
-  }
-  block
 }
 
 review_overrides_function_literal <- function(review_overrides) {
@@ -771,13 +805,15 @@ review_overrides_function_literal <- function(review_overrides) {
   present_workflows <- unique(as.character(spec$workflow))
   workflows <- replay_workflow_order()[replay_workflow_order() %in% present_workflows]
 
-  blocks <- character()
-  for (i in seq_along(workflows)) {
-    workflow_spec <- spec[spec$workflow == workflows[i], , drop = FALSE]
-    blocks <- c(
-      blocks,
-      format_workflow_mutate_block(workflow_spec, append_pipe = i < length(workflows))
-    )
+  body_lines <- character()
+  for (workflow in workflows) {
+    workflow_spec <- spec[spec$workflow == workflow, , drop = FALSE]
+    for (col in unique(as.character(workflow_spec$column))) {
+      entries <- workflow_spec[workflow_spec$column == col, , drop = FALSE]
+      # Deterministic row order within each table for stable diffs across exports.
+      entries <- entries[order(vapply(entries$signature, signature_key, character(1))), , drop = FALSE]
+      body_lines <- c(body_lines, format_rows_update_block(workflow, col, entries))
+    }
   }
 
   columns <- unique(as.character(spec$column))
@@ -785,8 +821,10 @@ review_overrides_function_literal <- function(review_overrides) {
   paste(
     c(
       "apply_review_overrides <- function(resolution_state) {",
-      "  resolution_state |>",
-      blocks,
+      "  state <- resolution_state",
+      "",
+      body_lines,
+      "  state",
       "}",
       paste0(
         "attr(apply_review_overrides, \"review_override_columns\") <- ",
@@ -816,8 +854,8 @@ format_curate_call_args <- function(args) {
 #' @param tag_map Named list of chemical, numeric, metadata, and study tags.
 #' @param header_row Detected header row to pin for replay.
 #' @param review_overrides Optional content-match override spec from
-#'   `build_review_overrides()` to embed as generated `case_when()` replay
-#'   logic.
+#'   `build_review_overrides()` to embed as generated per-column
+#'   `dplyr::rows_update()` override tables.
 #' @param wqx_threshold WQX fuzzy match threshold.
 #' @param starts_with Logical. Enables CompTox starts-with fallback search.
 #' @param harmonize Logical. Re-run harmonization during replay.
