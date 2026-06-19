@@ -1,4 +1,4 @@
-# CONCERT
+# Concert <img src="man/figures/logo.png" align="right" height="139" alt="Concert hex sticker" />
 
 Chemical Ontology & Nomenclature Crosswalk for Entity Registration & Translation.
 
