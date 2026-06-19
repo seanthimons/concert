@@ -132,6 +132,7 @@ server <- function(input, output, session) {
     file_info = NULL,
     selected_columns = NULL,
     column_tags = NULL,
+    suggested_column_tags = NULL,
     cleaning_audit = NULL,
     cleaned_data = NULL,
     reference_lists = NULL,
@@ -316,6 +317,7 @@ server <- function(input, output, session) {
     data_store$cleaning_audit <- NULL
     data_store$cleaned_data <- NULL
     data_store$column_tags <- NULL
+    data_store$suggested_column_tags <- NULL
     data_store$curation_results <- NULL
     data_store$curation_report <- NULL
     data_store$curation_status <- NULL

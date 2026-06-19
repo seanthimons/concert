@@ -1021,21 +1021,25 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         multiple = TRUE,
         bslib::accordion_panel(
           title = reference_title("Functional Categories", "functional_categories"),
+          value = "functional_categories",
           icon = bsicons::bs_icon("tag"),
           uiOutput(session$ns("chip_func_cats"))
         ),
         bslib::accordion_panel(
           title = reference_title("Stop Words", "stop_words"),
+          value = "stop_words",
           icon = bsicons::bs_icon("hand-thumbs-down"),
           uiOutput(session$ns("chip_stop_words"))
         ),
         bslib::accordion_panel(
           title = reference_title("Block Patterns", "block_patterns"),
+          value = "block_patterns",
           icon = bsicons::bs_icon("calculator"),
           uiOutput(session$ns("chip_block_patterns"))
         ),
         bslib::accordion_panel(
           title = reference_title("Strip Terms", "strip_terms"),
+          value = "strip_terms",
           icon = bsicons::bs_icon("eraser"),
           uiOutput(session$ns("chip_strip_terms"))
         )

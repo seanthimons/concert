@@ -2833,7 +2833,11 @@ mod_review_results_server <- function(id, data_store) {
       )
 
       baseline_state <- data_store$script_baseline_state %||% data_store$resolution_state
-      review_overrides <- build_review_overrides(baseline_state, data_store$resolution_state)
+      review_overrides <- build_review_overrides(
+        baseline_state,
+        data_store$resolution_state,
+        tag_map = full_tag_map
+      )
       should_harmonize <- !is.null(data_store$harmonize_results) || !is.null(data_store$toxval_output)
 
       generate_concert_script(
