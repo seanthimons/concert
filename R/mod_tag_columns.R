@@ -12,15 +12,25 @@ mod_tag_columns_ui <- function(id) {
 
   tagList(
     tags$style(HTML(paste0(
-      "#", ns("column_tagging_ui"), " .tag-columns-table td { vertical-align: middle; }",
-      "#", ns("column_tagging_ui"), " .tag-columns-table td .shiny-input-container { margin-bottom: 0; }",
-      "#", ns("column_tagging_ui"), " .tag-column-name { padding-left: 0.75rem; }",
-      "#", ns("column_tagging_ui"), " .tag-column-selected > td { background-color: #e7f5ff !important; }"
+      "#",
+      ns("column_tagging_ui"),
+      " .tag-columns-table td { vertical-align: middle; }",
+      "#",
+      ns("column_tagging_ui"),
+      " .tag-columns-table td .shiny-input-container { margin-bottom: 0; }",
+      "#",
+      ns("column_tagging_ui"),
+      " .tag-column-name { padding-left: 0.75rem; }",
+      "#",
+      ns("column_tagging_ui"),
+      " .tag-column-selected > td { background-color: #e7f5ff !important; }"
     ))),
     tags$script(HTML(paste0(
       "$(document).on('shiny:inputchanged', function(event) {",
       "  var id = event.name;",
-      "  var row = $('#", ns("column_tagging_ui"), " .tag-column-row').filter(function() {",
+      "  var row = $('#",
+      ns("column_tagging_ui"),
+      " .tag-column-row').filter(function() {",
       "    return $(this).data('input-id') === id;",
       "  });",
       "  if (!row.length) return;",
@@ -84,6 +94,17 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
         return(div(class = "alert alert-warning", "No columns selected. Please select columns in the sidebar."))
       }
 
+      # Pre-fill precedence: an already-applied or config-imported tag wins over
+      # a heuristic suggestion, which wins over blank. Applied tags are split
+      # across four partitions (column_tags holds chemical only), so merge them.
+      applied_tags <- c(
+        data_store$column_tags,
+        data_store$numeric_tags,
+        data_store$metadata_tags,
+        data_store$study_type_tags
+      )
+      suggested_tags <- data_store$suggested_column_tags
+
       # Table-based layout: one row per column
       tags$table(
         class = "table table-sm table-striped table-hover tag-columns-table",
@@ -95,6 +116,11 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
         ),
         tags$tbody(
           lapply(selected_cols, function(col) {
+            applied_tag <- applied_tags[[col]]
+            # Only surface a suggestion when the user has not already chosen one.
+            is_suggested <- is.null(applied_tag) && !is.null(suggested_tags[[col]]) && nzchar(suggested_tags[[col]])
+            selected_tag <- applied_tag %||% suggested_tags[[col]] %||% ""
+
             tags$tr(
               class = "tag-column-row",
               `data-input-id` = session$ns(paste0("tag_", make.names(col))),
@@ -121,14 +147,17 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
                       "Media" = "Media"
                     )
                   ),
-                  selected = "",
+                  selected = selected_tag,
                   selectize = FALSE,
                   width = "100%"
                 )
               ),
               tags$td(
                 class = "tag-column-name text-start align-middle",
-                tags$strong(col)
+                tags$strong(col),
+                if (is_suggested) {
+                  tags$span(class = "badge bg-light text-muted ms-2 fw-normal", "suggested")
+                }
               )
             )
           })
