@@ -82,6 +82,27 @@ test_that("mod_clean_data_server initializes without error", {
   })
 })
 
+test_that("mod_clean_data_server renders reference editor accordion with rich titles", {
+  data_store <- create_test_store()
+  data_store$reference_lists <- list(
+    functional_categories = tibble::tibble(term = character(), source = character(), active = logical()),
+    stop_words = tibble::tibble(term = character(), source = character(), active = logical()),
+    block_patterns = tibble::tibble(term = character(), source = character(), active = logical()),
+    strip_terms = tibble::tibble(term = character(), source = character(), active = logical())
+  )
+
+  shiny::testServer(mod_clean_data_server, args = list(
+    data_store = data_store,
+    on_cleaning_complete = NULL
+  ), {
+    session$flushReact()
+    section <- NULL
+
+    expect_error(section <- output$reference_editors_section, NA)
+    expect_false(is.null(section))
+  })
+})
+
 test_that("mod_clean_data_server renders multi-CAS section with generated CAS column", {
   data_store <- create_test_store()
   data_store$column_tags <- list(

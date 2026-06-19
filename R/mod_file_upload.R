@@ -143,7 +143,9 @@ mod_file_upload_server <- function(
       showModal(modalDialog(
         title = "CONCERT Export Detected",
         p("This workbook contains a saved CONCERT session."),
-        p("Resume restores the exported review state and opens Review Results. Treat as Raw Data processes the Raw Data sheet as a fresh upload."),
+        p(
+          "Resume restores the exported review state and opens Review Results. Treat as Raw Data processes the Raw Data sheet as a fresh upload."
+        ),
         if (!is.null(data_store$clean)) {
           p(class = "text-muted small", "Your current session will be replaced.")
         },
@@ -574,6 +576,11 @@ mod_file_upload_server <- function(
         selected = choices # All selected by default
       )
 
+      # Compute name-based tag suggestions before publishing selected_columns so
+      # the Tag Columns UI re-renders once with suggestions present. Refreshes on
+      # both initial upload and re-detection (any change to data_store$clean).
+      data_store$suggested_column_tags <- suggest_column_tags(choices)
+
       # Store in reactive store
       data_store$selected_columns <- choices
     })
@@ -598,7 +605,9 @@ mod_file_upload_server <- function(
 
     # Return reactive list for app.R to observe
     return(list(
-      preview_rows = reactive({ input$preview_rows })
+      preview_rows = reactive({
+        input$preview_rows
+      })
     ))
   })
 }
