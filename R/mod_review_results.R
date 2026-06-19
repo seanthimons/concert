@@ -110,6 +110,46 @@ candidate_dtxsid_heading <- function(dtxsid) {
   htmltools::tags$h6(class = "mb-1 fw-bold d-inline", heading_content)
 }
 
+format_tagged_row_values <- function(df, row_idx, column_tags) {
+  row_idx <- suppressWarnings(as.integer(row_idx)[1])
+  if (
+    is.null(df) ||
+      is.na(row_idx) ||
+      row_idx < 1L ||
+      row_idx > nrow(df) ||
+      is.null(column_tags) ||
+      length(column_tags) == 0
+  ) {
+    return(character(0))
+  }
+
+  tagged_cols <- names(column_tags)
+  tagged_cols <- tagged_cols[!is.na(tagged_cols) & nzchar(tagged_cols)]
+  tagged_cols <- intersect(tagged_cols, names(df))
+  if (length(tagged_cols) == 0) {
+    return(character(0))
+  }
+
+  values <- vapply(tagged_cols, function(col) {
+    val <- df[[col]][row_idx]
+    if (length(val) != 1 || is.na(val)) {
+      return(NA_character_)
+    }
+    paste0(col, " = '", as.character(val), "'")
+  }, character(1))
+
+  unname(values[!is.na(values)])
+}
+
+tagged_row_summary <- function(df, row_idx, column_tags) {
+  tag_values <- format_tagged_row_values(df, row_idx, column_tags)
+  if (length(tag_values) == 0) {
+    return(NULL)
+  }
+
+  shiny::div(class = "mb-3 text-muted small", paste(tag_values, collapse = ", "))
+}
+
 # Vectorized match_type derivation (replaces row-by-row sapply)
 derive_match_type <- function(df) {
   tier_cols <- c(intersect("source_tier", names(df)), grep("^source_tier_", names(df), value = TRUE))
@@ -1357,11 +1397,17 @@ mod_review_results_server <- function(id, data_store) {
       } else {
         NA_character_
       }
+      tagged_summary <- tagged_row_summary(
+        data_store$resolution_state,
+        row_idx,
+        data_store$column_tags
+      )
 
       showModal(modalDialog(
         title = "Expert Override",
         tagList(
           div(class = "text-muted small mb-2", sprintf("Row %d - %s", row_idx, row_status)),
+          tagged_summary,
           row_flag_review_controls(session, current_flag, current_reason),
           review_override_controls(session)
         ),
@@ -2264,24 +2310,11 @@ mod_review_results_server <- function(id, data_store) {
       }
 
       # Build tagged column summary for context
-      tagged_summary <- if (!is.null(data_store$column_tags) && length(data_store$column_tags) > 0) {
-        tag_values <- sapply(names(data_store$column_tags), function(col) {
-          if (col %in% names(data_store$resolution_state)) {
-            val <- data_store$resolution_state[[col]][row_idx]
-            if (!is.na(val)) paste0(col, " = '", val, "'") else NULL
-          } else {
-            NULL
-          }
-        })
-        tag_values <- tag_values[!sapply(tag_values, is.null)]
-        if (length(tag_values) > 0) {
-          div(class = "mb-3 text-muted small", paste(tag_values, collapse = ", "))
-        } else {
-          NULL
-        }
-      } else {
-        NULL
-      }
+      tagged_summary <- tagged_row_summary(
+        data_store$resolution_state,
+        row_idx,
+        data_store$column_tags
+      )
 
       # Precompute scoring context outside lapply (O(1) lookup per candidate; per D-06)
       modal_input_name <- NA_character_
