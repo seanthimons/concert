@@ -37,6 +37,54 @@ test_that("generate_concert_script includes replay settings and combined tag map
   expect_no_match(script, "verbose", fixed = TRUE)
 })
 
+test_that("generate_concert_script embeds reference snapshot and activate-all replay setting", {
+  mock_snapshot <- list(
+    functional_categories = list(
+      default_hash = "func-hash",
+      overrides = empty_reference_list_tbl()
+    ),
+    stop_words = list(
+      default_hash = "stop-hash",
+      overrides = tibble::tibble(
+        term = "field blank",
+        pattern = "field blank",
+        match_mode = "literal_word",
+        source = "user",
+        active = TRUE,
+        notes = NA_character_
+      )
+    ),
+    block_patterns = list(
+      default_hash = "block-hash",
+      overrides = empty_reference_list_tbl()
+    ),
+    strip_terms = list(
+      default_hash = "strip-hash",
+      overrides = empty_reference_list_tbl()
+    )
+  )
+
+  local_mocked_bindings(
+    build_reference_list_snapshot = function(reference_lists, cache_dir = NULL) mock_snapshot
+  )
+
+  script <- generate_concert_script(
+    input_path = "input.csv",
+    output_path = "input_curated.xlsx",
+    tag_map = list(chemical = "Name", cas_number = "CASRN"),
+    header_row = 1L,
+    reference_lists = list(stop_words = tibble::tibble()),
+    activate_all_references = TRUE
+  )
+
+  expect_match(script, "reference_list_snapshot <- list(", fixed = TRUE)
+  expect_match(script, 'term = "field blank"', fixed = TRUE)
+  expect_match(script, "reference_list_snapshot = reference_list_snapshot", fixed = TRUE)
+  expect_match(script, "activate_all_references = TRUE", fixed = TRUE)
+  expect_no_match(script, "reference_lists =", fixed = TRUE)
+  expect_silent(parse(text = script))
+})
+
 test_that("generate_concert_script emits content-matched rows_update tables", {
   baseline <- init_resolution_state(tibble::tibble(
     chemical = c("Acetone", "Benzene"),

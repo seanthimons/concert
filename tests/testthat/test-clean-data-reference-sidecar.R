@@ -119,6 +119,7 @@ test_that("preflight reference toggle activates inactive terms for the run only"
   ), {
     execute_pipeline(run_mask)
     expect_true(is.na(data_store$cleaned_data$cleaning_flag[1]))
+    expect_false(data_store$activate_all_references)
 
     data_store$clean <- tibble::tibble(chemical_name = "ingredient", casrn = "67-64-1")
     data_store$cleaned_data <- NULL
@@ -128,5 +129,6 @@ test_that("preflight reference toggle activates inactive terms for the run only"
 
     expect_match(data_store$cleaned_data$cleaning_flag[1], "WARN: stop word")
     expect_false(data_store$reference_lists$stop_words$active[1])
+    expect_true(data_store$activate_all_references)
   })
 })

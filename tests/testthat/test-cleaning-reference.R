@@ -319,6 +319,100 @@ test_that("activate_all_reference_terms turns on only reference-list active flag
   expect_false(refs$stop_words$active)
 })
 
+test_that("reference list snapshots include only added and changed rows", {
+  withr::with_tempdir({
+    cache_dir <- "test_cache"
+    dir.create(cache_dir)
+    saveRDS(
+      tibble::tibble(
+        term = c("Solvent", "Dye"),
+        pattern = c("Solvent", "Dye"),
+        match_mode = "literal_word",
+        source = "ComptoxR",
+        active = TRUE,
+        notes = NA_character_
+      ),
+      file.path(cache_dir, "functional_categories.rds")
+    )
+    saveRDS(
+      tibble::tibble(term = c("test", "unknown"), source = "app_default", active = TRUE),
+      file.path(cache_dir, "stop_words.rds")
+    )
+    saveRDS(
+      tibble::tibble(term = "^proprietary", source = "app_default", active = TRUE),
+      file.path(cache_dir, "block_patterns.rds")
+    )
+    saveRDS(
+      tibble::tibble(term = "pure", source = "app_default", active = TRUE),
+      file.path(cache_dir, "strip_terms.rds")
+    )
+
+    refs <- load_default_cleaning_reference_lists(cache_dir)
+    refs$functional_categories$active[refs$functional_categories$term == "Solvent"] <- FALSE
+    refs$stop_words <- dplyr::bind_rows(
+      tibble::tibble(term = "field blank", source = "user", active = TRUE),
+      refs$stop_words
+    )
+
+    snapshot <- build_reference_list_snapshot(refs, cache_dir = cache_dir)
+
+    expect_true(nzchar(snapshot$stop_words$default_hash))
+    expect_equal(snapshot$functional_categories$overrides$term, "Solvent")
+    expect_equal(snapshot$functional_categories$overrides$active, FALSE)
+    expect_equal(snapshot$stop_words$overrides$term, "field blank")
+    expect_false("Dye" %in% snapshot$functional_categories$overrides$term)
+    expect_equal(nrow(snapshot$block_patterns$overrides), 0)
+    expect_equal(nrow(snapshot$strip_terms$overrides), 0)
+  })
+})
+
+test_that("reference list snapshots reconstruct effective lists and reject default drift", {
+  defaults <- list(
+    functional_categories = tibble::tibble(term = "Solvent", source = "ComptoxR", active = TRUE),
+    stop_words = tibble::tibble(term = "test", source = "app_default", active = TRUE),
+    block_patterns = tibble::tibble(term = "^proprietary", source = "app_default", active = TRUE),
+    strip_terms = tibble::tibble(term = "pure", source = "app_default", active = TRUE),
+    isotope_lookup = list(lookup = tibble::tibble(), elem_alt_names = character())
+  )
+  effective <- defaults
+  effective$stop_words <- dplyr::bind_rows(
+    tibble::tibble(
+      term = "field blank",
+      pattern = "field blank",
+      match_mode = "literal_word",
+      source = "user",
+      active = FALSE,
+      notes = "local decision"
+    ),
+    effective$stop_words
+  )
+  effective$strip_terms$active <- FALSE
+
+  snapshot <- lapply(cleaning_reference_list_names(), function(type) {
+    list(
+      default_hash = reference_snapshot_hash(defaults[[type]], type),
+      overrides = reference_list_snapshot_overrides(effective[[type]], defaults[[type]], type)
+    )
+  })
+  names(snapshot) <- cleaning_reference_list_names()
+
+  reconstructed <- reconstruct_reference_list_snapshot(snapshot, reference_lists = defaults)
+  for (type in cleaning_reference_list_names()) {
+    expect_equal(
+      normalize_reference_snapshot_tbl(reconstructed[[type]], type),
+      normalize_reference_snapshot_tbl(effective[[type]], type),
+      info = type
+    )
+  }
+
+  drifted <- defaults
+  drifted$stop_words$active <- FALSE
+  expect_error(
+    reconstruct_reference_list_snapshot(snapshot, reference_lists = drifted),
+    "default hash mismatch"
+  )
+})
+
 test_that("update_user_reference_list toggles defaults through sidecar and remove reverts default", {
   withr::with_tempdir({
     cache_dir <- "test_cache"

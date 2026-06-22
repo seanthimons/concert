@@ -2882,7 +2882,9 @@ mod_review_results_server <- function(id, data_store) {
         wqx_threshold = data_store$wqx_threshold %||% 0.85,
         starts_with = isTRUE(data_store$starts_with),
         harmonize = should_harmonize,
-        source_name = file_name
+        source_name = file_name,
+        reference_lists = data_store$reference_lists,
+        activate_all_references = isTRUE(data_store$activate_all_references)
       )
     }
 
