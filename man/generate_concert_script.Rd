@@ -15,7 +15,9 @@ generate_concert_script(
   harmonize = FALSE,
   media = NULL,
   format = "parquet",
-  source_name = NULL
+  source_name = NULL,
+  reference_lists = NULL,
+  activate_all_references = FALSE
 )
 }
 \arguments{
@@ -28,8 +30,8 @@ generate_concert_script(
 \item{header_row}{Detected header row to pin for replay.}
 
 \item{review_overrides}{Optional content-match override spec from
-\code{build_review_overrides()} to embed as generated \code{case_when()} replay
-logic.}
+\code{build_review_overrides()} to embed as generated per-column
+\code{dplyr::rows_update()} override tables.}
 
 \item{wqx_threshold}{WQX fuzzy match threshold.}
 
@@ -42,6 +44,12 @@ logic.}
 \item{format}{ToxVal output format for harmonized headless runs.}
 
 \item{source_name}{Optional source name for ToxVal mapping.}
+
+\item{reference_lists}{Optional current cleaning reference lists to snapshot
+for portable replay.}
+
+\item{activate_all_references}{Logical. Replays the preflight setting that
+activates all cleaning reference-list rows for the run.}
 }
 \value{
 Complete R script as a character scalar.
