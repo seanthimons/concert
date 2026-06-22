@@ -811,20 +811,15 @@ mod_harmonize_server <- function(id, data_store) {
     })
 
     output$media_guidance <- renderUI({
-      n_unmatched <- 0
-      if (!is.null(data_store$media_results)) {
-        n_unmatched <- sum(
-          data_store$media_results$media_flag == "media_unmatched",
-          na.rm = TRUE
-        )
-      }
+      editor_rows <- build_media_editor_rows(data_store$media_map_working, data_store$media_results)
+      n_unmatched <- sum(editor_rows$unmatched_count > 0L, na.rm = TRUE)
 
       if (n_unmatched > 0) {
         div(
           class = "alert alert-info py-2 mb-2",
           bsicons::bs_icon("info-circle", class = "me-1"),
           sprintf(
-            "%d unmatched term(s) highlighted in yellow. Click a row to assign a canonical value, or use ",
+            "%d unique unmatched term(s) highlighted in yellow. Click a row to assign a canonical value, or use ",
             n_unmatched
           ),
           tags$strong("Add Media Mapping"),
@@ -839,10 +834,8 @@ mod_harmonize_server <- function(id, data_store) {
       } else {
         0
       }
-      n_unmatched <- 0
-      if (!is.null(data_store$media_results)) {
-        n_unmatched <- sum(data_store$media_results$media_flag == "media_unmatched", na.rm = TRUE)
-      }
+      editor_rows <- build_media_editor_rows(data_store$media_map_working, data_store$media_results)
+      n_unmatched <- sum(editor_rows$unmatched_count > 0L, na.rm = TRUE)
       if (n_unmatched > 0) {
         sprintf("Media Classification (%d mappings, %d unmatched)", n, n_unmatched)
       } else {
@@ -1234,7 +1227,7 @@ mod_harmonize_server <- function(id, data_store) {
     output$media_table <- DT::renderDT(
       {
         req(media_map_ready())
-        tbl <- data_store$media_map_working
+        tbl <- build_media_editor_rows(data_store$media_map_working, data_store$media_results)
 
         if (is.null(tbl) || nrow(tbl) == 0) {
           return(DT::datatable(
@@ -1242,6 +1235,8 @@ mod_harmonize_server <- function(id, data_store) {
               term = character(),
               canonical = character(),
               source = character(),
+              mode = character(),
+              rows = integer(),
               active = character()
             ),
             escape = FALSE,
@@ -1255,26 +1250,30 @@ mod_harmonize_server <- function(id, data_store) {
           ))
         }
 
-        # Determine unmatched status: rows where canonical is NA or empty
         is_unmatched <- is.na(tbl$canonical) | !nzchar(as.character(ifelse(is.na(tbl$canonical), "", tbl$canonical)))
+        is_pending <- tbl$assertion_mode == "pending"
+        highlight_row <- is_unmatched | tbl$unmatched_count > 0L | is_pending
 
-        # Build display tibble (4 columns per D-08)
         display_tbl <- tibble::tibble(
           term = tbl$term,
-          canonical = dplyr::if_else(is_unmatched, "(unmatched)", tbl$canonical),
+          canonical = dplyr::case_when(
+            is_pending ~ "(pending)",
+            is_unmatched ~ "(unmatched)",
+            TRUE ~ tbl$canonical
+          ),
           source = dplyr::case_when(
             tbl$source == "user" ~ '<span class="badge bg-primary">user</span>',
-            TRUE ~ '<span class="badge bg-secondary">amos</span>'
+            tbl$source == "concert" ~ '<span class="badge bg-success">concert</span>',
+            tbl$source == "amos" ~ '<span class="badge bg-info text-dark">amos</span>',
+            tbl$source == "uploaded" ~ '<span class="badge bg-warning text-dark">uploaded</span>',
+            TRUE ~ '<span class="badge bg-secondary">other</span>'
           ),
+          mode = tbl$assertion_mode,
+          rows = tbl$unmatched_count,
           active = dplyr::if_else(tbl$active, "Yes", "No")
         )
 
-        # Sort: unmatched first (D-07), then alphabetical within each group
-        sort_order <- order(!is_unmatched, tbl$term)
-        display_tbl <- display_tbl[sort_order, ]
-
-        # Track row classes for highlighting
-        row_classes <- ifelse(is_unmatched[sort_order], "table-warning", "")
+        row_classes <- ifelse(highlight_row, "table-warning", "")
 
         DT::datatable(
           display_tbl,
@@ -1319,10 +1318,15 @@ mod_harmonize_server <- function(id, data_store) {
       actual_term <- if (search_term == "(unmatched)") search_term else search_term
       row <- tbl[tolower(tbl$term) == actual_term, ]
 
-      # AMOS entries are read-only (D-12)
-      if (nrow(row) > 0 && row$source[1] == "amos") {
+      row_mode <- if (nrow(row) > 0 && "assertion_mode" %in% names(row)) row$assertion_mode[1] else "auto"
+      row_has_canonical <- nrow(row) > 0 &&
+        !is.na(row$canonical[1]) &&
+        nzchar(as.character(row$canonical[1]))
+
+      # Bundled resolved entries are read-only; pending rows are assertion prompts.
+      if (nrow(row) > 0 && row$source[1] != "user" && row_mode != "pending" && row_has_canonical) {
         showNotification(
-          "AMOS entries are read-only. Add a user mapping for this term to override.",
+          "Bundled entries are read-only. Add a user mapping for this term to override.",
           type = "message",
           duration = 5
         )
@@ -1331,6 +1335,7 @@ mod_harmonize_server <- function(id, data_store) {
 
       # Determine modal title: "Add" for unmatched, "Edit" for existing user row
       is_new <- nrow(row) == 0 ||
+        row_mode == "pending" ||
         is.na(row$canonical[1]) ||
         !nzchar(as.character(ifelse(is.na(row$canonical[1]), "", row$canonical[1])))
       modal_title <- if (is_new) "Add Media Mapping" else "Edit Media Mapping"
@@ -1405,8 +1410,12 @@ mod_harmonize_server <- function(id, data_store) {
         canonical = trimws(input$modal_media_canonical),
         canonical_term = trimws(input$modal_media_canonical),
         envo_id = NA_character_,
+        parent = NA_character_,
         media_category = NA_character_,
         source = "user",
+        fetch_timestamp = NA_character_,
+        assertion_mode = "user",
+        confidence = "user",
         active = isTRUE(input$modal_media_active)
       )
 
@@ -1415,22 +1424,25 @@ mod_harmonize_server <- function(id, data_store) {
       new_row$envo_id <- inferred_new_row$envo_id
       new_row$media_category <- inferred_new_row$media_category
 
-      # Check for AMOS conflict (D-13)
-      amos_conflict <- tbl$term == new_row$term & tbl$source == "amos"
+      # Check for bundled conflict (D-13)
+      tbl_mode <- if ("assertion_mode" %in% names(tbl)) tbl$assertion_mode else rep("auto", nrow(tbl))
+      bundled_conflict <- tbl$term == new_row$term &
+        tbl$source != "user" &
+        tbl_mode != "pending"
       orig_term <- input$modal_media_orig_term
       is_new_term <- is.null(orig_term) || orig_term == "" || orig_term != new_row$term
 
-      if (is_new_term && any(amos_conflict)) {
-        existing_canonical <- tbl$canonical[which(amos_conflict)[1]]
+      if (is_new_term && any(bundled_conflict)) {
+        existing_canonical <- tbl$canonical[which(bundled_conflict)[1]]
         media_pending_save(new_row)
         showModal(modalDialog(
-          title = "Override AMOS Mapping?",
+          title = "Override Bundled Mapping?",
           easyClose = FALSE,
           p(sprintf(
-            'This term already has an AMOS mapping (canonical: "%s").',
+            'This term already has a bundled mapping (canonical: "%s").',
             existing_canonical
           )),
-          p("Your mapping will take priority at runtime. The AMOS entry will remain as fallback."),
+          p("Your mapping will take priority at runtime. The bundled entry will remain as fallback."),
           footer = tagList(
             modalButton("Cancel"),
             actionButton(session$ns("confirm_amos_override"), "Override", class = "btn-primary")

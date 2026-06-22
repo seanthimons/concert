@@ -78,6 +78,14 @@ test_that("harmonize_media exact match: air returns air category", {
   expect_equal(result$media_flag, "")
 })
 
+test_that("harmonize_media resolves active CONCERT routing aliases", {
+  result <- harmonize_media(c("solid", "aqueous", "atmospheric"))
+
+  expect_equal(result$canonical_media, c("solid", "aqueous", "air"))
+  expect_equal(result$media_category, c("solid", "aqueous", "air"))
+  expect_equal(result$media_flag, c("", "", ""))
+})
+
 test_that("harmonize_media exact match: envo_id is populated for matched terms", {
   result <- harmonize_media(c("water"))
 
@@ -259,4 +267,42 @@ test_that("harmonize_media media_category is NA for unmatched entries", {
   result <- harmonize_media(c("unknown_matrix_xyz"))
 
   expect_true(is.na(result$media_category))
+})
+
+test_that("harmonize_media ignores pending aliases but resolves active auto aliases", {
+  media_map <- tibble::tibble(
+    term = c("runoff", "leachate"),
+    canonical_term = c("surface water", "leachate"),
+    envo_id = c("ENVO:00002042", NA_character_),
+    parent = NA_character_,
+    media_category = c("aqueous", "aqueous"),
+    source = c("amos", "concert"),
+    assertion_mode = c("pending", "auto"),
+    active = TRUE
+  )
+
+  result <- harmonize_media(c("runoff", "leachate"), media_map = media_map)
+
+  expect_equal(result$media_flag, c("media_unmatched", ""))
+  expect_true(is.na(result$canonical_media[1]))
+  expect_equal(result$canonical_media[2], "leachate")
+  expect_equal(result$media_category[2], "aqueous")
+})
+
+test_that("harmonize_media user aliases override bundled aliases for the same term", {
+  media_map <- tibble::tibble(
+    term = c("marine", "marine"),
+    canonical_term = c("sediment", "marine water"),
+    envo_id = c("ENVO:00002007", "ENVO:00002149"),
+    parent = NA_character_,
+    media_category = c("solid", "aqueous"),
+    source = c("user", "amos"),
+    assertion_mode = c("user", "auto"),
+    active = TRUE
+  )
+
+  result <- harmonize_media("marine", media_map = media_map)
+
+  expect_equal(result$canonical_media, "sediment")
+  expect_equal(result$media_category, "solid")
 })

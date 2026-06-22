@@ -1,6 +1,6 @@
 # test-media-persistence.R
 # Round-trip tests for load_media_map() and harmonize_media() API extension
-# Covers: AMOS-only path, user RDS merge, user precedence, backward compat,
+# Covers: bundled-cache path, user RDS merge, user precedence, backward compat,
 # custom media_map parameter, and canonical/canonical_term column translation.
 
 # ---- Helper: minimal AMOS table ------------------------------------------
@@ -29,10 +29,10 @@ make_user_map <- function() {
 }
 
 # ==============================================================================
-# Section 1: load_media_map — AMOS-only (no user RDS)
+# Section 1: load_media_map — bundled cache only (no user RDS)
 # ==============================================================================
 
-test_that("load_media_map returns tibble with 7 expected columns when no user RDS exists", {
+test_that("load_media_map returns expected columns when no user RDS exists", {
   withr::with_tempdir({
     # No user_media_map.rds here; get_media_table() returns real AMOS data
     result <- load_media_map(getwd())
@@ -48,12 +48,12 @@ test_that("load_media_map returns tibble with 7 expected columns when no user RD
   })
 })
 
-test_that("load_media_map AMOS-only result has source == 'amos' for all rows", {
+test_that("load_media_map bundled-only result has no user rows", {
   withr::with_tempdir({
     result <- load_media_map(getwd())
 
     if (nrow(result) > 0) {
-      expect_true(all(result$source == "amos"))
+      expect_false(any(result$source == "user"))
     } else {
       # amos_media.rds not yet built — empty tibble is acceptable
       expect_equal(nrow(result), 0L)
@@ -72,7 +72,19 @@ test_that("load_media_map returns 0-row typed tibble when both user RDS and AMOS
 
     expect_s3_class(result, "tbl_df")
     expect_equal(nrow(result), 0L)
-    expect_named(result, c("term", "canonical", "canonical_term", "envo_id", "media_category", "source", "active"))
+    expect_true(all(
+      c(
+        "term",
+        "canonical",
+        "canonical_term",
+        "envo_id",
+        "media_category",
+        "source",
+        "active",
+        "assertion_mode",
+        "confidence"
+      ) %in% names(result)
+    ))
   })
 })
 
@@ -282,6 +294,81 @@ test_that("harmonize_media falls back to get_media_table when media_map lacks 't
 
   expect_s3_class(result, "tbl_df")
   expect_equal(nrow(result), 1L)
-  # With AMOS fallback, "water" should resolve
+  # With bundled fallback, "water" should resolve
   expect_true(result$media_flag %in% c("", "parent_walk", "media_unmatched"))
+})
+
+# ==============================================================================
+# Section 7: source tables and generated runtime cache
+# ==============================================================================
+
+test_that("media source tables build a deterministic legacy-compatible runtime map", {
+  source_tables <- concert:::load_media_source_tables()
+
+  map1 <- concert:::build_media_runtime_map(source_tables, fetch_timestamp = "2026-06-22T00:00:00")
+  map2 <- concert:::build_media_runtime_map(source_tables, fetch_timestamp = "2026-06-22T00:00:00")
+
+  legacy_cols <- c(
+    "term",
+    "canonical_term",
+    "envo_id",
+    "parent",
+    "media_category",
+    "source",
+    "fetch_timestamp"
+  )
+  expect_true(all(legacy_cols %in% names(map1)))
+  expect_true(all(c("assertion_mode", "confidence", "active") %in% names(map1)))
+  expect_equal(map1, map2)
+  expect_false(any(duplicated(map1$term)))
+})
+
+test_that("media source tables intentionally represent formerly unresolved AMOS terms", {
+  source_tables <- concert:::load_media_source_tables()
+  runtime_map <- concert:::build_media_runtime_map(source_tables, fetch_timestamp = "2026-06-22T00:00:00")
+
+  former_unresolved <- c(
+    "solid",
+    "aqueous",
+    "marine",
+    "atmospheric",
+    "lake",
+    "runoff",
+    "leachate"
+  )
+  represented <- runtime_map[runtime_map$term %in% former_unresolved, ]
+
+  expect_setequal(represented$term, former_unresolved)
+  expect_false(any(is.na(represented$assertion_mode) | !nzchar(represented$assertion_mode)))
+
+  blank_canonical <- is.na(represented$canonical_term) | !nzchar(represented$canonical_term)
+  expect_true(all(represented$assertion_mode[blank_canonical] == "pending"))
+})
+
+test_that("load_media_map preserves pending source rows for curation", {
+  withr::with_tempdir({
+    local_mocked_bindings(
+      get_media_table = function() {
+        tibble::tibble(
+          term = c("runoff", "leachate"),
+          canonical_term = c(NA_character_, "leachate"),
+          envo_id = NA_character_,
+          parent = NA_character_,
+          media_category = c(NA_character_, "aqueous"),
+          source = c("amos", "concert"),
+          fetch_timestamp = "2026-06-22T00:00:00",
+          assertion_mode = c("pending", "auto"),
+          confidence = c("pending", "high"),
+          active = TRUE
+        )
+      },
+      .package = "concert"
+    )
+
+    result <- load_media_map(getwd())
+
+    expect_true("runoff" %in% result$term)
+    expect_equal(result$assertion_mode[result$term == "runoff"], "pending")
+    expect_true(is.na(result$canonical[result$term == "runoff"]))
+  })
 })

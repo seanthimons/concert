@@ -2,16 +2,18 @@
 % Please edit documentation in R/media_harmonizer.R
 \name{get_media_table}
 \alias{get_media_table}
-\title{Load the curated ENVO media vocabulary table}
+\title{Load the generated CONCERT media vocabulary cache}
 \usage{
 get_media_table()
 }
 \value{
 Tibble with columns term, canonical_term, envo_id, parent,
-media_category, source, fetch_timestamp; or NULL.
+media_category, source, fetch_timestamp, assertion_mode, confidence,
+active; or NULL.
 }
 \description{
-Reads amos_media.rds from the package reference cache.  Returns NULL if the
-file cannot be found so that callers can degrade gracefully.
+Reads amos_media.rds from the package reference cache. If the cache is absent
+in a source checkout, falls back to building it from reviewable media source
+tables so callers can degrade gracefully.
 }
 \keyword{internal}

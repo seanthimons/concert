@@ -4,7 +4,7 @@
 ^scripts$
 ^playwright$
 ^data$
-^.*\.csv$
+^[^/\\]+\.csv$
 ^.*\.log$
 ^.*\.Rproj\.user$
 ^concert\.Rproj$
