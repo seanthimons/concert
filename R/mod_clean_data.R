@@ -413,6 +413,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
     execute_pipeline <- function(mask) {
       data_store$wqx_threshold <- mask$wqx_threshold %||% 0.85
       data_store$starts_with <- isTRUE(mask$starts_with)
+      data_store$activate_all_references <- isTRUE(mask$activate_all_references)
       reference_lists_for_run <- if (isTRUE(mask$activate_all_references)) {
         activate_all_reference_terms(data_store$reference_lists)
       } else {

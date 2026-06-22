@@ -453,6 +453,10 @@ user_reference_list_names <- function() {
   c("stop_words", "block_patterns", "strip_terms")
 }
 
+cleaning_reference_list_names <- function() {
+  c("functional_categories", user_reference_list_names())
+}
+
 empty_reference_list_tbl <- function() {
   tibble::tibble(
     term = character(),
@@ -515,7 +519,7 @@ activate_all_reference_terms <- function(reference_lists) {
     return(reference_lists)
   }
 
-  for (type in c("functional_categories", user_reference_list_names())) {
+  for (type in cleaning_reference_list_names()) {
     if (
       !is.null(reference_lists[[type]]) &&
         is.data.frame(reference_lists[[type]]) &&
@@ -523,6 +527,169 @@ activate_all_reference_terms <- function(reference_lists) {
     ) {
       reference_lists[[type]]$active <- TRUE
     }
+  }
+
+  reference_lists
+}
+
+normalize_reference_snapshot_tbl <- function(tbl, type) {
+  normalize_reference_list_tbl(tbl, type) %>%
+    dplyr::select(dplyr::all_of(reference_list_schema_cols())) %>%
+    dplyr::distinct(term, .keep_all = TRUE) %>%
+    dplyr::arrange(term)
+}
+
+reference_snapshot_hash <- function(tbl, type) {
+  digest::digest(
+    normalize_reference_snapshot_tbl(tbl, type),
+    algo = "sha256"
+  )
+}
+
+reference_scalar_equal <- function(a, b) {
+  if (identical(a, b)) {
+    return(TRUE)
+  }
+
+  if (length(a) != 1 || length(b) != 1) {
+    return(FALSE)
+  }
+
+  a_na <- tryCatch(is.na(a), error = function(e) FALSE)
+  b_na <- tryCatch(is.na(b), error = function(e) FALSE)
+
+  isTRUE(a_na) && isTRUE(b_na)
+}
+
+reference_rows_equal <- function(a, b) {
+  cols <- reference_list_schema_cols()
+  all(vapply(
+    cols,
+    function(col) reference_scalar_equal(a[[col]], b[[col]]),
+    logical(1)
+  ))
+}
+
+load_default_cleaning_reference_lists <- function(cache_dir = NULL) {
+  cache_dir <- resolve_reference_cache_dir(cache_dir)
+
+  list(
+    functional_categories = load_functional_categories(cache_dir),
+    stop_words = load_stop_words(cache_dir),
+    block_patterns = load_block_patterns(cache_dir),
+    strip_terms = load_strip_terms(cache_dir)
+  )
+}
+
+load_all_default_reference_lists <- function(cache_dir = NULL) {
+  cache_dir <- resolve_reference_cache_dir(cache_dir)
+
+  list(
+    stop_words = load_stop_words(cache_dir),
+    block_patterns = load_block_patterns(cache_dir),
+    functional_categories = load_functional_categories(cache_dir),
+    strip_terms = load_strip_terms(cache_dir),
+    corrections = load_corrections(cache_dir),
+    isotope_lookup = load_isotope_lookup(cache_dir),
+    unit_map = load_unit_map(cache_dir),
+    unit_synonyms = load_unit_synonyms(cache_dir),
+    toxval_schema = load_toxval_schema(cache_dir),
+    media_map = load_media_map(cache_dir)
+  )
+}
+
+reference_list_snapshot_overrides <- function(reference_list, default_list, type) {
+  current <- normalize_reference_snapshot_tbl(reference_list, type)
+  defaults <- normalize_reference_snapshot_tbl(default_list, type)
+
+  if (nrow(current) == 0) {
+    return(empty_reference_list_tbl())
+  }
+
+  default_index <- match(current$term, defaults$term)
+  include <- is.na(default_index)
+
+  matched <- which(!is.na(default_index))
+  for (idx in matched) {
+    default_row <- defaults[default_index[idx], , drop = FALSE]
+    include[idx] <- !reference_rows_equal(current[idx, , drop = FALSE], default_row)
+  }
+
+  current[include, , drop = FALSE]
+}
+
+build_reference_list_snapshot <- function(reference_lists, cache_dir = NULL) {
+  if (is.null(reference_lists)) {
+    return(NULL)
+  }
+
+  missing_types <- setdiff(cleaning_reference_list_names(), names(reference_lists))
+  if (length(missing_types) > 0) {
+    stop(
+      sprintf(
+        "reference_lists is missing required snapshot keys: %s",
+        paste(missing_types, collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+
+  defaults <- load_default_cleaning_reference_lists(cache_dir)
+  snapshot <- lapply(cleaning_reference_list_names(), function(type) {
+    list(
+      default_hash = reference_snapshot_hash(defaults[[type]], type),
+      overrides = reference_list_snapshot_overrides(reference_lists[[type]], defaults[[type]], type)
+    )
+  })
+  names(snapshot) <- cleaning_reference_list_names()
+  snapshot
+}
+
+reconstruct_reference_list_snapshot <- function(reference_list_snapshot, cache_dir = NULL, reference_lists = NULL) {
+  if (is.null(reference_list_snapshot)) {
+    return(reference_lists)
+  }
+
+  if (is.null(reference_lists)) {
+    reference_lists <- load_all_default_reference_lists(cache_dir)
+  }
+
+  missing_types <- setdiff(cleaning_reference_list_names(), names(reference_list_snapshot))
+  if (length(missing_types) > 0) {
+    stop(
+      sprintf(
+        "reference_list_snapshot is missing required keys: %s",
+        paste(missing_types, collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+
+  for (type in cleaning_reference_list_names()) {
+    entry <- reference_list_snapshot[[type]]
+    if (!is.list(entry) || is.null(entry$default_hash) || is.null(entry$overrides)) {
+      stop(
+        sprintf("reference_list_snapshot entry '%s' is malformed.", type),
+        call. = FALSE
+      )
+    }
+
+    current_hash <- reference_snapshot_hash(reference_lists[[type]], type)
+    if (!identical(as.character(entry$default_hash), current_hash)) {
+      stop(
+        sprintf(
+          "reference_list_snapshot default hash mismatch for '%s'. Regenerate the replay script with current package defaults.",
+          type
+        ),
+        call. = FALSE
+      )
+    }
+
+    reference_lists[[type]] <- merge_reference_list_rows(
+      reference_lists[[type]],
+      entry$overrides,
+      type
+    )
   }
 
   reference_lists
