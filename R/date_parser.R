@@ -30,11 +30,36 @@ parse_dates <- function(raw_dates, orig_row_id = seq_along(raw_dates)) {
   # mdy prevents "Jan 2015" misparse as mdy (PITFALL-02); dBY/BdY = SAS format;
   # mdy = US convention (D-02); dmy = European fallback; Y = year-only (D-03);
   # Ym = numeric month-year "2015-03" (D-04)
-  ORDERS <- c("ymd", "Ymd", "bY", "BY", "dBY", "BdY", "mdy", "dmy", "Y", "Ym")
+  #
+  # Time-bearing orders come FIRST: with train=FALSE the match is full-string, so a
+  # timestamped value (e.g. "2015-03-15 14:30:00", LIMS/lab exports) fails every
+  # date-only order and would parse to NA → "unparseable", silently dropping a valid
+  # date. The HMS/HM/IMp variants capture the date; as.Date() below discards the time.
+  # lubridate handles the "T" separator and trailing "Z" (UTC) automatically.
+  TIME_ORDERS <- c(
+    "ymd HMS",
+    "ymd HM",
+    "ymd IMp",
+    "mdy HMS",
+    "mdy HM",
+    "mdy IMp",
+    "dmy HMS",
+    "dmy HM",
+    "dmy IMp",
+    "BdY HMS",
+    "BdY HM",
+    "dBY HMS",
+    "dBY HM"
+  )
+  ORDERS <- c(TIME_ORDERS, "ymd", "Ymd", "bY", "BY", "dBY", "BdY", "mdy", "dmy", "Y", "Ym")
 
   # 2-digit year detection pattern (PITFALL-03: cutoff_2000 does not exist in
   # parse_date_time — use regex pre-scan instead)
-  TWO_DIGIT_PAT <- "[0-9]{1,2}/[0-9]{1,2}/[0-9]{2}$"
+  # Trailing (space|T|end) allows a 2-digit-year date that carries a time
+  # (e.g. "03/04/15 14:30") to still flag inferred_format; the same boundary
+  # keeps 4-digit years like "03/04/2015" from matching (no 2-digit run after
+  # the final slash is followed by that boundary).
+  TWO_DIGIT_PAT <- "[0-9]{1,2}/[0-9]{1,2}/[0-9]{2}([[:space:]]|T|$)"
 
   # Empty-input guard: return typed empty tibble (same pattern as unit_harmonizer.R)
   n <- length(raw_dates)

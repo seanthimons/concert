@@ -210,6 +210,24 @@ test_that("parse_dates extracts date_year for 2-digit year input", {
   expect_type(result$date_year, "integer")
 })
 
+test_that("parse_dates flags 2-digit year with time as inferred_format", {
+  result <- parse_dates(c("03/04/15 14:30"))
+
+  expect_equal(result$date_flag, "inferred_format")
+})
+
+test_that("parse_dates flags 2-digit year with T-separated time as inferred_format", {
+  result <- parse_dates(c("03/04/15T14:30"))
+
+  expect_equal(result$date_flag, "inferred_format")
+})
+
+test_that("parse_dates does NOT flag 4-digit year with time as inferred_format", {
+  result <- parse_dates(c("03/15/2015 14:30"))
+
+  expect_false(result$date_flag == "inferred_format")
+})
+
 # ==============================================================================
 # SECTION 6: Unparseable / empty (D-10)
 # ==============================================================================
@@ -293,4 +311,57 @@ test_that("parse_dates 0-row tibble has correct column types", {
   expect_type(result$parsed_date, "character")
   expect_type(result$date_year, "integer")
   expect_type(result$date_flag, "character")
+})
+
+# ==============================================================================
+# SECTION 8: Time-bearing dates (date extracted, time discarded)
+# ==============================================================================
+
+test_that("parse_dates extracts date from ISO datetime with space separator", {
+  result <- parse_dates(c("2015-03-15 14:30:00"))
+
+  expect_equal(result$parsed_date, "2015-03-15")
+  expect_equal(result$date_year, 2015L)
+})
+
+test_that("parse_dates extracts date from ISO datetime with T separator", {
+  result <- parse_dates(c("2015-03-15T14:30:00"))
+
+  expect_equal(result$parsed_date, "2015-03-15")
+  expect_equal(result$date_year, 2015L)
+})
+
+test_that("parse_dates extracts date from ISO datetime with T separator and Z suffix", {
+  result <- parse_dates(c("2015-03-15T14:30:00Z"))
+
+  expect_equal(result$parsed_date, "2015-03-15")
+  expect_equal(result$date_year, 2015L)
+})
+
+test_that("parse_dates extracts date from MDY datetime with AM/PM", {
+  result <- parse_dates(c("03/15/2015 2:30 PM"))
+
+  expect_equal(result$parsed_date, "2015-03-15")
+  expect_equal(result$date_year, 2015L)
+})
+
+test_that("parse_dates extracts date from ISO datetime without seconds", {
+  result <- parse_dates(c("2015-03-15 14:30"))
+
+  expect_equal(result$parsed_date, "2015-03-15")
+  expect_equal(result$date_year, 2015L)
+})
+
+test_that("parse_dates extracts date from DMY datetime (day > 12)", {
+  result <- parse_dates(c("15/03/2015 14:30:00"))
+
+  expect_equal(result$parsed_date, "2015-03-15")
+  expect_equal(result$date_year, 2015L)
+})
+
+test_that("parse_dates extracts date from named-month datetime", {
+  result <- parse_dates(c("March 15, 2015 14:30"))
+
+  expect_equal(result$parsed_date, "2015-03-15")
+  expect_equal(result$date_year, 2015L)
 })
