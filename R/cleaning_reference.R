@@ -1159,22 +1159,25 @@ load_toxval_schema <- function(cache_dir) {
   load_or_fetch_reference(cache_path, fetch_fn, "ToxVal schema")
 }
 
-#' Load merged media harmonization map (user edits + AMOS fallback)
+#' Load merged media harmonization map (user edits + bundled defaults)
 #'
 #' User rows (user_media_map.rds) take precedence for the same term.
-#' Falls back to amos_media.rds via get_media_table() for all other terms.
+#' Falls back to the generated media cache via get_media_table() for all other
+#' terms.
 #' Returns a display-schema tibble with columns for the media editor DT
 #' plus the additional columns harmonize_media() needs internally
-#' (canonical_term, envo_id, media_category) when passed as media_map parameter.
+#' (canonical_term, envo_id, media_category, assertion_mode, confidence) when
+#' passed as media_map parameter.
 #'
 #' On first run, if user_media_map.rds does not exist, the function returns
-#' the full AMOS table normalised to the merged schema. If get_media_table()
+#' the generated media table normalised to the merged schema. If get_media_table()
 #' also returns NULL (e.g., amos_media.rds not yet built), the function
 #' returns an empty tibble with the correct column types.
 #'
 #' @param cache_dir Directory for cache files (e.g., "inst/extdata/reference_cache")
 #' @return Tibble with columns: term, canonical, canonical_term, envo_id,
-#'   media_category, source, active
+#'   parent, media_category, source, fetch_timestamp, assertion_mode,
+#'   confidence, active
 #' @export
 load_media_map <- function(cache_dir) {
   user_path <- file.path(cache_dir, "user_media_map.rds")
@@ -1182,40 +1185,13 @@ load_media_map <- function(cache_dir) {
 
   amos_raw <- get_media_table()
 
-  amos_map <- if (!is.null(amos_raw) && nrow(amos_raw) > 0) {
-    tibble::tibble(
-      term = amos_raw$term,
-      canonical = amos_raw$canonical_term,
-      canonical_term = amos_raw$canonical_term,
-      envo_id = amos_raw$envo_id,
-      media_category = amos_raw$media_category,
-      source = "amos",
-      active = TRUE
-    )
-  } else {
-    tibble::tibble(
-      term = character(),
-      canonical = character(),
-      canonical_term = character(),
-      envo_id = character(),
-      media_category = character(),
-      source = character(),
-      active = logical()
-    )
-  }
+  amos_map <- normalize_media_map_for_display(amos_raw)
 
   if (!is.null(user_map) && nrow(user_map) > 0) {
-    # Backfill internal columns if user_map was saved with 4-col display schema
-    if (!"canonical_term" %in% names(user_map)) {
-      user_map$canonical_term <- user_map$canonical
-    }
-    if (!"envo_id" %in% names(user_map)) {
-      user_map$envo_id <- NA_character_
-    }
-    if (!"media_category" %in% names(user_map)) {
-      user_map$media_category <- NA_character_
-    }
-    amos_fallback <- amos_map[!amos_map$term %in% user_map$term, ]
+    user_map <- normalize_media_map_for_display(user_map)
+    user_map$source <- "user"
+    user_map$assertion_mode <- "user"
+    amos_fallback <- amos_map[!amos_map$term %in% user_map$term, , drop = FALSE]
     merged <- dplyr::bind_rows(user_map, amos_fallback)
   } else {
     merged <- amos_map

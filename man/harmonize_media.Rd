@@ -2,7 +2,7 @@
 % Please edit documentation in R/media_harmonizer.R
 \name{harmonize_media}
 \alias{harmonize_media}
-\title{Harmonize environmental media strings to canonical ENVO terms}
+\title{Harmonize environmental media strings to canonical CONCERT media terms}
 \usage{
 harmonize_media(
   raw_media,
@@ -18,19 +18,20 @@ of \code{raw_media}.  Defaults to \code{seq_along(raw_media)} for direct
 column processing.}
 
 \item{media_map}{Optional tibble with columns term, canonical_term, envo_id,
-media_category. When NULL (default), falls back to the bundled AMOS table
-via get_media_table(). Pass a merged user+AMOS map from load_media_map()
-to enable user-defined mappings (MEDIT-03, D-14). If the tibble uses
-\code{canonical} instead of \code{canonical_term} (display schema),
-the column is translated internally before lookup.}
+media_category, source, active, and assertion_mode. When NULL (default),
+falls back to the bundled generated media cache via get_media_table().
+Pass a merged map from load_media_map() to enable user-defined mappings
+(MEDIT-03, D-14). If the tibble uses \code{canonical} instead of
+\code{canonical_term} (display schema), the column is translated
+internally before lookup.}
 }
 \value{
 A tibble with 6 columns:
 \describe{
 \item{orig_row_id}{Integer row position for join-by-position merge.}
 \item{raw_media}{Original input string, preserved for audit.}
-\item{canonical_media}{Canonical ENVO term, or \code{NA_character_} if
-unmatched.}
+\item{canonical_media}{Canonical CONCERT media term, or
+\code{NA_character_} if unmatched.}
 \item{envo_id}{ENVO identifier for the matched term, or
 \code{NA_character_}.}
 \item{media_category}{Top-level routing value: \code{"aqueous"},
@@ -41,7 +42,8 @@ unmatched.}
 }
 \description{
 Maps a character vector of raw environmental media strings against the
-curated ENVO vocabulary table (\code{amos_media.rds}).  Resolution order:
-(1) exact match on normalized string; (2) parent-walk for partial/compound
-matches; (3) \code{media_unmatched} flag for everything else.
+generated CONCERT media vocabulary cache (\code{amos_media.rds}). Resolution
+order: (1) user assertions; (2) active bundled auto assertions; (3)
+parent-walk for partial/compound matches; (4) \code{media_unmatched} flag
+for everything else. Pending source-table aliases are not auto-resolved.
 }

@@ -1,0 +1,8 @@
+term,canonical_media,assertion_mode,confidence,source,active
+atmospheric,air,auto,high,amos,TRUE
+aqueous,aqueous,auto,high,concert,TRUE
+lake,,pending,pending,amos,TRUE
+leachate,leachate,auto,medium,concert,TRUE
+marine,marine water,auto,medium,amos,TRUE
+runoff,,pending,pending,amos,TRUE
+solid,solid,auto,high,concert,TRUE

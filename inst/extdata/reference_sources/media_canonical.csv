@@ -1,0 +1,30 @@
+canonical_media,routing_category,envo_id,envo_source,active
+air,air,ENVO:00002005,envo,TRUE
+ambient air,air,ENVO:00002005,envo,TRUE
+aqueous,aqueous,,concert,TRUE
+biota,solid,ENVO:00000024,envo,TRUE
+blood,aqueous,ENVO:02000049,envo,TRUE
+diet,solid,ENVO:00002002,envo,TRUE
+drinking water,aqueous,ENVO:00003064,envo,TRUE
+dust,solid,ENVO:00002003,envo,TRUE
+effluent,aqueous,ENVO:00002001,envo,TRUE
+food,solid,ENVO:00002002,envo,TRUE
+freshwater,aqueous,ENVO:00002011,envo,TRUE
+freshwater sediment,solid,ENVO:00002007,envo,TRUE
+groundwater,aqueous,ENVO:01001004,envo,TRUE
+indoor air,air,ENVO:01000504,envo,TRUE
+leachate,aqueous,,concert,TRUE
+marine sediment,solid,ENVO:00002007,envo,TRUE
+marine water,aqueous,ENVO:00002149,envo,TRUE
+plasma,aqueous,ENVO:02000049,envo,TRUE
+saltwater,aqueous,ENVO:00002149,envo,TRUE
+seawater,aqueous,ENVO:00002149,envo,TRUE
+sediment,solid,ENVO:00002007,envo,TRUE
+serum,aqueous,ENVO:02000049,envo,TRUE
+sludge,solid,ENVO:00002059,envo,TRUE
+soil,solid,ENVO:00001998,envo,TRUE
+solid,solid,,concert,TRUE
+surface water,aqueous,ENVO:00002042,envo,TRUE
+tissue,solid,ENVO:01001434,envo,TRUE
+wastewater,aqueous,ENVO:00002001,envo,TRUE
+water,aqueous,ENVO:00002006,envo,TRUE
