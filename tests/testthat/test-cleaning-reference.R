@@ -300,6 +300,25 @@ test_that("load_all_reference_lists merges sidecar rows after defaults and sidec
   })
 })
 
+test_that("activate_all_reference_terms turns on only reference-list active flags", {
+  refs <- list(
+    functional_categories = tibble::tibble(term = "Solvent", source = "ComptoxR", active = FALSE),
+    stop_words = tibble::tibble(term = "ingredient", source = "legacy_review", active = FALSE),
+    block_patterns = tibble::tibble(term = "proprietary", source = "legacy_seed", active = FALSE),
+    strip_terms = tibble::tibble(term = "modified", source = "legacy_review", active = FALSE),
+    media_map = tibble::tibble(term = "water", canonical = "water", source = "amos", active = FALSE)
+  )
+
+  result <- activate_all_reference_terms(refs)
+
+  expect_true(result$functional_categories$active)
+  expect_true(result$stop_words$active)
+  expect_true(result$block_patterns$active)
+  expect_true(result$strip_terms$active)
+  expect_false(result$media_map$active)
+  expect_false(refs$stop_words$active)
+})
+
 test_that("update_user_reference_list toggles defaults through sidecar and remove reverts default", {
   withr::with_tempdir({
     cache_dir <- "test_cache"

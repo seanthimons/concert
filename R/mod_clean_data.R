@@ -354,6 +354,17 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
               class = "text-muted",
               "Off by default. Enable for datasets where exact + CAS + WQX resolution is insufficient."
             )
+          ),
+          div(
+            checkboxInput(
+              session$ns("activate_all_references"),
+              label = "Activate all reference terms for this run",
+              value = FALSE
+            ),
+            tags$small(
+              class = "text-muted",
+              "Uses inactive stop words, block patterns, and strip terms without changing the saved reference lists."
+            )
           )
         )
       )
@@ -374,7 +385,8 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         dates = isTRUE(input$step_dates),
         media = isTRUE(input$step_media),
         wqx_threshold = input$wqx_threshold,
-        starts_with = isTRUE(input$starts_with_enabled)
+        starts_with = isTRUE(input$starts_with_enabled),
+        activate_all_references = isTRUE(input$activate_all_references)
       )
     }
 
@@ -401,6 +413,11 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
     execute_pipeline <- function(mask) {
       data_store$wqx_threshold <- mask$wqx_threshold %||% 0.85
       data_store$starts_with <- isTRUE(mask$starts_with)
+      reference_lists_for_run <- if (isTRUE(mask$activate_all_references)) {
+        activate_all_reference_terms(data_store$reference_lists)
+      } else {
+        data_store$reference_lists
+      }
 
       removeModal()
       shinyjs::disable("run_pipeline")
@@ -500,8 +517,8 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
                 all_audits[[length(all_audits) + 1]] <- unspec_result$audit_trail
 
                 incProgress(0.04, detail = "Stripping user-defined terms...")
-                if (!is.null(data_store$reference_lists$strip_terms)) {
-                  strip_terms_result <- strip_reference_terms(df, name_cols, data_store$reference_lists$strip_terms)
+                if (!is.null(reference_lists_for_run$strip_terms)) {
+                  strip_terms_result <- strip_reference_terms(df, name_cols, reference_lists_for_run$strip_terms)
                   df <- strip_terms_result$cleaned_data
                   all_audits[[length(all_audits) + 1]] <- strip_terms_result$audit_trail
                 }
@@ -555,7 +572,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
               # Isotope shortcodes
               if (length(name_cols) > 0 && mask$isotopes) {
                 incProgress(0.04, detail = "Expanding isotope shortcodes...")
-                isotope_result <- expand_isotope_shortcodes(df, name_cols, data_store$reference_lists$isotope_lookup)
+                isotope_result <- expand_isotope_shortcodes(df, name_cols, reference_lists_for_run$isotope_lookup)
                 df <- isotope_result$cleaned_data
                 all_audits[[length(all_audits) + 1]] <- isotope_result$audit_trail
               } else {
@@ -596,24 +613,24 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
                 all_audits[[length(all_audits) + 1]] <- formula_result$audit_trail
 
                 # Reference list flagging
-                if (!is.null(data_store$reference_lists)) {
+                if (!is.null(reference_lists_for_run)) {
                   incProgress(0.05, detail = "Flagging reference list matches...")
 
-                  func_cats <- data_store$reference_lists$functional_categories
+                  func_cats <- reference_lists_for_run$functional_categories
                   if (nrow(func_cats) > 0) {
                     func_result <- flag_reference_matches(df, name_cols, func_cats, "warning", "functional category")
                     df <- func_result$cleaned_data
                     all_audits[[length(all_audits) + 1]] <- func_result$audit_trail
                   }
 
-                  stop_words <- data_store$reference_lists$stop_words
+                  stop_words <- reference_lists_for_run$stop_words
                   if (nrow(stop_words) > 0) {
                     stop_result <- flag_reference_matches(df, name_cols, stop_words, "warning", "stop word")
                     df <- stop_result$cleaned_data
                     all_audits[[length(all_audits) + 1]] <- stop_result$audit_trail
                   }
 
-                  block_pats <- data_store$reference_lists$block_patterns
+                  block_pats <- reference_lists_for_run$block_patterns
                   if (nrow(block_pats) > 0) {
                     block_result <- flag_reference_matches(df, name_cols, block_pats, "blocking", "block pattern")
                     df <- block_result$cleaned_data
@@ -734,7 +751,8 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         dates = TRUE,
         media = TRUE,
         wqx_threshold = input$wqx_threshold,
-        starts_with = isTRUE(input$starts_with_enabled)
+        starts_with = isTRUE(input$starts_with_enabled),
+        activate_all_references = isTRUE(input$activate_all_references)
       )
       execute_pipeline(mask)
     })

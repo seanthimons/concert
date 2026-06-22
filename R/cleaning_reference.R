@@ -510,6 +510,24 @@ merge_reference_list_rows <- function(default_tbl, user_tbl, type = NULL) {
     dplyr::distinct(term, .keep_all = TRUE)
 }
 
+activate_all_reference_terms <- function(reference_lists) {
+  if (is.null(reference_lists)) {
+    return(reference_lists)
+  }
+
+  for (type in c("functional_categories", user_reference_list_names())) {
+    if (
+      !is.null(reference_lists[[type]]) &&
+        is.data.frame(reference_lists[[type]]) &&
+        "active" %in% names(reference_lists[[type]])
+    ) {
+      reference_lists[[type]]$active <- TRUE
+    }
+  }
+
+  reference_lists
+}
+
 load_default_user_reference_list <- function(type, cache_dir) {
   switch(
     normalize_reference_list_type(type),

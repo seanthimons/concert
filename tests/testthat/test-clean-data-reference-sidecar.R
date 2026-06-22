@@ -58,3 +58,75 @@ test_that("reference list help text describes each editor semantics", {
   expect_match(reference_list_help_text("block_patterns"), "anchors")
   expect_match(reference_list_help_text("strip_terms"), "modify|remove")
 })
+
+test_that("preflight reference toggle activates inactive terms for the run only", {
+  reference_lists <- list(
+    functional_categories = empty_reference_list_tbl(),
+    stop_words = tibble::tibble(
+      term = "ingredient",
+      pattern = "ingredient",
+      match_mode = "literal_word",
+      source = "legacy_review",
+      active = FALSE,
+      notes = NA_character_
+    ),
+    block_patterns = empty_reference_list_tbl(),
+    strip_terms = empty_reference_list_tbl(),
+    isotope_lookup = list(
+      lookup = tibble::tibble(
+        symbol = character(),
+        mass = character(),
+        element_name = character(),
+        shortcode = character(),
+        canonical = character(),
+        dtxsid = character()
+      ),
+      elem_alt_names = character()
+    )
+  )
+
+  data_store <- shiny::reactiveValues(
+    reference_lists = reference_lists,
+    column_tags = c(chemical_name = "Name", casrn = "CASRN"),
+    clean = tibble::tibble(chemical_name = "ingredient", casrn = "67-64-1"),
+    cleaned_data = NULL,
+    cleaning_audit = NULL,
+    curation_results = NULL,
+    resolved_data = NULL,
+    review_visible_cols = NULL
+  )
+
+  run_mask <- list(
+    unicode = FALSE,
+    whitespace = FALSE,
+    cas = FALSE,
+    names = TRUE,
+    isotopes = FALSE,
+    multi = FALSE,
+    chiral = FALSE,
+    units = FALSE,
+    duration = FALSE,
+    dates = FALSE,
+    media = FALSE,
+    wqx_threshold = 0.85,
+    starts_with = FALSE,
+    activate_all_references = FALSE
+  )
+
+  shiny::testServer(mod_clean_data_server, args = list(
+    data_store = data_store,
+    on_cleaning_complete = NULL
+  ), {
+    execute_pipeline(run_mask)
+    expect_true(is.na(data_store$cleaned_data$cleaning_flag[1]))
+
+    data_store$clean <- tibble::tibble(chemical_name = "ingredient", casrn = "67-64-1")
+    data_store$cleaned_data <- NULL
+    data_store$cleaning_audit <- NULL
+    run_mask$activate_all_references <- TRUE
+    execute_pipeline(run_mask)
+
+    expect_match(data_store$cleaned_data$cleaning_flag[1], "WARN: stop word")
+    expect_false(data_store$reference_lists$stop_words$active[1])
+  })
+})
