@@ -464,11 +464,21 @@ server <- function(input, output, session) {
     show_tab_with_pulse("run_curation_tab")
   })
 
-  concert::mod_tag_columns_server("tags", data_store, on_tags_applied = function() {
-    show_tab_with_pulse("clean_data")
-    bslib::nav_hide("main_tabs", target = "run_curation_tab", session = session)
-    bslib::nav_hide("main_tabs", target = "review_results", session = session)
-  })
+  concert::mod_tag_columns_server(
+    "tags",
+    data_store,
+    on_tags_applied = function() {
+      show_tab_with_pulse("clean_data")
+      bslib::nav_hide("main_tabs", target = "run_curation_tab", session = session)
+      bslib::nav_hide("main_tabs", target = "review_results", session = session)
+    },
+    on_tags_cleared = function() {
+      bslib::nav_hide("main_tabs", target = "clean_data", session = session)
+      bslib::nav_hide("main_tabs", target = "run_curation_tab", session = session)
+      bslib::nav_hide("main_tabs", target = "harmonize_tab", session = session)
+      bslib::nav_hide("main_tabs", target = "review_results", session = session)
+    }
+  )
 
   concert::mod_run_curation_server("curation", data_store, on_curation_complete = function() {
     show_tab_with_pulse("review_results")
