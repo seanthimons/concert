@@ -18,8 +18,11 @@ test_that("classify_tags partitions numeric tags correctly", {
     col2 = "Numeric",
     col3 = "Unit",
     col4 = "Qualifier",
-    col5 = "Duration",
-    col6 = "DurationUnit"
+    col5 = "ReportingLimit",
+    col6 = "Uncertainty",
+    col7 = "UncertaintyCoverage",
+    col8 = "Duration",
+    col9 = "DurationUnit"
   )
 
   result <- classify_tags(tags)
@@ -87,6 +90,11 @@ test_that("validate_tag_pairing treats Unit paired with Numeric as valid", {
   expect_null(result)
 })
 
+test_that("validate_tag_pairing treats Unit paired with semantic numeric roles as valid", {
+  expect_null(validate_tag_pairing(list(col1 = "ReportingLimit", col2 = "Unit")))
+  expect_null(validate_tag_pairing(list(col1 = "Uncertainty", col2 = "Unit")))
+})
+
 test_that("validate_tag_pairing returns NULL for non-numeric tags", {
   tags <- list(col1 = "Name", col2 = "CASRN")
   result <- validate_tag_pairing(tags)
@@ -146,8 +154,11 @@ test_that("classify_tags handles all tag types correctly", {
     n2 = "Numeric",
     n3 = "Unit",
     n4 = "Qualifier",
-    n5 = "Duration",
-    n6 = "DurationUnit",
+    n5 = "ReportingLimit",
+    n6 = "Uncertainty",
+    n7 = "UncertaintyCoverage",
+    n8 = "Duration",
+    n9 = "DurationUnit",
     m1 = "Species",
     m2 = "ExposureRoute"
   )
@@ -160,11 +171,21 @@ test_that("classify_tags handles all tag types correctly", {
   expect_equal(unlist(result$chemical_tags, use.names = FALSE), c("Name", "CASRN", "Other"))
 
 
-  # Numeric: 5 types
-  expect_equal(length(result$numeric_tags), 6)
+  # Numeric: 9 types
+  expect_equal(length(result$numeric_tags), 9)
   expect_equal(
     unlist(result$numeric_tags, use.names = FALSE),
-    c("Result", "Numeric", "Unit", "Qualifier", "Duration", "DurationUnit")
+    c(
+      "Result",
+      "Numeric",
+      "Unit",
+      "Qualifier",
+      "ReportingLimit",
+      "Uncertainty",
+      "UncertaintyCoverage",
+      "Duration",
+      "DurationUnit"
+    )
   )
 
   # Metadata: 2 types

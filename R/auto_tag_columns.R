@@ -141,8 +141,9 @@ suggest_column_tags <- function(col_names) {
 #' Built once per `suggest_column_tags()` call (cheap; not inside the per-column
 #' loop). Every `tag` value MUST be a member of the `classify_tags()` taxonomy
 #' (chemical: Name, CASRN, Other; numeric: Result, Numeric, Unit, Qualifier,
-#' Duration, DurationUnit; metadata: Species, ExposureRoute; study: StudyDate,
-#' Media). Phrases are precision-first: generic single tokens (bare `name`,
+#' ReportingLimit, Uncertainty, UncertaintyCoverage, Duration, DurationUnit;
+#' metadata: Species, ExposureRoute; study: StudyDate, Media). Phrases are
+#' precision-first: generic single tokens (bare `name`,
 #' `date`, `value`, `id`, `exposure`) are intentionally excluded.
 #' @noRd
 .auto_tag_phrase_table <- function() {
@@ -178,6 +179,36 @@ suggest_column_tags <- function(col_names) {
     Numeric = c("numeric measurement", "numeric value", "numeric"),
     Unit = c("unit of measure", "units", "unit", "uom"),
     Qualifier = c("qualifier", "qual"),
+    ReportingLimit = c(
+      "reporting limit",
+      "report limit",
+      "result reporting limit",
+      "rl",
+      "mda",
+      "mdc",
+      "detection limit",
+      "method detection limit",
+      "quantitation limit",
+      "limit of quantitation",
+      "lod",
+      "loq"
+    ),
+    Uncertainty = c(
+      "uncertainty",
+      "counting uncertainty",
+      "measurement uncertainty",
+      "result uncertainty",
+      "two sigma uncertainty",
+      "one sigma uncertainty",
+      "sigma"
+    ),
+    UncertaintyCoverage = c(
+      "uncertainty coverage",
+      "coverage factor",
+      "coverage",
+      "sigma coverage",
+      "uncertainty type"
+    ),
     Duration = c("exposure duration", "study duration", "exposure period", "exposure time", "duration"),
     DurationUnit = c("duration unit", "duration units", "duration uom", "time unit"),
     Species = c("test species", "test organism", "species", "organism", "animal"),
@@ -191,12 +222,15 @@ suggest_column_tags <- function(col_names) {
   priority_order <- c(
     "CASRN",
     "DurationUnit",
+    "UncertaintyCoverage",
+    "ReportingLimit",
     "ExposureRoute",
     "StudyDate",
     "Species",
     "Media",
     "Unit",
     "Qualifier",
+    "Uncertainty",
     "Duration",
     "Result",
     "Numeric",

@@ -222,7 +222,7 @@ mod_harmonize_server <- function(id, data_store) {
 
       numeric_tags_vec <- unlist(data_store$numeric_tags, use.names = TRUE)
       result_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Result"]
-      numeric_measurement_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Numeric"]
+      numeric_measurement_cols <- names(numeric_tags_vec)[numeric_tags_vec %in% c("Numeric", "ReportingLimit", "Uncertainty")]
       unit_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Unit"]
       duration_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Duration"]
       duration_unit_cols <- names(numeric_tags_vec)[numeric_tags_vec == "DurationUnit"]
@@ -306,6 +306,7 @@ mod_harmonize_server <- function(id, data_store) {
                 # Invalidate toxval_output after incremental re-harmonization.
                 # The stale output would not reflect updated unit mappings;
                 # the next full-mode run will regenerate it with correct data.
+                data_store$detection_results <- NULL
                 data_store$toxval_output <- NULL
 
                 showNotification(
@@ -345,6 +346,7 @@ mod_harmonize_server <- function(id, data_store) {
                 character(0)
               }
               data_store$media_results <- NULL
+              data_store$detection_results <- NULL
               media_for_harmonize <- NULL
 
               if (h_mask$media && length(media_cols_pre) > 0) {
@@ -399,6 +401,27 @@ mod_harmonize_server <- function(id, data_store) {
                 )
 
                 harmonize_tibble <- measurement_result$toxval_harmonized
+
+                detection_result <- classify_harmonized_detection(
+                  input_df = input_df,
+                  tag_values = numeric_tags_vec,
+                  measurement_result = measurement_result
+                )
+                if (!is.null(detection_result)) {
+                  data_store$detection_results <- detection_result$expanded_detection
+                  input_df <- append_detection_fields(
+                    input_df,
+                    detection_result$row_detection,
+                    allow_existing_generated = TRUE
+                  )
+                  if (!is.null(data_store$resolution_state)) {
+                    data_store$resolution_state <- append_detection_fields(
+                      data_store$resolution_state,
+                      detection_result$row_detection,
+                      allow_existing_generated = TRUE
+                    )
+                  }
+                }
 
                 incProgress(0.15, detail = "Finalizing...")
                 data_store$harmonize_results <- measurement_result$harmonize_results

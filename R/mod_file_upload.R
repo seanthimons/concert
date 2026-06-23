@@ -280,6 +280,7 @@ mod_file_upload_server <- function(
           clean_df <- clean_df %>%
             janitor::clean_names() %>%
             janitor::remove_empty(which = c("rows", "cols"))
+          assert_no_source_result_flag(clean_df, "uploaded data")
 
           # Validate cleaned data
           if (nrow(clean_df) == 0) {
@@ -466,6 +467,7 @@ mod_file_upload_server <- function(
           clean_df <- clean_df %>%
             janitor::clean_names() %>%
             janitor::remove_empty(which = c("rows", "cols"))
+          assert_no_source_result_flag(clean_df, "uploaded data")
 
           # Validate cleaned data
           if (nrow(clean_df) == 0) {

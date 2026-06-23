@@ -60,6 +60,48 @@ test_that("multiple Numeric columns produce distinct audit rows", {
   expect_true(all(is.na(result$toxval_harmonized$harmonized_value)))
 })
 
+test_that("ReportingLimit and Uncertainty produce semantic audit roles", {
+  df <- tibble::tibble(
+    result = c("5", "10"),
+    reporting_limit = c("1", "2"),
+    uncertainty = c("0.5", "0.75"),
+    coverage = c("two_sigma", "two_sigma"),
+    unit = c("ug/L", "ug/L")
+  )
+  unit_map <- tibble::tibble(
+    from_unit = "ug/L",
+    to_unit = "mg/L",
+    multiplier = 0.001,
+    category = "mass_concentration"
+  )
+
+  result <- harmonize_tagged_numeric_measurements(
+    input_df = df,
+    tag_values = list(
+      result = "Result",
+      reporting_limit = "ReportingLimit",
+      uncertainty = "Uncertainty",
+      coverage = "UncertaintyCoverage",
+      unit = "Unit"
+    ),
+    unit_map = unit_map
+  )
+
+  expect_equal(
+    sort(unique(result$audit$measurement_role)),
+    c("ReportingLimit", "Result", "Uncertainty")
+  )
+  expect_false("coverage" %in% result$audit$measurement_column)
+  expect_equal(
+    result$audit$harmonized_value[result$audit$measurement_role == "ReportingLimit"],
+    c(0.001, 0.002)
+  )
+  expect_equal(
+    result$audit$harmonized_value[result$audit$measurement_role == "Uncertainty"],
+    c(0.0005, 0.00075)
+  )
+})
+
 test_that("Numeric ranges expand only in audit, not primary ToxVal harmonized rows", {
   df <- tibble::tibble(
     result = "20",

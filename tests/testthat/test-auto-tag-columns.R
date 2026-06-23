@@ -13,7 +13,10 @@ test_that("suggest_column_tags maps representative headers to expected tags", {
     "species",
     "media",
     "study_date",
-    "duration_unit"
+    "duration_unit",
+    "reporting_limit",
+    "uncertainty",
+    "uncertainty_coverage"
   ))
 
   expect_type(result, "list")
@@ -25,6 +28,9 @@ test_that("suggest_column_tags maps representative headers to expected tags", {
   expect_equal(result$media, "Media")
   expect_equal(result$study_date, "StudyDate")
   expect_equal(result$duration_unit, "DurationUnit")
+  expect_equal(result$reporting_limit, "ReportingLimit")
+  expect_equal(result$uncertainty, "Uncertainty")
+  expect_equal(result$uncertainty_coverage, "UncertaintyCoverage")
 })
 
 test_that("suggest_column_tags disambiguates by most specific keyword", {
@@ -35,6 +41,9 @@ test_that("suggest_column_tags disambiguates by most specific keyword", {
   # exposure_time is a Duration concept, never ExposureRoute
   res <- suggest_column_tags("exposure_time")[["exposure_time"]]
   expect_equal(res, "Duration")
+  # uncertainty_coverage must win over plain Uncertainty
+  expect_equal(suggest_column_tags("uncertainty_coverage")[["uncertainty_coverage"]], "UncertaintyCoverage")
+  expect_equal(suggest_column_tags("method_detection_limit")[["method_detection_limit"]], "ReportingLimit")
 })
 
 test_that("suggest_column_tags is precision-first and ignores decoys", {
@@ -88,6 +97,9 @@ test_that("suggest_column_tags only emits values in the classify_tags taxonomy",
     "Numeric",
     "Unit",
     "Qualifier",
+    "ReportingLimit",
+    "Uncertainty",
+    "UncertaintyCoverage",
     "Duration",
     "DurationUnit",
     "Species",
@@ -107,6 +119,10 @@ test_that("suggest_column_tags only emits values in the classify_tags taxonomy",
     "numeric_measurement",
     "unit",
     "qualifier",
+    "reporting_limit",
+    "mda",
+    "uncertainty",
+    "uncertainty_coverage",
     "duration",
     "duration_unit",
     "species",

@@ -141,7 +141,8 @@ harmonize_tagged_numeric_measurements <- function(
   }
 
   result_cols <- names(tag_values)[tag_values == "Result"]
-  numeric_cols <- names(tag_values)[tag_values == "Numeric"]
+  auxiliary_roles <- c("Numeric", "ReportingLimit", "Uncertainty")
+  numeric_cols <- names(tag_values)[tag_values %in% auxiliary_roles]
   unit_cols <- names(tag_values)[tag_values == "Unit"]
   unit_col <- if (length(unit_cols) > 0) unit_cols[1] else NULL
 
@@ -163,7 +164,7 @@ harmonize_tagged_numeric_measurements <- function(
     harmonize_measurement_column(
       input_df = input_df,
       measurement_col = numeric_col,
-      measurement_role = "Numeric",
+      measurement_role = unname(tag_values[[numeric_col]]),
       unit_col = unit_col,
       unit_map = unit_map,
       corrections = corrections,

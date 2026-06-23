@@ -14,7 +14,7 @@
 #' @return Named list with four elements:
 #'   \describe{
 #'     \item{chemical_tags}{Named list of chemical-related tags (Name, CASRN, Other)}
-#'     \item{numeric_tags}{Named list of numeric/measurement tags (Result, Numeric, Unit, Qualifier, Duration, DurationUnit)}
+#'     \item{numeric_tags}{Named list of numeric/measurement tags (Result, Numeric, Unit, Qualifier, ReportingLimit, Uncertainty, UncertaintyCoverage, Duration, DurationUnit)}
 #'     \item{metadata_tags}{Named list of study metadata tags (Species, ExposureRoute)}
 #'     \item{study_type_tags}{Named list of study/contextual tags (StudyDate)}
 #'   }
@@ -22,7 +22,8 @@
 #' @details
 #' Tag type membership per design decisions:
 #' - D-06: Chemical types = Name, CASRN, Other
-#' - D-07: Numeric types = Result, Numeric, Unit, Qualifier, Duration, DurationUnit
+#' - D-07: Numeric types = Result, Numeric, Unit, Qualifier, ReportingLimit,
+#'   Uncertainty, UncertaintyCoverage, Duration, DurationUnit
 #' - D-08: Metadata types = Species, ExposureRoute
 #'
 #' @examples
@@ -36,7 +37,17 @@
 classify_tags <- function(tags) {
   # Define type membership vectors (single source of truth per D-03)
   chemical_types <- c("Name", "CASRN", "Other")
-  numeric_types <- c("Result", "Numeric", "Unit", "Qualifier", "Duration", "DurationUnit")
+  numeric_types <- c(
+    "Result",
+    "Numeric",
+    "Unit",
+    "Qualifier",
+    "ReportingLimit",
+    "Uncertainty",
+    "UncertaintyCoverage",
+    "Duration",
+    "DurationUnit"
+  )
   metadata_types <- c("Species", "ExposureRoute")
   study_types <- c("StudyDate", "Media")
 
@@ -108,7 +119,7 @@ classify_tags <- function(tags) {
 #' harmonization. This function returns a warning message if:
 #' - Result is tagged without Unit
 
-#' - Unit is tagged without Result or Numeric
+#' - Unit is tagged without Result, Numeric, ReportingLimit, or Uncertainty
 #'
 #' The warning is informational and does not block tag application.
 #'
@@ -133,13 +144,15 @@ validate_tag_pairing <- function(tags) {
   has_result <- "Result" %in% tag_values
   has_numeric <- "Numeric" %in% tag_values
   has_unit <- "Unit" %in% tag_values
+  has_limit <- "ReportingLimit" %in% tag_values
+  has_uncertainty <- "Uncertainty" %in% tag_values
 
   if (has_result && !has_unit) {
     return("Result tagged without Unit - harmonization may be incomplete")
   }
 
-  if (has_unit && !has_result && !has_numeric) {
-    return("Unit tagged without Result or Numeric - harmonization may be incomplete")
+  if (has_unit && !has_result && !has_numeric && !has_limit && !has_uncertainty) {
+    return("Unit tagged without Result, Numeric, Reporting Limit, or Uncertainty - harmonization may be incomplete")
   }
 
   NULL

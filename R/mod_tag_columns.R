@@ -136,7 +136,10 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
                       "Result Value" = "Result",
                       "Numeric Measurement" = "Numeric",
                       "Unit" = "Unit",
-                      "Qualifier" = "Qualifier"
+                      "Qualifier" = "Qualifier",
+                      "Reporting Limit" = "ReportingLimit",
+                      "Uncertainty" = "Uncertainty",
+                      "Uncertainty Coverage" = "UncertaintyCoverage"
                     ),
                     "Study / Contextual" = c(
                       "Duration" = "Duration",

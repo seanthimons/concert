@@ -14,7 +14,8 @@
 #' @param tag_map Named list mapping cleaned column names to tag roles. Keys
 #'   must match column names *after* `janitor::clean_names()` normalization.
 #'   Values are one of `"Name"`, `"CASRN"`, `"Other"`, `"Result"`, `"Numeric"`, `"Unit"`,
-#'   `"Qualifier"`, etc. Example:
+#'   `"Qualifier"`, `"ReportingLimit"`, `"Uncertainty"`,
+#'   `"UncertaintyCoverage"`, etc. Example:
 #'   `list(chemical_name = "Name", cas_number = "CASRN", result = "Result",
 #'         unit = "Unit")`.
 #' @param skip_flags Character vector of cleaning flag codes whose rows should
@@ -203,6 +204,7 @@ curate_headless <- function(
     clean_data <- handle_merged_cells(clean_data)
     clean_data <- janitor::clean_names(clean_data)
     clean_data <- janitor::remove_empty(clean_data, which = c("rows", "cols"))
+    assert_no_source_result_flag(clean_data, "curate_headless input")
 
     # ------------------------------------------------------------------
     # Step 6: Validate tag_map against cleaned column names
@@ -287,6 +289,7 @@ curate_headless <- function(
     # ------------------------------------------------------------------
     toxval_tibble <- NULL
     harmonize_audit_tibble <- NULL
+    detection_tibble <- NULL
 
     if (harmonize) {
       message("[headless] Running harmonization pipeline...")
@@ -308,7 +311,7 @@ curate_headless <- function(
       # Identify tagged columns for harmonization (per D-04)
       tag_values <- unlist(merged_tags, use.names = TRUE)
       result_cols <- names(tag_values)[tag_values == "Result"]
-      numeric_cols <- names(tag_values)[tag_values == "Numeric"]
+      numeric_cols <- names(tag_values)[tag_values %in% c("Numeric", "ReportingLimit", "Uncertainty")]
       unit_cols <- names(tag_values)[tag_values == "Unit"]
       duration_cols <- names(tag_values)[tag_values == "Duration"]
 
@@ -371,6 +374,25 @@ curate_headless <- function(
       )
       harmonize_tibble <- measurement_result$toxval_harmonized
       harmonize_audit_tibble <- measurement_result$audit
+
+      detection_result <- classify_harmonized_detection(
+        input_df = input_df,
+        tag_values = tag_values,
+        measurement_result = measurement_result
+      )
+      if (!is.null(detection_result)) {
+        detection_tibble <- detection_result$expanded_detection
+        input_df <- append_detection_fields(
+          input_df,
+          detection_result$row_detection,
+          allow_existing_generated = TRUE
+        )
+        resolution_state <- append_detection_fields(
+          resolution_state,
+          detection_result$row_detection,
+          allow_existing_generated = TRUE
+        )
+      }
 
       # Stage 3.5: Duration harmonization (D-13, DUR-03)
       message("[headless] Stage 3.5: Harmonizing durations...")
@@ -474,7 +496,8 @@ curate_headless <- function(
       invisible(list(
         data = toxval_tibble,
         audit_trail = cleaning_result$audit_trail,
-        harmonize_audit = harmonize_audit_tibble
+        harmonize_audit = harmonize_audit_tibble,
+        detection = detection_tibble
       ))
     } else {
       invisible(list(data = resolution_state, audit_trail = cleaning_result$audit_trail))
