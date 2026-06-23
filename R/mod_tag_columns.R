@@ -57,15 +57,30 @@ mod_tag_columns_ui <- function(id) {
     conditionalPanel(
       condition = paste0("output['", ns("has_data"), "']"),
 
-      # Header with Apply Tags button top-right
+      # Header with tag action buttons top-right
       div(
-        class = "d-flex justify-content-between align-items-center mb-3",
+        class = "d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3",
         h4("Tag Columns"),
-        actionButton(
-          ns("apply_tags"),
-          "Apply Tags",
-          class = "btn-primary",
-          icon = icon("tag")
+        div(
+          class = "d-flex gap-2 flex-wrap",
+          actionButton(
+            ns("suggest_tags"),
+            "Suggest Tags",
+            class = "btn-outline-primary",
+            icon = icon("magic")
+          ),
+          actionButton(
+            ns("clear_tags"),
+            "Clear Tags",
+            class = "btn-outline-secondary",
+            icon = icon("eraser")
+          ),
+          actionButton(
+            ns("apply_tags"),
+            "Apply Tags",
+            class = "btn-primary",
+            icon = icon("tag")
+          )
         )
       ),
       p("Categorize selected columns for curation and harmonization."),
@@ -79,11 +94,35 @@ mod_tag_columns_ui <- function(id) {
 #' @param id Module namespace ID
 #' @param data_store Reactive values store from main app
 #' @param on_tags_applied Callback function to execute after tags applied (for navigation)
+#' @param on_tags_cleared Callback function to execute after tags cleared
 #'
 #' @return Reactive list with tags_applied indicator
 #' @export
-mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
+mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL, on_tags_cleared = NULL) {
   moduleServer(id, function(input, output, session) {
+    tag_input_id <- function(col) {
+      paste0("tag_", make.names(col))
+    }
+
+    collect_applied_tags <- function() {
+      c(
+        data_store$column_tags,
+        data_store$numeric_tags,
+        data_store$metadata_tags,
+        data_store$study_type_tags
+      )
+    }
+
+    update_tag_inputs <- function(cols, values) {
+      for (col in cols) {
+        updateSelectInput(
+          session,
+          tag_input_id(col),
+          selected = values[[col]] %||% ""
+        )
+      }
+    }
+
     # Dynamic UI for column tagging — table-based layout
     output$column_tagging_ui <- renderUI({
       req(data_store$selected_columns)
@@ -97,12 +136,7 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
       # Pre-fill precedence: an already-applied or config-imported tag wins over
       # a heuristic suggestion, which wins over blank. Applied tags are split
       # across four partitions (column_tags holds chemical only), so merge them.
-      applied_tags <- c(
-        data_store$column_tags,
-        data_store$numeric_tags,
-        data_store$metadata_tags,
-        data_store$study_type_tags
-      )
+      applied_tags <- collect_applied_tags()
       suggested_tags <- data_store$suggested_column_tags
 
       # Table-based layout: one row per column
@@ -123,11 +157,11 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
 
             tags$tr(
               class = "tag-column-row",
-              `data-input-id` = session$ns(paste0("tag_", make.names(col))),
+              `data-input-id` = session$ns(tag_input_id(col)),
               tags$td(
                 style = "width:220px;",
                 selectInput(
-                  inputId = session$ns(paste0("tag_", make.names(col))),
+                  inputId = session$ns(tag_input_id(col)),
                   label = NULL,
                   choices = list(
                     "Select type..." = c("Select type..." = ""),
@@ -168,6 +202,78 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
       )
     })
 
+    # Suggest tags button
+    observeEvent(input$suggest_tags, {
+      selected_cols <- data_store$selected_columns
+      if (is.null(selected_cols) || length(selected_cols) == 0) {
+        showNotification(
+          "Select at least one column before suggesting tags.",
+          type = "warning",
+          duration = 5
+        )
+        return()
+      }
+
+      suggested_tags <- suggest_column_tags(selected_cols)
+      data_store$suggested_column_tags <- suggested_tags
+
+      applied_tags <- collect_applied_tags()
+      unassigned_suggestions <- list()
+      for (col in selected_cols) {
+        suggestion <- suggested_tags[[col]]
+        applied_tag <- applied_tags[[col]]
+        if (
+          !is.null(suggestion) && nzchar(suggestion) &&
+            (is.null(applied_tag) || !nzchar(applied_tag))
+        ) {
+          unassigned_suggestions[[col]] <- suggestion
+        }
+      }
+
+      update_tag_inputs(names(unassigned_suggestions), unassigned_suggestions)
+
+      if (length(unassigned_suggestions) == 0) {
+        showNotification(
+          "No new tag suggestions found for selected columns.",
+          type = "message",
+          duration = 3
+        )
+      } else {
+        showNotification(
+          paste("Suggested tags for", length(unassigned_suggestions), "column(s)."),
+          type = "message",
+          duration = 3
+        )
+      }
+    })
+
+    # Clear tags button
+    observeEvent(input$clear_tags, {
+      cols_to_clear <- data_store$selected_columns
+      if (is.null(cols_to_clear) || length(cols_to_clear) == 0) {
+        cols_to_clear <- if (!is.null(data_store$clean)) names(data_store$clean) else character(0)
+      }
+
+      data_store$column_tags <- NULL
+      data_store$numeric_tags <- NULL
+      data_store$metadata_tags <- NULL
+      data_store$study_type_tags <- NULL
+      data_store$suggested_column_tags <- NULL
+      data_store$dedup_preview <- NULL
+
+      update_tag_inputs(cols_to_clear, list())
+
+      showNotification(
+        "Cleared assigned tags.",
+        type = "message",
+        duration = 3
+      )
+
+      if (!is.null(on_tags_cleared)) {
+        on_tags_cleared()
+      }
+    })
+
     # Apply tags button
     observeEvent(input$apply_tags, {
       req(data_store$selected_columns)
@@ -177,8 +283,7 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL) {
       # tags namespace used in the modal construction below.
       col_tag_map <- list()
       for (col in data_store$selected_columns) {
-        tag_input_id <- paste0("tag_", make.names(col))
-        tag_value <- input[[tag_input_id]]
+        tag_value <- input[[tag_input_id(col)]]
 
         if (!is.null(tag_value) && tag_value != "") {
           col_tag_map[[col]] <- tag_value

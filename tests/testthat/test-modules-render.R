@@ -4,7 +4,7 @@
 create_test_store <- function() {
   shiny::reactiveValues(
     raw = NULL, clean = NULL, detection = NULL, file_info = NULL,
-    selected_columns = NULL, column_tags = NULL,
+    selected_columns = NULL, column_tags = NULL, suggested_column_tags = NULL,
     cleaning_audit = NULL, cleaned_data = NULL, reference_lists = NULL,
     curation_results = NULL, curation_report = NULL, curation_status = NULL,
     dedup_preview = NULL, consensus_data = NULL, consensus_summary = NULL,
@@ -138,6 +138,64 @@ test_that("mod_tag_columns_server initializes without error", {
   ), {
     session$flushReact()
     expect_true(TRUE)
+  })
+})
+
+test_that("mod_tag_columns_server suggests tags for selected columns", {
+  data_store <- create_test_store()
+  clean_df <- tibble::tibble(
+    chemical_name = "acetone",
+    cas_number = "67-64-1",
+    notes = "keep"
+  )
+  data_store$clean <- clean_df
+  data_store$selected_columns <- names(clean_df)
+
+  shiny::testServer(mod_tag_columns_server, args = list(
+    data_store = data_store,
+    on_tags_applied = NULL
+  ), {
+    session$setInputs(suggest_tags = 1)
+    session$flushReact()
+
+    expect_equal(data_store$suggested_column_tags$chemical_name, "Name")
+    expect_equal(data_store$suggested_column_tags$cas_number, "CASRN")
+    expect_equal(data_store$suggested_column_tags$notes, "")
+  })
+})
+
+test_that("mod_tag_columns_server clears assigned and suggested tags", {
+  data_store <- create_test_store()
+  clean_df <- tibble::tibble(
+    chemical_name = "acetone",
+    cas_number = "67-64-1",
+    result_value = 1
+  )
+  data_store$clean <- clean_df
+  data_store$selected_columns <- names(clean_df)
+  data_store$column_tags <- list(chemical_name = "Name", cas_number = "CASRN")
+  data_store$numeric_tags <- list(result_value = "Result")
+  data_store$metadata_tags <- list(species = "Species")
+  data_store$study_type_tags <- list(media = "Media")
+  data_store$suggested_column_tags <- list(chemical_name = "Name")
+  data_store$dedup_preview <- tibble::tibble(row = 1)
+  clear_called <- FALSE
+
+  shiny::testServer(mod_tag_columns_server, args = list(
+    data_store = data_store,
+    on_tags_applied = NULL,
+    on_tags_cleared = function() clear_called <<- TRUE
+  ), {
+    session$setInputs(clear_tags = 1)
+    session$flushReact()
+
+    expect_null(data_store$column_tags)
+    expect_null(data_store$numeric_tags)
+    expect_null(data_store$metadata_tags)
+    expect_null(data_store$study_type_tags)
+    expect_null(data_store$suggested_column_tags)
+    expect_null(data_store$dedup_preview)
+    expect_true(clear_called)
   })
 })
 
@@ -293,6 +351,17 @@ test_that("Tag Columns rows have selected-state styling hook", {
   expect_match(src, "tag-column-row")
   expect_match(src, "tag-column-selected")
   expect_match(src, "shiny:inputchanged")
+})
+
+test_that("Tag Columns exposes suggest and clear controls", {
+  src_path <- find_mod_tag_columns()
+  skip_if(is.null(src_path), "R/mod_tag_columns.R not found from test context")
+  src <- paste(readLines(src_path), collapse = "\n")
+
+  expect_match(src, 'ns\\("suggest_tags"\\)')
+  expect_match(src, '"Suggest Tags"')
+  expect_match(src, 'ns\\("clear_tags"\\)')
+  expect_match(src, '"Clear Tags"')
 })
 
 test_that("File Upload detects full CONCERT exports before raw processing", {

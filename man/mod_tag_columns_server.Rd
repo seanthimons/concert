@@ -4,7 +4,12 @@
 \alias{mod_tag_columns_server}
 \title{Tag Columns Module - Server}
 \usage{
-mod_tag_columns_server(id, data_store, on_tags_applied = NULL)
+mod_tag_columns_server(
+  id,
+  data_store,
+  on_tags_applied = NULL,
+  on_tags_cleared = NULL
+)
 }
 \arguments{
 \item{id}{Module namespace ID}
@@ -12,6 +17,8 @@ mod_tag_columns_server(id, data_store, on_tags_applied = NULL)
 \item{data_store}{Reactive values store from main app}
 
 \item{on_tags_applied}{Callback function to execute after tags applied (for navigation)}
+
+\item{on_tags_cleared}{Callback function to execute after tags cleared}
 }
 \value{
 Reactive list with tags_applied indicator
