@@ -370,6 +370,73 @@ test_that("Curated Data includes row_flag reason without extra flag metadata", {
   expect_false("row_flag_note" %in% names(curated))
 })
 
+test_that("Curated Data preserves generated detection fields", {
+  test_data <- create_test_data()
+  test_data$resolution_state$result_flag <- c(TRUE, FALSE, TRUE)
+  test_data$resolution_state$detection_event_class <- c(
+    "robust_reportable_detect",
+    "non_reportable",
+    "review_required"
+  )
+  test_data$resolution_state$detection_basis <- c(
+    "positive_result_above_reporting_limit",
+    "result_at_or_below_reporting_limit",
+    "positive_result_missing_reporting_limit"
+  )
+  test_data$resolution_state$detection_review_flag <- c(FALSE, FALSE, TRUE)
+  test_data$resolution_state$qualifier_followup_flag <- c(FALSE, TRUE, FALSE)
+  test_data$resolution_state$numeric_followup_flag <- c(FALSE, FALSE, TRUE)
+
+  sheets <- build_export_sheets(
+    raw = test_data$raw,
+    resolution_state = test_data$resolution_state,
+    consensus_summary = test_data$consensus_summary,
+    cleaning_audit = test_data$cleaning_audit,
+    reference_lists = test_data$reference_lists,
+    column_tags = test_data$column_tags,
+    detection = test_data$detection,
+    file_info = test_data$file_info
+  )
+
+  curated <- sheets[["Curated Data"]]
+  expect_equal(curated$result_flag, c(TRUE, FALSE, TRUE))
+  expect_equal(curated$detection_event_class, test_data$resolution_state$detection_event_class)
+  expect_equal(curated$detection_review_flag, c(FALSE, FALSE, TRUE))
+  expect_equal(curated$qualifier_followup_flag, c(FALSE, TRUE, FALSE))
+  expect_equal(curated$numeric_followup_flag, c(FALSE, FALSE, TRUE))
+})
+
+test_that("ToxVal Output remains fixed schema when detection fields exist in curated data", {
+  test_data <- create_test_data()
+  test_data$resolution_state$result_flag <- TRUE
+  test_data$resolution_state$detection_review_flag <- FALSE
+
+  cache_dir <- system.file("extdata/reference_cache", package = "concert")
+  schema <- load_toxval_schema(cache_dir)
+  toxval_row <- as.list(schema)
+  toxval_row <- lapply(toxval_row, function(x) {
+    if (is.character(x)) NA_character_ else NA_real_
+  })
+  toxval_row$dtxsid <- "DTXSID7020182"
+  toxval_row$toxval_numeric <- 0.5
+  toxval_data <- tibble::as_tibble(toxval_row)
+
+  sheets <- build_export_sheets(
+    raw = test_data$raw,
+    resolution_state = test_data$resolution_state,
+    consensus_summary = test_data$consensus_summary,
+    cleaning_audit = test_data$cleaning_audit,
+    reference_lists = test_data$reference_lists,
+    column_tags = test_data$column_tags,
+    detection = test_data$detection,
+    file_info = test_data$file_info,
+    toxval_output = toxval_data
+  )
+
+  expect_equal(ncol(sheets[["ToxVal Output"]]), 56)
+  expect_false("result_flag" %in% names(sheets[["ToxVal Output"]]))
+})
+
 test_that("Curated Data initializes missing row_flag and keeps BAD separate from needs_review", {
   test_data <- create_test_data()
   test_data$resolution_state$consensus_status[1] <- "agree"

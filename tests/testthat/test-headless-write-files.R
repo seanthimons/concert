@@ -35,9 +35,11 @@ test_that("curate_headless can run harmonized output fully in memory", {
     verbose = FALSE
   )
 
-  expect_named(result, c("data", "audit_trail", "harmonize_audit"))
+  expect_named(result, c("data", "audit_trail", "harmonize_audit", "detection"))
   expect_s3_class(result$data, "tbl_df")
   expect_equal(result$data$source, "EPA SSWQS")
+  expect_s3_class(result$detection, "tbl_df")
+  expect_true("result_flag" %in% names(result$detection))
   expect_false(file.exists(output_path))
 })
 
@@ -115,6 +117,30 @@ test_that("curate_headless returns Numeric measurement audit without mapping it 
   expect_equal(unique(result$harmonize_audit$measurement_column), "reporting_limit")
   expect_equal(result$harmonize_audit$range_bin, c("low", "mid", "high"))
   expect_equal(result$harmonize_audit$harmonized_value, c(0.005, 0.0075, 0.01))
+})
+
+test_that("curate_headless rejects source result_flag columns", {
+  input_path <- tempfile(fileext = ".csv")
+  readr::write_csv(
+    tibble::tibble(
+      chemical = "Benzene",
+      result = "5",
+      result_flag = TRUE
+    ),
+    input_path
+  )
+  withr::defer(unlink(input_path))
+
+  expect_error(
+    curate_headless(
+      input_path = input_path,
+      output_path = NULL,
+      tag_map = list(chemical = "Name", result = "Result"),
+      write_files = FALSE,
+      verbose = FALSE
+    ),
+    "result_flag"
+  )
 })
 
 headless_snapshot_defaults <- function() {

@@ -22,7 +22,7 @@ Per D-12 and D-13, Result and Unit should be paired for meaningful
 harmonization. This function returns a warning message if:
 \itemize{
 \item Result is tagged without Unit
-\item Unit is tagged without Result or Numeric
+\item Unit is tagged without Result, Numeric, ReportingLimit, or Uncertainty
 }
 
 The warning is informational and does not block tag application.

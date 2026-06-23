@@ -41,7 +41,17 @@ review_signature_excluded_columns <- function() {
 replay_tag_workflow_groups <- function() {
   list(
     chemical_tags = c("Name", "CASRN", "Other"),
-    measurement_tags = c("Result", "Numeric", "Unit", "Qualifier", "Duration", "DurationUnit"),
+    measurement_tags = c(
+      "Result",
+      "Numeric",
+      "Unit",
+      "Qualifier",
+      "ReportingLimit",
+      "Uncertainty",
+      "UncertaintyCoverage",
+      "Duration",
+      "DurationUnit"
+    ),
     study_tags = c("StudyDate", "Media"),
     metadata_tags = c("Species", "ExposureRoute")
   )
