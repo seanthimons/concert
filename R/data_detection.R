@@ -229,6 +229,8 @@ detect_by_type_consistency <- function(df, scan_rows = 50) {
   candidates <- seq_len(min(20, nrow(df) - 2))
 
   scores <- purrr::map_dbl(candidates, function(header_candidate) {
+    header_likeness <- score_header_likeness(df[header_candidate, , drop = FALSE])
+
     # Extract sample data after potential header
     start_row <- header_candidate + 1
     end_row <- min(nrow(df), start_row + scan_rows - 1)
@@ -273,7 +275,7 @@ detect_by_type_consistency <- function(df, scan_rows = 50) {
     })
 
     # Average type stability across columns
-    mean(type_stability, na.rm = TRUE)
+    mean(type_stability, na.rm = TRUE) * (0.5 + 0.5 * header_likeness)
   })
 
   # Find best candidate
@@ -295,6 +297,21 @@ detect_by_type_consistency <- function(df, scan_rows = 50) {
     method = "type_consistency",
     confidence = best_score
   ))
+}
+
+score_header_likeness <- function(row_values) {
+  values <- trimws(as.character(unlist(row_values, use.names = FALSE)))
+  values <- values[!is.na(values) & nzchar(values)]
+
+  if (length(values) == 0) {
+    return(0)
+  }
+
+  filled_ratio <- length(values) / max(ncol(row_values), 1)
+  unique_ratio <- dplyr::n_distinct(tolower(values)) / length(values)
+  numeric_ratio <- mean(suppressWarnings(!is.na(as.numeric(values))))
+
+  filled_ratio * unique_ratio * (1 - numeric_ratio)^2
 }
 
 
