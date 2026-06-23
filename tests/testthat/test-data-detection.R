@@ -201,3 +201,52 @@ test_that("Smart preview calculates correct row counts", {
   large_df <- tibble::tibble(x = 1:5000)
   expect_equal(calculate_smart_preview_rows(large_df), 10)
 })
+
+test_that("Type consistency does not promote data rows over clean CSV headers", {
+  headers <- c(
+    "uat_detection_case", "uat_uncertainty_shape", "event_sample_id",
+    "sample_id", "site_id", "site_type", "river_km", "lat", "lon",
+    "dist_nearest_discharge_km", "dist_discharge_1_km",
+    "dist_discharge_2_km", "medium", "sample_date", "year", "month",
+    "analyte_id", "analyte", "cas", "domain", "family", "order",
+    "detection_class", "typical_conc_ug_l", "method_name", "reported_units",
+    "detected", "concentration", "reporting_limit", "result_qualifier",
+    "reported_result", "uncertainty", "uncertainty_coverage",
+    "bioassay_matrix", "ahr_fold_induction", "ahr_significant", "ahr_qc_flag"
+  )
+
+  chemical_row <- c(
+    "chemical_detect", NA, "SITE-01_201301", "SITE-01", "SITE-01",
+    "near_field", "0.5", "39.102370958447146", "-84.50394046692857",
+    "1.5", "1.5", "4.5", "surface_water", "2013-01-15", "2013", "1",
+    "6", "Benzene", "71-43-2", "VOCs", "Volatiles", "Organics",
+    "discharge_driven", "2.5", "SW-846 8260", "ug/L", "1", "1.97",
+    "0.45", NA, "1.97", NA, NA, "whole_water", "1.56", "TRUE", "Pass"
+  )
+  radionuclide_row <- c(
+    "radionuclide_wide_flat_suspect",
+    "reported_result = 0.8x RL; two_sigma_uncertainty = 0.5x RL",
+    "SITE-01_201301", "SITE-01", "SITE-01", "near_field", "0.5",
+    "39.102370958447146", "-84.50394046692857", "1.5", "1.5", "4.5",
+    "surface_water", "2013-01-15", "2013", "1", "54", "Gross Alpha",
+    "NA-GALPHA", "Radionuclides", "Radionuclides", "Radionuclides",
+    "ubiquitous", "8", "EPA 900.0/903.0", "pCi/L", "0", NA, "0.8",
+    "U", "0.64", "0.4", "two_sigma", NA, NA, NA, NA
+  )
+
+  raw <- rbind(
+    headers,
+    do.call(rbind, rep(list(chemical_row), 50)),
+    do.call(rbind, rep(list(radionuclide_row), 50))
+  ) %>%
+    as.data.frame(stringsAsFactors = FALSE) %>%
+    tibble::as_tibble(.name_repair = ~ paste0("V", seq_along(.x)))
+
+  detection <- detect_data_start(raw, mode = "auto")
+  clean_data <- extract_clean_data(raw, detection)
+
+  expect_equal(detection$header_row, 1)
+  expect_equal(detection$data_start_row, 2)
+  expect_equal(names(clean_data), headers)
+  expect_equal(nrow(clean_data), 100)
+})
