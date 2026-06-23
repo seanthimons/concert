@@ -17,7 +17,7 @@
 #   4. sampling_events.csv   - Long table: site x event x medium x method
 #   5. method_coverage.csv   - Site x year x domain x medium availability
 #   6. detections.csv        - Long tidy detections (with `medium` column)
-#   7. detections_uat_subset.csv - Balanced detect/non-detect UAT subset
+#   7. detections_uat_subset.csv - Short UAT subset with shaped detection cases
 #   8. bioassay.csv          - AhR bioassay (water + sediment porewater)
 #
 # Design decisions:
@@ -721,33 +721,46 @@ make_uat_detection_subset <- function(detections_full, n_per_case = 25) {
       slice_head(n = n_per_case) %>%
       mutate(uat_detection_case = "chemical_non_detect"),
     ordered %>%
-      filter(
-        domain == "Radionuclides",
-        detected == 1,
-        reported_result > reporting_limit,
-        !is.na(uncertainty),
-        uncertainty_coverage == "two_sigma"
-      ) %>%
+      filter(domain == "Radionuclides") %>%
       slice_head(n = n_per_case) %>%
-      mutate(uat_detection_case = "radionuclide_detect"),
+      mutate(
+        detected = 1,
+        concentration = reporting_limit * 4,
+        reported_result = concentration,
+        result_qualifier = "",
+        uncertainty = reporting_limit * 0.25,
+        uncertainty_coverage = "two_sigma",
+        uat_detection_case = "radionuclide_sharp_detect"
+      ),
     ordered %>%
-      filter(
-        domain == "Radionuclides",
-        detected == 0,
-        reported_result <= reporting_limit,
-        !is.na(uncertainty),
-        uncertainty_coverage == "two_sigma"
-      ) %>%
-      slice_head(n = n_per_case) %>%
-      mutate(uat_detection_case = "radionuclide_non_detect")
+      filter(domain == "Radionuclides") %>%
+      slice((n_per_case + 1):(n_per_case * 2)) %>%
+      mutate(
+        detected = 0,
+        concentration = NA_real_,
+        reported_result = reporting_limit * 0.8,
+        result_qualifier = "U",
+        uncertainty = reporting_limit * 0.5,
+        uncertainty_coverage = "two_sigma",
+        uat_detection_case = "radionuclide_wide_flat_suspect"
+      )
   ) %>%
-    select(uat_detection_case, everything())
+    mutate(
+      uat_uncertainty_shape = case_when(
+        uat_detection_case == "radionuclide_sharp_detect" ~
+          "reported_result = 4x RL; two_sigma_uncertainty = 0.25x RL",
+        uat_detection_case == "radionuclide_wide_flat_suspect" ~
+          "reported_result = 0.8x RL; two_sigma_uncertainty = 0.5x RL",
+        TRUE ~ NA_character_
+      )
+    ) %>%
+    select(uat_detection_case, uat_uncertainty_shape, everything())
 
   expected_cases <- c(
     "chemical_detect",
     "chemical_non_detect",
-    "radionuclide_detect",
-    "radionuclide_non_detect"
+    "radionuclide_sharp_detect",
+    "radionuclide_wide_flat_suspect"
   )
   missing_cases <- setdiff(expected_cases, unique(subset$uat_detection_case))
   if (length(missing_cases) > 0) {
