@@ -711,41 +711,57 @@ make_uat_detection_subset <- function(detections_full, n_per_case = 25) {
   ordered <- detections_full %>%
     arrange(sample_date, site_id, medium, analyte)
 
+  chemical_detects <- ordered %>%
+    filter(domain %in% chemical_uat_domains, detected == 1, reported_result > reporting_limit) %>%
+    slice_head(n = n_per_case) %>%
+    mutate(uat_detection_case = "chemical_detect")
+
+  chemical_non_detects <- ordered %>%
+    filter(domain %in% chemical_uat_domains, detected == 0, reported_result <= reporting_limit) %>%
+    slice_head(n = n_per_case) %>%
+    mutate(uat_detection_case = "chemical_non_detect")
+
+  radionuclide_sharp_detects <- ordered %>%
+    filter(domain == "Radionuclides") %>%
+    slice_head(n = n_per_case) %>%
+    mutate(
+      detected = 1,
+      concentration = reporting_limit * 4,
+      reported_result = concentration,
+      result_qualifier = "",
+      uncertainty = reporting_limit * 0.25,
+      uncertainty_coverage = "two_sigma",
+      uat_detection_case = "radionuclide_sharp_detect"
+    )
+
+  radionuclide_wide_flat_suspects <- ordered %>%
+    filter(domain == "Radionuclides") %>%
+    slice((n_per_case + 1):(n_per_case * 2)) %>%
+    mutate(
+      detected = 0,
+      concentration = NA_real_,
+      reported_result = reporting_limit * 0.8,
+      result_qualifier = "U",
+      uncertainty = reporting_limit * 0.5,
+      uncertainty_coverage = "two_sigma",
+      uat_detection_case = "radionuclide_wide_flat_suspect"
+    )
+
   subset <- bind_rows(
-    ordered %>%
-      filter(domain %in% chemical_uat_domains, detected == 1, reported_result > reporting_limit) %>%
-      slice_head(n = n_per_case) %>%
-      mutate(uat_detection_case = "chemical_detect"),
-    ordered %>%
-      filter(domain %in% chemical_uat_domains, detected == 0, reported_result <= reporting_limit) %>%
-      slice_head(n = n_per_case) %>%
-      mutate(uat_detection_case = "chemical_non_detect"),
-    ordered %>%
-      filter(domain == "Radionuclides") %>%
-      slice_head(n = n_per_case) %>%
-      mutate(
-        detected = 1,
-        concentration = reporting_limit * 4,
-        reported_result = concentration,
-        result_qualifier = "",
-        uncertainty = reporting_limit * 0.25,
-        uncertainty_coverage = "two_sigma",
-        uat_detection_case = "radionuclide_sharp_detect"
-      ),
-    ordered %>%
-      filter(domain == "Radionuclides") %>%
-      slice((n_per_case + 1):(n_per_case * 2)) %>%
-      mutate(
-        detected = 0,
-        concentration = NA_real_,
-        reported_result = reporting_limit * 0.8,
-        result_qualifier = "U",
-        uncertainty = reporting_limit * 0.5,
-        uncertainty_coverage = "two_sigma",
-        uat_detection_case = "radionuclide_wide_flat_suspect"
-      )
+    chemical_detects,
+    chemical_non_detects,
+    radionuclide_sharp_detects,
+    radionuclide_wide_flat_suspects
   ) %>%
     mutate(
+      uat_case_order = case_when(
+        uat_detection_case == "chemical_detect" ~ 1L,
+        uat_detection_case == "chemical_non_detect" ~ 2L,
+        uat_detection_case == "radionuclide_sharp_detect" ~ 3L,
+        uat_detection_case == "radionuclide_wide_flat_suspect" ~ 4L
+      ),
+      uat_case_index = dplyr::row_number(),
+      uat_case_index = ((uat_case_index - 1L) %% n_per_case) + 1L,
       uat_uncertainty_shape = case_when(
         uat_detection_case == "radionuclide_sharp_detect" ~
           "reported_result = 4x RL; two_sigma_uncertainty = 0.25x RL",
@@ -754,6 +770,8 @@ make_uat_detection_subset <- function(detections_full, n_per_case = 25) {
         TRUE ~ NA_character_
       )
     ) %>%
+    arrange(uat_case_index, uat_case_order) %>%
+    select(-uat_case_index, -uat_case_order) %>%
     select(uat_detection_case, uat_uncertainty_shape, everything())
 
   expected_cases <- c(
