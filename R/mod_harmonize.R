@@ -1253,6 +1253,8 @@ mod_harmonize_server <- function(id, data_store) {
             tibble::tibble(
               term = character(),
               canonical = character(),
+              category = character(),
+              path = character(),
               source = character(),
               mode = character(),
               rows = integer(),
@@ -1280,6 +1282,8 @@ mod_harmonize_server <- function(id, data_store) {
             is_unmatched ~ "(unmatched)",
             TRUE ~ tbl$canonical
           ),
+          category = tbl$media_category,
+          path = tbl$ontology_path,
           source = dplyr::case_when(
             tbl$source == "user" ~ '<span class="badge bg-primary">user</span>',
             tbl$source == "concert" ~ '<span class="badge bg-success">concert</span>',

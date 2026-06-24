@@ -113,3 +113,28 @@ test_that("build_media_editor_rows includes pending aliases with no upload resul
   expect_equal(runoff$hit_count, 0L)
   expect_equal(runoff$unmatched_count, 0L)
 })
+
+test_that("build_media_editor_rows sorts bundled media by ontology path", {
+  media_map <- tibble::tibble(
+    term = c("soil", "water", "air"),
+    canonical = c("soil", "water", "air"),
+    canonical_term = c("soil", "water", "air"),
+    envo_id = c("ENVO:00001998", "ENVO:00002006", "ENVO:00002005"),
+    media_category = c("solid", "aqueous", "air"),
+    ontology_node_id = c("media.solid.soil", "media.liquid.aqueous.water", "media.gas.air"),
+    ontology_path = c(
+      "media > solid > soil",
+      "media > liquid > aqueous > water",
+      "media > gas > air"
+    ),
+    physical_state = c("solid", "liquid", "gas"),
+    source = "concert",
+    assertion_mode = "auto",
+    confidence = "high",
+    active = TRUE
+  )
+
+  rows <- concert:::build_media_editor_rows(media_map, NULL)
+
+  expect_equal(rows$term, c("air", "water", "soil"))
+})
