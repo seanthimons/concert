@@ -198,13 +198,47 @@ mod_harmonize_server <- function(id, data_store) {
 
     # --- Pipeline execution ---------------------------------------------------
 
-    observeEvent(input$run_harmonization, {
-      req(data_store$clean)
-      # Read step mask from pre-flight modal (set by mod_clean_data.R run_all/run_checked)
-      h_mask <- data_store$harmonize_step_mask
-      if (is.null(h_mask)) {
-        h_mask <- list(units = TRUE, duration = TRUE, dates = TRUE, media = TRUE)
+    default_harmonize_step_mask <- function() {
+      list(units = TRUE, duration = TRUE, dates = TRUE, media = TRUE)
+    }
+
+    normalize_harmonize_step_mask <- function(mask = NULL) {
+      default_mask <- default_harmonize_step_mask()
+      if (is.null(mask)) {
+        return(default_mask)
       }
+
+      stats::setNames(
+        lapply(names(default_mask), function(name) isTRUE(mask[[name]])),
+        names(default_mask)
+      )
+    }
+
+    current_numeric_tag_values <- function() {
+      if (is.null(data_store$numeric_tags)) {
+        return(character(0))
+      }
+      unlist(data_store$numeric_tags, use.names = TRUE)
+    }
+
+    current_study_tag_values <- function() {
+      if (is.null(data_store$study_type_tags)) {
+        return(character(0))
+      }
+      unlist(data_store$study_type_tags, use.names = TRUE)
+    }
+
+    has_unit_tag <- function() {
+      any(current_numeric_tag_values() == "Unit", na.rm = TRUE)
+    }
+
+    has_media_tag <- function() {
+      any(current_study_tag_values() == "Media", na.rm = TRUE)
+    }
+
+    run_harmonization_pipeline <- function(mask = NULL) {
+      req(data_store$clean)
+      h_mask <- normalize_harmonize_step_mask(mask)
 
       # Allow run when either numeric or study-type tags are present
       has_numeric <- !is.null(data_store$numeric_tags) && length(data_store$numeric_tags) > 0
@@ -597,7 +631,17 @@ mod_harmonize_server <- function(id, data_store) {
           shinyjs::enable("run_harmonization")
         }
       )
+    }
+
+    observeEvent(input$run_harmonization, {
+      run_harmonization_pipeline()
     })
+
+    observeEvent(data_store$harmonize_run_nonce, {
+      h_mask <- data_store$harmonize_step_mask
+      data_store$harmonize_step_mask <- NULL
+      run_harmonization_pipeline(h_mask)
+    }, ignoreInit = TRUE)
 
     # --- QC dashboard (UITG-05, D-17..D-20) -----------------------------------
 
@@ -738,7 +782,7 @@ mod_harmonize_server <- function(id, data_store) {
 
     # Wire rerun_now link to trigger harmonization (Task 4)
     observeEvent(input$rerun_now, {
-      shinyjs::click("run_harmonization")
+      run_harmonization_pipeline()
     })
 
     # --- Editors panel (Plan 02) ----------------------------------------------
@@ -823,7 +867,7 @@ mod_harmonize_server <- function(id, data_store) {
     })
 
     output$unmatched_title <- renderUI({
-      if (is.null(data_store$harmonize_results)) {
+      if (!has_unit_tag() || is.null(data_store$harmonize_results)) {
         return("Unmatched Units")
       }
       harmonized <- data_store$harmonize_results$harmonized
@@ -837,7 +881,13 @@ mod_harmonize_server <- function(id, data_store) {
       editor_rows <- build_media_editor_rows(data_store$media_map_working, data_store$media_results)
       n_unmatched <- sum(editor_rows$unmatched_count > 0L, na.rm = TRUE)
 
-      if (n_unmatched > 0) {
+      if (has_media_tag() && is.null(data_store$media_results)) {
+        div(
+          class = "alert alert-info py-2 mb-2",
+          bsicons::bs_icon("info-circle", class = "me-1"),
+          "A Media column is tagged, but uploaded row counts are unavailable until media harmonization runs."
+        )
+      } else if (n_unmatched > 0) {
         div(
           class = "alert alert-info py-2 mb-2",
           bsicons::bs_icon("info-circle", class = "me-1"),
@@ -1517,7 +1567,7 @@ mod_harmonize_server <- function(id, data_store) {
     }
 
     observeEvent(input$media_rerun_now, {
-      shinyjs::click("run_harmonization")
+      run_harmonization_pipeline()
     })
 
     # --- Unmatched units batch panel (UNIT-06, D-12..D-16) --------------------
@@ -1530,10 +1580,17 @@ mod_harmonize_server <- function(id, data_store) {
     output$unmatched_panel <- renderUI({
       ns <- session$ns
 
+      if (!has_unit_tag()) {
+        return(p(
+          class = "text-muted small",
+          "Tag a Unit column and run harmonization to review unmatched units."
+        ))
+      }
+
       if (is.null(data_store$harmonize_results)) {
         return(p(
           class = "text-muted small",
-          "Run the pipeline to see unmatched units."
+          "Run harmonization to see unmatched units."
         ))
       }
 

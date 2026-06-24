@@ -720,7 +720,11 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
                 dates = mask$dates,
                 media = mask$media
               )
-              shinyjs::click("run_harmonization")
+              current_nonce <- data_store$harmonize_run_nonce
+              if (is.null(current_nonce)) {
+                current_nonce <- 0L
+              }
+              data_store$harmonize_run_nonce <- current_nonce + 1L
             }
           })
         },

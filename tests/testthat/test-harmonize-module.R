@@ -255,3 +255,143 @@ test_that("incremental merge only changes mutable columns for affected rows", {
   expect_equal(new_harmonize$harmonized_value[2], 0.005)
   expect_equal(new_harmonize$unit_flag[2], "converted")
 })
+
+# --- Shiny harmonization dispatch regression tests ---
+
+make_dispatch_unit_map <- function() {
+  tibble::tibble(
+    from_unit = c("mg/L", "ug/L"),
+    to_unit = c("mg/L", "mg/L"),
+    multiplier = c(1, 0.001),
+    category = c("concentration", "concentration"),
+    confidence = c("HIGH", "HIGH"),
+    source = c("test", "test")
+  )
+}
+
+make_dispatch_media_map <- function() {
+  tibble::tibble(
+    term = c("surface water", "tissue"),
+    canonical = c("surface water", "tissue"),
+    canonical_term = c("surface water", "tissue"),
+    envo_id = c("ENVO:00002042", "ENVO:01001434"),
+    parent = NA_character_,
+    media_category = c("aqueous", "solid"),
+    source = "concert",
+    assertion_mode = "auto",
+    confidence = "high",
+    active = TRUE
+  )
+}
+
+make_dispatch_store <- function() {
+  input_df <- tibble::tibble(
+    chemical_name = c("A", "B", "C"),
+    casrn = c("111-11-1", "222-22-2", "333-33-3"),
+    result = c("1", "2", "3"),
+    unit = c("ug/L", "mg/L", "ug/L"),
+    media = c("surface_water", "surface_water", "fish_tissue"),
+    consensus_dtxsid = c("DTXSID0000001", "DTXSID0000002", "DTXSID0000003")
+  )
+  unit_map <- make_dispatch_unit_map()
+  media_map <- make_dispatch_media_map()
+  corrections <- tibble::tibble(pattern = character(), replacement = character())
+
+  shiny::reactiveValues(
+    clean = input_df,
+    cleaned_data = input_df,
+    file_info = list(name = "dispatch.csv"),
+    numeric_tags = list(result = "Result", unit = "Unit"),
+    study_type_tags = list(media = "Media"),
+    reference_lists = list(
+      unit_map = unit_map,
+      corrections = corrections,
+      media_map = media_map
+    ),
+    unit_map_working = unit_map,
+    corrections_working = corrections,
+    media_map_working = media_map,
+    resolution_state = input_df,
+    harmonize_results = NULL,
+    harmonize_audit = NULL,
+    media_results = NULL,
+    duration_results = NULL,
+    date_results = NULL,
+    detection_results = NULL,
+    toxval_output = NULL,
+    harmonize_results_stale = FALSE,
+    changed_units = character(0),
+    harmonize_step_mask = NULL,
+    harmonize_run_nonce = 0L
+  )
+}
+
+rendered_ui_text <- function(ui) {
+  paste(htmltools::renderTags(ui)$html, collapse = "\n")
+}
+
+test_that("harmonize_run_nonce dispatch populates media results and canonical row counts", {
+  data_store <- make_dispatch_store()
+
+  shiny::testServer(mod_harmonize_server, args = list(data_store = data_store), {
+    session$flushReact()
+
+    data_store$harmonize_step_mask <- list(units = FALSE, duration = FALSE, dates = FALSE, media = TRUE)
+    data_store$harmonize_run_nonce <- data_store$harmonize_run_nonce + 1L
+    session$flushReact()
+
+    expect_false(is.null(data_store$media_results))
+    expect_equal(data_store$media_results$canonical_media[1:2], c("surface water", "surface water"))
+
+    rows <- concert:::build_media_editor_rows(data_store$media_map_working, data_store$media_results)
+    surface <- rows[rows$term == "surface water", ]
+    expect_equal(nrow(surface), 1L)
+    expect_equal(surface$hit_count, 2L)
+    expect_null(data_store$harmonize_step_mask)
+  })
+})
+
+test_that("harmonize_run_nonce dispatch populates unit results and leaves pre-run panel state", {
+  data_store <- make_dispatch_store()
+
+  shiny::testServer(mod_harmonize_server, args = list(data_store = data_store), {
+    session$flushReact()
+
+    before <- rendered_ui_text(output$unmatched_panel)
+    expect_match(before, "Run harmonization to see unmatched units", fixed = TRUE)
+
+    data_store$harmonize_step_mask <- list(units = TRUE, duration = FALSE, dates = FALSE, media = FALSE)
+    data_store$harmonize_run_nonce <- data_store$harmonize_run_nonce + 1L
+    session$flushReact()
+
+    expect_false(is.null(data_store$harmonize_results))
+    expect_equal(data_store$harmonize_results$harmonized$harmonized_unit, rep("mg/L", 3))
+
+    after <- rendered_ui_text(output$unmatched_panel)
+    expect_false(grepl("Run harmonization to see unmatched units", after, fixed = TRUE))
+    expect_match(after, "All units matched successfully", fixed = TRUE)
+    expect_null(data_store$harmonize_step_mask)
+  })
+})
+
+test_that("manual harmonization run defaults all steps after masked request clears stale mask", {
+  data_store <- make_dispatch_store()
+
+  shiny::testServer(mod_harmonize_server, args = list(data_store = data_store), {
+    session$flushReact()
+
+    data_store$harmonize_step_mask <- list(units = TRUE, duration = FALSE, dates = FALSE, media = FALSE)
+    data_store$harmonize_run_nonce <- data_store$harmonize_run_nonce + 1L
+    session$flushReact()
+
+    expect_false(is.null(data_store$harmonize_results))
+    expect_null(data_store$media_results)
+    expect_null(data_store$harmonize_step_mask)
+
+    session$setInputs(run_harmonization = 1)
+    session$flushReact()
+
+    expect_false(is.null(data_store$media_results))
+    expect_equal(data_store$media_results$canonical_media[1], "surface water")
+  })
+})
