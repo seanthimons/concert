@@ -2,14 +2,14 @@ library(tidyverse)
 library(ComptoxR)
 
 uncurated_chemicals <- read_csv(
-  "uncurated_chemicals_2023-05-16_12-43-41.csv", 
+  here::here("data", "uat", "uncurated_chemicals_2023-05-16_12-43-41.csv"),
 	col_types = 'ccc'
 ) %>%
   distinct(raw_cas, raw_chem_name) %>%
   mutate(idx = 1:n(), .before = raw_cas)
 
 validation <- rio::import(
-  'cleaned_chemicals_for_curation-Jul-03-2023.xlsx'
+  here::here("data", "uat", "cleaned_chemicals_for_curation-Jul-03-2023.xlsx")
 )
 
 pre_cleaned <- uncurated_chemicals %>%

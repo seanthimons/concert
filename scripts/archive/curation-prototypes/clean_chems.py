@@ -4,6 +4,9 @@ import re
 import datetime
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+UAT_DIR = PROJECT_ROOT / "data" / "uat"
+
 def casrn_split(x):
     """
     Take a text string and extract all occurrences of a CASRN number. This 
@@ -764,7 +767,7 @@ def casrn_finder(df,cas_col='casrn',name_col='chemical_name',comment='name_comme
 
 
 # Load file
-ifile = newest_file(globber="uncurated_chemicals*.csv")
+ifile = newest_file(globber="uncurated_chemicals*.csv", path=UAT_DIR)
 data = pd.read_csv(ifile)
 data['chemical_name'] = data['raw_chem_name'].copy().astype(pd.StringDtype())
 data['casrn'] = data.raw_cas.copy().astype(pd.StringDtype())
@@ -832,7 +835,7 @@ data = data[~all_null].copy()
 data = data[~data.chemical_name.str.contains("cyanidef",na=False)].copy()
 
 
-data.to_excel(date_file("cleaned_chemicals_for_curation","xlsx"),index=False)
+data.to_excel(UAT_DIR / date_file("cleaned_chemicals_for_curation","xlsx"),index=False)
 
 
 

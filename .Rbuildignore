@@ -19,4 +19,7 @@
 ^comptoxr_sitrep.*$
 ^PRE_POST_CURATION_PLAN\.md$
 ^R_PACKAGE_MIGRATION\.md$
+^docs/PRE_POST_CURATION_PLAN\.md$
+^docs/R_PACKAGE_MIGRATION\.md$
+^inst/extdata/reference_sources/wqx($|/)
 ^CLAUDE\.md$

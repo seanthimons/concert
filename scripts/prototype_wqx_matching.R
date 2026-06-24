@@ -4,7 +4,7 @@
 #
 # Prerequisites:
 #   1. inst/extdata/reference_cache/wqx_dictionary.rds (built by Phase 43)
-#   2. detections_uat_sample_50.csv in repo root
+#   2. data/benchmark/detections_uat_subset.csv
 #
 # Usage: Rscript scripts/prototype_wqx_matching.R
 #
@@ -28,9 +28,10 @@ stopifnot(
   "wqx_dictionary.rds not found -- run scripts/build_wqx_dictionary.R first" = file.exists(cache_path)
 )
 
-train_path <- file.path(CONCERT_ROOT, "detections_uat_sample_50.csv")
+train_path <- file.path(CONCERT_ROOT, "data", "benchmark", "detections_uat_subset.csv")
 stopifnot(
-  "detections_uat_sample_50.csv not found in repo root" = file.exists(train_path)
+  "data/benchmark/detections_uat_subset.csv not found -- run scripts/generate_synthetic_watershed_data_multimedia.R first" =
+    file.exists(train_path)
 )
 
 # ============================================================================

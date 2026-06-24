@@ -372,9 +372,9 @@ known_encodings <- function() {
   unis <- c(
     "\u2032" = "'",
     "\u03c9" = ".omega.",
-    "\xae" = " (registered trademark)",
+    "\u00ae" = " (registered trademark)",
     "\u2013" = "--",
-    "\xb0" = " degrees ",
+    "\u00b0" = " degrees ",
     "\u2019" = "'",
     "\u2026" = "...",
     "\u03b1" = ".alpha."
@@ -619,7 +619,8 @@ split_casrns <- function(df, col = 'casrn', comment = 'casrn_comment') {
 # Set working directory if needed, e.g., setwd("path/to/your/data")
 
 # Find the latest uncurated file
-ifile <- newest_file(globber = "uncurated_chemicals.*\\.csv")
+uat_dir <- here::here("data", "uat")
+ifile <- newest_file(globber = "uncurated_chemicals.*\\.csv", path = uat_dir)
 message(paste("Processing file:", ifile))
 
 # Load data and prepare initial columns
@@ -773,7 +774,7 @@ cleaned_data <- data_raw %>%
   filter(!str_detect(chemical_name, "cyanidef") | is.na(chemical_name))
 
 # --- Save Output ---
-output_file <- date_file("cleaned_chemicals_for_curation", "xlsx")
+output_file <- file.path(uat_dir, date_file("cleaned_chemicals_for_curation", "xlsx"))
 write_xlsx(cleaned_data, path = output_file)
 
 message(paste("Processing complete. Cleaned data saved to:", output_file))

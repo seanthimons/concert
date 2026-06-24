@@ -5,7 +5,7 @@ _R version: 4.5.1 | bench version: 1.1.4_
 
 ## Dataset
 
-- **File:** `detections.csv`
+- **File:** `data/benchmark/detections.csv`
 - **Total rows:** 127,992
 - **Columns:** 19
 

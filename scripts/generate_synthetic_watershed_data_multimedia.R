@@ -10,15 +10,9 @@
 #   - groundwater    (ug/L, ng/L; co-located monitoring wells)
 #   - air            (ng/m^3 via passive samplers; gas-phase only)
 #
-# Outputs:
-#   1. sites.csv             - Site metadata
-#   2. chemicals.csv         - Chemical portfolio (water-phase reference)
-#   3. media_applicability.csv - Which analytes are reported in which media
-#   4. sampling_events.csv   - Long table: site x event x medium x method
-#   5. method_coverage.csv   - Site x year x domain x medium availability
-#   6. detections.csv        - Long tidy detections (with `medium` column)
-#   7. detections_uat_subset.csv - Short UAT subset with shaped detection cases
-#   8. bioassay.csv          - AhR bioassay (water + sediment porewater)
+# Outputs under data/benchmark/:
+#   1. detections.csv            - Long tidy detections with a `medium` column
+#   2. detections_uat_subset.csv - Short UAT subset with shaped detection cases
 #
 # Design decisions:
 #   - Co-location: water/sediment/fish share site_id; wells & passive samplers

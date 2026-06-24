@@ -492,7 +492,7 @@ The pre-curation pipeline should integrate into the existing Shiny app flow:
 
 ---
 
-## 10. Real Data Analysis â€” `uncurated_chemicals_2023-05-16_12-43-41.csv`
+## 10. Real Data Analysis â€” `data/uat/uncurated_chemicals_2023-05-16_12-43-41.csv`
 
 12,144 rows, 4 columns: `id`, `raw_cas`, `raw_chem_name`, `datagroup_id`.
 
