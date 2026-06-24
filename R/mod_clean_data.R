@@ -428,221 +428,27 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
           withProgress(message = "Running pipeline...", value = 0, {
             df <- data_store$clean
             tag_map <- data_store$column_tags
-            all_audits <- list()
 
-            incProgress(0.04, detail = "Adding row lineage...")
-            df <- inject_row_lineage(df)
+            incProgress(0.2, detail = "Running selected cleaning steps...")
+            cleaning_mask <- mask
+            cleaning_mask$truncated <- isTRUE(mask$names)
+            cleaning_mask$bare_formula <- isTRUE(mask$names)
+            cleaning_mask$reference_flags <- isTRUE(mask$names)
 
-            # Unicode to ASCII
-            if (mask$unicode) {
-              incProgress(0.08, detail = "Converting unicode to ASCII...")
-              df_before <- df
-              df <- dplyr::mutate(df, dplyr::across(where(is.character), ComptoxR::clean_unicode))
-              all_audits[[length(all_audits) + 1]] <- build_audit_trail(df_before, df, "unicode_to_ascii", function(f) {
-                paste0("Unicode to ASCII in ", f)
-              })
-            } else {
-              incProgress(0.08)
-            }
+            pipeline_result <- run_cleaning_pipeline_masked(
+              df = df,
+              tag_map = tag_map,
+              reference_lists = reference_lists_for_run,
+              mask = cleaning_mask,
+              use_dedup = TRUE,
+              respect_prechecks = FALSE
+            )
 
-            # Trim whitespace
-            if (mask$whitespace) {
-              incProgress(0.08, detail = "Trimming whitespace...")
-              df_before <- df
-              df <- dplyr::mutate(df, dplyr::across(where(is.character), clean_text_field))
-              all_audits[[length(all_audits) + 1]] <- build_audit_trail(
-                df_before,
-                df,
-                "trim_whitespace_punctuation",
-                function(f) paste0("Trim in ", f)
-              )
-            } else {
-              incProgress(0.08)
-            }
+            df <- pipeline_result$cleaned_data
+            audit_combined <- pipeline_result$audit_trail
+            new_tags <- pipeline_result$new_tags
 
-            new_tags <- list()
-            if (!is.null(tag_map) && length(tag_map) > 0) {
-              # Normalize CAS
-              if (mask$cas) {
-                incProgress(0.12, detail = "Normalizing CAS-RNs...")
-                cas_result <- normalize_cas_fields(df, tag_map)
-                df <- cas_result$cleaned_data
-                all_audits[[length(all_audits) + 1]] <- cas_result$audit_trail
-                new_tags <- c(new_tags, cas_result$new_tags %||% list())
-              } else {
-                incProgress(0.12)
-              }
-
-              incProgress(0.12, detail = "Rescuing CAS from names...")
-              tag_map_after_cas <- c(tag_map, new_tags)
-              rescue_result <- rescue_cas_from_text(df, tag_map_after_cas)
-              df <- rescue_result$cleaned_data
-              all_audits[[length(all_audits) + 1]] <- rescue_result$audit_trail
-              new_tags <- c(new_tags, rescue_result$new_tags)
-
-              incProgress(0.08, detail = "Detecting multi-CAS rows...")
-              updated_tag_map <- c(tag_map, new_tags)
-              df <- detect_multi_cas(df, updated_tag_map)
-
-              # Name cleaning steps
-              name_cols <- names(tag_map)[tag_map == "Name"]
-
-              if (length(name_cols) > 0 && mask$names) {
-                incProgress(0.04, detail = "Protecting chiral designations...")
-                chiral_result <- protect_chiral_designations(df, name_cols)
-                df <- chiral_result$cleaned_data
-                all_audits[[length(all_audits) + 1]] <- chiral_result$audit_trail
-
-                incProgress(0.06, detail = "Stripping parentheticals...")
-                enclosure_result <- strip_terminal_enclosures(df, name_cols)
-                df <- enclosure_result$cleaned_data
-                all_audits[[length(all_audits) + 1]] <- enclosure_result$audit_trail
-                if (length(enclosure_result$new_tags) > 0) {
-                  new_tags <- c(new_tags, enclosure_result$new_tags)
-                  updated_tag_map <- c(updated_tag_map, enclosure_result$new_tags)
-                }
-
-                incProgress(0.04, detail = "Removing quality adjectives...")
-                quality_result <- strip_quality_adjectives(df, name_cols)
-                df <- quality_result$cleaned_data
-                all_audits[[length(all_audits) + 1]] <- quality_result$audit_trail
-
-                incProgress(0.04, detail = "Removing salt references...")
-                salt_result <- strip_salt_references(df, name_cols)
-                df <- salt_result$cleaned_data
-                all_audits[[length(all_audits) + 1]] <- salt_result$audit_trail
-
-                incProgress(0.04, detail = "Removing unspecified suffixes...")
-                unspec_result <- strip_terminal_unspecified(df, name_cols)
-                df <- unspec_result$cleaned_data
-                all_audits[[length(all_audits) + 1]] <- unspec_result$audit_trail
-
-                incProgress(0.04, detail = "Stripping user-defined terms...")
-                if (!is.null(reference_lists_for_run$strip_terms)) {
-                  strip_terms_result <- strip_reference_terms(df, name_cols, reference_lists_for_run$strip_terms)
-                  df <- strip_terms_result$cleaned_data
-                  all_audits[[length(all_audits) + 1]] <- strip_terms_result$audit_trail
-                }
-
-                # Cleanup before second enclosure stripping
-                df <- df %>%
-                  dplyr::mutate(dplyr::across(
-                    dplyr::all_of(name_cols),
-                    ~ {
-                      .x %>%
-                        stringr::str_squish() %>%
-                        stringr::str_remove("\\(\\s*\\)\\s*$") %>%
-                        stringr::str_trim() %>%
-                        stringr::str_remove("[,;-]+$") %>%
-                        stringr::str_trim()
-                    }
-                  ))
-
-                # Second pass enclosure stripping
-                enclosure_result2 <- strip_terminal_enclosures(df, name_cols)
-                df <- enclosure_result2$cleaned_data
-                all_audits[[length(all_audits) + 1]] <- enclosure_result2$audit_trail
-
-                incProgress(0.06, detail = "Splitting synonyms...")
-                synonym_result <- split_synonyms(df, name_cols, updated_tag_map)
-                df <- synonym_result$cleaned_data
-                all_audits[[length(all_audits) + 1]] <- synonym_result$audit_trail
-
-                # Final cleanup
-                df <- df %>%
-                  dplyr::mutate(dplyr::across(
-                    dplyr::all_of(name_cols),
-                    ~ {
-                      .x %>%
-                        stringr::str_squish() %>%
-                        stringr::str_remove_all("\\(\\s*\\)") %>%
-                        stringr::str_trim()
-                    }
-                  ))
-
-                # Remove rows where all name columns are empty or NA
-                name_check <- df[, name_cols, drop = FALSE]
-                all_empty <- apply(name_check, 1, function(row) {
-                  all(is.na(row) | row == "")
-                })
-                df <- df[!all_empty, ]
-              } else if (length(name_cols) > 0) {
-                incProgress(0.42)
-              }
-
-              # Isotope shortcodes
-              if (length(name_cols) > 0 && mask$isotopes) {
-                incProgress(0.04, detail = "Expanding isotope shortcodes...")
-                isotope_result <- expand_isotope_shortcodes(df, name_cols, reference_lists_for_run$isotope_lookup)
-                df <- isotope_result$cleaned_data
-                all_audits[[length(all_audits) + 1]] <- isotope_result$audit_trail
-              } else {
-                incProgress(0.04)
-              }
-
-              # Multi-analyte flagging
-              if (length(name_cols) > 0 && mask$multi) {
-                incProgress(0.04, detail = "Flagging multi-analyte expressions...")
-                multi_result <- flag_multi_analyte(df, name_cols)
-                df <- multi_result$cleaned_data
-                all_audits[[length(all_audits) + 1]] <- multi_result$audit_trail
-              } else {
-                incProgress(0.04)
-              }
-
-              # Chiral restoration
-              if (length(name_cols) > 0 && mask$chiral) {
-                incProgress(0.02, detail = "Restoring chiral designations...")
-                chiral_restore_result <- restore_chiral_designations(df, name_cols)
-                df <- chiral_restore_result$cleaned_data
-                all_audits[[length(all_audits) + 1]] <- chiral_restore_result$audit_trail
-              } else {
-                incProgress(0.02)
-              }
-
-              if (length(name_cols) > 0 && mask$names) {
-                # Truncated compound detection (after all name cleaning)
-                incProgress(0.05, detail = "Detecting truncated compound names...")
-                truncated_result <- detect_truncated_compound_names(df, name_cols)
-                df <- truncated_result$cleaned_data
-                all_audits[[length(all_audits) + 1]] <- truncated_result$audit_trail
-
-                # Bare formula detection (after all name cleaning)
-                incProgress(0.05, detail = "Detecting bare formulas...")
-                formula_result <- detect_bare_formulas(df, name_cols)
-                df <- formula_result$cleaned_data
-                all_audits[[length(all_audits) + 1]] <- formula_result$audit_trail
-
-                # Reference list flagging
-                if (!is.null(reference_lists_for_run)) {
-                  incProgress(0.05, detail = "Flagging reference list matches...")
-
-                  func_cats <- reference_lists_for_run$functional_categories
-                  if (nrow(func_cats) > 0) {
-                    func_result <- flag_reference_matches(df, name_cols, func_cats, "warning", "functional category")
-                    df <- func_result$cleaned_data
-                    all_audits[[length(all_audits) + 1]] <- func_result$audit_trail
-                  }
-
-                  stop_words <- reference_lists_for_run$stop_words
-                  if (nrow(stop_words) > 0) {
-                    stop_result <- flag_reference_matches(df, name_cols, stop_words, "warning", "stop word")
-                    df <- stop_result$cleaned_data
-                    all_audits[[length(all_audits) + 1]] <- stop_result$audit_trail
-                  }
-
-                  block_pats <- reference_lists_for_run$block_patterns
-                  if (nrow(block_pats) > 0) {
-                    block_result <- flag_reference_matches(df, name_cols, block_pats, "blocking", "block pattern")
-                    df <- block_result$cleaned_data
-                    all_audits[[length(all_audits) + 1]] <- block_result$audit_trail
-                  }
-                }
-              }
-            }
-
-            incProgress(0.04, detail = "Finalizing cleaning...")
-            audit_combined <- dplyr::bind_rows(all_audits)
+            incProgress(0.8, detail = "Finalizing cleaning...")
             data_store$cleaned_data <- df
             data_store$cleaning_audit <- audit_combined
             if (length(new_tags) > 0) {
