@@ -165,7 +165,7 @@ apply_synonyms <- function(unit_strings, synonyms) {
 #' @keywords internal
 is_molarity_unit <- function(unit) {
   # Case-sensitive check for standalone M (Molar) vs m (minutes/ambiguous).
-  # !is.na() guard prevents NA propagation when unit contains NA strings —
+  # !is.na() guard prevents NA propagation when unit contains NA strings -
   # NA input should be FALSE (not molarity), consistent with %in% behavior.
   standalone_M <- !is.na(unit) & unit == "M"
   # Case-insensitive check for all other molarity units (%in% is already NA-safe)
@@ -626,7 +626,7 @@ harmonize_units <- function(
     # ---- Handle ppb/ppm rows (vectorized) ----
 
     if (any(ppx_mask)) {
-      # Pre-compute indices ONCE to avoid O(k²) which() calls (Codex fix)
+      # Pre-compute indices ONCE to avoid O(k^2) which() calls (Codex fix)
       ppx_idx <- which(ppx_mask)
       ppx_units <- normalized[ppx_idx]
       ppx_media <- media_vec[ppx_idx]

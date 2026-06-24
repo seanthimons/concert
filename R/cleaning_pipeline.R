@@ -175,7 +175,7 @@ remap_audit_to_parent <- function(audit_slice, parent_map) {
 #' @param ... Additional arguments passed to \code{step_fn} (e.g., \code{tag_map}).
 #' @param dedup_cols Character vector of column names to dedup on. The composite
 #'   key is constructed by pasting these column values together.
-#' @param uniqueness_threshold Numeric in [0,1]. If n_distinct/n_total exceeds
+#' @param uniqueness_threshold Numeric in `[0, 1]`. If n_distinct/n_total exceeds
 #'   this value, skip dedup and call the step directly. Default: 0.5.
 #' @return List with \code{cleaned_data} (same row count as \code{df}) and
 #'   \code{audit_trail} (row IDs valid for \code{df}). Identical shape to calling
@@ -227,7 +227,7 @@ dedup_step <- function(step_fn, df, ..., dedup_cols, uniqueness_threshold = 0.5)
 
   # Row-expanding step guard: if the step changed the row count (e.g.,
 
-  # expand_isotope_shortcodes), dedup can't safely broadcast back — fall through
+  # expand_isotope_shortcodes), dedup can't safely broadcast back - fall through
   # to running the step on the full dataframe instead.
   if (nrow(result$cleaned_data) != nrow(df_unique)) {
     return(step_fn(df, ...))
@@ -754,7 +754,7 @@ normalize_cas_fields <- function(df, tag_map) {
 #' Rescue CAS-RNs from non-CASRN text columns
 #'
 #' Uses ComptoxR::extract_cas() to find CAS-RNs embedded in Name/Other columns.
-#' Extracted CAS values are placed in new cas_extract_{source} columns.
+#' Extracted CAS values are placed in new `cas_extract_{source}` columns.
 #' Source text is stripped of the CAS pattern.
 #'
 #' @param df Dataframe with tagged columns
@@ -894,9 +894,9 @@ detect_multi_cas <- function(df, tag_map) {
 
 #' Strip terminal enclosures (parentheticals and brackets) from name fields
 #'
-#' Removes terminal (...) and [...] from Name-tagged columns, with protection
+#' Removes terminal `(...)` and `[...]` from Name-tagged columns, with protection
 #' for chemical names containing "yl" (except exception words).
-#' Preserves stripped content in formula_extract_{source} columns.
+#' Preserves stripped content in `formula_extract_{source}` columns.
 #'
 #' @param df Dataframe with name columns
 #' @param name_cols Character vector of Name-tagged column names
@@ -910,7 +910,7 @@ strip_terminal_enclosures <- function(df, name_cols) {
   # Initialize result
   df_result <- df
 
-  # Pre-allocate audit vectors (avoid list-growth O(n²))
+  # Pre-allocate audit vectors (avoid list-growth O(n^2))
   audit_row_ids <- integer()
   audit_fields <- character()
   audit_originals <- character()
@@ -1167,7 +1167,7 @@ strip_quality_adjectives <- function(df, name_cols) {
 
 #' Strip salt references from name fields
 #'
-#' Removes "and its [adjective] salts" patterns from Name-tagged columns.
+#' Removes "and its `adjective` salts" patterns from Name-tagged columns.
 #'
 #' @param df Dataframe with name columns
 #' @param name_cols Character vector of Name-tagged column names
@@ -1242,7 +1242,7 @@ strip_salt_references <- function(df, name_cols) {
 
 #' Strip terminal "unspecified" suffixes from name fields
 #'
-#' Removes terminal "[,;-]? unspecified" patterns from Name-tagged columns.
+#' Removes terminal `[,;-]? unspecified` patterns from Name-tagged columns.
 #'
 #' @param df Dataframe with name columns
 #' @param name_cols Character vector of Name-tagged column names
@@ -1765,11 +1765,33 @@ detect_truncated_compound_names <- function(df, name_cols) {
   )
 }
 
+bare_formula_regex <- function() {
+  elements <- c(
+    "He", "Li", "Be", "Ne", "Na", "Mg", "Al", "Si", "Cl", "Ar", "Ca",
+    "Sc", "Ti", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn", "Ga", "Ge",
+    "As", "Se", "Br", "Kr", "Rb", "Sr", "Zr", "Nb", "Mo", "Tc", "Ru",
+    "Rh", "Pd", "Ag", "Cd", "In", "Sn", "Sb", "Te", "Xe", "Cs", "Ba",
+    "La", "Ce", "Pr", "Nd", "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho",
+    "Er", "Tm", "Yb", "Lu", "Hf", "Ta", "Re", "Os", "Ir", "Pt", "Au",
+    "Hg", "Tl", "Pb", "Bi", "Po", "At", "Rn", "Fr", "Ra", "Ac", "Th",
+    "Pa", "Np", "Pu", "Am", "Cm", "Bk", "Cf", "Es", "Fm", "Md", "No",
+    "Lr", "Rf", "Db", "Sg", "Bh", "Hs", "Mt", "Ds", "Rg", "Cn", "Nh",
+    "Fl", "Mc", "Lv", "Ts", "Og", "H", "B", "C", "N", "O", "F", "P",
+    "S", "K", "V", "I", "Y", "W", "U"
+  )
+  element_chunk <- paste0("(?:", paste(elements, collapse = "|"), ")\\d*")
+  group_chunk <- paste0(
+    "(?:\\((?:", element_chunk, ")+\\)\\d*|",
+    "\\[(?:", element_chunk, ")+\\]\\d*)"
+  )
+  paste0("^(?:", element_chunk, "|", group_chunk, ")+(?:[+-]\\d*)?$")
+}
+
 #' Detect bare molecular formulas
 #'
-#' Uses ComptoxR's validator regex to identify bare molecular formulas (H2O, NaCl, CuSO4).
+#' Uses an element-token regex to identify bare molecular formulas (H2O, NaCl, CuSO4).
 #' Bare formulas are blocked because they lack chemical context needed for curation.
-#' Detected formulas are moved to formula_blocked_{col} columns and name set to NA.
+#' Detected formulas are moved to `formula_blocked_{col}` columns and name set to NA.
 #'
 #' @param df Dataframe with name columns
 #' @param name_cols Character vector of Name-tagged column names
@@ -1780,27 +1802,6 @@ detect_truncated_compound_names <- function(df, name_cols) {
 #' detect_bare_formulas(df, c("chemical_name"))
 #' @export
 detect_bare_formulas <- function(df, name_cols) {
-  # Check if ComptoxR is available
-  if (!requireNamespace("ComptoxR", quietly = TRUE)) {
-    warning("ComptoxR not available - skipping bare formula detection")
-    return(list(
-      cleaned_data = df,
-      audit_trail = tibble::tibble(
-        row_id = integer(),
-        field = character(),
-        step = character(),
-        original_value = character(),
-        new_value = character(),
-        reason = character()
-      )
-    ))
-  }
-
-  # Extract validator regex from ComptoxR
-  validator_obj <- ComptoxR:::create_formula_extractor_final()
-  validator_env <- environment(validator_obj)
-  validator_regex <- validator_env$validator_regex
-
   # Initialize result
   df_result <- df
   audit_rows <- list()
@@ -1824,7 +1825,7 @@ detect_bare_formulas <- function(df, name_cols) {
   }
 
   # Pre-compile the full formula regex once
-  full_formula_regex <- paste0("^", validator_regex, "$")
+  full_formula_regex <- bare_formula_regex()
 
   # Process each name column (vectorized per column)
   for (col_name in name_cols) {
@@ -2686,7 +2687,7 @@ run_cleaning_pipeline_masked <- function(
 }
 
 # ==============================================================================
-# Phase 23: Isotope Cleaning — Three New Cleaning Functions
+# Phase 23: Isotope Cleaning - Three New Cleaning Functions
 # ==============================================================================
 
 #' Prefix for chiral designation placeholders
@@ -2697,7 +2698,7 @@ CHIRAL_PLACEHOLDER_PREFIX <- "###CHIRAL_"
 
 #' Protect chiral designations from downstream stripping
 #'
-#' Replaces chiral markers — (+), (-), (R), (S), (R,S), (dl), etc. — with
+#' Replaces chiral markers - (+), (-), (R), (S), (R,S), (dl), etc. - with
 #' numbered placeholders (###CHIRAL_n###) and sets a WARNING flag.
 #' Must run BEFORE strip_terminal_enclosures() (Step 6a).
 #'
@@ -2819,7 +2820,7 @@ protect_chiral_designations <- function(df, name_cols) {
 
 #' Restore chiral designation placeholders to original markers
 #'
-#' Reverses protect_chiral_designations() by replacing ###CHIRAL_{TOKEN}### back
+#' Reverses protect_chiral_designations() by replacing `###CHIRAL_{TOKEN}###` back
 #' to the original chiral marker (e.g., ###CHIRAL_PLUS### -> (+)).
 #' Must run AFTER all name cleaning steps and BEFORE ComptoxR lookup.
 #'
@@ -2925,9 +2926,9 @@ restore_chiral_designations <- function(df, name_cols) {
 #' Plus special case: unat -> WARNING flag (unresolvable natural uranium mixture)
 #'
 #' Exclusions per ISOT-03:
-#' - Carbon backbone patterns (C12H22O11) — NOT expanded
-#' - Deuterium d-prefix patterns (d-glucose) — NOT expanded
-#' - Isotope prefixes in compound names (14C-glucose) — NOT expanded
+#' - Carbon backbone patterns (C12H22O11) - NOT expanded
+#' - Deuterium d-prefix patterns (d-glucose) - NOT expanded
+#' - Isotope prefixes in compound names (14C-glucose) - NOT expanded
 #'
 #' @param df Dataframe with name columns
 #' @param name_cols Character vector of Name-tagged column names
@@ -3021,7 +3022,7 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
     work_vals <- vals[eligible]
 
     # ---- Codex optimization: Prefilter lookup to symbols actually present ----
-    # Instead of O(rows × lookup_size), filter lookup first then O(rows × matches)
+    # Instead of O(rows x lookup_size), filter lookup first then O(rows x matches)
     collapsed_text <- paste(tolower(work_vals), collapse = " ")
 
     # Pass 1 filter: keep only isotopes whose symbol appears in the text
@@ -3180,7 +3181,7 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
 #' as "WARNING: potential multi-analyte". Does NOT modify cell values (flag only per D-11).
 #'
 #' A naked " + " means a plus sign surrounded by whitespace and NOT inside parentheses.
-#' "(+)-catechin" is NOT flagged — the + is inside parentheses.
+#' "(+)-catechin" is NOT flagged - the + is inside parentheses.
 #'
 #' @param df Dataframe with name columns
 #' @param name_cols Character vector of Name-tagged column names
@@ -3199,7 +3200,7 @@ flag_multi_analyte <- function(df, name_cols) {
   }
 
   # Pattern for naked " + ": whitespace + plus + whitespace
-  # NOT inside parentheses — we check this by requiring the + is not immediately
+  # NOT inside parentheses - we check this by requiring the + is not immediately
   # preceded by "(" or followed by ")"
   NAKED_PLUS_PATTERN <- "(?<!\\()\\s\\+\\s(?!\\))"
 

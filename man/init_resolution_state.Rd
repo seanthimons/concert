@@ -10,11 +10,12 @@ init_resolution_state(df)
 \item{df}{Data frame (typically output of classify_consensus)}
 }
 \value{
-df with .pinned, .manual_entry, row_flag, .resolution_method, and .resolution_reason columns
+df with .pinned, .manual_entry, row_flag, row_flag_reason, .resolution_method, and .resolution_reason columns
 }
 \description{
-Adds .pinned column (FALSE), .manual_entry column (FALSE), and public
-row_flag column (NA_character_) if not already present. Also adds
+Adds .pinned column (FALSE), .manual_entry column (FALSE), public
+row_flag column (NA_character_), and row_flag_reason column
+(NA_character_) if not already present. Also adds
 .resolution_method and .resolution_reason columns (NA_character_) for tracking
 how each row was resolved (per D-11).
 }

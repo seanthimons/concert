@@ -12,6 +12,9 @@ get_resolution_options(df, row_idx, dtxsid_cols, enrichment_cache = NULL)
 \item{row_idx}{Integer row index}
 
 \item{dtxsid_cols}{Character vector of DTXSID column names}
+
+\item{enrichment_cache}{Optional enrichment cache with CASRN, molecular
+formula, and molecular weight columns for DTXSID options.}
 }
 \value{
 Named list of column_name = list(dtxsid, preferredName, rank) for columns with data.

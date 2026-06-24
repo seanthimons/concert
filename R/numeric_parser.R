@@ -198,7 +198,7 @@ parse_numeric_results <- function(values) {
   # Step 2: assign orig_row_id
   orig_row_id <- seq_along(values)
 
-  # Step 3a: partial normalization (unicode, x10^, commas, whitespace) — BEFORE Fortran exponents
+  # Step 3a: partial normalization (unicode, x10^, commas, whitespace) - BEFORE Fortran exponents
   # This is the form used for range detection: Fortran exponent normalization would convert
   # "5-10" -> "5e-10", destroying the range separator. Ranges must be detected first.
   pre_norm <- orig_result

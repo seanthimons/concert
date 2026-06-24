@@ -365,7 +365,7 @@ mod_file_upload_server <- function(
 
     # --- File Upload Handlers ---
 
-    # File upload handler — with confirmation modal for re-uploads
+    # File upload handler - with confirmation modal for re-uploads
     observeEvent(input$file_upload, {
       req(input$file_upload)
 
@@ -380,7 +380,7 @@ mod_file_upload_server <- function(
       }
 
       if (!is.null(data_store$clean)) {
-        # Re-upload: data already exists — show confirmation modal
+        # Re-upload: data already exists - show confirmation modal
         showModal(modalDialog(
           title = "Replace Current Data?",
           p("Your column tags and curation results will be cleared."),
@@ -392,12 +392,12 @@ mod_file_upload_server <- function(
           easyClose = FALSE
         ))
       } else {
-        # First upload — process directly
+        # First upload - process directly
         process_uploaded_file(input$file_upload)
       }
     })
 
-    # Re-upload modal: Cancel — dismiss modal, reset file input to previous state
+    # Re-upload modal: Cancel - dismiss modal, reset file input to previous state
     observeEvent(input$cancel_reupload, {
       removeModal()
       shinyjs::reset("file_upload")
@@ -430,7 +430,7 @@ mod_file_upload_server <- function(
       process_uploaded_file(export_data$file_info)
     })
 
-    # Re-upload modal: Confirm — reset all downstream state, process new file
+    # Re-upload modal: Confirm - reset all downstream state, process new file
     observeEvent(input$confirm_reupload, {
       removeModal()
       # Call reset callback if provided

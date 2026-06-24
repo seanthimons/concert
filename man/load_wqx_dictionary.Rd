@@ -15,6 +15,6 @@ Tibble with columns: name, canonical_name, type, cas_number, group_name, descrip
 \description{
 Returns a combined tibble of canonical WQX Characteristic Names and alias
 mappings (synonym, standardize, retired). Uses the generic cache-or-fetch
-infrastructure — builds the dictionary from EPA data on first call if no
+infrastructure - builds the dictionary from EPA data on first call if no
 cached RDS exists.
 }

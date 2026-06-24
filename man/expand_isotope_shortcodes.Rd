@@ -28,9 +28,9 @@ Plus special case: unat -> WARNING flag (unresolvable natural uranium mixture)
 \details{
 Exclusions per ISOT-03:
 \itemize{
-\item Carbon backbone patterns (C12H22O11) — NOT expanded
-\item Deuterium d-prefix patterns (d-glucose) — NOT expanded
-\item Isotope prefixes in compound names (14C-glucose) — NOT expanded
+\item Carbon backbone patterns (C12H22O11) - NOT expanded
+\item Deuterium d-prefix patterns (d-glucose) - NOT expanded
+\item Isotope prefixes in compound names (14C-glucose) - NOT expanded
 }
 }
 \examples{

@@ -19,7 +19,8 @@ workflow-specific blocks.}
 \value{
 NULL when no overrides are needed, otherwise a content-match
 override spec with the edited column, edited scalar value, and a
-minimal stable row signature for each generated \code{case_when()} branch.
+minimal stable row signature used as the key for each generated
+\code{dplyr::rows_update()} override table.
 }
 \description{
 Captures Review Results edits by comparing the automated baseline state

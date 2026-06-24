@@ -22,7 +22,7 @@ mod_clean_data_ui <- function(id) {
       .ref-term-input { margin-top: 6px; }
     "
     ))),
-    # Chip editor JS — delegated events
+    # Chip editor JS - delegated events
     tags$script(HTML(sprintf(
       "
       $(document).on('click', '.ref-chip-body[data-ns=\"%s\"]', function() {
@@ -821,7 +821,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       )
     }
 
-    # Reference list editors section — static accordion wrapper (renders once)
+    # Reference list editors section - static accordion wrapper (renders once)
     # Track whether reference lists have been initialized (one-shot flag)
     ref_lists_ready <- reactiveVal(FALSE)
     observe({
@@ -916,7 +916,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       )
     })
 
-    # Chip toggle — flip active status
+    # Chip toggle - flip active status
     observeEvent(input$chip_toggle, {
       msg <- input$chip_toggle
       req(msg$type, msg$term)
@@ -934,7 +934,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       }
     })
 
-    # Chip remove — delete non-default terms
+    # Chip remove - delete non-default terms
     observeEvent(input$chip_remove, {
       msg <- input$chip_remove
       req(msg$type, msg$term)
@@ -952,7 +952,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       }
     })
 
-    # Chip add — append new user term
+    # Chip add - append new user term
     observeEvent(input$chip_add, {
       msg <- input$chip_add
       req(msg$type, msg$term)

@@ -315,7 +315,7 @@ mod_harmonize_server <- function(id, data_store) {
                   unit_map = data_store$unit_map_working
                 )
 
-                # Merge back into full results — mutable columns only.
+                # Merge back into full results - mutable columns only.
                 # harmonize_units() returns orig_row_id = 1:n for its input
                 # slice, so writing that back would destroy lineage.
                 new_harmonize <- old_harmonize
@@ -1524,7 +1524,7 @@ mod_harmonize_server <- function(id, data_store) {
         return()
       }
 
-      # No conflict — proceed with save
+      # No conflict - proceed with save
       do_save_media_mapping(new_row, orig_term)
     })
 
@@ -1741,7 +1741,7 @@ mod_harmonize_server <- function(id, data_store) {
           !is.null(prev_unit_map()) &&
             !identical(prev_unit_map(), data_store$unit_map_working)
         ) {
-          # Mark stale instead of clearing — allows batch edits
+          # Mark stale instead of clearing - allows batch edits
           if (!is.null(data_store$harmonize_results)) {
             data_store$harmonize_results_stale <- TRUE
             data_store$toxval_output <- NULL # Force re-generation on next run

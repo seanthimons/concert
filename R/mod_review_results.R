@@ -449,7 +449,7 @@ derive_resolution_html <- function(df, row_indices) {
     " Review Suggestion</button>"
   )
 
-  # suggested + pinned (accepted suggestion — show resolved display)
+  # suggested + pinned (accepted suggestion - show resolved display)
   suggested_pinned <- status == "suggested" & pinned & !is.na(dtxsid)
   accepted_badge <- '<span class="badge ms-1" style="background:#0DCAF0;color:#fff;font-size:0.7em;">accepted</span>'
   sp_pref <- suggested_pinned & !is.na(pref_name)
@@ -973,7 +973,7 @@ derive_hidden_review_columns <- function(
 mod_review_results_ui <- function(id) {
   ns <- NS(id)
 
-  # Filter persistence JavaScript — saves/restores reactable filters across re-renders
+  # Filter persistence JavaScript - saves/restores reactable filters across re-renders
   filter_persist_js <- tags$script(HTML(sprintf(
     "
     (function() {
@@ -3375,7 +3375,7 @@ mod_review_results_server <- function(id, data_store) {
       ))
 
       # onFlushed defers updateSelectizeInput to a second flush cycle. Without it,
-      # both showModal and updateSelectizeInput land in the same flush — and Shiny's
+      # both showModal and updateSelectizeInput land in the same flush - and Shiny's
       # client processes inputMessages before modal, so the update targets a DOM
       # element that doesn't exist yet and is silently dropped.
       update_wqx_override_selectize()
@@ -3395,12 +3395,12 @@ mod_review_results_server <- function(id, data_store) {
       ignoreNULL = FALSE
     )
 
-    # Handle WQX modal confirm — override with type-ahead selection
+    # Handle WQX modal confirm - override with type-ahead selection
     observeEvent(input$wqx_modal_confirm, {
       queue_current_review_override("wqx", input$wqx_typeahead)
     })
 
-    # Handle WQX reject — mark row unresolvable
+    # Handle WQX reject - mark row unresolvable
     observeEvent(input$wqx_reject_click, {
       row_idx <- data_store$wqx_modal_row_idx
       if (is.null(row_idx)) {

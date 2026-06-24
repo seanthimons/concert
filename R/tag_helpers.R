@@ -185,7 +185,42 @@ validate_tag_pairing <- function(tags) {
 #'
 #' # Changed value - returns TRUE
 #' detect_tag_changes(list(col1 = "Name"), list(col1 = "CASRN"))
-#'
+#' @export
+detect_tag_changes <- function(old_tags, new_tags) {
+  # NULL old_tags means first application
+  if (is.null(old_tags)) {
+    # Only return TRUE if there are actually new tags
+    return(length(new_tags) > 0)
+  }
+
+  # Different lengths means change
+  if (length(old_tags) != length(new_tags)) {
+    return(TRUE)
+  }
+
+  # Both empty means no change
+  if (length(old_tags) == 0 && length(new_tags) == 0) {
+    return(FALSE)
+  }
+
+  # Check names match
+  old_names <- sort(names(old_tags))
+  new_names <- sort(names(new_tags))
+
+  if (!identical(old_names, new_names)) {
+    return(TRUE)
+  }
+
+  # Check values match (compare in same order)
+  for (nm in old_names) {
+    if (!identical(old_tags[[nm]], new_tags[[nm]])) {
+      return(TRUE)
+    }
+  }
+
+  FALSE
+}
+
 #' Check for Required Chemical Tags
 #'
 #' Validates that both Name and CASRN tags are present, which are required
@@ -221,40 +256,4 @@ has_required_chemical_tags <- function(chemical_tags) {
   has_casrn <- "CASRN" %in% tag_values
 
   has_name && has_casrn
-}
-
-#' @export
-detect_tag_changes <- function(old_tags, new_tags) {
-  # NULL old_tags means first application
-  if (is.null(old_tags)) {
-    # Only return TRUE if there are actually new tags
-    return(length(new_tags) > 0)
-  }
-
-  # Different lengths means change
-  if (length(old_tags) != length(new_tags)) {
-    return(TRUE)
-  }
-
-  # Both empty means no change
-  if (length(old_tags) == 0 && length(new_tags) == 0) {
-    return(FALSE)
-  }
-
-  # Check names match
-  old_names <- sort(names(old_tags))
-  new_names <- sort(names(new_tags))
-
-  if (!identical(old_names, new_names)) {
-    return(TRUE)
-  }
-
-  # Check values match (compare in same order)
-  for (nm in old_names) {
-    if (!identical(old_tags[[nm]], new_tags[[nm]])) {
-      return(TRUE)
-    }
-  }
-
-  FALSE
 }

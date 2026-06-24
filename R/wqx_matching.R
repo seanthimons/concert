@@ -147,7 +147,7 @@ match_wqx <- function(names, dictionary, threshold = 0.85, verbose = FALSE) {
 
   # --- Tier 3: Fuzzy Jaro-Winkler match (canonical names only) ---
   # Only runs on unresolved remainder after tiers 1 and 2.
-  # NOTE: At scale (1000+ unresolved × 23K canonical), this matrix is ~180MB RAM.
+  # NOTE: At scale (1000+ unresolved x 23K canonical), this matrix is ~180MB RAM.
   # For Phase 45 (production wiring), consider chunked batching. See RESEARCH.md Pitfall 4.
   nearest_candidate <- rep(NA_character_, n)
 
@@ -156,7 +156,7 @@ match_wqx <- function(names, dictionary, threshold = 0.85, verbose = FALSE) {
     canonical_key_vec <- normalize_wqx_key(canonical_name_vec)
 
     # JW distance: 0 = identical, 1 = maximally different
-    # cutoff = 1 - threshold (e.g., threshold 0.85 → cutoff 0.15)
+    # cutoff = 1 - threshold (e.g., threshold 0.85 -> cutoff 0.15)
     dist_matrix <- stringdist::stringdistmatrix(
       names_clean[still_unresolved_idx],
       canonical_key_vec,

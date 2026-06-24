@@ -15,7 +15,7 @@ protect_chiral_designations(df, name_cols)
 List with cleaned_data (tibble) and audit_trail (tibble)
 }
 \description{
-Replaces chiral markers — (+), (-), (R), (S), (R,S), (dl), etc. — with
+Replaces chiral markers - (+), (-), (R), (S), (R,S), (dl), etc. - with
 numbered placeholders (###CHIRAL_n###) and sets a WARNING flag.
 Must run BEFORE strip_terminal_enclosures() (Step 6a).
 }

@@ -14,6 +14,8 @@ build_export_sheets(
   detection,
   file_info,
   enrichment_cache = NULL,
+  detected_data = NULL,
+  cleaned_data = NULL,
   toxval_output = NULL,
   harmonize_audit = NULL
 )
@@ -27,7 +29,8 @@ build_export_sheets(
 
 \item{cleaning_audit}{Data frame with audit trail (may be NULL)}
 
-\item{reference_lists}{List with $functional_categories, $stop_words, $block_patterns}
+\item{reference_lists}{List with $functional_categories, $stop_words,
+$block_patterns, and $strip_terms}
 
 \item{column_tags}{Named list of all applied column tags.}
 
@@ -37,15 +40,23 @@ build_export_sheets(
 
 \item{enrichment_cache}{Enrichment cache data frame (may be NULL)}
 
+\item{detected_data}{Data frame after header detection/extraction. When
+provided, this is written to Raw Data instead of the headerless ingest
+snapshot.}
+
+\item{cleaned_data}{Data frame produced by the Clean Data workflow (may be
+NULL). When provided, a Cleaned Data sheet is included.}
+
 \item{toxval_output}{Tibble with 56 ToxVal columns from map_to_toxval_schema(),
-or NULL (default). When NULL, Sheet 8 contains a placeholder note row.}
+or NULL (default). When NULL, the ToxVal Output sheet contains a
+placeholder note row.}
 
 \item{harmonize_audit}{Tibble with numeric measurement harmonization audit rows,
 or NULL (default). When provided, an additional Harmonization Audit sheet is
 appended.}
 }
 \value{
-Named list of 8 or 9 data frames with sheet names as keys
+Named list of data frames with sheet names as keys
 }
 \description{
 Converts CONCERT pipeline state into a named list of data frames ready

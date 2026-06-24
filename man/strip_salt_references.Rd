@@ -15,7 +15,7 @@ strip_salt_references(df, name_cols)
 List with cleaned_data and audit_trail
 }
 \description{
-Removes "and its \link{adjective} salts" patterns from Name-tagged columns.
+Removes "and its \code{adjective} salts" patterns from Name-tagged columns.
 }
 \examples{
 df <- tibble::tibble(chemical_name = c("lead and its salts", "mercury and its inorganic salts"))

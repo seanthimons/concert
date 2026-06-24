@@ -15,7 +15,7 @@ restore_chiral_designations(df, name_cols)
 List with cleaned_data (tibble) and audit_trail (tibble)
 }
 \description{
-Reverses protect_chiral_designations() by replacing ###CHIRAL_{TOKEN}### back
+Reverses protect_chiral_designations() by replacing \verb{###CHIRAL_\{TOKEN\}###} back
 to the original chiral marker (e.g., ###CHIRAL_PLUS### -> (+)).
 Must run AFTER all name cleaning steps and BEFORE ComptoxR lookup.
 }

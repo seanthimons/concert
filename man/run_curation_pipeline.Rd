@@ -2,7 +2,7 @@
 % Please edit documentation in R/curation.R
 \name{run_curation_pipeline}
 \alias{run_curation_pipeline}
-\title{Orchestrate the full curation pipeline: dedup → search → map → consensus → resolution}
+\title{Orchestrate the full curation pipeline: dedup -> search -> map -> consensus -> resolution}
 \usage{
 run_curation_pipeline(
   clean_data,
@@ -21,10 +21,15 @@ run_curation_pipeline(
 \item{progress_callback}{Optional function(stage, message) for reporting progress to Shiny}
 
 \item{dedup_only}{If TRUE, return after dedup stage with just counts (for preview)}
+
+\item{wqx_threshold}{Numeric WQX fuzzy matching threshold.}
+
+\item{starts_with}{Logical. If TRUE, enables CompTox starts-with fallback
+search for names unresolved by exact, CAS, and WQX matching.}
 }
 \value{
 List with results, dedup_summary, search_summary, consensus_summary
 }
 \description{
-Orchestrate the full curation pipeline: dedup → search → map → consensus → resolution
+Orchestrate the full curation pipeline: dedup -> search -> map -> consensus -> resolution
 }

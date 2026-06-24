@@ -187,6 +187,12 @@ normalize_reference_list_tbl <- function(tbl, type = NULL) {
   )
 }
 
+#' Validate reference-list patterns
+#'
+#' @param reference_list Reference-list tibble.
+#' @param type Optional normalized reference-list type.
+#' @return Tibble with term, severity, and message columns.
+#' @export
 validate_reference_list_patterns <- function(reference_list, type = NULL) {
   refs <- normalize_reference_list_tbl(reference_list, type)
   if (nrow(refs) == 0) {
@@ -257,6 +263,11 @@ validate_reference_list_patterns <- function(reference_list, type = NULL) {
   dplyr::bind_rows(issues)
 }
 
+#' Reference-list help text
+#'
+#' @param type Reference-list type.
+#' @return Character scalar describing the reference-list type.
+#' @export
 reference_list_help_text <- function(type) {
   type <- normalize_reference_list_type(type, allow_functional = TRUE)
   switch(
@@ -795,6 +806,11 @@ save_user_reference_lists <- function(reference_lists, cache_dir = NULL) {
 #'   strip_terms/strip_term.
 #' @param term Term or pattern to update.
 #' @param active Active value to use when adding or replacing a term.
+#' @param match_mode Optional matching mode. One of `literal_word`,
+#'   `literal_exact`, or `regex`.
+#' @param pattern Optional pattern to store separately from `term`. Defaults
+#'   to `term`.
+#' @param notes Optional notes for the reference-list row.
 #' @param action One of add, remove, or toggle.
 #' @param cache_dir Directory for reference cache files. Defaults to the bundled
 #'   package/source reference cache.
@@ -1001,11 +1017,11 @@ augment_radiological_unit_map <- function(unit_map) {
       "picocurie/L", "picocuries/L", "picocurie/liter", "picocuries/liter",
       "picocurie per liter", "picocuries per liter",
       "picocurie per litre", "picocuries per litre",
-      "nCi/L", "uCi/L", "µCi/L", "mCi/L", "Ci/L",
+      "nCi/L", "uCi/L", "\u00b5Ci/L", "mCi/L", "Ci/L",
       "Bq/L", "Bq/l", "Bq per L", "Bq per liter", "Bq per litre",
       "mBq/L", "mBq per L", "mBq per liter", "mBq per litre",
       "uBq/L", "uBq per L", "uBq per liter", "uBq per litre",
-      "µBq/L", "µBq per L", "µBq per liter", "µBq per litre",
+      "\u00b5Bq/L", "\u00b5Bq per L", "\u00b5Bq per liter", "\u00b5Bq per litre",
       "kBq/L", "kBq per L", "kBq per liter", "kBq per litre"
     ),
     to_unit = "pCi/L",
@@ -1024,8 +1040,8 @@ augment_radiological_unit_map <- function(unit_map) {
   activity_rows <- make_rows(
     from_unit = c(
       "pCi", "picocurie", "picocuries",
-      "nCi", "uCi", "µCi", "mCi", "Ci",
-      "Bq", "mBq", "uBq", "µBq", "kBq"
+      "nCi", "uCi", "\u00b5Ci", "mCi", "Ci",
+      "Bq", "mBq", "uBq", "\u00b5Bq", "kBq"
     ),
     to_unit = "pCi",
     multiplier = c(
@@ -1251,7 +1267,7 @@ load_all_reference_lists <- function(cache_dir = NULL) {
   reference_lists
 }
 
-# Internal function — builds WQX dictionary from EPA domain value CSVs
+# Internal function - builds WQX dictionary from EPA domain value CSVs
 # Downloads Characteristic.csv and Characteristic Alias.csv as zips,
 # parses them, and returns a combined tibble per D-01/D-05 schema.
 .build_wqx_dictionary <- function() {
@@ -1329,7 +1345,7 @@ load_all_reference_lists <- function(cache_dir = NULL) {
 #'
 #' Returns a combined tibble of canonical WQX Characteristic Names and alias
 #' mappings (synonym, standardize, retired). Uses the generic cache-or-fetch
-#' infrastructure — builds the dictionary from EPA data on first call if no
+#' infrastructure - builds the dictionary from EPA data on first call if no
 #' cached RDS exists.
 #'
 #' @param cache_dir Directory containing reference cache RDS files

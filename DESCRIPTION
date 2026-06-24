@@ -14,17 +14,20 @@ Depends:
     R (>= 4.1.0)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
 Imports:
     arrow,
     bsicons,
     bslib,
     cli,
     ComptoxR (>= 1.4.0),
+    DBI,
     digest,
     dplyr (>= 1.1.0),
+    DT,
+    duckdb,
     fs,
-    here,
+    htmltools,
+    htmlwidgets,
     janitor,
     jsonlite,
     lubridate,
@@ -35,7 +38,6 @@ Imports:
     readr,
     readxl,
     rio,
-    rlang,
     shiny,
     shinyjs,
     stats,
@@ -52,3 +54,4 @@ Suggests:
     bench,
     testthat (>= 3.0.0),
     withr
+Config/roxygen2/version: 8.0.0

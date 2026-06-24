@@ -18,8 +18,8 @@ List with cleaned_data and audit_trail
 }
 \description{
 Removes terms from the strip_terms reference list from Name-tagged columns.
-Terms containing regex metacharacters (\w, +, *, ^, $) are applied as-is.
-Plain terms are wrapped in word boundaries for clean removal.
+Matching behavior is controlled by each row's \code{match_mode}: \code{literal_word},
+\code{literal_exact}, or \code{regex}.
 }
 \examples{
 df <- tibble::tibble(chemical_name = c("pure acetone", "technical ethanol"))
