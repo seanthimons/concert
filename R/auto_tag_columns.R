@@ -52,6 +52,14 @@ suggest_column_tags <- function(col_names) {
     integer(1)
   )
 
+  # Do not let identifier/code columns steal the singular Name suggestion from
+  # the actual analyte/name column in UAT-style datasets.
+  identifier_name <- raw == "Name" &
+    vapply(norm_headers, .auto_tag_is_identifier_header, logical(1)) &
+    !vapply(norm_headers, .auto_tag_has_explicit_name_phrase, logical(1))
+  raw[identifier_name] <- ""
+  specs[identifier_name] <- 0L
+
   # Second pass: enforce at-most-one suggestion for singular chemical tags.
   for (singular in c("Name", "CASRN")) {
     idx <- which(raw == singular)
@@ -96,6 +104,27 @@ suggest_column_tags <- function(col_names) {
     }
   }
   FALSE
+}
+
+#' Does a header look like an identifier/code column?
+#' @noRd
+.auto_tag_is_identifier_header <- function(tokens) {
+  any(tokens %in% c("id", "identifier", "code"))
+}
+
+#' Does a header explicitly describe a name, not only an entity token?
+#' @noRd
+.auto_tag_has_explicit_name_phrase <- function(tokens) {
+  explicit_name_phrases <- list(
+    c("chemical", "name"),
+    c("compound", "name"),
+    c("substance", "name"),
+    c("analyte", "name"),
+    c("reagent", "name"),
+    c("ingredient", "name")
+  )
+
+  any(vapply(explicit_name_phrases, .auto_tag_is_subseq, logical(1), hay = tokens))
 }
 
 #' Per-column best tag (value) or "".
