@@ -32,6 +32,39 @@ normalize_unit_string <- function(x) {
 
 # ---- Internal helpers for synonym loading ----
 
+default_unit_synonyms <- function() {
+  tibble::tibble(
+    input_pattern = c(
+      "mg/kg-bw/day",
+      "mg/kg-day",
+      "ug/kg-bw/day",
+      "ug/kg-day",
+      "hrs",
+      "days",
+      "m"
+    ),
+    normalized_unit = c(
+      "mg/kg/d",
+      "mg/kg/d",
+      "ug/kg/d",
+      "ug/kg/d",
+      "hr",
+      "day",
+      "min"
+    ),
+    is_regex = rep(FALSE, 7L),
+    notes = c(
+      "body weight qualifier",
+      "dose denominator separator",
+      "body weight qualifier",
+      "dose denominator separator",
+      "duration plural",
+      "duration plural",
+      "ambiguous duration shorthand"
+    )
+  )
+}
+
 #' Load unit synonyms internally via system.file
 #'
 #' @return Tibble with synonym mappings or NULL if not found
@@ -50,11 +83,18 @@ get_unit_synonyms <- function() {
   )
   candidates <- unique(candidates[nzchar(candidates)])
   path <- candidates[file.exists(candidates)][1]
-  if (!is.na(path) && nzchar(path)) {
+  loaded <- if (!is.na(path) && nzchar(path)) {
     readRDS(path)
   } else {
     NULL
   }
+  fallback <- default_unit_synonyms()
+  if (is.null(loaded) || nrow(loaded) == 0) {
+    return(fallback)
+  }
+  synonyms <- dplyr::bind_rows(loaded, fallback)
+  synonym_key <- paste(tolower(synonyms$input_pattern), synonyms$is_regex, sep = "\r")
+  synonyms[!duplicated(synonym_key), , drop = FALSE]
 }
 
 #' Apply synonym normalization to unit strings

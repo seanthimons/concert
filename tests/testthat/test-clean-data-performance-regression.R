@@ -124,3 +124,30 @@ test_that("collapse_detection_to_rows aggregates repeated source rows without re
   expect_equal(unique(row_detection$detection_event_class), "review_required")
   expect_true(all(grepl("multiple_result_values", row_detection$numeric_followup_reason)))
 })
+
+test_that("numeric measurement columns use fast parsing path through harmonization", {
+  n_rows <- 10000L
+  df <- tibble::tibble(
+    result = rep(c(1.2, NA_real_, 4.8, 0.5), length.out = n_rows),
+    reporting_limit = rep(c(0.1, 0.2, 0.5, 1.0), length.out = n_rows),
+    units = rep(c("ug/L", "mg/L", "ng/L", "pCi/L"), length.out = n_rows)
+  )
+  unit_map <- tibble::tibble(
+    from_unit = c("ug/L", "mg/L", "ng/L", "pCi/L"),
+    to_unit = c("mg/L", "mg/L", "mg/L", "pCi/L"),
+    multiplier = c(0.001, 1, 0.000001, 1),
+    category = "concentration"
+  )
+
+  result <- harmonize_tagged_numeric_measurements(
+    input_df = df,
+    tag_values = c(result = "Result", reporting_limit = "ReportingLimit", units = "Unit"),
+    unit_map = unit_map
+  )
+
+  expect_equal(nrow(result$primary$parsed), n_rows)
+  expect_equal(nrow(result$auxiliary$reporting_limit$parsed), n_rows)
+  expect_equal(result$primary$parsed$numeric_value[1:4], df$result[1:4])
+  expect_equal(result$primary$parsed$parse_flag[2], "narrative")
+  expect_equal(sort(unique(result$audit$measurement_role)), c("ReportingLimit", "Result"))
+})
