@@ -216,8 +216,14 @@ dedup_step <- function(step_fn, df, ..., dedup_cols, uniqueness_threshold = 0.5)
     as.character(seq_along(unique_keys))
   )
 
-  # Run step on unique slice only
-  result <- step_fn(df_unique, ...)
+  # Run step on unique slice only. Step functions may write audit row IDs from
+  # original_row_id, so use slice-local lineage during the deduped call and
+  # restore parent lineage before broadcasting cleaned columns.
+  df_unique_for_step <- df_unique
+  if ("original_row_id" %in% names(df_unique_for_step)) {
+    df_unique_for_step$original_row_id <- seq_len(nrow(df_unique_for_step))
+  }
+  result <- step_fn(df_unique_for_step, ...)
 
   # Row-expanding step guard: if the step changed the row count (e.g.,
 
@@ -225,6 +231,10 @@ dedup_step <- function(step_fn, df, ..., dedup_cols, uniqueness_threshold = 0.5)
   # to running the step on the full dataframe instead.
   if (nrow(result$cleaned_data) != nrow(df_unique)) {
     return(step_fn(df, ...))
+  }
+
+  if ("original_row_id" %in% names(result$cleaned_data) && "original_row_id" %in% names(df_unique)) {
+    result$cleaned_data$original_row_id <- df_unique$original_row_id
   }
 
   # Remap cleaned_data: broadcast only the columns that the step actually changed
@@ -456,7 +466,7 @@ precheck_multi_analyte <- function(df, name_cols) {
   if (length(name_cols) == 0) {
     return(list(should_run = FALSE, est_changes = 0L))
   }
-  pattern <- "\\s+(and|&|/)\\s+"
+  pattern <- "(?<!\\()\\s\\+\\s(?!\\))|(?i)\\s+and\\s+"
   est_changes <- as.integer(sum(vapply(
     name_cols,
     function(col) sum(stringr::str_detect(df[[col]], pattern), na.rm = TRUE),
@@ -1918,6 +1928,33 @@ detect_bare_formulas <- function(df, name_cols) {
 #' flag_reference_matches(df, c("chemical_name"), ref, "warning", "functional category")
 #' @export
 flag_reference_matches <- function(df, name_cols, reference_list, flag_type, flag_label) {
+  dedup_cols <- intersect(c(name_cols, "cleaning_flag"), names(df))
+  if (nrow(df) == 0 || length(dedup_cols) == 0) {
+    return(.flag_reference_matches_direct(df, name_cols, reference_list, flag_type, flag_label))
+  }
+
+  step_fn <- function(df_in, name_cols_inner, reference_list_inner, flag_type_inner, flag_label_inner) {
+    .flag_reference_matches_direct(
+      df_in,
+      name_cols_inner,
+      reference_list_inner,
+      flag_type_inner,
+      flag_label_inner
+    )
+  }
+
+  dedup_step(
+    step_fn,
+    df,
+    name_cols,
+    reference_list,
+    flag_type,
+    flag_label,
+    dedup_cols = dedup_cols
+  )
+}
+
+.flag_reference_matches_direct <- function(df, name_cols, reference_list, flag_type, flag_label) {
   # Initialize result
   df_result <- df
 
@@ -2293,286 +2330,357 @@ perform_unicode_qc <- function(df) {
 #' result$new_tags  # => list(cas_extract_name = "CASRN")
 #' @export
 run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL, use_dedup = TRUE) {
-  # Step 0: Inject row lineage
-  df_after_lineage <- inject_row_lineage(df)
+  run_cleaning_pipeline_masked(
+    df = df,
+    tag_map = tag_map,
+    reference_lists = reference_lists,
+    mask = NULL,
+    use_dedup = use_dedup,
+    respect_prechecks = TRUE
+  )
+}
 
-  # Step 1: Unicode to ASCII (using ComptoxR for chemistry-specific mappings)
-  unicode_check <- precheck_unicode_to_ascii(df_after_lineage)
-  if (!unicode_check$should_run) {
-    df_after_unicode <- df_after_lineage
-    audit_unicode <- build_skip_result(df_after_lineage, "unicode_to_ascii")$audit_trail
-  } else {
-    # Wrap inline transform as step function for dedup_step compatibility
-    unicode_step_fn <- function(df_in, ...) {
-      df_out <- df_in %>%
-        dplyr::mutate(dplyr::across(tidyselect::where(is.character), ComptoxR::clean_unicode))
-      audit <- build_audit_trail(df_in, df_out, "unicode_to_ascii", function(field) {
-        paste0("Convert unicode characters to ASCII equivalents in ", field)
-      })
-      list(cleaned_data = df_out, audit_trail = audit)
-    }
-    char_cols <- names(df_after_lineage)[vapply(df_after_lineage, is.character, logical(1))]
-    unicode_result <- if (use_dedup) {
-      dedup_step(unicode_step_fn, df_after_lineage, dedup_cols = char_cols)
-    } else {
-      unicode_step_fn(df_after_lineage)
-    }
-    df_after_unicode <- unicode_result$cleaned_data
-    audit_unicode <- unicode_result$audit_trail
+default_cleaning_step_mask <- function() {
+  list(
+    unicode = TRUE,
+    whitespace = TRUE,
+    cas = TRUE,
+    names = TRUE,
+    isotopes = TRUE,
+    multi = TRUE,
+    chiral = TRUE,
+    truncated = TRUE,
+    bare_formula = FALSE,
+    reference_flags = FALSE
+  )
+}
+
+normalize_cleaning_step_mask <- function(mask = NULL) {
+  normalized <- default_cleaning_step_mask()
+  if (is.null(mask)) {
+    return(normalized)
   }
 
-  # Step 2: Whitespace and punctuation artifact stripping
-  whitespace_check <- precheck_trim_whitespace(df_after_unicode)
-  if (!whitespace_check$should_run) {
-    df_after_trim <- df_after_unicode
-    audit_trim <- build_skip_result(df_after_unicode, "trim_whitespace_punctuation")$audit_trail
-  } else {
-    trim_step_fn <- function(df_in, ...) {
-      df_out <- df_in %>%
-        dplyr::mutate(dplyr::across(tidyselect::where(is.character), clean_text_field))
-      audit <- build_audit_trail(df_in, df_out, "trim_whitespace_punctuation", function(field) {
-        paste0("Strip leading/trailing whitespace and punctuation artifacts from ", field)
-      })
-      list(cleaned_data = df_out, audit_trail = audit)
-    }
-    char_cols_trim <- names(df_after_unicode)[vapply(df_after_unicode, is.character, logical(1))]
-    trim_result <- if (use_dedup) {
-      dedup_step(trim_step_fn, df_after_unicode, dedup_cols = char_cols_trim)
-    } else {
-      trim_step_fn(df_after_unicode)
-    }
-    df_after_trim <- trim_result$cleaned_data
-    audit_trim <- trim_result$audit_trail
+  for (key in intersect(names(normalized), names(mask))) {
+    normalized[[key]] <- isTRUE(mask[[key]])
   }
 
-  # Combine basic audit trails
-  audit_combined <- dplyr::bind_rows(audit_unicode, audit_trim)
+  normalized
+}
 
-  # Initialize new_tags
+rows_all_empty <- function(df, cols) {
+  if (length(cols) == 0 || nrow(df) == 0) {
+    return(rep(TRUE, nrow(df)))
+  }
+
+  has_value <- Reduce(
+    `|`,
+    lapply(cols, function(col) {
+      value <- df[[col]]
+      !is.na(value) & nzchar(trimws(as.character(value)))
+    })
+  )
+  !has_value
+}
+
+run_cleaning_pipeline_masked <- function(
+  df,
+  tag_map = NULL,
+  reference_lists = NULL,
+  mask = NULL,
+  use_dedup = TRUE,
+  respect_prechecks = TRUE
+) {
+  mask <- normalize_cleaning_step_mask(mask)
+  reference_lists <- reference_lists %||% list()
+
+  run_step <- function(step_fn, df_in, ..., dedup_cols = character()) {
+    dedup_cols <- intersect(dedup_cols, names(df_in))
+    if (isTRUE(use_dedup) && length(dedup_cols) > 0) {
+      dedup_step(step_fn, df_in, ..., dedup_cols = dedup_cols)
+    } else {
+      step_fn(df_in, ...)
+    }
+  }
+
+  audit_parts <- list()
   new_tags <- list()
+  df_work <- inject_row_lineage(df)
 
-  # If tag_map provided, run CAS and name steps
+  unicode_step_fn <- function(df_in, ...) {
+    df_out <- df_in %>%
+      dplyr::mutate(dplyr::across(tidyselect::where(is.character), ComptoxR::clean_unicode))
+    audit <- build_audit_trail(df_in, df_out, "unicode_to_ascii", function(field) {
+      paste0("Convert unicode characters to ASCII equivalents in ", field)
+    })
+    list(cleaned_data = df_out, audit_trail = audit)
+  }
+
+  if (mask$unicode && (!isTRUE(respect_prechecks) || precheck_unicode_to_ascii(df_work)$should_run)) {
+    unicode_result <- run_step(
+      unicode_step_fn,
+      df_work,
+      dedup_cols = names(df_work)[vapply(df_work, is.character, logical(1))]
+    )
+    df_work <- unicode_result$cleaned_data
+    audit_parts[[length(audit_parts) + 1]] <- unicode_result$audit_trail
+  }
+
+  trim_step_fn <- function(df_in, ...) {
+    df_out <- df_in %>%
+      dplyr::mutate(dplyr::across(tidyselect::where(is.character), clean_text_field))
+    audit <- build_audit_trail(df_in, df_out, "trim_whitespace_punctuation", function(field) {
+      paste0("Strip leading/trailing whitespace and punctuation artifacts from ", field)
+    })
+    list(cleaned_data = df_out, audit_trail = audit)
+  }
+
+  if (mask$whitespace && (!isTRUE(respect_prechecks) || precheck_trim_whitespace(df_work)$should_run)) {
+    trim_result <- run_step(
+      trim_step_fn,
+      df_work,
+      dedup_cols = names(df_work)[vapply(df_work, is.character, logical(1))]
+    )
+    df_work <- trim_result$cleaned_data
+    audit_parts[[length(audit_parts) + 1]] <- trim_result$audit_trail
+  }
+
   if (!is.null(tag_map)) {
-    # Step 3: Normalize CAS fields
-    cas_check <- precheck_normalize_cas(df_after_trim, tag_map)
-    if (!cas_check$should_run) {
-      df_after_cas <- df_after_trim
-      audit_combined <- dplyr::bind_rows(audit_combined, build_skip_result(df_after_trim, "normalize_cas")$audit_trail)
-    } else {
-      cas_cols <- names(tag_map)[tag_map == "CASRN"]
-      cas_result <- if (use_dedup) {
-        dedup_step(normalize_cas_fields, df_after_trim, tag_map, dedup_cols = cas_cols)
-      } else {
-        normalize_cas_fields(df_after_trim, tag_map)
-      }
-      df_after_cas <- cas_result$cleaned_data
-      audit_combined <- dplyr::bind_rows(audit_combined, cas_result$audit_trail)
-      cas_new_tags <- cas_result$new_tags %||% list()
-      new_tags <- c(new_tags, cas_new_tags)
+    if (is.list(tag_map)) {
+      tag_map <- unlist(tag_map, use.names = TRUE)
     }
 
-    # Step 4: Rescue CAS from text columns
+    cas_cols <- names(tag_map)[tag_map == "CASRN"]
+    should_run_cas <- mask$cas && length(cas_cols) > 0
+    if (should_run_cas && isTRUE(respect_prechecks)) {
+      should_run_cas <- precheck_normalize_cas(df_work, tag_map)$should_run
+    }
+    if (should_run_cas) {
+      cas_result <- run_step(normalize_cas_fields, df_work, tag_map, dedup_cols = cas_cols)
+      df_work <- cas_result$cleaned_data
+      audit_parts[[length(audit_parts) + 1]] <- cas_result$audit_trail
+      new_tags <- c(new_tags, cas_result$new_tags %||% list())
+    }
+
     tag_map_after_cas <- c(tag_map, new_tags)
-    rescue_result <- rescue_cas_from_text(df_after_cas, tag_map_after_cas)
-    df_after_rescue <- rescue_result$cleaned_data
-    audit_combined <- dplyr::bind_rows(audit_combined, rescue_result$audit_trail)
+    rescue_result <- rescue_cas_from_text(df_work, tag_map_after_cas)
+    df_work <- rescue_result$cleaned_data
+    audit_parts[[length(audit_parts) + 1]] <- rescue_result$audit_trail
     new_tags <- c(new_tags, rescue_result$new_tags)
 
-    # Update tag_map with rescued columns for multi-CAS detection
     tag_map_updated <- c(tag_map, new_tags)
+    df_work <- detect_multi_cas(df_work, tag_map_updated)
 
-    # Step 5: Detect multi-CAS
-    df_after_multi_cas <- detect_multi_cas(df_after_rescue, tag_map_updated)
-
-    # Step 6: Name cleaning (if Name columns present)
     name_cols <- names(tag_map)[tag_map == "Name"]
-
-    name_check_pre <- precheck_name_cleaning(df_after_multi_cas, name_cols)
-
     if (length(name_cols) > 0) {
-      if (!name_check_pre$should_run) {
-        # All name columns empty/NA -- skip entire name block
-        df_after_enclosures2 <- df_after_multi_cas
-      } else {
-        # Pass 1: Pre-synonym name chain (6-pre through 6d3) as single dedup group (D-10)
-        name_chain_pass1 <- function(df_in, name_cols_inner, reference_lists_inner) {
-          audit_parts <- list()
-
-          # 6-pre: Protect chiral
-          chiral_result <- protect_chiral_designations(df_in, name_cols_inner)
-          df_work <- chiral_result$cleaned_data
-          audit_parts[[length(audit_parts) + 1]] <- chiral_result$audit_trail
-
-          # 6a: Strip terminal enclosures
-          enclosure_result <- strip_terminal_enclosures(df_work, name_cols_inner)
-          df_work <- enclosure_result$cleaned_data
-          audit_parts[[length(audit_parts) + 1]] <- enclosure_result$audit_trail
-
-          # 6b: Strip quality adjectives
-          quality_result <- strip_quality_adjectives(df_work, name_cols_inner)
-          df_work <- quality_result$cleaned_data
-          audit_parts[[length(audit_parts) + 1]] <- quality_result$audit_trail
-
-          # 6c: Strip salt references
-          salt_result <- strip_salt_references(df_work, name_cols_inner)
-          df_work <- salt_result$cleaned_data
-          audit_parts[[length(audit_parts) + 1]] <- salt_result$audit_trail
-
-          # 6d: Strip terminal unspecified
-          unspec_result <- strip_terminal_unspecified(df_work, name_cols_inner)
-          df_work <- unspec_result$cleaned_data
-          audit_parts[[length(audit_parts) + 1]] <- unspec_result$audit_trail
-
-          # 6d1: Strip reference terms (if provided)
-          if (!is.null(reference_lists_inner$strip_terms)) {
-            strip_ref_result <- strip_reference_terms(df_work, name_cols_inner, reference_lists_inner$strip_terms)
-            df_work <- strip_ref_result$cleaned_data
-            audit_parts[[length(audit_parts) + 1]] <- strip_ref_result$audit_trail
-          }
-
-          # 6d2: Final cleanup before second stripping
-          df_work <- df_work %>%
-            dplyr::mutate(dplyr::across(
-              dplyr::all_of(name_cols_inner),
-              ~ {
-                .x %>%
-                  stringr::str_squish() %>%
-                  stringr::str_remove("\\(\\s*\\)\\s*$") %>%
-                  stringr::str_trim() %>%
-                  stringr::str_remove("[,;-]+$") %>%
-                  stringr::str_trim()
-              }
-            ))
-
-          # 6d3: Strip terminal enclosures again
-          enclosure_result2 <- strip_terminal_enclosures(df_work, name_cols_inner)
-          df_work <- enclosure_result2$cleaned_data
-          audit_parts[[length(audit_parts) + 1]] <- enclosure_result2$audit_trail
-
-          list(
-            cleaned_data = df_work,
-            audit_trail = dplyr::bind_rows(audit_parts),
-            new_tags = enclosure_result$new_tags
-          )
+      if (mask$names) {
+        should_run_name_pass1 <- TRUE
+        if (isTRUE(respect_prechecks)) {
+          should_run_name_pass1 <- precheck_name_cleaning(df_work, name_cols)$should_run
         }
 
-        pass1_result <- if (use_dedup) {
-          dedup_step(
+        if (should_run_name_pass1) {
+          name_chain_pass1 <- function(df_in, name_cols_inner, reference_lists_inner) {
+            local_audits <- list()
+
+            chiral_result <- protect_chiral_designations(df_in, name_cols_inner)
+            df_name <- chiral_result$cleaned_data
+            local_audits[[length(local_audits) + 1]] <- chiral_result$audit_trail
+
+            enclosure_result <- strip_terminal_enclosures(df_name, name_cols_inner)
+            df_name <- enclosure_result$cleaned_data
+            local_audits[[length(local_audits) + 1]] <- enclosure_result$audit_trail
+
+            quality_result <- strip_quality_adjectives(df_name, name_cols_inner)
+            df_name <- quality_result$cleaned_data
+            local_audits[[length(local_audits) + 1]] <- quality_result$audit_trail
+
+            salt_result <- strip_salt_references(df_name, name_cols_inner)
+            df_name <- salt_result$cleaned_data
+            local_audits[[length(local_audits) + 1]] <- salt_result$audit_trail
+
+            unspec_result <- strip_terminal_unspecified(df_name, name_cols_inner)
+            df_name <- unspec_result$cleaned_data
+            local_audits[[length(local_audits) + 1]] <- unspec_result$audit_trail
+
+            if (!is.null(reference_lists_inner$strip_terms)) {
+              strip_ref_result <- strip_reference_terms(df_name, name_cols_inner, reference_lists_inner$strip_terms)
+              df_name <- strip_ref_result$cleaned_data
+              local_audits[[length(local_audits) + 1]] <- strip_ref_result$audit_trail
+            }
+
+            df_name <- df_name %>%
+              dplyr::mutate(dplyr::across(
+                dplyr::all_of(name_cols_inner),
+                ~ {
+                  .x %>%
+                    stringr::str_squish() %>%
+                    stringr::str_remove("\\(\\s*\\)\\s*$") %>%
+                    stringr::str_trim() %>%
+                    stringr::str_remove("[,;-]+$") %>%
+                    stringr::str_trim()
+                }
+              ))
+
+            enclosure_result2 <- strip_terminal_enclosures(df_name, name_cols_inner)
+            df_name <- enclosure_result2$cleaned_data
+            local_audits[[length(local_audits) + 1]] <- enclosure_result2$audit_trail
+
+            list(
+              cleaned_data = df_name,
+              audit_trail = dplyr::bind_rows(local_audits),
+              new_tags = enclosure_result$new_tags
+            )
+          }
+
+          pass1_result <- run_step(
             name_chain_pass1,
-            df_after_multi_cas,
+            df_work,
             name_cols,
             reference_lists,
             dedup_cols = name_cols
           )
-        } else {
-          name_chain_pass1(df_after_multi_cas, name_cols, reference_lists)
-        }
-        df_after_enclosures2 <- pass1_result$cleaned_data
-        audit_combined <- dplyr::bind_rows(audit_combined, pass1_result$audit_trail)
+          df_work <- pass1_result$cleaned_data
+          audit_parts[[length(audit_parts) + 1]] <- pass1_result$audit_trail
 
-        # Merge new_tags from formula_extract columns (from enclosure stripping)
-        pass1_new_tags <- pass1_result$new_tags %||% list()
-        new_tags <- c(new_tags, pass1_new_tags)
-        tag_map_updated <- c(tag_map_updated, pass1_new_tags)
+          pass1_new_tags <- pass1_result$new_tags %||% list()
+          new_tags <- c(new_tags, pass1_new_tags)
+          tag_map_updated <- c(tag_map_updated, pass1_new_tags)
+        }
+
+        synonym_result <- split_synonyms(df_work, name_cols, tag_map_updated)
+        df_work <- synonym_result$cleaned_data
+        audit_parts[[length(audit_parts) + 1]] <- synonym_result$audit_trail
+
+        df_work <- df_work %>%
+          dplyr::mutate(dplyr::across(
+            dplyr::all_of(name_cols),
+            ~ {
+              .x %>%
+                stringr::str_squish() %>%
+                stringr::str_remove_all("\\(\\s*\\)") %>%
+                stringr::str_trim()
+            }
+          ))
+
+        df_work <- df_work[!rows_all_empty(df_work, name_cols), , drop = FALSE]
       }
 
-      # Step 6e: Split synonyms (no dedup -- changes row count, D-01)
-      synonym_result <- split_synonyms(df_after_enclosures2, name_cols, tag_map_updated)
-      df_after_synonyms <- synonym_result$cleaned_data
-      audit_combined <- dplyr::bind_rows(audit_combined, synonym_result$audit_trail)
+      run_isotope <- mask$isotopes
+      run_multi <- mask$multi
+      run_chiral <- mask$chiral
 
-      # Step 6f: Final cleanup after synonym split - str_squish and remove empty parentheticals
-      df_after_synonyms <- df_after_synonyms %>%
-        dplyr::mutate(dplyr::across(
-          dplyr::all_of(name_cols),
-          ~ {
-            .x %>%
-              stringr::str_squish() %>%
-              stringr::str_remove_all("\\(\\s*\\)") %>% # Remove empty parentheticals
-              stringr::str_trim()
+      if (isTRUE(respect_prechecks)) {
+        isotope_lookup_val <- reference_lists$isotope_lookup
+        if (run_isotope) {
+          isotope_check <- if (is.null(isotope_lookup_val)) {
+            list(should_run = TRUE, est_changes = NA_integer_)
+          } else {
+            precheck_isotope_shortcodes(df_work, name_cols, isotope_lookup_val)
           }
-        ))
-
-      # Remove rows where all name columns are empty or NA
-      name_empty_check <- df_after_synonyms[, name_cols, drop = FALSE]
-      all_empty <- apply(name_empty_check, 1, function(row) {
-        all(is.na(row) | row == "")
-      })
-      df_final <- df_after_synonyms[!all_empty, ]
-
-      # Pass 2: Post-synonym chain (Steps 7-9) as single dedup group (D-10)
-      name_chain_pass2 <- function(df_in, name_cols_inner, isotope_lookup_inner) {
-        audit_parts <- list()
-
-        # Step 7: Expand isotope shortcodes
-        isotope_result <- expand_isotope_shortcodes(df_in, name_cols_inner, isotope_lookup_inner)
-        df_work <- isotope_result$cleaned_data
-        audit_parts[[length(audit_parts) + 1]] <- isotope_result$audit_trail
-
-        # Step 8: Flag multi-analyte
-        multi_result <- flag_multi_analyte(df_work, name_cols_inner)
-        df_work <- multi_result$cleaned_data
-        audit_parts[[length(audit_parts) + 1]] <- multi_result$audit_trail
-
-        # Step 9: Restore chiral
-        chiral_restore_result <- restore_chiral_designations(df_work, name_cols_inner)
-        df_work <- chiral_restore_result$cleaned_data
-        audit_parts[[length(audit_parts) + 1]] <- chiral_restore_result$audit_trail
-
-        list(cleaned_data = df_work, audit_trail = dplyr::bind_rows(audit_parts))
-      }
-
-      # Pre-checks for pass 2 steps (any needing work triggers the pass)
-      # When isotope_lookup is NULL, expand_isotope_shortcodes falls back to ComptoxR --
-      # treat that as always-run since the precheck cannot scan an absent lookup table.
-      isotope_lookup_val <- reference_lists$isotope_lookup
-      isotope_check <- if (is.null(isotope_lookup_val)) {
-        list(should_run = TRUE, est_changes = NA_integer_)
-      } else {
-        precheck_isotope_shortcodes(df_final, name_cols, isotope_lookup_val)
-      }
-      multi_check <- precheck_multi_analyte(df_final, name_cols)
-      chiral_check <- precheck_chiral_restore(df_final, name_cols)
-
-      if (isotope_check$should_run || multi_check$should_run || chiral_check$should_run) {
-        pass2_result <- if (use_dedup) {
-          dedup_step(
-            name_chain_pass2,
-            df_final,
-            name_cols,
-            reference_lists$isotope_lookup,
-            dedup_cols = name_cols
-          )
-        } else {
-          name_chain_pass2(df_final, name_cols, reference_lists$isotope_lookup)
+          run_isotope <- isotope_check$should_run
         }
-        df_final <- pass2_result$cleaned_data
-        audit_combined <- dplyr::bind_rows(audit_combined, pass2_result$audit_trail)
-      } else {
-        audit_combined <- dplyr::bind_rows(
-          audit_combined,
-          build_skip_result(df_final, "isotope_shortcodes")$audit_trail,
-          build_skip_result(df_final, "multi_analyte")$audit_trail,
-          build_skip_result(df_final, "chiral_restore")$audit_trail
-        )
+        if (run_multi) {
+          run_multi <- precheck_multi_analyte(df_work, name_cols)$should_run
+        }
+        if (run_chiral) {
+          run_chiral <- precheck_chiral_restore(df_work, name_cols)$should_run
+        }
       }
 
-      truncated_result <- detect_truncated_compound_names(df_final, name_cols)
-      df_final <- truncated_result$cleaned_data
-      audit_combined <- dplyr::bind_rows(audit_combined, truncated_result$audit_trail)
-    } else {
-      # No name columns - skip name cleaning
-      df_final <- df_after_multi_cas
+      if (run_isotope || run_multi || run_chiral) {
+        name_chain_pass2 <- function(
+          df_in,
+          name_cols_inner,
+          isotope_lookup_inner,
+          run_isotope_inner,
+          run_multi_inner,
+          run_chiral_inner
+        ) {
+          local_audits <- list()
+          df_name <- df_in
+
+          if (run_isotope_inner) {
+            isotope_result <- expand_isotope_shortcodes(df_name, name_cols_inner, isotope_lookup_inner)
+            df_name <- isotope_result$cleaned_data
+            local_audits[[length(local_audits) + 1]] <- isotope_result$audit_trail
+          }
+
+          if (run_multi_inner) {
+            multi_result <- flag_multi_analyte(df_name, name_cols_inner)
+            df_name <- multi_result$cleaned_data
+            local_audits[[length(local_audits) + 1]] <- multi_result$audit_trail
+          }
+
+          if (run_chiral_inner) {
+            chiral_restore_result <- restore_chiral_designations(df_name, name_cols_inner)
+            df_name <- chiral_restore_result$cleaned_data
+            local_audits[[length(local_audits) + 1]] <- chiral_restore_result$audit_trail
+          }
+
+          list(cleaned_data = df_name, audit_trail = dplyr::bind_rows(local_audits))
+        }
+
+        pass2_result <- run_step(
+          name_chain_pass2,
+          df_work,
+          name_cols,
+          reference_lists$isotope_lookup,
+          run_isotope,
+          run_multi,
+          run_chiral,
+          dedup_cols = name_cols
+        )
+        df_work <- pass2_result$cleaned_data
+        audit_parts[[length(audit_parts) + 1]] <- pass2_result$audit_trail
+      }
+
+      if (mask$truncated) {
+        truncated_result <- detect_truncated_compound_names(df_work, name_cols)
+        df_work <- truncated_result$cleaned_data
+        audit_parts[[length(audit_parts) + 1]] <- truncated_result$audit_trail
+      }
+
+      if (mask$bare_formula) {
+        formula_result <- detect_bare_formulas(df_work, name_cols)
+        df_work <- formula_result$cleaned_data
+        audit_parts[[length(audit_parts) + 1]] <- formula_result$audit_trail
+      }
+
+      if (mask$reference_flags && !is.null(reference_lists)) {
+        func_cats <- reference_lists$functional_categories
+        if (!is.null(func_cats) && nrow(func_cats) > 0) {
+          func_result <- flag_reference_matches(df_work, name_cols, func_cats, "warning", "functional category")
+          df_work <- func_result$cleaned_data
+          audit_parts[[length(audit_parts) + 1]] <- func_result$audit_trail
+        }
+
+        stop_words <- reference_lists$stop_words
+        if (!is.null(stop_words) && nrow(stop_words) > 0) {
+          stop_result <- flag_reference_matches(df_work, name_cols, stop_words, "warning", "stop word")
+          df_work <- stop_result$cleaned_data
+          audit_parts[[length(audit_parts) + 1]] <- stop_result$audit_trail
+        }
+
+        block_pats <- reference_lists$block_patterns
+        if (!is.null(block_pats) && nrow(block_pats) > 0) {
+          block_result <- flag_reference_matches(df_work, name_cols, block_pats, "blocking", "block pattern")
+          df_work <- block_result$cleaned_data
+          audit_parts[[length(audit_parts) + 1]] <- block_result$audit_trail
+        }
+      }
     }
-  } else {
-    # No CAS processing - just basic cleaning
-    df_final <- df_after_trim
   }
 
-  # Return result
+  audit_trail <- if (length(audit_parts) == 0) {
+    empty_cleaning_audit()
+  } else {
+    dplyr::bind_rows(audit_parts)
+  }
+
   list(
-    cleaned_data = df_final,
-    audit_trail = audit_combined,
+    cleaned_data = df_work,
+    audit_trail = audit_trail,
     new_tags = new_tags
   )
 }

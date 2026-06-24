@@ -413,6 +413,12 @@ combine_nonempty_columns <- function(df, cols) {
     return(rep(NA_character_, n))
   }
 
+  if (length(cols) == 1L) {
+    value <- trimws(as.character(df[[cols[1]]]))
+    value[is.na(value) | !nzchar(value)] <- NA_character_
+    return(value)
+  }
+
   result <- rep(NA_character_, n)
   for (i in seq_len(n)) {
     values <- character(0)
@@ -466,18 +472,18 @@ role_value_by_row <- function(audit, role, n_rows) {
     return(list(value = value, multiple = multiple))
   }
 
-  for (row_id in sort(unique(role_rows$orig_row_id))) {
-    if (is.na(row_id) || row_id < 1 || row_id > n_rows) {
-      next
-    }
-    vals <- role_rows$harmonized_value[role_rows$orig_row_id == row_id]
-    vals <- vals[!is.na(vals)]
-    unique_vals <- unique(vals)
-    if (length(unique_vals) > 0) {
-      value[row_id] <- unique_vals[1]
-      multiple[row_id] <- length(unique_vals) > 1
-    }
+  row_id <- suppressWarnings(as.integer(role_rows$orig_row_id))
+  vals <- suppressWarnings(as.numeric(role_rows$harmonized_value))
+  keep <- !is.na(row_id) & row_id >= 1L & row_id <= n_rows & !is.na(vals)
+  if (!any(keep)) {
+    return(list(value = value, multiple = multiple))
   }
+
+  grouped <- split(vals[keep], row_id[keep])
+  grouped_ids <- as.integer(names(grouped))
+  unique_vals <- lapply(grouped, unique)
+  value[grouped_ids] <- vapply(unique_vals, `[`, numeric(1), 1L)
+  multiple[grouped_ids] <- vapply(unique_vals, function(x) length(x) > 1L, logical(1))
 
   list(value = value, multiple = multiple)
 }
@@ -491,6 +497,18 @@ first_tagged_value <- function(df, cols, row_ids) {
 combine_tagged_values <- function(df, cols, row_ids) {
   if (length(cols) == 0) {
     return(rep(NA_character_, length(row_ids)))
+  }
+
+  if (length(cols) == 1L) {
+    if (!cols[1] %in% names(df)) {
+      return(rep(NA_character_, length(row_ids)))
+    }
+    result <- rep(NA_character_, length(row_ids))
+    valid <- !is.na(row_ids) & row_ids >= 1L & row_ids <= nrow(df)
+    value <- trimws(as.character(df[[cols[1]]][row_ids[valid]]))
+    value[is.na(value) | !nzchar(value)] <- NA_character_
+    result[valid] <- value
+    return(result)
   }
 
   result <- rep(NA_character_, length(row_ids))
@@ -523,31 +541,54 @@ collapse_detection_to_rows <- function(expanded_detection, n_rows) {
     return(row_detection)
   }
 
-  for (row_id in seq_len(n_rows)) {
-    rows <- expanded_detection[expanded_detection$orig_row_id == row_id, , drop = FALSE]
-    if (nrow(rows) == 0) {
-      next
-    }
-    common_cols <- intersect(names(row_detection), names(rows))
-    row_detection[row_id, common_cols] <- rows[1, common_cols, drop = FALSE]
-    row_detection$orig_row_id[row_id] <- row_id
-    row_detection$result_flag[row_id] <- any(rows$result_flag, na.rm = TRUE)
-    row_detection$detected_binary[row_id] <- any(rows$detected_binary, na.rm = TRUE)
-    row_detection$reportable_detect_binary[row_id] <- any(rows$reportable_detect_binary, na.rm = TRUE)
-    row_detection$detection_review_flag[row_id] <- any(rows$detection_review_flag, na.rm = TRUE)
-    row_detection$qualifier_followup_flag[row_id] <- any(rows$qualifier_followup_flag, na.rm = TRUE)
-    row_detection$numeric_followup_flag[row_id] <- any(rows$numeric_followup_flag, na.rm = TRUE)
+  row_ids <- suppressWarnings(as.integer(expanded_detection$orig_row_id))
+  valid <- !is.na(row_ids) & row_ids >= 1L & row_ids <= n_rows
+  if (!any(valid)) {
+    return(row_detection)
+  }
 
-    classes <- unique(rows$detection_event_class[!is.na(rows$detection_event_class)])
-    if (length(classes) > 1) {
-      row_detection$detection_event_class[row_id] <- "review_required"
-      row_detection$detection_basis[row_id] <- "multiple_result_values"
-      row_detection$numeric_followup_flag[row_id] <- TRUE
-      row_detection$numeric_followup_reason[row_id] <- append_reason(
-        row_detection$numeric_followup_reason[row_id],
-        "multiple_result_values"
-      )
-      row_detection$detection_review_flag[row_id] <- TRUE
+  rows <- expanded_detection[valid, , drop = FALSE]
+  row_ids <- row_ids[valid]
+  first_idx <- !duplicated(row_ids)
+  target_rows <- row_ids[first_idx]
+  common_cols <- intersect(names(row_detection), names(rows))
+  row_detection[target_rows, common_cols] <- rows[first_idx, common_cols, drop = FALSE]
+  row_detection$orig_row_id[target_rows] <- target_rows
+
+  any_true_cols <- c(
+    "result_flag",
+    "detected_binary",
+    "reportable_detect_binary",
+    "detection_review_flag",
+    "qualifier_followup_flag",
+    "numeric_followup_flag"
+  )
+  for (col in intersect(any_true_cols, names(rows))) {
+    col_values <- rows[[col]]
+    true_ids <- unique(row_ids[!is.na(col_values) & col_values])
+    if (length(true_ids) > 0) {
+      row_detection[[col]][true_ids] <- TRUE
+    }
+  }
+
+  class_values <- rows$detection_event_class
+  has_class <- !is.na(class_values)
+  if (any(has_class)) {
+    class_groups <- split(class_values[has_class], row_ids[has_class])
+    multi_class_ids <- as.integer(names(class_groups)[
+      vapply(class_groups, function(x) length(unique(x)) > 1L, logical(1))
+    ])
+    if (length(multi_class_ids) > 0) {
+      row_detection$detection_event_class[multi_class_ids] <- "review_required"
+      row_detection$detection_basis[multi_class_ids] <- "multiple_result_values"
+      row_detection$numeric_followup_flag[multi_class_ids] <- TRUE
+      row_detection$detection_review_flag[multi_class_ids] <- TRUE
+
+      existing <- row_detection$numeric_followup_reason[multi_class_ids]
+      needs_append <- !is.na(existing) & nzchar(existing)
+      existing[needs_append] <- paste(existing[needs_append], "multiple_result_values", sep = "; ")
+      existing[!needs_append] <- "multiple_result_values"
+      row_detection$numeric_followup_reason[multi_class_ids] <- existing
     }
   }
 
