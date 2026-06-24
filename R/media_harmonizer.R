@@ -512,7 +512,7 @@ media_term_in_text <- function(term, text) {
     return(FALSE)
   }
 
-  pattern <- sprintf("(^|[^[:alnum:]])%s($|[^[:alnum:]])", escape_regex(term))
+  pattern <- sprintf("(^|[^[:alnum:]_])%s($|[^[:alnum:]_])", escape_regex(term))
   grepl(pattern, text, perl = TRUE)
 }
 
@@ -1022,15 +1022,20 @@ harmonize_media <- function(raw_media, orig_row_id = seq_along(raw_media), media
     media_flag[exact_mask] <- ""
   }
 
-  # Parent-walk for remaining unmatched rows (scalar loop -- typically few rows)
+  # Parent-walk for remaining unmatched rows. Media columns are often highly
+  # duplicated, so resolve each distinct normalized term once.
   unmatched_positions <- which(!exact_mask)
-  for (i in unmatched_positions) {
-    resolved <- walk_parent(normalized[i], media_tbl)
+  unmatched_terms <- unique(normalized[unmatched_positions])
+  unmatched_terms <- unmatched_terms[!is.na(unmatched_terms) & nzchar(unmatched_terms)]
+
+  for (term in unmatched_terms) {
+    resolved <- walk_parent(term, media_tbl)
     if (!is.na(resolved)) {
-      canonical_out[i] <- media_tbl$canonical_term[resolved]
-      envo_out[i] <- media_tbl$envo_id[resolved]
-      category_out[i] <- media_tbl$media_category[resolved]
-      media_flag[i] <- "parent_walk"
+      term_positions <- unmatched_positions[normalized[unmatched_positions] == term]
+      canonical_out[term_positions] <- media_tbl$canonical_term[resolved]
+      envo_out[term_positions] <- media_tbl$envo_id[resolved]
+      category_out[term_positions] <- media_tbl$media_category[resolved]
+      media_flag[term_positions] <- "parent_walk"
     }
     # else: stays "media_unmatched" / NA (already initialized)
   }
