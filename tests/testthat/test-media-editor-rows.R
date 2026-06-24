@@ -44,11 +44,15 @@ test_that("build_media_editor_rows collapses duplicate raw unmatched rows with a
   expect_equal(mystery$unmatched_count, 3L)
 })
 
-test_that("build_media_editor_rows hides CONCERT source rows from AMOS review model", {
+test_that("build_media_editor_rows includes CONCERT rows and only unresolved AMOS rows", {
   rows <- concert:::build_media_editor_rows(make_editor_media_map(), NULL)
 
-  expect_false("concert" %in% rows$source)
-  expect_false("water" %in% rows$term)
+  water <- rows[rows$term == "water", ]
+  expect_equal(nrow(water), 1L)
+  expect_equal(water$source, "concert")
+
+  expect_true("runoff" %in% rows$term)
+  expect_false("marine" %in% rows$term)
 })
 
 test_that("build_media_editor_rows counts raw media hits separately from unmatched hits", {
@@ -59,10 +63,6 @@ test_that("build_media_editor_rows counts raw media hits separately from unmatch
 
   rows <- concert:::build_media_editor_rows(make_editor_media_map(), media_results)
 
-  marine <- rows[rows$term == "marine", ]
-  expect_equal(marine$hit_count, 2L)
-  expect_equal(marine$unmatched_count, 0L)
-
   runoff <- rows[rows$term == "runoff", ]
   expect_equal(runoff$hit_count, 1L)
   expect_equal(runoff$unmatched_count, 1L)
@@ -71,7 +71,36 @@ test_that("build_media_editor_rows counts raw media hits separately from unmatch
   expect_equal(mystery$hit_count, 1L)
   expect_equal(mystery$unmatched_count, 1L)
 
-  expect_false("water" %in% rows$term)
+  water <- rows[rows$term == "water", ]
+  expect_equal(water$hit_count, 1L)
+  expect_equal(water$unmatched_count, 0L)
+
+  expect_false("marine" %in% rows$term)
+})
+
+test_that("build_media_editor_rows sorts uploaded rows first by hit count", {
+  media_results <- tibble::tibble(
+    raw_media = c(
+      "low matrix",
+      "high matrix", "high matrix", "high matrix",
+      "medium matrix", "medium matrix",
+      "runoff",
+      "water"
+    ),
+    media_flag = c(
+      "media_unmatched",
+      "media_unmatched", "media_unmatched", "media_unmatched",
+      "media_unmatched", "media_unmatched",
+      "media_unmatched",
+      ""
+    )
+  )
+
+  rows <- concert:::build_media_editor_rows(make_editor_media_map(), media_results)
+
+  expect_equal(rows$source[1:3], rep("uploaded", 3))
+  expect_equal(rows$term[1:3], c("high matrix", "medium matrix", "low matrix"))
+  expect_equal(rows$hit_count[1:3], c(3L, 2L, 1L))
 })
 
 test_that("build_media_editor_rows includes pending aliases with no upload results", {
