@@ -138,3 +138,32 @@ test_that("build_media_editor_rows sorts bundled media by ontology path", {
 
   expect_equal(rows$term, c("air", "water", "soil"))
 })
+
+test_that("build_media_editor_rows surfaces underscore-coded UAT media terms for curation", {
+  media_map <- tibble::tibble(
+    term = c("water", "tissue"),
+    canonical = c("water", "tissue"),
+    canonical_term = c("water", "tissue"),
+    envo_id = c("ENVO:00002006", "ENVO:01001434"),
+    media_category = c("aqueous", "solid"),
+    source = "concert",
+    assertion_mode = "auto",
+    confidence = "high",
+    active = TRUE
+  )
+  media_results <- harmonize_media(
+    c("surface_water", "surface_water", "fish_tissue"),
+    media_map = media_map
+  )
+
+  rows <- concert:::build_media_editor_rows(media_map, media_results)
+
+  surface <- rows[rows$term == "surface_water", ]
+  fish <- rows[rows$term == "fish_tissue", ]
+  expect_equal(surface$source, "uploaded")
+  expect_equal(surface$hit_count, 2L)
+  expect_equal(surface$unmatched_count, 2L)
+  expect_equal(fish$source, "uploaded")
+  expect_equal(fish$hit_count, 1L)
+  expect_equal(fish$unmatched_count, 1L)
+})
