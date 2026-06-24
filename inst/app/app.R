@@ -162,6 +162,11 @@ server <- function(input, output, session) {
     study_type_tags = NULL,
     harmonize_results = NULL,
     harmonize_audit = NULL,
+    media_results = NULL,
+    duration_results = NULL,
+    date_results = NULL,
+    harmonize_step_mask = NULL,
+    harmonize_run_nonce = 0L,
     detection_results = NULL,
     toxval_output = NULL,
     prev_chemical_tags = NULL,
@@ -342,6 +347,10 @@ server <- function(input, output, session) {
     data_store$study_type_tags <- NULL
     data_store$harmonize_results <- NULL
     data_store$harmonize_audit <- NULL
+    data_store$media_results <- NULL
+    data_store$duration_results <- NULL
+    data_store$date_results <- NULL
+    data_store$harmonize_step_mask <- NULL
     data_store$detection_results <- NULL
     data_store$toxval_output <- NULL
     data_store$prev_chemical_tags <- NULL
@@ -383,6 +392,10 @@ server <- function(input, output, session) {
   reset_numeric_downstream <- function() {
     data_store$harmonize_results <- NULL
     data_store$harmonize_audit <- NULL
+    data_store$media_results <- NULL
+    data_store$duration_results <- NULL
+    data_store$date_results <- NULL
+    data_store$harmonize_step_mask <- NULL
     data_store$detection_results <- NULL
     data_store$toxval_output <- NULL
   }
