@@ -23,6 +23,7 @@
 ^PRE_POST_CURATION_PLAN\.md$
 ^R_PACKAGE_MIGRATION\.md$
 ^AGENTS\.md$
+^cran-comments\.md$
 ^docs$
 ^docs/PRE_POST_CURATION_PLAN\.md$
 ^docs/R_PACKAGE_MIGRATION\.md$

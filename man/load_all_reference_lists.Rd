@@ -19,7 +19,8 @@ Convenience wrapper that loads stop words, block patterns, and functional
 categories in one call. Returns a named list.
 }
 \examples{
-refs <- load_all_reference_lists("data/reference_cache")
+cache_dir <- system.file("extdata", "reference_cache", package = "concert")
+refs <- load_all_reference_lists(cache_dir)
 refs$stop_words
 refs$block_patterns
 refs$functional_categories

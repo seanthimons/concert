@@ -21,5 +21,6 @@ Checks if cache file exists. If yes, reads from disk. If no, calls fetch_fn,
 creates directory structure, saves result to disk, and returns result.
 }
 \examples{
-load_or_fetch_reference("cache/data.rds", function() c("a", "b"), "test_data")
+cache_path <- file.path(tempdir(), "data.rds")
+load_or_fetch_reference(cache_path, function() c("a", "b"), "test_data")
 }
