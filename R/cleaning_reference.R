@@ -16,7 +16,8 @@
 #' @return Data returned by fetch_fn (or read from cache)
 #'
 #' @examples
-#' load_or_fetch_reference("cache/data.rds", function() c("a", "b"), "test_data")
+#' cache_path <- file.path(tempdir(), "data.rds")
+#' load_or_fetch_reference(cache_path, function() c("a", "b"), "test_data")
 #' @export
 load_or_fetch_reference <- function(cache_path, fetch_fn, name) {
   if (file.exists(cache_path)) {
@@ -1227,7 +1228,8 @@ load_media_map <- function(cache_dir) {
 #'   toxval_schema, media_map
 #'
 #' @examples
-#' refs <- load_all_reference_lists("data/reference_cache")
+#' cache_dir <- system.file("extdata", "reference_cache", package = "concert")
+#' refs <- load_all_reference_lists(cache_dir)
 #' refs$stop_words
 #' refs$block_patterns
 #' refs$functional_categories
