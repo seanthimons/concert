@@ -1,0 +1,153 @@
+name: Release on Version Bump
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - DESCRIPTION
+      - NEWS.md
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        # actions/checkout v5 pinned by commit SHA for supply-chain stability.
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        with:
+          fetch-depth: 0
+
+      - name: Set up R
+        # r-lib/actions/setup-r v2 pinned by commit SHA.
+        uses: r-lib/actions/setup-r@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
+        with:
+          r-version: release
+          use-public-rspm: true
+
+      - name: Set up pandoc
+        # r-lib/actions/setup-pandoc v2 pinned by commit SHA.
+        uses: r-lib/actions/setup-pandoc@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
+
+      - name: Decide whether to release
+        id: release
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          GITHUB_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          Rscript - <<'RSCRIPT'
+          read_version <- function(path) {
+            unname(read.dcf(path, fields = "Version")[1, "Version"])
+          }
+
+          current_version <- read_version("DESCRIPTION")
+          previous_version <- NA_character_
+          before <- Sys.getenv("BEFORE_SHA")
+
+          if (nzchar(before) && !grepl("^0+$", before)) {
+            previous_description <- tryCatch(
+              system2("git", c("show", paste0(before, ":DESCRIPTION")), stdout = TRUE),
+              error = function(e) character()
+            )
+            if (length(previous_description) > 0) {
+              previous_version <- unname(read.dcf(textConnection(previous_description), fields = "Version")[1, "Version"])
+            }
+          }
+
+          tag <- paste0("v", current_version)
+          should_release <- TRUE
+          reason <- NULL
+
+          if (identical(current_version, "0.1.0")) {
+            should_release <- FALSE
+            reason <- "0.1.0 is the initial package version and is not auto-tagged."
+          } else if (!grepl("^[0-9]+\\.[0-9]+\\.[0-9]+$", current_version)) {
+            stop("DESCRIPTION Version must have three numeric components for package releases: ", current_version)
+          } else if (!is.na(previous_version) && identical(previous_version, current_version)) {
+            should_release <- FALSE
+            reason <- "DESCRIPTION Version did not change."
+          }
+
+          if (isTRUE(should_release)) {
+            tag_exists <- system2("git", c("rev-parse", "-q", "--verify", paste0("refs/tags/", tag)), stdout = TRUE, stderr = TRUE)
+            if (length(tag_exists) > 0) {
+              tag_commit <- system2("git", c("rev-list", "-n", "1", tag), stdout = TRUE)
+              if (!identical(tag_commit, Sys.getenv("GITHUB_SHA"))) {
+                stop("Release tag ", tag, " already exists at ", tag_commit, ", not ", Sys.getenv("GITHUB_SHA"))
+              }
+              should_release <- FALSE
+              reason <- paste("Release tag", tag, "already exists at this commit.")
+            }
+          }
+
+          output <- Sys.getenv("GITHUB_OUTPUT")
+          write(paste0("version=", current_version), output, append = TRUE)
+          write(paste0("previous_version=", ifelse(is.na(previous_version), "", previous_version)), output, append = TRUE)
+          write(paste0("tag=", tag), output, append = TRUE)
+          write(paste0("should_release=", tolower(should_release)), output, append = TRUE)
+
+          if (!is.null(reason)) {
+            message(reason)
+          }
+          RSCRIPT
+
+      - name: Extract release notes
+        if: steps.release.outputs.should_release == 'true'
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        shell: bash
+        run: |
+          Rscript - <<'RSCRIPT'
+          version <- Sys.getenv("VERSION")
+          lines <- readLines("NEWS.md", warn = FALSE)
+          heading_pattern <- paste0("^#+\\s+.*\\b", gsub("\\.", "\\\\.", version), "\\b")
+          heading <- grep(heading_pattern, lines)
+          if (length(heading) == 0) {
+            stop("NEWS.md does not contain a section for version ", version)
+          }
+
+          start <- heading[1] + 1L
+          rest <- if (start <= length(lines)) lines[start:length(lines)] else character()
+          next_heading <- grep("^#+\\s+", rest)
+          end <- if (length(next_heading) == 0) length(lines) else start + next_heading[1] - 2L
+          notes <- if (start <= end) lines[start:end] else character()
+          notes <- notes[seq_len(max(which(nzchar(trimws(notes))), 0))]
+          if (length(notes) == 0) {
+            stop("NEWS.md section for version ", version, " is empty")
+          }
+          writeLines(notes, "release-notes.md")
+          RSCRIPT
+
+      - name: Install package dependencies
+        if: steps.release.outputs.should_release == 'true'
+        # r-lib/actions/setup-r-dependencies v2 pinned by commit SHA.
+        uses: r-lib/actions/setup-r-dependencies@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
+        with:
+          extra-packages: any::rcmdcheck
+          needs: check
+
+      - name: Validate release
+        if: steps.release.outputs.should_release == 'true'
+        run: Rscript -e "rcmdcheck::rcmdcheck(args = '--as-cran', error_on = 'warning')"
+
+      - name: Create tag and GitHub release
+        if: steps.release.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$TAG"
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --notes-file release-notes.md
