@@ -414,8 +414,8 @@ normalize_media_map_for_display <- function(media_map) {
 
 #' Build rows for the Media Classification editor
 #'
-#' Combines active AMOS/user mappings, pending aliases, and unique raw
-#' unmatched uploaded terms produced by harmonize_media().
+#' Combines active CONCERT/user mappings, unresolved AMOS aliases, and unique
+#' raw unmatched uploaded terms produced by harmonize_media().
 #'
 #' @param media_map Media map tibble from load_media_map().
 #' @param media_results harmonize_media() output, or NULL before pipeline run.
@@ -423,7 +423,12 @@ normalize_media_map_for_display <- function(media_map) {
 #' @keywords internal
 build_media_editor_rows <- function(media_map, media_results) {
   map_rows <- normalize_media_map_for_display(media_map)
-  keep_map <- map_rows$source %in% c("amos", "user") & (map_rows$active | map_rows$assertion_mode == "pending")
+  unresolved_map <- is.na(map_rows$canonical) | !nzchar(map_rows$canonical)
+  keep_map <- (map_rows$source %in% c("concert", "user") & map_rows$active) |
+    (
+      map_rows$source == "amos" &
+      (unresolved_map | map_rows$assertion_mode == "pending") &
+      (map_rows$active | map_rows$assertion_mode == "pending"))
   map_rows <- map_rows[keep_map, , drop = FALSE]
 
   count_terms <- function(terms, count_col) {
@@ -519,7 +524,18 @@ build_media_editor_rows <- function(media_map, media_results) {
   }
 
   unresolved <- is.na(map_rows$canonical) | !nzchar(map_rows$canonical)
-  map_rows[order(!map_rows$is_raw_unmatched, -map_rows$hit_count, !unresolved, map_rows$term), , drop = FALSE]
+  source_rank <- dplyr::case_when(
+    map_rows$source == "uploaded" ~ 0L,
+    map_rows$source == "amos" ~ 1L,
+    map_rows$source == "user" ~ 2L,
+    map_rows$source == "concert" ~ 3L,
+    TRUE ~ 4L
+  )
+  map_rows[
+    order(source_rank, -map_rows$hit_count, !unresolved, map_rows$media_category, map_rows$term),
+    ,
+    drop = FALSE
+  ]
 }
 
 infer_media_categories <- function(media_tbl) {
