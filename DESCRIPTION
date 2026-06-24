@@ -8,6 +8,10 @@ Description: Upload, clean, validate, and translate chemical regulatory and
     benchmark datasets with intelligent frontmatter detection, identifier
     curation, unit harmonization, and ToxVal-compatible exports.
 License: MIT + file LICENSE
+URL: https://github.com/seanthimons/concert
+BugReports: https://github.com/seanthimons/concert/issues
+Depends:
+    R (>= 4.1.0)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
@@ -16,7 +20,7 @@ Imports:
     bsicons,
     bslib,
     cli,
-    ComptoxR,
+    ComptoxR (>= 1.4.0),
     digest,
     dplyr (>= 1.1.0),
     fs,
@@ -48,5 +52,3 @@ Suggests:
     bench,
     testthat (>= 3.0.0),
     withr
-Remotes:
-    seanthimons/ComptoxR
