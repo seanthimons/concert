@@ -1,0 +1,55 @@
+node_id,parent_id,label,rank,routing_category,envo_id,definition,active
+media,,media,root,,,Root node for local media ontology,TRUE
+media.liquid,media,liquid,physical_state,,,Liquid media state,TRUE
+media.liquid.aqueous,media.liquid,aqueous,routing,aqueous,,Liquid media where water is the primary phase,TRUE
+media.liquid.aqueous.water,media.liquid.aqueous,water,canonical,,ENVO:00002006,Water as an environmental medium,TRUE
+media.liquid.aqueous.freshwater,media.liquid.aqueous,freshwater,canonical,,ENVO:00002011,Fresh non-saline water,TRUE
+media.liquid.aqueous.surface_water,media.liquid.aqueous,surface water,canonical,,ENVO:00002042,Water at the land surface,TRUE
+media.liquid.aqueous.groundwater,media.liquid.aqueous,groundwater,canonical,,ENVO:01001004,Water below the land surface,TRUE
+media.liquid.aqueous.drinking_water,media.liquid.aqueous,drinking water,canonical,,ENVO:00003064,Water intended for drinking,TRUE
+media.liquid.aqueous.wastewater,media.liquid.aqueous,wastewater,canonical,,ENVO:00002001,Water affected by waste streams,TRUE
+media.liquid.aqueous.effluent,media.liquid.aqueous,effluent,canonical,,ENVO:00002001,Discharged wastewater stream,TRUE
+media.liquid.aqueous.leachate,media.liquid.aqueous,leachate,canonical,,,Liquid that has percolated through material,TRUE
+media.liquid.aqueous.marine_water,media.liquid.aqueous,marine water,canonical,,ENVO:00002149,Saline ocean or sea water,TRUE
+media.liquid.aqueous.saltwater,media.liquid.aqueous,saltwater,canonical,,ENVO:00002149,Saline water,TRUE
+media.liquid.aqueous.seawater,media.liquid.aqueous,seawater,canonical,,ENVO:00002149,Sea water,TRUE
+media.liquid.aqueous.tap_water,media.liquid.aqueous,tap water,future,,ENVO:00003064,Water delivered from a tap,TRUE
+media.liquid.aqueous.distilled_water,media.liquid.aqueous,distilled water,future,,,Purified water produced by distillation,TRUE
+media.liquid.aqueous.deionized_water,media.liquid.aqueous,deionized water,future,,,Purified water with ions removed,TRUE
+media.liquid.aqueous.milli_q_water,media.liquid.aqueous,milli-q water,future,,,Laboratory ultrapure water,TRUE
+media.liquid.aqueous.lake_water,media.liquid.aqueous,lake water,future,,ENVO:00000020,Water from a lake,TRUE
+media.liquid.aqueous.runoff,media.liquid.aqueous,runoff,future,,,Water flowing over land after precipitation or release,TRUE
+media.liquid.aqueous.biological_fluid,media.liquid.aqueous,biological fluid,branch,,,Aqueous liquid from an organism,TRUE
+media.liquid.aqueous.biological_fluid.blood,media.liquid.aqueous.biological_fluid,blood,canonical,,ENVO:02000049,Blood as a biological fluid medium,TRUE
+media.liquid.aqueous.biological_fluid.plasma,media.liquid.aqueous.biological_fluid,plasma,canonical,,ENVO:02000049,Plasma as a biological fluid medium,TRUE
+media.liquid.aqueous.biological_fluid.serum,media.liquid.aqueous.biological_fluid,serum,canonical,,ENVO:02000049,Serum as a biological fluid medium,TRUE
+media.liquid.non_aqueous,media.liquid,non-aqueous,branch,,,Liquid media where water is not the primary phase,TRUE
+media.liquid.non_aqueous.vehicle,media.liquid.non_aqueous,vehicle,branch,,,Non-aqueous carrier or formulation vehicle,TRUE
+media.liquid.non_aqueous.vehicle.dmso,media.liquid.non_aqueous.vehicle,dmso,future,,,Dimethyl sulfoxide vehicle,TRUE
+media.liquid.non_aqueous.vehicle.acetone,media.liquid.non_aqueous.vehicle,acetone,future,,,Acetone vehicle,TRUE
+media.liquid.non_aqueous.vehicle.ethanol,media.liquid.non_aqueous.vehicle,ethanol,future,,,Ethanol vehicle,TRUE
+media.liquid.non_aqueous.vehicle.methanol,media.liquid.non_aqueous.vehicle,methanol,future,,,Methanol vehicle,TRUE
+media.liquid.non_aqueous.vehicle.corn_oil,media.liquid.non_aqueous.vehicle,corn oil,future,,,Corn oil vehicle,TRUE
+media.liquid.non_aqueous.vehicle.olive_oil,media.liquid.non_aqueous.vehicle,olive oil,future,,,Olive oil vehicle,TRUE
+media.liquid.non_aqueous.vehicle.propylene_glycol,media.liquid.non_aqueous.vehicle,propylene glycol,future,,,Propylene glycol vehicle,TRUE
+media.solid,media,solid,routing,solid,,Solid media state and routing group,TRUE
+media.solid.soil,media.solid,soil,canonical,,ENVO:00001998,Soil as an environmental medium,TRUE
+media.solid.sediment,media.solid,sediment,canonical,,ENVO:00002007,Sediment as an environmental medium,TRUE
+media.solid.freshwater_sediment,media.solid,freshwater sediment,canonical,,ENVO:00002007,Freshwater sediment,TRUE
+media.solid.marine_sediment,media.solid,marine sediment,canonical,,ENVO:00002007,Marine sediment,TRUE
+media.solid.dust,media.solid,dust,canonical,,ENVO:00002003,Dust as a solid medium,TRUE
+media.solid.sludge,media.solid,sludge,canonical,,ENVO:00002059,Sludge as a solid medium,TRUE
+media.solid.tissue,media.solid,tissue,canonical,,ENVO:01001434,Tissue as a biological solid medium,TRUE
+media.solid.biota,media.solid,biota,canonical,,ENVO:00000024,Organism material as a medium,TRUE
+media.solid.food,media.solid,food,canonical,,ENVO:00002002,Food as an exposure medium,TRUE
+media.solid.diet,media.solid,diet,canonical,,ENVO:00002002,Diet as an exposure medium,TRUE
+media.solid.feed,media.solid,feed,future,,ENVO:00002002,Animal feed as an exposure medium,TRUE
+media.solid.particulate_matter,media.solid,particulate matter,future,,,Particulate matter treated as solid for routing,TRUE
+media.solid.suspended_solids,media.solid,suspended solids,future,,,Suspended solids treated as solid for routing,TRUE
+media.gas,media,gas,physical_state,air,,Gas media state with air routing,TRUE
+media.gas.air,media.gas,air,canonical,,ENVO:00002005,Air as an environmental medium,TRUE
+media.gas.ambient_air,media.gas,ambient air,canonical,,ENVO:00002005,Outdoor ambient air,TRUE
+media.gas.indoor_air,media.gas,indoor air,canonical,,ENVO:01000504,Indoor air,TRUE
+media.gas.clean_air,media.gas,clean air,future,,ENVO:00002005,Clean air,TRUE
+media.gas.vapor,media.gas,vapor,future,,,Vapor routed with gas media,TRUE
+media.gas.aerosol,media.gas,aerosol,future,,,Aerosol routed with gas media pending mixed-phase evidence,TRUE

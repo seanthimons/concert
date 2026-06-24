@@ -75,7 +75,8 @@ find_local_media_source_dir <- function() {
     candidate <- file.path(candidate_root, "inst", "extdata", "reference_sources")
     if (
       file.exists(file.path(candidate, "media_canonical.csv")) &&
-        file.exists(file.path(candidate, "media_aliases.csv"))
+        file.exists(file.path(candidate, "media_aliases.csv")) &&
+        file.exists(file.path(candidate, "media_ontology_nodes.csv"))
     ) {
       return(candidate)
     }
@@ -113,6 +114,15 @@ normalize_media_character <- function(x) {
   out
 }
 
+normalize_media_lower_character <- function(x) {
+  out <- normalize_media_character(x)
+  tolower(out)
+}
+
+valid_media_routing_categories <- function() {
+  c("aqueous", "air", "solid")
+}
+
 read_media_source_csv <- function(path, required_cols) {
   if (!file.exists(path)) {
     stop(sprintf("Media source table not found: %s", path), call. = FALSE)
@@ -139,6 +149,201 @@ read_media_source_csv <- function(path, required_cols) {
   tibble::as_tibble(tbl)
 }
 
+validate_media_ontology_nodes <- function(ontology) {
+  missing_node_id <- is.na(ontology$node_id) | !nzchar(ontology$node_id)
+  if (any(missing_node_id)) {
+    stop("Media ontology nodes require node_id for every row.", call. = FALSE)
+  }
+
+  duplicate_nodes <- unique(ontology$node_id[duplicated(ontology$node_id)])
+  if (length(duplicate_nodes) > 0L) {
+    stop(
+      sprintf("Duplicate media ontology node_id value(s): %s", paste(duplicate_nodes, collapse = ", ")),
+      call. = FALSE
+    )
+  }
+
+  missing_parents <- setdiff(ontology$parent_id[!is.na(ontology$parent_id)], ontology$node_id)
+  if (length(missing_parents) > 0L) {
+    stop(
+      sprintf("Media ontology parent_id value(s) not found: %s", paste(missing_parents, collapse = ", ")),
+      call. = FALSE
+    )
+  }
+
+  invalid_routes <- setdiff(
+    unique(ontology$routing_category[!is.na(ontology$routing_category)]),
+    valid_media_routing_categories()
+  )
+  if (length(invalid_routes) > 0L) {
+    stop(
+      sprintf("Invalid media ontology routing category value(s): %s", paste(invalid_routes, collapse = ", ")),
+      call. = FALSE
+    )
+  }
+
+  parent_by_id <- stats::setNames(ontology$parent_id, ontology$node_id)
+  for (node_id in ontology$node_id) {
+    visited <- character(0)
+    current <- node_id
+    repeat {
+      if (current %in% visited) {
+        stop(
+          sprintf("Media ontology parent cycle detected at node_id: %s", current),
+          call. = FALSE
+        )
+      }
+
+      visited <- c(visited, current)
+      parent_id <- unname(parent_by_id[current])
+      if (is.na(parent_id) || !nzchar(parent_id)) {
+        break
+      }
+      current <- parent_id
+    }
+  }
+
+  invisible(TRUE)
+}
+
+media_ontology_ancestor_ids <- function(node_id, parent_by_id) {
+  path <- character(0)
+  current <- node_id
+  repeat {
+    path <- c(current, path)
+    parent_id <- unname(parent_by_id[current])
+    if (is.na(parent_id) || !nzchar(parent_id)) {
+      break
+    }
+    current <- parent_id
+  }
+
+  path
+}
+
+build_media_ontology_index <- function(ontology) {
+  validate_media_ontology_nodes(ontology)
+
+  parent_by_id <- stats::setNames(ontology$parent_id, ontology$node_id)
+  label_by_id <- stats::setNames(ontology$label, ontology$node_id)
+  route_by_id <- stats::setNames(ontology$routing_category, ontology$node_id)
+
+  path_ids <- lapply(ontology$node_id, media_ontology_ancestor_ids, parent_by_id = parent_by_id)
+  ontology$ontology_path <- vapply(path_ids, function(ids) {
+    labels <- unname(label_by_id[ids])
+    labels[is.na(labels) | !nzchar(labels)] <- ids[is.na(labels) | !nzchar(labels)]
+    paste(labels, collapse = " > ")
+  }, character(1))
+
+  ontology$physical_state <- vapply(path_ids, function(ids) {
+    if (length(ids) < 2L) {
+      return(NA_character_)
+    }
+    physical <- unname(label_by_id[ids[2]])
+    if (is.na(physical) || !nzchar(physical)) {
+      return(NA_character_)
+    }
+    physical
+  }, character(1))
+
+  ontology$derived_routing_category <- vapply(seq_along(path_ids), function(i) {
+    routes <- unique(unname(route_by_id[path_ids[[i]]]))
+    routes <- routes[!is.na(routes) & nzchar(routes)]
+    if (length(routes) == 0L) {
+      return(NA_character_)
+    }
+    if (length(routes) > 1L) {
+      stop(
+        sprintf(
+          "Conflicting media routing categories in ontology path for %s: %s",
+          ontology$node_id[i],
+          paste(routes, collapse = ", ")
+        ),
+        call. = FALSE
+      )
+    }
+    routes
+  }, character(1))
+
+  ontology$has_children <- ontology$node_id %in% ontology$parent_id[!is.na(ontology$parent_id)]
+  ontology
+}
+
+validate_media_canonical_ontology <- function(canonical, ontology) {
+  missing_ontology <- is.na(canonical$ontology_node_id) | !nzchar(canonical$ontology_node_id)
+  if (any(canonical$active & missing_ontology)) {
+    stop(
+      sprintf(
+        "Active canonical media rows require ontology_node_id: %s",
+        paste(canonical$canonical_media[canonical$active & missing_ontology], collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+
+  unknown_nodes <- setdiff(canonical$ontology_node_id[!is.na(canonical$ontology_node_id)], ontology$node_id)
+  if (length(unknown_nodes) > 0L) {
+    stop(
+      sprintf("Canonical media references unknown ontology_node_id value(s): %s", paste(unknown_nodes, collapse = ", ")),
+      call. = FALSE
+    )
+  }
+
+  invalid_categories <- setdiff(
+    unique(canonical$routing_category[!is.na(canonical$routing_category)]),
+    valid_media_routing_categories()
+  )
+  if (length(invalid_categories) > 0L) {
+    stop(
+      sprintf(
+        "Invalid media routing category value(s): %s",
+        paste(invalid_categories, collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+
+  node_match <- match(canonical$ontology_node_id, ontology$node_id)
+  derived_route <- ontology$derived_routing_category[node_match]
+  both_missing <- is.na(canonical$routing_category) & is.na(derived_route)
+  route_equal <- canonical$routing_category == derived_route
+  route_equal[is.na(route_equal)] <- FALSE
+  route_mismatch <- !(both_missing | route_equal)
+  route_mismatch <- route_mismatch & (canonical$active | !is.na(canonical$routing_category))
+  route_mismatch[is.na(route_mismatch)] <- FALSE
+  if (any(route_mismatch)) {
+    bad <- canonical[route_mismatch, , drop = FALSE]
+    expected <- ifelse(is.na(derived_route[route_mismatch]), "<none>", derived_route[route_mismatch])
+    actual <- ifelse(is.na(bad$routing_category), "<none>", bad$routing_category)
+    stop(
+      sprintf(
+        "Canonical media routing_category does not match ontology-derived route: %s",
+        paste(sprintf("%s=%s expected %s", bad$canonical_media, actual, expected), collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+
+  non_leaf <- ontology$has_children[node_match]
+  allowed_grouping_rank <- ontology$rank[node_match] %in% c("abstract", "routing")
+  invalid_grouping <- canonical$active & non_leaf & !allowed_grouping_rank
+  invalid_grouping[is.na(invalid_grouping)] <- FALSE
+  if (any(invalid_grouping)) {
+    stop(
+      sprintf(
+        "Canonical media cannot reference non-leaf ontology node(s) unless rank is abstract or routing: %s",
+        paste(canonical$canonical_media[invalid_grouping], collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+
+  canonical$derived_routing_category <- derived_route
+  canonical$ontology_path <- ontology$ontology_path[node_match]
+  canonical$physical_state <- ontology$physical_state[node_match]
+  canonical
+}
+
 #' Load reviewable media vocabulary source tables
 #'
 #' @param source_dir Optional directory containing media_canonical.csv and
@@ -153,15 +358,20 @@ load_media_source_tables <- function(source_dir = NULL) {
 
   canonical <- read_media_source_csv(
     file.path(source_dir, "media_canonical.csv"),
-    c("canonical_media", "routing_category", "envo_id", "envo_source", "active")
+    c("canonical_media", "ontology_node_id", "routing_category", "envo_id", "envo_source", "active")
   )
   aliases <- read_media_source_csv(
     file.path(source_dir, "media_aliases.csv"),
     c("term", "canonical_media", "assertion_mode", "confidence", "source", "active")
   )
+  ontology <- read_media_source_csv(
+    file.path(source_dir, "media_ontology_nodes.csv"),
+    c("node_id", "parent_id", "label", "rank", "routing_category", "envo_id", "definition", "active")
+  )
 
   canonical$canonical_media <- trimws(tolower(as.character(canonical$canonical_media)))
-  canonical$routing_category <- trimws(tolower(as.character(canonical$routing_category)))
+  canonical$ontology_node_id <- normalize_media_lower_character(canonical$ontology_node_id)
+  canonical$routing_category <- normalize_media_lower_character(canonical$routing_category)
   canonical$envo_id <- normalize_media_character(canonical$envo_id)
   canonical$envo_source <- normalize_media_character(canonical$envo_source)
   canonical$active <- normalize_media_logical(canonical$active)
@@ -174,18 +384,17 @@ load_media_source_tables <- function(source_dir = NULL) {
   aliases$source <- trimws(tolower(as.character(aliases$source)))
   aliases$active <- normalize_media_logical(aliases$active)
 
-  valid_categories <- c("aqueous", "air", "solid")
-  invalid_categories <- setdiff(unique(canonical$routing_category), valid_categories)
-  invalid_categories <- invalid_categories[!is.na(invalid_categories)]
-  if (length(invalid_categories) > 0L) {
-    stop(
-      sprintf(
-        "Invalid media routing category value(s): %s",
-        paste(invalid_categories, collapse = ", ")
-      ),
-      call. = FALSE
-    )
-  }
+  ontology$node_id <- normalize_media_lower_character(ontology$node_id)
+  ontology$parent_id <- normalize_media_lower_character(ontology$parent_id)
+  ontology$label <- normalize_media_lower_character(ontology$label)
+  ontology$rank <- normalize_media_lower_character(ontology$rank)
+  ontology$routing_category <- normalize_media_lower_character(ontology$routing_category)
+  ontology$envo_id <- normalize_media_character(ontology$envo_id)
+  ontology$definition <- normalize_media_character(ontology$definition)
+  ontology$active <- normalize_media_logical(ontology$active)
+
+  ontology <- build_media_ontology_index(ontology)
+  canonical <- validate_media_canonical_ontology(canonical, ontology)
 
   valid_modes <- c("auto", "user", "pending")
   invalid_modes <- setdiff(unique(aliases$assertion_mode), valid_modes)
@@ -200,7 +409,7 @@ load_media_source_tables <- function(source_dir = NULL) {
     )
   }
 
-  list(canonical = canonical, aliases = aliases)
+  list(canonical = canonical, aliases = aliases, ontology_nodes = ontology)
 }
 
 empty_media_runtime_map <- function() {
@@ -211,6 +420,9 @@ empty_media_runtime_map <- function() {
     envo_id = character(),
     parent = character(),
     media_category = character(),
+    ontology_node_id = character(),
+    ontology_path = character(),
+    physical_state = character(),
     source = character(),
     fetch_timestamp = character(),
     assertion_mode = character(),
@@ -234,6 +446,15 @@ build_media_runtime_map <- function(source_tables = load_media_source_tables(),
     return(empty_media_runtime_map())
   }
 
+  if (!"derived_routing_category" %in% names(canonical_tbl)) {
+    canonical_tbl$derived_routing_category <- canonical_tbl$routing_category
+  }
+  for (col in c("ontology_node_id", "ontology_path", "physical_state")) {
+    if (!col %in% names(canonical_tbl)) {
+      canonical_tbl[[col]] <- NA_character_
+    }
+  }
+
   canonical_lookup <- canonical_tbl
   canonical_lookup$key <- canonical_lookup$canonical_media
 
@@ -243,7 +464,10 @@ build_media_runtime_map <- function(source_tables = load_media_source_tables(),
     canonical_term = canonical_tbl$canonical_media,
     envo_id = canonical_tbl$envo_id,
     parent = NA_character_,
-    media_category = canonical_tbl$routing_category,
+    media_category = canonical_tbl$derived_routing_category,
+    ontology_node_id = canonical_tbl$ontology_node_id,
+    ontology_path = canonical_tbl$ontology_path,
+    physical_state = canonical_tbl$physical_state,
     source = "concert",
     fetch_timestamp = fetch_timestamp,
     assertion_mode = "auto",
@@ -259,7 +483,10 @@ build_media_runtime_map <- function(source_tables = load_media_source_tables(),
     canonical_term = ifelse(has_canonical, aliases_tbl$canonical_media, NA_character_),
     envo_id = ifelse(has_canonical, canonical_lookup$envo_id[alias_match], NA_character_),
     parent = NA_character_,
-    media_category = ifelse(has_canonical, canonical_lookup$routing_category[alias_match], NA_character_),
+    media_category = ifelse(has_canonical, canonical_lookup$derived_routing_category[alias_match], NA_character_),
+    ontology_node_id = ifelse(has_canonical, canonical_lookup$ontology_node_id[alias_match], NA_character_),
+    ontology_path = ifelse(has_canonical, canonical_lookup$ontology_path[alias_match], NA_character_),
+    physical_state = ifelse(has_canonical, canonical_lookup$physical_state[alias_match], NA_character_),
     source = aliases_tbl$source,
     fetch_timestamp = fetch_timestamp,
     assertion_mode = aliases_tbl$assertion_mode,
@@ -314,6 +541,15 @@ prepare_media_table <- function(media_tbl) {
   if (!"media_category" %in% names(media_tbl)) {
     media_tbl$media_category <- NA_character_
   }
+  if (!"ontology_node_id" %in% names(media_tbl)) {
+    media_tbl$ontology_node_id <- NA_character_
+  }
+  if (!"ontology_path" %in% names(media_tbl)) {
+    media_tbl$ontology_path <- NA_character_
+  }
+  if (!"physical_state" %in% names(media_tbl)) {
+    media_tbl$physical_state <- NA_character_
+  }
   if (!"parent" %in% names(media_tbl)) {
     media_tbl$parent <- NA_character_
   }
@@ -333,6 +569,9 @@ prepare_media_table <- function(media_tbl) {
   media_tbl$canonical_term <- trimws(as.character(media_tbl$canonical_term))
   media_tbl$parent <- trimws(tolower(as.character(media_tbl$parent)))
   media_tbl$parent[!media_value_present(media_tbl$parent)] <- NA_character_
+  media_tbl$ontology_node_id <- normalize_media_lower_character(media_tbl$ontology_node_id)
+  media_tbl$ontology_path <- normalize_media_character(media_tbl$ontology_path)
+  media_tbl$physical_state <- normalize_media_lower_character(media_tbl$physical_state)
   media_tbl$source <- trimws(tolower(as.character(media_tbl$source)))
   media_tbl$assertion_mode <- trimws(tolower(as.character(media_tbl$assertion_mode)))
 
@@ -374,6 +613,15 @@ normalize_media_map_for_display <- function(media_map) {
   if (!"media_category" %in% names(tbl)) {
     tbl$media_category <- NA_character_
   }
+  if (!"ontology_node_id" %in% names(tbl)) {
+    tbl$ontology_node_id <- NA_character_
+  }
+  if (!"ontology_path" %in% names(tbl)) {
+    tbl$ontology_path <- NA_character_
+  }
+  if (!"physical_state" %in% names(tbl)) {
+    tbl$physical_state <- NA_character_
+  }
   if (!"source" %in% names(tbl)) {
     tbl$source <- "concert"
   }
@@ -397,6 +645,9 @@ normalize_media_map_for_display <- function(media_map) {
     envo_id = normalize_media_character(tbl$envo_id),
     parent = normalize_media_character(tbl$parent),
     media_category = normalize_media_character(tbl$media_category),
+    ontology_node_id = normalize_media_lower_character(tbl$ontology_node_id),
+    ontology_path = normalize_media_character(tbl$ontology_path),
+    physical_state = normalize_media_lower_character(tbl$physical_state),
     source = trimws(tolower(as.character(tbl$source))),
     fetch_timestamp = as.character(tbl$fetch_timestamp),
     assertion_mode = trimws(tolower(as.character(tbl$assertion_mode))),
@@ -488,6 +739,9 @@ build_media_editor_rows <- function(media_map, media_results) {
       envo_id = NA_character_,
       parent = NA_character_,
       media_category = NA_character_,
+      ontology_node_id = NA_character_,
+      ontology_path = NA_character_,
+      physical_state = NA_character_,
       source = "uploaded",
       fetch_timestamp = NA_character_,
       assertion_mode = "pending",
@@ -512,6 +766,9 @@ build_media_editor_rows <- function(media_map, media_results) {
       envo_id = character(),
       parent = character(),
       media_category = character(),
+      ontology_node_id = character(),
+      ontology_path = character(),
+      physical_state = character(),
       source = character(),
       fetch_timestamp = character(),
       assertion_mode = character(),
@@ -532,7 +789,14 @@ build_media_editor_rows <- function(media_map, media_results) {
     TRUE ~ 4L
   )
   map_rows[
-    order(source_rank, -map_rows$hit_count, !unresolved, map_rows$media_category, map_rows$term),
+    order(
+      source_rank,
+      -map_rows$hit_count,
+      !unresolved,
+      map_rows$ontology_path,
+      map_rows$media_category,
+      map_rows$term
+    ),
     ,
     drop = FALSE
   ]
@@ -579,8 +843,14 @@ infer_media_categories <- function(media_tbl) {
     }
     if (!is.na(donor)) {
       media_tbl$media_category[i] <- media_tbl$media_category[donor]
-      if (is.na(media_tbl$envo_id[i]) && !is.na(media_tbl$envo_id[donor])) {
-        media_tbl$envo_id[i] <- media_tbl$envo_id[donor]
+      for (col in c("envo_id", "ontology_node_id", "ontology_path", "physical_state")) {
+        if (
+          col %in% names(media_tbl) &&
+            !media_value_present(media_tbl[[col]][i]) &&
+            media_value_present(media_tbl[[col]][donor])
+        ) {
+          media_tbl[[col]][i] <- media_tbl[[col]][donor]
+        }
       }
     }
   }

@@ -1,30 +1,30 @@
-canonical_media,routing_category,envo_id,envo_source,active
-air,air,ENVO:00002005,envo,TRUE
-ambient air,air,ENVO:00002005,envo,TRUE
-aqueous,aqueous,,concert,TRUE
-biota,solid,ENVO:00000024,envo,TRUE
-blood,aqueous,ENVO:02000049,envo,TRUE
-diet,solid,ENVO:00002002,envo,TRUE
-drinking water,aqueous,ENVO:00003064,envo,TRUE
-dust,solid,ENVO:00002003,envo,TRUE
-effluent,aqueous,ENVO:00002001,envo,TRUE
-food,solid,ENVO:00002002,envo,TRUE
-freshwater,aqueous,ENVO:00002011,envo,TRUE
-freshwater sediment,solid,ENVO:00002007,envo,TRUE
-groundwater,aqueous,ENVO:01001004,envo,TRUE
-indoor air,air,ENVO:01000504,envo,TRUE
-leachate,aqueous,,concert,TRUE
-marine sediment,solid,ENVO:00002007,envo,TRUE
-marine water,aqueous,ENVO:00002149,envo,TRUE
-plasma,aqueous,ENVO:02000049,envo,TRUE
-saltwater,aqueous,ENVO:00002149,envo,TRUE
-seawater,aqueous,ENVO:00002149,envo,TRUE
-sediment,solid,ENVO:00002007,envo,TRUE
-serum,aqueous,ENVO:02000049,envo,TRUE
-sludge,solid,ENVO:00002059,envo,TRUE
-soil,solid,ENVO:00001998,envo,TRUE
-solid,solid,,concert,TRUE
-surface water,aqueous,ENVO:00002042,envo,TRUE
-tissue,solid,ENVO:01001434,envo,TRUE
-wastewater,aqueous,ENVO:00002001,envo,TRUE
-water,aqueous,ENVO:00002006,envo,TRUE
+canonical_media,ontology_node_id,routing_category,envo_id,envo_source,active
+air,media.gas.air,air,ENVO:00002005,envo,TRUE
+ambient air,media.gas.ambient_air,air,ENVO:00002005,envo,TRUE
+aqueous,media.liquid.aqueous,aqueous,,concert,TRUE
+biota,media.solid.biota,solid,ENVO:00000024,envo,TRUE
+blood,media.liquid.aqueous.biological_fluid.blood,aqueous,ENVO:02000049,envo,TRUE
+diet,media.solid.diet,solid,ENVO:00002002,envo,TRUE
+drinking water,media.liquid.aqueous.drinking_water,aqueous,ENVO:00003064,envo,TRUE
+dust,media.solid.dust,solid,ENVO:00002003,envo,TRUE
+effluent,media.liquid.aqueous.effluent,aqueous,ENVO:00002001,envo,TRUE
+food,media.solid.food,solid,ENVO:00002002,envo,TRUE
+freshwater,media.liquid.aqueous.freshwater,aqueous,ENVO:00002011,envo,TRUE
+freshwater sediment,media.solid.freshwater_sediment,solid,ENVO:00002007,envo,TRUE
+groundwater,media.liquid.aqueous.groundwater,aqueous,ENVO:01001004,envo,TRUE
+indoor air,media.gas.indoor_air,air,ENVO:01000504,envo,TRUE
+leachate,media.liquid.aqueous.leachate,aqueous,,concert,TRUE
+marine sediment,media.solid.marine_sediment,solid,ENVO:00002007,envo,TRUE
+marine water,media.liquid.aqueous.marine_water,aqueous,ENVO:00002149,envo,TRUE
+plasma,media.liquid.aqueous.biological_fluid.plasma,aqueous,ENVO:02000049,envo,TRUE
+saltwater,media.liquid.aqueous.saltwater,aqueous,ENVO:00002149,envo,TRUE
+seawater,media.liquid.aqueous.seawater,aqueous,ENVO:00002149,envo,TRUE
+sediment,media.solid.sediment,solid,ENVO:00002007,envo,TRUE
+serum,media.liquid.aqueous.biological_fluid.serum,aqueous,ENVO:02000049,envo,TRUE
+sludge,media.solid.sludge,solid,ENVO:00002059,envo,TRUE
+soil,media.solid.soil,solid,ENVO:00001998,envo,TRUE
+solid,media.solid,solid,,concert,TRUE
+surface water,media.liquid.aqueous.surface_water,aqueous,ENVO:00002042,envo,TRUE
+tissue,media.solid.tissue,solid,ENVO:01001434,envo,TRUE
+wastewater,media.liquid.aqueous.wastewater,aqueous,ENVO:00002001,envo,TRUE
+water,media.liquid.aqueous.water,aqueous,ENVO:00002006,envo,TRUE
