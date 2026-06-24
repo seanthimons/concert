@@ -73,9 +73,15 @@ harmonize_measurement_column <- function(
   media = NULL,
   apply_units = TRUE
 ) {
-  original_values <- as.character(input_df[[measurement_col]])
+  raw_values <- input_df[[measurement_col]]
+  original_values <- as.character(raw_values)
   corrected_values <- apply_measurement_corrections(original_values, corrections)
-  parse_tibble <- parse_numeric_results(corrected_values)
+  parse_values <- if (is.numeric(raw_values) && (is.null(corrections) || nrow(corrections) == 0)) {
+    raw_values
+  } else {
+    corrected_values
+  }
+  parse_tibble <- parse_numeric_results(parse_values)
 
   parsed <- tibble::add_column(
     parse_tibble,

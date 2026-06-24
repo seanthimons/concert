@@ -63,19 +63,11 @@ extract_qualifier <- function(x) {
   qual <- rep("", length(x))
   remainder <- x
 
-  for (i in seq_along(x)) {
-    val <- x[i]
-    if (is.na(val)) next
-
-    m <- regmatches(val, regexpr("^\\s*(<=|>=|<|>|~|=)\\s*(.*)", val, perl = TRUE))
-    if (length(m) > 0) {
-      # Extract groups
-      parts <- regmatches(val, regexec("^\\s*(<=|>=|<|>|~|=)\\s*(.*)", val, perl = TRUE))[[1]]
-      if (length(parts) >= 3) {
-        qual[i] <- parts[2]
-        remainder[i] <- parts[3]
-      }
-    }
+  matches <- regmatches(x, regexec("^\\s*(<=|>=|<|>|~|=)\\s*(.*)", x, perl = TRUE))
+  matched <- lengths(matches) >= 3L
+  if (any(matched)) {
+    qual[matched] <- vapply(matches[matched], `[`, character(1), 2L)
+    remainder[matched] <- vapply(matches[matched], `[`, character(1), 3L)
   }
 
   list(qualifier = qual, remainder = remainder)
@@ -89,22 +81,8 @@ extract_qualifier <- function(x) {
 #' @param x Character vector (remainder after qualifier extraction)
 #' @return Logical vector, TRUE = narrative
 detect_narrative <- function(x) {
-  is_narrative <- logical(length(x))
-
-  for (i in seq_along(x)) {
-    val <- x[i]
-    # NA or empty/whitespace-only
-    if (is.na(val) || nchar(trimws(val)) == 0) {
-      is_narrative[i] <- TRUE
-      next
-    }
-    # Known narrative terms (case-insensitive)
-    if (trimws(tolower(val)) %in% NARRATIVE_TERMS) {
-      is_narrative[i] <- TRUE
-    }
-  }
-
-  is_narrative
+  trimmed <- trimws(x)
+  is.na(trimmed) | !nzchar(trimmed) | tolower(trimmed) %in% NARRATIVE_TERMS
 }
 
 #' Detect and split range values
@@ -135,37 +113,36 @@ split_ranges <- function(remainder, qualifier) {
   # A number is: optional minus, digits, optional .digits, optional e/E with optional +/- and digits
   range_re <- "^(-?\\d+\\.?\\d*(?:[eE][+-]?\\d+)?)\\s*-\\s*(-?\\d+\\.?\\d*(?:[eE][+-]?\\d+)?)$"
 
-  for (i in seq_len(n)) {
-    val <- remainder[i]
-    qual <- qualifier[i]
+  eligible <- (is.na(qualifier) | !nzchar(qualifier)) & !is.na(remainder)
+  if (!any(eligible)) {
+    return(list(is_range = is_range, low = low, mid = mid, high = high))
+  }
 
-    # Pre-guard (a): qualified values are never ranges (D-04)
-    if (!is.na(qual) && nchar(qual) > 0) {
-      next
-    }
+  candidate_ids <- which(eligible)
+  candidate_values <- remainder[candidate_ids]
 
-    if (is.na(val)) next
+  # Pre-guard (b): Fortran exponent patterns (e.g., "4.56-02") are NOT ranges.
+  is_fortran <- !grepl("[eE]", candidate_values) &
+    grepl("^[+-]?[0-9]+\\.[0-9]+[+-][0-9]+$", candidate_values)
+  candidate_ids <- candidate_ids[!is_fortran]
+  candidate_values <- candidate_values[!is_fortran]
+  if (length(candidate_ids) == 0) {
+    return(list(is_range = is_range, low = low, mid = mid, high = high))
+  }
 
-    # Pre-guard (b): Fortran exponent patterns (e.g., "4.56-02") are NOT ranges.
-    # Fortran exponent signature: decimal mantissa (digits.digits) followed by +/- then
-    # PURE integer digits at end of string, no existing e/E present.
-    # Key distinction from real ranges: the Fortran exponent part is pure digits (no decimal),
-    # while a range's second bound may have a decimal (e.g., "0.5-1.0").
-    # Pattern: [digits].[digits][+-][pure_digits_only]$
-    is_fortran <- !grepl("[eE]", val) &
-      grepl("^[+-]?[0-9]+\\.[0-9]+[+-][0-9]+$", val)
-    if (is_fortran) next
-
-    m <- regmatches(val, regexec(range_re, val, perl = TRUE))[[1]]
-    if (length(m) == 3) {
-      lo <- suppressWarnings(as.numeric(m[2]))
-      hi <- suppressWarnings(as.numeric(m[3]))
-      if (!is.na(lo) && !is.na(hi)) {
-        is_range[i] <- TRUE
-        low[i] <- lo
-        mid[i] <- (lo + hi) / 2
-        high[i] <- hi
-      }
+  matches <- regmatches(candidate_values, regexec(range_re, candidate_values, perl = TRUE))
+  matched <- lengths(matches) == 3L
+  if (any(matched)) {
+    matched_ids <- candidate_ids[matched]
+    lo <- suppressWarnings(as.numeric(vapply(matches[matched], `[`, character(1), 2L)))
+    hi <- suppressWarnings(as.numeric(vapply(matches[matched], `[`, character(1), 3L)))
+    valid <- !is.na(lo) & !is.na(hi)
+    if (any(valid)) {
+      valid_ids <- matched_ids[valid]
+      is_range[valid_ids] <- TRUE
+      low[valid_ids] <- lo[valid]
+      mid[valid_ids] <- (lo[valid] + hi[valid]) / 2
+      high[valid_ids] <- hi[valid]
     }
   }
 
@@ -198,11 +175,25 @@ split_ranges <- function(remainder, qualifier) {
 #' parse_numeric_results(c("5-10", "-5", "1e-3"))
 #'
 #' @importFrom tibble tibble
-#' @importFrom dplyr bind_rows
 #' @export
 parse_numeric_results <- function(values) {
+  if (is.numeric(values)) {
+    n <- length(values)
+    is_missing <- is.na(values)
+    parse_flag <- rep("", n)
+    parse_flag[is_missing] <- "narrative"
+    return(tibble::tibble(
+      orig_row_id = seq_len(n),
+      orig_result = as.character(values),
+      numeric_value = as.numeric(values),
+      qualifier = rep("", n),
+      range_bin = rep("as_is", n),
+      parse_flag = parse_flag
+    ))
+  }
+
   # Step 1 (PARS-05): capture orig_result before any transformation
-  orig_result <- values
+  orig_result <- as.character(values)
 
   # Step 2: assign orig_row_id
   orig_row_id <- seq_along(values)
@@ -210,7 +201,7 @@ parse_numeric_results <- function(values) {
   # Step 3a: partial normalization (unicode, x10^, commas, whitespace) — BEFORE Fortran exponents
   # This is the form used for range detection: Fortran exponent normalization would convert
   # "5-10" -> "5e-10", destroying the range separator. Ranges must be detected first.
-  pre_norm <- values
+  pre_norm <- orig_result
   # (a) Unicode qualifiers
   pre_norm <- gsub("\u2265", ">=", pre_norm, fixed = TRUE)
   pre_norm <- gsub("\u2264", "<=", pre_norm, fixed = TRUE)
@@ -229,7 +220,7 @@ parse_numeric_results <- function(values) {
   sr <- split_ranges(qe_pre$remainder, qe_pre$qualifier)
 
   # Step 3c: full normalization for non-range values (adds Fortran exponent step)
-  normalized <- normalize_numeric_string(values)
+  normalized <- normalize_numeric_string(orig_result)
 
   # Step 4: extract qualifiers from fully normalized form (for non-range values)
   qe <- extract_qualifier(normalized)
@@ -239,57 +230,37 @@ parse_numeric_results <- function(values) {
   # Step 5: detect narratives
   is_narrative <- detect_narrative(remainder)
 
-  # Step 6: build per-row results, expanding ranges to 3 rows
-  row_list <- vector("list", length(values))
+  # Step 6: build results in bulk, expanding only range rows.
+  single_ids <- which(!sr$is_range)
+  range_ids <- which(sr$is_range)
 
-  n_unparseable <- 0L
+  single_numeric <- suppressWarnings(as.numeric(remainder[single_ids]))
+  single_parse_flag <- rep("", length(single_ids))
+  single_parse_flag[is_narrative[single_ids]] <- "narrative"
+  unparseable <- !is_narrative[single_ids] & is.na(single_numeric)
+  single_parse_flag[unparseable] <- "unparseable"
+  single_numeric[single_parse_flag != ""] <- NA_real_
 
-  for (i in seq_along(values)) {
-    if (is_narrative[i]) {
-      # Narrative: NA with flag
-      row_list[[i]] <- tibble::tibble(
-        orig_row_id = i,
-        orig_result = orig_result[i],
-        numeric_value = NA_real_,
-        qualifier = qualifier[i],
-        range_bin = "as_is",
-        parse_flag = "narrative"
-      )
-    } else if (sr$is_range[i]) {
-      # Range: expand to 3 rows (D-02, D-03)
-      row_list[[i]] <- tibble::tibble(
-        orig_row_id = rep(i, 3L),
-        orig_result = rep(orig_result[i], 3L),
-        numeric_value = c(sr$low[i], sr$mid[i], sr$high[i]),
-        qualifier = c(">=", "~", "<="),
-        range_bin = c("low", "mid", "high"),
-        parse_flag = c("", "", "")
-      )
-    } else {
-      # Single value: attempt as.numeric
-      val <- suppressWarnings(as.numeric(remainder[i]))
-      if (!is.na(val)) {
-        row_list[[i]] <- tibble::tibble(
-          orig_row_id = i,
-          orig_result = orig_result[i],
-          numeric_value = val,
-          qualifier = qualifier[i],
-          range_bin = "as_is",
-          parse_flag = ""
-        )
-      } else {
-        n_unparseable <- n_unparseable + 1L
-        row_list[[i]] <- tibble::tibble(
-          orig_row_id = i,
-          orig_result = orig_result[i],
-          numeric_value = NA_real_,
-          qualifier = qualifier[i],
-          range_bin = "as_is",
-          parse_flag = "unparseable"
-        )
-      }
-    }
+  n_unparseable <- sum(unparseable)
+
+  single_order <- single_ids * 10L
+  range_order <- integer(0)
+  if (length(range_ids) > 0) {
+    range_order <- rep(range_ids * 10L, each = 3L) + rep(seq_len(3L), times = length(range_ids))
   }
+
+  out <- tibble::tibble(
+    orig_row_id = c(single_ids, rep(range_ids, each = 3L)),
+    orig_result = c(orig_result[single_ids], rep(orig_result[range_ids], each = 3L)),
+    numeric_value = c(
+      single_numeric,
+      as.vector(t(cbind(sr$low[range_ids], sr$mid[range_ids], sr$high[range_ids])))
+    ),
+    qualifier = c(qualifier[single_ids], rep(c(">=", "~", "<="), times = length(range_ids))),
+    range_bin = c(rep("as_is", length(single_ids)), rep(c("low", "mid", "high"), times = length(range_ids))),
+    parse_flag = c(single_parse_flag, rep("", length(range_ids) * 3L)),
+    .row_order = c(single_order, range_order)
+  )
 
   # Step 7 (D-13): warn if any unparseable
   if (n_unparseable > 0L) {
@@ -297,5 +268,7 @@ parse_numeric_results <- function(values) {
   }
 
   # Step 8: assemble final tibble preserving orig_row_id order
-  dplyr::bind_rows(row_list)
+  out <- out[order(out$.row_order), , drop = FALSE]
+  out$.row_order <- NULL
+  out
 }
