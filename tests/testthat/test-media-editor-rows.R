@@ -139,12 +139,12 @@ test_that("build_media_editor_rows sorts bundled media by ontology path", {
   expect_equal(rows$term, c("air", "water", "soil"))
 })
 
-test_that("build_media_editor_rows surfaces underscore-coded UAT media terms for curation", {
+test_that("build_media_editor_rows counts delimiter-coded UAT media under canonical terms", {
   media_map <- tibble::tibble(
-    term = c("water", "tissue"),
-    canonical = c("water", "tissue"),
-    canonical_term = c("water", "tissue"),
-    envo_id = c("ENVO:00002006", "ENVO:01001434"),
+    term = c("surface water", "tissue"),
+    canonical = c("surface water", "tissue"),
+    canonical_term = c("surface water", "tissue"),
+    envo_id = c("ENVO:00002042", "ENVO:01001434"),
     media_category = c("aqueous", "solid"),
     source = "concert",
     assertion_mode = "auto",
@@ -158,12 +158,12 @@ test_that("build_media_editor_rows surfaces underscore-coded UAT media terms for
 
   rows <- concert:::build_media_editor_rows(media_map, media_results)
 
-  surface <- rows[rows$term == "surface_water", ]
-  fish <- rows[rows$term == "fish_tissue", ]
-  expect_equal(surface$source, "uploaded")
+  surface <- rows[rows$term == "surface water", ]
+  tissue <- rows[rows$term == "tissue", ]
+  expect_equal(surface$source, "concert")
   expect_equal(surface$hit_count, 2L)
-  expect_equal(surface$unmatched_count, 2L)
-  expect_equal(fish$source, "uploaded")
-  expect_equal(fish$hit_count, 1L)
-  expect_equal(fish$unmatched_count, 1L)
+  expect_equal(surface$unmatched_count, 0L)
+  expect_equal(tissue$source, "concert")
+  expect_equal(tissue$hit_count, 1L)
+  expect_equal(tissue$unmatched_count, 0L)
 })

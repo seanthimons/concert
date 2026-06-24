@@ -119,6 +119,13 @@ normalize_media_lower_character <- function(x) {
   tolower(out)
 }
 
+normalize_media_lookup_key <- function(x) {
+  out <- normalize_media_lower_character(x)
+  out <- gsub("_+", " ", out)
+  out <- gsub("\\s+", " ", out)
+  trimws(out)
+}
+
 valid_media_routing_categories <- function() {
   c("aqueous", "air", "solid")
 }
@@ -508,6 +515,8 @@ escape_regex <- function(x) {
 }
 
 media_term_in_text <- function(term, text) {
+  term <- normalize_media_lookup_key(term)
+  text <- normalize_media_lookup_key(text)
   if (is.na(term) || is.na(text) || !nzchar(term) || !nzchar(text)) {
     return(FALSE)
   }
@@ -565,7 +574,7 @@ prepare_media_table <- function(media_tbl) {
 
   active_flag <- as.logical(media_tbl$active)
   active_flag[is.na(active_flag)] <- FALSE
-  media_tbl$term <- trimws(tolower(as.character(media_tbl$term)))
+  media_tbl$term <- normalize_media_lookup_key(media_tbl$term)
   media_tbl$canonical_term <- trimws(as.character(media_tbl$canonical_term))
   media_tbl$parent <- trimws(tolower(as.character(media_tbl$parent)))
   media_tbl$parent[!media_value_present(media_tbl$parent)] <- NA_character_
@@ -703,7 +712,15 @@ build_media_editor_rows <- function(media_map, media_results) {
   if (!is.null(media_results) && is.data.frame(media_results) && nrow(media_results) > 0L) {
     raw_col <- if ("raw_media" %in% names(media_results)) media_results$raw_media else character(0)
     flag_col <- if ("media_flag" %in% names(media_results)) media_results$media_flag else character(0)
-    hit_counts <- count_terms(raw_col, "hit_count")
+    canonical_col <- if ("canonical_media" %in% names(media_results)) media_results$canonical_media else character(0)
+    hit_terms <- raw_col
+    if (length(canonical_col) == length(raw_col) && length(flag_col) == length(raw_col)) {
+      resolved <- flag_col != "media_unmatched" &
+        media_value_present(canonical_col)
+      resolved[is.na(resolved)] <- FALSE
+      hit_terms[resolved] <- canonical_col[resolved]
+    }
+    hit_counts <- count_terms(hit_terms, "hit_count")
     if (length(flag_col) == length(raw_col)) {
       unmatched_counts <- count_terms(raw_col[flag_col == "media_unmatched"], "unmatched_count")
     }
@@ -995,7 +1012,7 @@ harmonize_media <- function(raw_media, orig_row_id = seq_along(raw_media), media
   }
 
   # Normalize input: trim whitespace and lower-case (vectorized)
-  normalized <- trimws(tolower(raw_media))
+  normalized <- normalize_media_lookup_key(raw_media)
 
   # Build O(1) hash map: normalized term -> row index
   lookup_hash <- stats::setNames(seq_len(nrow(media_tbl)), media_tbl$term)

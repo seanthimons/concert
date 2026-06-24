@@ -343,11 +343,11 @@ test_that("harmonize_media parent walk is token-aware and does not bridge throug
   expect_equal(result$media_flag[2], "media_unmatched")
 })
 
-test_that("harmonize_media parent walk does not bridge underscore-coded media terms", {
+test_that("harmonize_media resolves delimiter-coded media terms", {
   media_map <- tibble::tibble(
-    term = c("water", "tissue"),
-    canonical_term = c("water", "tissue"),
-    envo_id = c("ENVO:00002006", "ENVO:01001434"),
+    term = c("surface water", "tissue"),
+    canonical_term = c("surface water", "tissue"),
+    envo_id = c("ENVO:00002042", "ENVO:01001434"),
     parent = NA_character_,
     media_category = c("aqueous", "solid"),
     source = "test",
@@ -356,7 +356,7 @@ test_that("harmonize_media parent walk does not bridge underscore-coded media te
 
   result <- harmonize_media(c("surface_water", "fish_tissue"), media_map = media_map)
 
-  expect_equal(result$media_flag, c("media_unmatched", "media_unmatched"))
-  expect_true(all(is.na(result$canonical_media)))
-  expect_true(all(is.na(result$media_category)))
+  expect_equal(result$canonical_media, c("surface water", "tissue"))
+  expect_equal(result$media_category, c("aqueous", "solid"))
+  expect_equal(result$media_flag, c("", "parent_walk"))
 })

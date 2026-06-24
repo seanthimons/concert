@@ -70,6 +70,24 @@ test_that("suggest_column_tags emits at most one suggestion per singular tag", {
   expect_equal(sum(unlist(result) == "CASRN"), 1L)
 })
 
+test_that("suggest_column_tags prefers analyte text over analyte identifiers", {
+  result <- suggest_column_tags(c(
+    "medium",
+    "analyte_id",
+    "analyte",
+    "cas",
+    "reported_units",
+    "reported_result"
+  ))
+
+  expect_equal(result$medium, "Media")
+  expect_equal(result$analyte_id, "")
+  expect_equal(result$analyte, "Name")
+  expect_equal(result$cas, "CASRN")
+  expect_equal(result$reported_units, "Unit")
+  expect_equal(result$reported_result, "Result")
+})
+
 test_that("suggest_column_tags returns '' for unknown headers", {
   result <- suggest_column_tags(c("notes", "v1", "x_2"))
   expect_equal(unname(unlist(result)), c("", "", ""))
