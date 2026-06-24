@@ -3,8 +3,8 @@
 # Run from package root: source("scripts/build_wqx_dictionary.R")
 #
 # Prerequisites:
-#   1. Characteristic.csv in repo root
-#   2. "Characteristic Alias.csv" in repo root
+#   1. inst/extdata/reference_sources/wqx/Characteristic.csv
+#   2. inst/extdata/reference_sources/wqx/Characteristic Alias.csv
 #
 # Output:
 #   - inst/extdata/reference_cache/wqx_dictionary.rds
@@ -13,9 +13,10 @@
 # but reads from local files instead of downloading from EPA.
 
 CONCERT_ROOT <- here::here()
+WQX_SOURCE_DIR <- file.path(CONCERT_ROOT, "inst", "extdata", "reference_sources", "wqx")
 
 # --- Read and clean Characteristic.csv (canonical names) ---
-char_path <- file.path(CONCERT_ROOT, "Characteristic.csv")
+char_path <- file.path(WQX_SOURCE_DIR, "Characteristic.csv")
 stopifnot(file.exists(char_path))
 
 char_tbl <- readr::read_csv(char_path, show_col_types = FALSE) |>
@@ -34,7 +35,7 @@ char_tbl <- readr::read_csv(char_path, show_col_types = FALSE) |>
 message(sprintf("Canonical rows: %d", nrow(char_tbl)))
 
 # --- Read and clean Characteristic Alias.csv (alias mappings) ---
-alias_path <- file.path(CONCERT_ROOT, "Characteristic Alias.csv")
+alias_path <- file.path(WQX_SOURCE_DIR, "Characteristic Alias.csv")
 stopifnot(file.exists(alias_path))
 
 kept_alias_types <- c(

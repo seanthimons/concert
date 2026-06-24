@@ -53,8 +53,8 @@ including pre-curation cleaning pipeline evaluation.
 
 ### Supplemental Records — Pre-Curation Pipeline Testing (69 total)
 
-All sourced from `uncurated_chemicals_2023-05-16_12-43-41.csv` and
-`cleaned_chemicals_for_curation-Jul-03-2023.xlsx`.
+All sourced from `data/uat/uncurated_chemicals_2023-05-16_12-43-41.csv` and
+`data/uat/cleaned_chemicals_for_curation-Jul-03-2023.xlsx`.
 
 #### Comma/Semicolon-Separated Synonyms (7 records)
 

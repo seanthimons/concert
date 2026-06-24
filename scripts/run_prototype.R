@@ -3,7 +3,7 @@
 # Demonstrates the full deduplication + tiered CompTox search pipeline
 # against two datasets:
 #   1. data/sample_messy.csv (7 rows)
-#   2. uncurated_chemicals_2023-05-16_12-43-41.csv (first 100 rows)
+#   2. data/uat/uncurated_chemicals_2023-05-16_12-43-41.csv (first 100 rows)
 #
 # Usage:
 #   Rscript scripts/run_prototype.R
@@ -98,7 +98,7 @@ message(strrep("=", 60))
 df2 <- tryCatch(
   {
     readr::read_csv(
-      file.path(here::here(), "uncurated_chemicals_2023-05-16_12-43-41.csv"),
+      file.path(here::here(), "data", "uat", "uncurated_chemicals_2023-05-16_12-43-41.csv"),
       col_types = "ccc_",
       n_max = 100
     )
