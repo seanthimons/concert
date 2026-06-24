@@ -414,8 +414,8 @@ normalize_media_map_for_display <- function(media_map) {
 
 #' Build rows for the Media Classification editor
 #'
-#' Combines active bundled/user mappings, pending aliases, and unique raw
-#' unmatched terms produced by harmonize_media().
+#' Combines active AMOS/user mappings, pending aliases, and unique raw
+#' unmatched uploaded terms produced by harmonize_media().
 #'
 #' @param media_map Media map tibble from load_media_map().
 #' @param media_results harmonize_media() output, or NULL before pipeline run.
@@ -423,38 +423,59 @@ normalize_media_map_for_display <- function(media_map) {
 #' @keywords internal
 build_media_editor_rows <- function(media_map, media_results) {
   map_rows <- normalize_media_map_for_display(media_map)
-  keep_map <- map_rows$active | map_rows$assertion_mode == "pending"
+  keep_map <- map_rows$source %in% c("amos", "user") & (map_rows$active | map_rows$assertion_mode == "pending")
   map_rows <- map_rows[keep_map, , drop = FALSE]
 
+  count_terms <- function(terms, count_col) {
+    terms <- trimws(tolower(as.character(terms)))
+    terms <- terms[!is.na(terms) & nzchar(terms)]
+    if (length(terms) == 0L) {
+      empty_counts <- tibble::tibble(term = character(), count = integer())
+      names(empty_counts)[2] <- count_col
+      return(empty_counts)
+    }
+
+    counts <- as.data.frame(table(terms), stringsAsFactors = FALSE)
+    names(counts) <- c("term", count_col)
+    counts <- tibble::as_tibble(counts)
+    counts[[count_col]] <- as.integer(counts[[count_col]])
+    counts
+  }
+
+  hit_counts <- tibble::tibble(term = character(), hit_count = integer())
   unmatched_counts <- tibble::tibble(term = character(), unmatched_count = integer())
   if (!is.null(media_results) && is.data.frame(media_results) && nrow(media_results) > 0L) {
     raw_col <- if ("raw_media" %in% names(media_results)) media_results$raw_media else character(0)
     flag_col <- if ("media_flag" %in% names(media_results)) media_results$media_flag else character(0)
-    unmatched_terms <- trimws(tolower(as.character(raw_col[flag_col == "media_unmatched"])))
-    unmatched_terms <- unmatched_terms[!is.na(unmatched_terms) & nzchar(unmatched_terms)]
-    if (length(unmatched_terms) > 0L) {
-      unmatched_counts <- as.data.frame(table(unmatched_terms), stringsAsFactors = FALSE)
-      names(unmatched_counts) <- c("term", "unmatched_count")
-      unmatched_counts <- tibble::as_tibble(unmatched_counts)
-      unmatched_counts$unmatched_count <- as.integer(unmatched_counts$unmatched_count)
+    hit_counts <- count_terms(raw_col, "hit_count")
+    if (length(flag_col) == length(raw_col)) {
+      unmatched_counts <- count_terms(raw_col[flag_col == "media_unmatched"], "unmatched_count")
     }
   }
 
   if (nrow(map_rows) > 0L) {
-    count_match <- match(map_rows$term, unmatched_counts$term)
-    map_rows$unmatched_count <- ifelse(
-      is.na(count_match),
+    hit_match <- match(map_rows$term, hit_counts$term)
+    unmatched_match <- match(map_rows$term, unmatched_counts$term)
+    map_rows$hit_count <- ifelse(
+      is.na(hit_match),
       0L,
-      unmatched_counts$unmatched_count[count_match]
+      hit_counts$hit_count[hit_match]
+    )
+    map_rows$unmatched_count <- ifelse(
+      is.na(unmatched_match),
+      0L,
+      unmatched_counts$unmatched_count[unmatched_match]
     )
     map_rows$is_raw_unmatched <- map_rows$unmatched_count > 0L
   } else {
+    map_rows$hit_count <- integer(0)
     map_rows$unmatched_count <- integer(0)
     map_rows$is_raw_unmatched <- logical(0)
   }
 
   new_unmatched <- unmatched_counts[!unmatched_counts$term %in% map_rows$term, , drop = FALSE]
   if (nrow(new_unmatched) > 0L) {
+    hit_match <- match(new_unmatched$term, hit_counts$term)
     uploaded_rows <- tibble::tibble(
       term = new_unmatched$term,
       canonical = NA_character_,
@@ -467,6 +488,11 @@ build_media_editor_rows <- function(media_map, media_results) {
       assertion_mode = "pending",
       confidence = NA_character_,
       active = TRUE,
+      hit_count = ifelse(
+        is.na(hit_match),
+        new_unmatched$unmatched_count,
+        hit_counts$hit_count[hit_match]
+      ),
       unmatched_count = new_unmatched$unmatched_count,
       is_raw_unmatched = TRUE
     )
@@ -486,13 +512,14 @@ build_media_editor_rows <- function(media_map, media_results) {
       assertion_mode = character(),
       confidence = character(),
       active = logical(),
+      hit_count = integer(),
       unmatched_count = integer(),
       is_raw_unmatched = logical()
     ))
   }
 
   unresolved <- is.na(map_rows$canonical) | !nzchar(map_rows$canonical)
-  map_rows[order(!map_rows$is_raw_unmatched, !unresolved, map_rows$term), , drop = FALSE]
+  map_rows[order(!map_rows$is_raw_unmatched, -map_rows$hit_count, !unresolved, map_rows$term), , drop = FALSE]
 }
 
 infer_media_categories <- function(media_tbl) {

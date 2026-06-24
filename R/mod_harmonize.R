@@ -852,17 +852,13 @@ mod_harmonize_server <- function(id, data_store) {
     })
 
     output$media_editor_title <- renderUI({
-      n <- if (!is.null(data_store$media_map_working)) {
-        nrow(data_store$media_map_working)
-      } else {
-        0
-      }
       editor_rows <- build_media_editor_rows(data_store$media_map_working, data_store$media_results)
+      n <- nrow(editor_rows)
       n_unmatched <- sum(editor_rows$unmatched_count > 0L, na.rm = TRUE)
       if (n_unmatched > 0) {
-        sprintf("Media Classification (%d mappings, %d unmatched)", n, n_unmatched)
+        sprintf("Media Classification (%d terms, %d unmatched)", n, n_unmatched)
       } else {
-        sprintf("Media Classification (%d mappings)", n)
+        sprintf("Media Classification (%d terms)", n)
       }
     })
 
@@ -1292,7 +1288,7 @@ mod_harmonize_server <- function(id, data_store) {
             TRUE ~ '<span class="badge bg-secondary">other</span>'
           ),
           mode = tbl$assertion_mode,
-          rows = tbl$unmatched_count,
+          rows = tbl$hit_count,
           active = dplyr::if_else(tbl$active, "Yes", "No")
         )
 
