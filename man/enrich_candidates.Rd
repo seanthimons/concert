@@ -11,10 +11,6 @@ enrich_candidates(dtxsids, existing_cache = NULL)
 
 \item{existing_cache}{Optional tibble from a previous enrich_candidates() call.
 DTXSIDs already present in the cache will not be re-fetched.}
-
-\item{projection}{Character: ct_details projection level.
-One of "all", "standard", "id", "structure", "nta", "compact".
-Default "standard".}
 }
 \value{
 Named list with:
@@ -24,7 +20,7 @@ Named list with:
 }
 }
 \description{
-Calls ct_details with a configurable projection to retrieve CASRN,
-molecular formula, and molecular weight for each unique DTXSID.
+Calls CompTox chemical detail search to retrieve CASRN, molecular formula,
+and molecular weight for each unique DTXSID.
 Supports incremental caching: pass existing_cache to skip already-fetched DTXSIDs.
 }

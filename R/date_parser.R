@@ -25,7 +25,7 @@
 #' @importFrom tibble tibble
 #' @export
 parse_dates <- function(raw_dates, orig_row_id = seq_along(raw_dates)) {
-  # Pre-compiled orders vector (order matters with train=FALSE — first match wins)
+  # Pre-compiled orders vector (order matters with train=FALSE - first match wins)
   # Rationale: ymd = ISO priority (D-01); Ymd = YYYYMMDD compact; bY/BY before
   # mdy prevents "Jan 2015" misparse as mdy (PITFALL-02); dBY/BdY = SAS format;
   # mdy = US convention (D-02); dmy = European fallback; Y = year-only (D-03);
@@ -33,7 +33,7 @@ parse_dates <- function(raw_dates, orig_row_id = seq_along(raw_dates)) {
   #
   # Time-bearing orders come FIRST: with train=FALSE the match is full-string, so a
   # timestamped value (e.g. "2015-03-15 14:30:00", LIMS/lab exports) fails every
-  # date-only order and would parse to NA → "unparseable", silently dropping a valid
+  # date-only order and would parse to NA -> "unparseable", silently dropping a valid
   # date. The HMS/HM/IMp variants capture the date; as.Date() below discards the time.
   # lubridate handles the "T" separator and trailing "Z" (UTC) automatically.
   TIME_ORDERS <- c(
@@ -54,7 +54,7 @@ parse_dates <- function(raw_dates, orig_row_id = seq_along(raw_dates)) {
   ORDERS <- c(TIME_ORDERS, "ymd", "Ymd", "bY", "BY", "dBY", "BdY", "mdy", "dmy", "Y", "Ym")
 
   # 2-digit year detection pattern (PITFALL-03: cutoff_2000 does not exist in
-  # parse_date_time — use regex pre-scan instead)
+  # parse_date_time - use regex pre-scan instead)
   # Trailing (space|T|end) allows a 2-digit-year date that carries a time
   # (e.g. "03/04/15 14:30") to still flag inferred_format; the same boundary
   # keeps 4-digit years like "03/04/2015" from matching (no 2-digit run after
@@ -73,7 +73,7 @@ parse_dates <- function(raw_dates, orig_row_id = seq_along(raw_dates)) {
     ))
   }
 
-  # Vectorized parse — train=FALSE is CRITICAL for heterogeneous format columns
+  # Vectorized parse - train=FALSE is CRITICAL for heterogeneous format columns
   # (PITFALL-01: train=TRUE selects a single dominant format, wrong-parsing others)
   # quiet=TRUE suppresses per-element parse failure messages
   parsed_posix <- lubridate::parse_date_time(

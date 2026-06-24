@@ -2,55 +2,26 @@
 % Please edit documentation in R/tag_helpers.R
 \name{has_required_chemical_tags}
 \alias{has_required_chemical_tags}
-\title{Detect Changes Between Tag Sets}
+\title{Check for Required Chemical Tags}
 \usage{
 has_required_chemical_tags(chemical_tags)
 }
 \arguments{
 \item{chemical_tags}{Named list of chemical tags (output from classify_tags)}
-
-\item{old_tags}{Named list of previous tags (can be NULL for first apply)}
-
-\item{new_tags}{Named list of new tags}
 }
 \value{
-Logical: TRUE if tags changed, FALSE if identical
-
 Logical: TRUE if both Name and CASRN are present, FALSE otherwise
 }
 \description{
-Compares two tag sets and returns TRUE if they differ. Used for cascade
-reset logic to determine if downstream state should be invalidated.
+Validates that both Name and CASRN tags are present, which are required
+for the cleaning pipeline to operate.
 }
 \details{
-Per D-10/D-11, this enables independent cascade resets. The function
-handles:
-\itemize{
-\item NULL old_tags (first application, always returns TRUE)
-\item Different number of tags
-\item Different column names
-\item Different tag values
-}
-
 The cleaning pipeline requires both a chemical name column and a CASRN column
 to perform deduplication and enrichment. This function checks that at least
 one column is tagged as "Name" and at least one as "CASRN".
 }
 \examples{
-# First apply (NULL -> new) - returns TRUE
-detect_tag_changes(NULL, list(col1 = "Name"))
-
-# Same tags - returns FALSE
-detect_tag_changes(list(col1 = "Name"), list(col1 = "Name"))
-
-# Changed value - returns TRUE
-detect_tag_changes(list(col1 = "Name"), list(col1 = "CASRN"))
-
-Check for Required Chemical Tags
-
-Validates that both Name and CASRN tags are present, which are required
-for the cleaning pipeline to operate.
-
 # Both present - returns TRUE
 has_required_chemical_tags(list(col1 = "Name", col2 = "CASRN"))
 

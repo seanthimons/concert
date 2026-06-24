@@ -123,7 +123,7 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL, on_ta
       }
     }
 
-    # Dynamic UI for column tagging — table-based layout
+    # Dynamic UI for column tagging - table-based layout
     output$column_tagging_ui <- renderUI({
       req(data_store$selected_columns)
 
@@ -334,7 +334,7 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL, on_ta
       data_store$study_type_tags <- classified$study_type_tags
 
       # Generate dedup preview immediately (uses chemical tags only)
-      # Skip for large datasets (>10k rows) - deduplicate_tagged_columns is O(n²)
+      # Skip for large datasets (>10k rows) - deduplicate_tagged_columns is O(n^2)
       if (nrow(data_store$clean) <= 10000) {
         tryCatch(
           {

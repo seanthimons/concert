@@ -7,7 +7,8 @@
 merge_reference_lists(existing_lists, imported_ref_df)
 }
 \arguments{
-\item{existing_lists}{List with $functional_categories, $stop_words, $block_patterns}
+\item{existing_lists}{List with $functional_categories, $stop_words,
+$block_patterns, and optionally $strip_terms}
 
 \item{imported_ref_df}{Combined reference list data frame with type column}
 }

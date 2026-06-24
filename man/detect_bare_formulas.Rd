@@ -15,9 +15,9 @@ detect_bare_formulas(df, name_cols)
 List with cleaned_data and audit_trail
 }
 \description{
-Uses ComptoxR's validator regex to identify bare molecular formulas (H2O, NaCl, CuSO4).
+Uses an element-token regex to identify bare molecular formulas (H2O, NaCl, CuSO4).
 Bare formulas are blocked because they lack chemical context needed for curation.
-Detected formulas are moved to formula_blocked_{col} columns and name set to NA.
+Detected formulas are moved to \verb{formula_blocked_\{col\}} columns and name set to NA.
 }
 \examples{
 df <- tibble::tibble(chemical_name = c("H2O", "acetone", "NaCl"))

@@ -389,6 +389,8 @@ set_row_flags <- function(df, row_indices, flag, reason = NULL) {
 #' @param df Classified data frame
 #' @param row_idx Integer row index
 #' @param dtxsid_cols Character vector of DTXSID column names
+#' @param enrichment_cache Optional enrichment cache with CASRN, molecular
+#'   formula, and molecular weight columns for DTXSID options.
 #' @return Named list of column_name = list(dtxsid, preferredName, rank) for columns with data.
 #'         Sorted by rank (best first). Empty list if row is not "disagree".
 #' @export
@@ -477,14 +479,14 @@ get_resolution_options <- function(df, row_idx, dtxsid_cols, enrichment_cache = 
 #' Compute similarity score for a single candidate against an input name
 #'
 #' Score formula (per D-03): max(JW(input, preferredName, synonym_1, ..., synonym_N)).
-#' If candidate rank <= 3, add +0.05 bonus. Clamp final score to [0, 1].
+#' If candidate rank <= 3, add +0.05 bonus. Clamp final score to `[0, 1]`.
 #' All synonym tiers treated equally (per D-04).
 #'
 #' @param input_name Character scalar -- user's original chemical name (per D-07)
 #' @param preferred_name Character scalar -- candidate's CompTox preferred name (NA allowed)
 #' @param synonyms_str Character scalar -- pipe-joined synonyms from enrichment cache (NA allowed)
 #' @param rank Numeric scalar -- candidate's rank value (NA allowed; bonus only if <= 3)
-#' @return Numeric scalar in [0, 1], or NA_real_ if no valid comparison possible
+#' @return Numeric scalar in `[0, 1]`, or NA_real_ if no valid comparison possible
 #' @export
 score_one_candidate <- function(input_name, preferred_name, synonyms_str, rank) {
   if (is.na(input_name) || nchar(trimws(input_name)) == 0) {

@@ -89,7 +89,7 @@ search_exact <- function(unique_names) {
     return(empty_result)
   }
 
-  # Standardize column names — ComptoxR may use different casing
+  # Standardize column names - ComptoxR may use different casing
   col_map <- list(
     searchValue = grep("^search.?value$", names(raw), ignore.case = TRUE, value = TRUE),
     dtxsid = grep("^dtxsid$", names(raw), ignore.case = TRUE, value = TRUE),
@@ -106,7 +106,7 @@ search_exact <- function(unique_names) {
     rank = if (length(col_map$rank) > 0) as.integer(raw[[col_map$rank[1]]]) else NA_integer_
   )
 
-  # #NOTE: Takes lowest rank (top result) per searchValue — tweakable
+  # #NOTE: Takes lowest rank (top result) per searchValue - tweakable
   result <- result |>
     dplyr::group_by(searchValue) |>
     dplyr::slice_min(rank, n = 1, with_ties = FALSE) |>
@@ -270,7 +270,7 @@ validate_and_lookup_cas <- function(unique_cas) {
 # run_tiered_search
 # ============================================================================
 
-#' Run tiered search: exact → starts-with → CAS validation
+#' Run tiered search: exact -> starts-with -> CAS validation
 #'
 #' @param dedup_result Output of deduplicate_tagged_columns
 #' @return Tibble of all lookup results with source_tier column

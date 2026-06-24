@@ -2,7 +2,7 @@
 % Please edit documentation in R/curation.R
 \name{run_tiered_search}
 \alias{run_tiered_search}
-\title{Run tiered search: exact → CAS → starts-with (3-char min)}
+\title{Run tiered search: exact -> CAS -> starts-with (3-char min)}
 \usage{
 run_tiered_search(dedup_result)
 }
@@ -13,5 +13,5 @@ run_tiered_search(dedup_result)
 Tibble of all lookup results with source_tier column
 }
 \description{
-Run tiered search: exact → CAS → starts-with (3-char min)
+Run tiered search: exact -> CAS -> starts-with (3-char min)
 }

@@ -1,7 +1,7 @@
 # Curation Pipeline: Deduplication + Tiered CompTox Search + Consensus Classification
 #
 # Self-contained module migrated from R/prototype_pipeline.R.
-# R/prototype_pipeline.R is kept as historical reference only — not sourced at runtime.
+# R/prototype_pipeline.R is kept as historical reference only - not sourced at runtime.
 # This file depends on R/consensus.R being sourced first (for classify_consensus, find_dtxsid_cols, init_resolution_state).
 
 # ============================================================================
@@ -46,7 +46,7 @@ deduplicate_tagged_columns <- function(df, tag_map, skip_flags = NULL, skip_rows
     }
   }
 
-  # Build dedup key map using vectorized operations (O(n) instead of O(n²))
+  # Build dedup key map using vectorized operations (O(n) instead of O(n^2))
   n_rows <- nrow(df)
   col_names <- names(tag_map)
   n_cols <- length(col_names)
@@ -178,7 +178,7 @@ search_exact <- function(unique_names) {
     return(empty_result)
   }
 
-  # Standardize column names — ComptoxR may use different casing
+  # Standardize column names - ComptoxR may use different casing
   col_map <- list(
     searchValue = grep("^search.?value$", names(raw), ignore.case = TRUE, value = TRUE),
     dtxsid = grep("^dtxsid$", names(raw), ignore.case = TRUE, value = TRUE),
@@ -195,7 +195,7 @@ search_exact <- function(unique_names) {
     rank = if (length(col_map$rank) > 0) as.integer(raw[[col_map$rank[1]]]) else NA_integer_
   )
 
-  # #NOTE: Takes lowest rank (top result) per searchValue — tweakable
+  # #NOTE: Takes lowest rank (top result) per searchValue - tweakable
   result <- result |>
     dplyr::group_by(searchValue) |>
     dplyr::slice_min(rank, n = 1, with_ties = FALSE) |>
@@ -249,7 +249,7 @@ search_starts_with <- function(missed_names) {
   uncached_names <- unique_names[!cached_mask]
   cached_names <- unique_names[cached_mask]
 
-  # Retrieve cached results — rebuild searchValue from current query casing.
+  # Retrieve cached results - rebuild searchValue from current query casing.
   # Cache stores payload-only (no searchValue) to avoid stale casing in setdiff().
   cached_results <- if (length(cached_names) > 0) {
     mapply(
@@ -258,7 +258,7 @@ search_starts_with <- function(missed_names) {
         if (nrow(cached_payload) > 0) {
           cached_payload |> dplyr::mutate(searchValue = name, .before = 1)
         } else {
-          # True miss — return empty with correct schema
+          # True miss - return empty with correct schema
           empty_result
         }
       },
@@ -299,12 +299,12 @@ search_starts_with <- function(missed_names) {
               searchName = if (length(col_map$searchName) > 0) raw[[col_map$searchName[1]]] else NA_character_,
               rank = if (length(col_map$rank) > 0) as.integer(raw[[col_map$rank[1]]]) else NA_integer_
             )
-            # Cache payload only (no searchValue) — avoids stale casing on retrieval
+            # Cache payload only (no searchValue) - avoids stale casing on retrieval
             payload <- result_chunk[, c("dtxsid", "preferredName", "searchName", "rank")]
             assign(cache_key, payload, envir = .starts_with_cache)
             cached_results[[length(cached_results) + 1]] <- result_chunk
           } else {
-            # Confirmed empty response (true miss) — cache a zero-row payload tibble
+            # Confirmed empty response (true miss) - cache a zero-row payload tibble
             empty_payload <- tibble::tibble(
               dtxsid = character(0),
               preferredName = character(0),
@@ -316,7 +316,7 @@ search_starts_with <- function(missed_names) {
         },
         error = function(e) {
           message(sprintf("  Warning: starts-with failed for '%s': %s", name, e$message))
-          # Do NOT cache — allow retry on later runs
+          # Do NOT cache - allow retry on later runs
         }
       )
     }
@@ -426,7 +426,7 @@ validate_and_lookup_cas <- function(unique_cas) {
 # run_tiered_search
 # ============================================================================
 
-#' Run tiered search: exact → CAS → starts-with (3-char min)
+#' Run tiered search: exact -> CAS -> starts-with (3-char min)
 #'
 #' @param dedup_result Output of deduplicate_tagged_columns
 #' @return Tibble of all lookup results with source_tier column
@@ -626,7 +626,7 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
       }
     }
 
-    # Assign columns to df (no joins — row count cannot change)
+    # Assign columns to df (no joins - row count cannot change)
     if (length(tag_cols) == 1) {
       df$dtxsid <- dtxsid_vec
       df$preferredName <- pref_vec
@@ -645,7 +645,7 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
     }
   }
 
-  # Inject pre-resolved rows (e.g. isotope_match) — override any API results
+  # Inject pre-resolved rows (e.g. isotope_match) - override any API results
 
   if (!is.null(pre_resolved) && nrow(pre_resolved) > 0) {
     message(sprintf("[map_results_to_rows] Injecting %d pre-resolved rows (isotope_match)", nrow(pre_resolved)))
@@ -684,12 +684,15 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
 # run_curation_pipeline
 # ============================================================================
 
-#' Orchestrate the full curation pipeline: dedup → search → map → consensus → resolution
+#' Orchestrate the full curation pipeline: dedup -> search -> map -> consensus -> resolution
 #'
 #' @param clean_data The cleaned data frame (data_store$clean)
 #' @param column_tags Named list (col_name -> "Name"|"CASRN"|"Other")
 #' @param progress_callback Optional function(stage, message) for reporting progress to Shiny
 #' @param dedup_only If TRUE, return after dedup stage with just counts (for preview)
+#' @param wqx_threshold Numeric WQX fuzzy matching threshold.
+#' @param starts_with Logical. If TRUE, enables CompTox starts-with fallback
+#'   search for names unresolved by exact, CAS, and WQX matching.
 #' @return List with results, dedup_summary, search_summary, consensus_summary
 #' @export
 run_curation_pipeline <- function(
@@ -808,7 +811,7 @@ run_curation_pipeline <- function(
         progress_callback("cas_names", sprintf("CAS fallback on names: %d resolved...", length(cas_matched)))
       }
 
-      # Tier 3: WQX — no character minimum (local dictionary, no API cost)
+      # Tier 3: WQX - no character minimum (local dictionary, no API cost)
       if (length(still_missed) > 0) {
         cache_dir <- resolve_curation_reference_cache_dir()
         wqx_dict <- load_wqx_dictionary(cache_dir)
@@ -841,7 +844,7 @@ run_curation_pipeline <- function(
           progress_callback("wqx", sprintf("WQX match: %d more found...", n_wqx))
         }
 
-        # Tier 4: Starts-with — only when enabled AND names remain
+        # Tier 4: Starts-with - only when enabled AND names remain
         if (starts_with && length(final_missed) > 0) {
           sw_candidates <- final_missed[nchar(final_missed) >= 3]
           if (length(sw_candidates) > 0) {
@@ -1004,16 +1007,13 @@ run_curation_pipeline <- function(
 
 #' Fetch CompTox chemical details for DTXSIDs and return structured cache
 #'
-#' Calls ct_details with a configurable projection to retrieve CASRN,
-#' molecular formula, and molecular weight for each unique DTXSID.
+#' Calls CompTox chemical detail search to retrieve CASRN, molecular formula,
+#' and molecular weight for each unique DTXSID.
 #' Supports incremental caching: pass existing_cache to skip already-fetched DTXSIDs.
 #'
 #' @param dtxsids Character vector of DTXSIDs to enrich
 #' @param existing_cache Optional tibble from a previous enrich_candidates() call.
 #'   DTXSIDs already present in the cache will not be re-fetched.
-#' @param projection Character: ct_details projection level.
-#'   One of "all", "standard", "id", "structure", "nta", "compact".
-#'   Default "standard".
 #' @return Named list with:
 #'   - cache: tibble(dtxsid, casrn, molecular_formula, molecular_weight)
 #'   - failed_dtxsids: character vector of DTXSIDs that could not be fetched
@@ -1047,7 +1047,7 @@ enrich_candidates <- function(dtxsids, existing_cache = NULL) {
   # If all DTXSIDs are already cached, return immediately
 
   if (length(dtxsids_to_fetch) == 0) {
-    message("[enrich] All DTXSIDs already cached — skipping API call")
+    message("[enrich] All DTXSIDs already cached - skipping API call")
     return(list(cache = existing_cache, failed_dtxsids = character(0)))
   }
 

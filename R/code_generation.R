@@ -797,7 +797,7 @@ format_rows_update_block <- function(workflow, col, entries) {
   }
 
   c(
-    sprintf("  # %s — %s corrections (%d)", replay_workflow_label(workflow), col, nrow(entries)),
+    sprintf("  # %s \u2014 %s corrections (%d)", replay_workflow_label(workflow), col, nrow(entries)),
     paste0("  ", tbl_var, " <- tibble::tibble("),
     col_lines,
     "  )",

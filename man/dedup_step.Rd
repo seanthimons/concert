@@ -16,7 +16,7 @@ dedup_step(step_fn, df, ..., dedup_cols, uniqueness_threshold = 0.5)
 \item{dedup_cols}{Character vector of column names to dedup on. The composite
 key is constructed by pasting these column values together.}
 
-\item{uniqueness_threshold}{Numeric in \link{0,1}. If n_distinct/n_total exceeds
+\item{uniqueness_threshold}{Numeric in \verb{[0, 1]}. If n_distinct/n_total exceeds
 this value, skip dedup and call the step directly. Default: 0.5.}
 }
 \value{

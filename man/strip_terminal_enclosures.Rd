@@ -15,9 +15,9 @@ strip_terminal_enclosures(df, name_cols)
 List with cleaned_data, audit_trail, and new_tags (empty list)
 }
 \description{
-Removes terminal (...) and \link{...} from Name-tagged columns, with protection
+Removes terminal \code{(...)} and \verb{[...]} from Name-tagged columns, with protection
 for chemical names containing "yl" (except exception words).
-Preserves stripped content in formula_extract_{source} columns.
+Preserves stripped content in \verb{formula_extract_\{source\}} columns.
 }
 \examples{
 df <- tibble::tibble(chemical_name = c("Acetone (ACS reagent)", "ethanol (ethyl alcohol)"))

@@ -83,6 +83,11 @@ corrections, or NULL (default) to load from package cache.}
 \item{media}{Character. Media context for ppb/ppm routing: "aqueous", "air",
 or "solid". NULL (default) uses aqueous assumption.}
 
+\item{wqx_threshold}{Numeric WQX fuzzy matching threshold.}
+
+\item{starts_with}{Logical. If TRUE, enables CompTox starts-with fallback
+search for names unresolved by exact, CAS, and WQX matching.}
+
 \item{postprocess_candidates}{Logical. If TRUE, runs the same enrichment,
 similarity scoring, and auto-resolve pass used by the Shiny app after
 curation. Default FALSE for backward compatibility.}
@@ -125,9 +130,9 @@ Invisibly returns a list:
 }
 }
 \description{
-Runs the complete CONCERT curation pipeline — file read, frontmatter
+Runs the complete CONCERT curation pipeline - file read, frontmatter
 detection, cleaning, CompTox API search, consensus classification, and
-8-sheet XLSX export — from a single R script call with no Shiny session
+8-sheet XLSX export - from a single R script call with no Shiny session
 required. When harmonize=TRUE, additionally runs the numeric parsing, unit
 harmonization, and ToxVal schema mapping pipeline, and writes parquet/CSV
 output alongside the XLSX.

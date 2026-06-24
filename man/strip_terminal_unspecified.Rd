@@ -15,7 +15,7 @@ strip_terminal_unspecified(df, name_cols)
 List with cleaned_data and audit_trail
 }
 \description{
-Removes terminal "\link{,;-}? unspecified" patterns from Name-tagged columns.
+Removes terminal \verb{[,;-]? unspecified} patterns from Name-tagged columns.
 }
 \examples{
 df <- tibble::tibble(chemical_name = c("compound, unspecified", "chemical - unspecified"))

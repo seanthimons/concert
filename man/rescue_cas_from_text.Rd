@@ -16,7 +16,7 @@ List with cleaned_data, audit_trail, and new_tags (mapping cas_extract columns t
 }
 \description{
 Uses ComptoxR::extract_cas() to find CAS-RNs embedded in Name/Other columns.
-Extracted CAS values are placed in new cas_extract_{source} columns.
+Extracted CAS values are placed in new \verb{cas_extract_\{source\}} columns.
 Source text is stripped of the CAS pattern.
 }
 \examples{

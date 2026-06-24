@@ -20,7 +20,7 @@ as "WARNING: potential multi-analyte". Does NOT modify cell values (flag only pe
 }
 \details{
 A naked " + " means a plus sign surrounded by whitespace and NOT inside parentheses.
-"(+)-catechin" is NOT flagged — the + is inside parentheses.
+"(+)-catechin" is NOT flagged - the + is inside parentheses.
 }
 \examples{
 df <- tibble::tibble(chemical_name = c("nitrate + nitrite", "(+)-catechin", "acetone"))

@@ -10,10 +10,11 @@ parse_concert_export(file_path)
 \item{file_path}{Path to Excel file}
 }
 \value{
-List with reference_lists, column_tags, config data frames,
-or NULL if not a valid CONCERT export
+List with parsed sheet data frames and has_full_session_state, or
+NULL if not a valid CONCERT export
 }
 \description{
-Detects if an Excel file is a valid CONCERT export and extracts
-configuration data (reference lists and column tags).
+Detects if an Excel file is a valid CONCERT export and extracts all
+available export sheets. Older exports without Session State still parse for
+reference-list and column-tag import.
 }

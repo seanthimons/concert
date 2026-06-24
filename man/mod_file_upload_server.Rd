@@ -4,7 +4,12 @@
 \alias{mod_file_upload_server}
 \title{File Upload Module - Server}
 \usage{
-mod_file_upload_server(id, data_store, reset_all_downstream = NULL)
+mod_file_upload_server(
+  id,
+  data_store,
+  reset_all_downstream = NULL,
+  on_session_restored = NULL
+)
 }
 \arguments{
 \item{id}{Module namespace ID}
@@ -12,6 +17,9 @@ mod_file_upload_server(id, data_store, reset_all_downstream = NULL)
 \item{data_store}{Reactive values store from main app}
 
 \item{reset_all_downstream}{Optional callback function to reset downstream state (app navigation)}
+
+\item{on_session_restored}{Optional callback after a CONCERT export session is
+hydrated}
 }
 \value{
 Reactive list with file processing outputs
