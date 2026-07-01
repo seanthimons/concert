@@ -15,6 +15,6 @@ list(should_run = logical, est_changes = integer).
 \description{
 Performs a cheap vectorized scan of all character columns using
 \code{stringi::stri_enc_isascii()} to determine if any non-ASCII values
-exist that \code{ComptoxR::clean_unicode()} would transform.
+exist that \code{clean_unicode()} would transform.
 }
 \keyword{internal}

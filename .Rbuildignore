@@ -29,3 +29,4 @@
 ^docs/R_PACKAGE_MIGRATION\.md$
 ^inst/extdata/reference_sources/wqx($|/)
 ^CLAUDE\.md$
+^data-raw$

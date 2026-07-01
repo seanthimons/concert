@@ -70,7 +70,7 @@ test_that("SKIP-03: precheck_unicode_to_ascii catches all vectors clean_unicode 
   expect_true(precheck$should_run)
   expect_true(precheck$est_changes >= 2L)
   # Verify the step would indeed change these values
-  cleaned <- ComptoxR::clean_unicode(tricky)
+  cleaned <- clean_unicode(tricky)
   expect_true(any(!is.na(tricky) & !is.na(cleaned) & tricky != cleaned))
 })
 
@@ -154,7 +154,7 @@ test_that("SKIP-03: precheck_normalize_cas catches leading-zero digit strings", 
   expect_true(precheck$should_run)
   expect_equal(precheck$est_changes, 1L)
   # Verify ComptoxR would change it
-  cleaned <- ComptoxR::as_cas("067641")
+  cleaned <- as_cas("067641")
   expect_false(isTRUE(identical("067641", cleaned)))
 })
 
