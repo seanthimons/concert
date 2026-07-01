@@ -1,22 +1,22 @@
 # Test file for cleaning_pipeline.R
 # Tests unicode-to-ASCII conversion, text trimming, and audit trail construction
 
-test_that("ComptoxR::clean_unicode handles chemistry-specific unicode", {
+test_that("clean_unicode handles chemistry-specific unicode", {
   # Test: Greek alpha becomes 'alpha' (plain text, current ComptoxR format)
-  expect_equal(ComptoxR::clean_unicode("\u03B1-tocopherol"), "alpha-tocopherol")
+  expect_equal(clean_unicode("\u03B1-tocopherol"), "alpha-tocopherol")
 
   # Test: Greek beta becomes 'beta' (plain text, current ComptoxR format)
-  expect_equal(ComptoxR::clean_unicode("\u03B2-carotene"), "beta-carotene")
+  expect_equal(clean_unicode("\u03B2-carotene"), "beta-carotene")
 
   # Test: NA passthrough
-  expect_equal(ComptoxR::clean_unicode(NA_character_), NA_character_)
-  expect_true(is.na(ComptoxR::clean_unicode(NA)))
+  expect_equal(clean_unicode(NA_character_), NA_character_)
+  expect_true(is.na(clean_unicode(NA)))
 
   # Test: Prime symbol (U+2032) becomes apostrophe
-  expect_equal(ComptoxR::clean_unicode("\u2032"), "'")
+  expect_equal(clean_unicode("\u2032"), "'")
 
   # Test: Prime in chemical context
-  expect_equal(ComptoxR::clean_unicode("2\u2032-deoxyadenosine"), "2'-deoxyadenosine")
+  expect_equal(clean_unicode("2\u2032-deoxyadenosine"), "2'-deoxyadenosine")
 })
 
 test_that("clean_text_field strips whitespace and punctuation artifacts", {

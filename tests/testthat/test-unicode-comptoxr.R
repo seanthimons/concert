@@ -1,16 +1,16 @@
-# Test file for ComptoxR::clean_unicode integration
+# Test file for clean_unicode integration
 # Tests chemistry-specific unicode handling
 
-test_that("ComptoxR::clean_unicode handles chemistry-specific unicode", {
+test_that("clean_unicode handles chemistry-specific unicode", {
   # Test: Greek alpha becomes 'alpha' (plain text, current ComptoxR format)
-  expect_equal(ComptoxR::clean_unicode("\u03B1-tocopherol"), "alpha-tocopherol")
+  expect_equal(clean_unicode("\u03B1-tocopherol"), "alpha-tocopherol")
 
   # Test: Greek beta becomes 'beta'
-  expect_equal(ComptoxR::clean_unicode("\u03B2-carotene"), "beta-carotene")
+  expect_equal(clean_unicode("\u03B2-carotene"), "beta-carotene")
 
   # Test: NA passthrough
-  expect_equal(ComptoxR::clean_unicode(NA_character_), NA_character_)
-  expect_true(is.na(ComptoxR::clean_unicode(NA)))
+  expect_equal(clean_unicode(NA_character_), NA_character_)
+  expect_true(is.na(clean_unicode(NA)))
 })
 
 test_that("run_cleaning_pipeline converts Greek letters to plain text", {

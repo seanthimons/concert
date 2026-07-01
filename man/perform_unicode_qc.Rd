@@ -16,7 +16,7 @@ unhandled_chars (named list keyed by "U+XXXX")
 \description{
 Scans a dataframe for non-ASCII characters without modifying the data.
 This is a QC function for post-curation detection of Unicode that may
-not have been handled by ComptoxR::clean_unicode.
+not have been handled by clean_unicode.
 }
 \details{
 Returns a report of:

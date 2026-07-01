@@ -15,7 +15,7 @@ rescue_cas_from_text(df, tag_map)
 List with cleaned_data, audit_trail, and new_tags (mapping cas_extract columns to "CASRN")
 }
 \description{
-Uses ComptoxR::extract_cas() to find CAS-RNs embedded in Name/Other columns.
+Uses extract_cas() to find CAS-RNs embedded in Name/Other columns.
 Extracted CAS values are placed in new \verb{cas_extract_\{source\}} columns.
 Source text is stripped of the CAS pattern.
 }

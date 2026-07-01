@@ -15,7 +15,7 @@ normalize_cas_fields(df, tag_map)
 List with cleaned_data (tibble), audit_trail (tibble), and new_tags (generated CASRN columns)
 }
 \description{
-Applies ComptoxR::as_cas() to all CASRN-tagged columns:
+Applies as_cas() to all CASRN-tagged columns:
 \itemize{
 \item Converts unformatted CAS (e.g., "67641") to standard format ("67-64-1")
 \item Converts placeholder text ("no cas", "n/a", "proprietary", "-") to NA
