@@ -16,7 +16,7 @@ list(should_run = logical, est_changes = integer).
 }
 \description{
 Checks whether any CASRN-tagged column contains values that
-\code{ComptoxR::as_cas()} would transform (unformatted pure-digit strings,
+\code{as_cas()} would transform (unformatted pure-digit strings,
 or common placeholder text).
 }
 \keyword{internal}

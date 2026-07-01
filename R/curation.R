@@ -355,9 +355,9 @@ validate_and_lookup_cas <- function(unique_cas) {
 
   message(sprintf("Validating %d unique CAS numbers...", length(unique_cas)))
 
-  # Normalize with ComptoxR::as_cas
-  validated <- ComptoxR::as_cas(unique_cas)
-  valid_flags <- ComptoxR::is_cas(validated)
+  # Normalize with as_cas
+  validated <- as_cas(unique_cas)
+  valid_flags <- is_cas(validated)
 
   # Handle NA input: as_cas(NA) returns NA, is_cas(NA) should return NA
   # For our purposes, NA input means not valid
