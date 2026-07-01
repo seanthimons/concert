@@ -2,7 +2,7 @@
 # Pure R functions for text cleaning with audit trail tracking
 #
 # Core functions:
-# - Unicode cleaning: Uses ComptoxR::clean_unicode for chemistry-specific mappings
+# - Unicode cleaning: Uses clean_unicode for chemistry-specific mappings
 # - clean_text_field: Strip leading/trailing whitespace and punctuation artifacts
 # - build_audit_trail: Compare two dataframes and record changes
 # - run_cleaning_pipeline: Orchestrate cleaning steps with audit trail
@@ -309,7 +309,7 @@ build_skip_result <- function(df, step_name) {
 #'
 #' Performs a cheap vectorized scan of all character columns using
 #' \code{stringi::stri_enc_isascii()} to determine if any non-ASCII values
-#' exist that \code{ComptoxR::clean_unicode()} would transform.
+#' exist that \code{clean_unicode()} would transform.
 #'
 #' @param df Dataframe to check.
 #' @return list(should_run = logical, est_changes = integer).
@@ -364,7 +364,7 @@ precheck_trim_whitespace <- function(df) {
 #' Pre-check predicate for normalize_cas step
 #'
 #' Checks whether any CASRN-tagged column contains values that
-#' \code{ComptoxR::as_cas()} would transform (unformatted pure-digit strings,
+#' \code{as_cas()} would transform (unformatted pure-digit strings,
 #' or common placeholder text).
 #'
 #' @param df Dataframe to check.
@@ -619,7 +619,7 @@ inject_row_lineage <- function(df) {
 
 #' Normalize CAS fields using ComptoxR
 #'
-#' Applies ComptoxR::as_cas() to all CASRN-tagged columns:
+#' Applies as_cas() to all CASRN-tagged columns:
 #' - Converts unformatted CAS (e.g., "67641") to standard format ("67-64-1")
 #' - Converts placeholder text ("no cas", "n/a", "proprietary", "-") to NA
 #' - Validates checksums and sets invalid CAS to NA
@@ -657,11 +657,11 @@ normalize_cas_fields <- function(df, tag_map) {
   df_before <- df
   new_tags <- list()
 
-  # Preserve multiple CAS-RNs found in a single CASRN-tagged cell. ComptoxR::as_cas()
+  # Preserve multiple CAS-RNs found in a single CASRN-tagged cell. as_cas()
   # returns NA for delimiter-combined values, so split those into generated CASRN
   # columns before canonical normalization.
   for (col_name in cas_cols) {
-    extracted <- ComptoxR::extract_cas(df[[col_name]])
+    extracted <- extract_cas(df[[col_name]])
     if (!is.list(extracted)) {
       extracted <- as.list(extracted)
     }
@@ -694,7 +694,7 @@ normalize_cas_fields <- function(df, tag_map) {
 
   # Apply as_cas to each CASRN column
   df_after <- df %>%
-    dplyr::mutate(dplyr::across(dplyr::all_of(cas_cols_updated), ~ ComptoxR::as_cas(.x)))
+    dplyr::mutate(dplyr::across(dplyr::all_of(cas_cols_updated), ~ as_cas(.x)))
 
   # Build audit trail vectorized (avoids O(n^2) growing-list pattern)
   all_row_ids <- integer()
@@ -740,7 +740,7 @@ normalize_cas_fields <- function(df, tag_map) {
       step = rep("normalize_cas", length(all_row_ids)),
       original_value = all_originals,
       new_value = all_news,
-      reason = paste0("Normalize CAS-RN in ", all_fields, " using ComptoxR::as_cas()")
+      reason = paste0("Normalize CAS-RN in ", all_fields, " using as_cas()")
     )
   }
 
@@ -753,7 +753,7 @@ normalize_cas_fields <- function(df, tag_map) {
 
 #' Rescue CAS-RNs from non-CASRN text columns
 #'
-#' Uses ComptoxR::extract_cas() to find CAS-RNs embedded in Name/Other columns.
+#' Uses extract_cas() to find CAS-RNs embedded in Name/Other columns.
 #' Extracted CAS values are placed in new `cas_extract_{source}` columns.
 #' Source text is stripped of the CAS pattern.
 #'
@@ -794,9 +794,9 @@ rescue_cas_from_text <- function(df, tag_map) {
   # Process each non-CASRN column
   for (col_name in non_cas_cols) {
     # Extract CAS from this column
-    extracted_cas <- ComptoxR::extract_cas(df[[col_name]])
+    extracted_cas <- extract_cas(df[[col_name]])
 
-    # ComptoxR::extract_cas returns a list column - need to unlist
+    # extract_cas returns a list column - need to unlist
     # Convert list to character vector
     if (is.list(extracted_cas)) {
       extracted_cas <- sapply(extracted_cas, function(x) {
@@ -834,7 +834,7 @@ rescue_cas_from_text <- function(df, tag_map) {
           original_value = as.character(df[[col_name]][extracted_idx]),
           new_value = paste0("Extracted ", extracted_cas[extracted_idx], " to ", new_col_name),
           reason = rep(
-            paste0("Extract CAS-RN from ", col_name, " using ComptoxR::extract_cas()"),
+            paste0("Extract CAS-RN from ", col_name, " using extract_cas()"),
             length(extracted_idx)
           )
         )
@@ -2210,7 +2210,7 @@ detect_non_ascii_chars <- function(x) {
 #'
 #' Scans a dataframe for non-ASCII characters without modifying the data.
 #' This is a QC function for post-curation detection of Unicode that may
-#' not have been handled by ComptoxR::clean_unicode.
+#' not have been handled by clean_unicode.
 #'
 #' Returns a report of:
 #' - How many rows contain non-ASCII characters
@@ -2410,7 +2410,7 @@ run_cleaning_pipeline_masked <- function(
 
   unicode_step_fn <- function(df_in, ...) {
     df_out <- df_in %>%
-      dplyr::mutate(dplyr::across(tidyselect::where(is.character), ComptoxR::clean_unicode))
+      dplyr::mutate(dplyr::across(tidyselect::where(is.character), clean_unicode))
     audit <- build_audit_trail(df_in, df_out, "unicode_to_ascii", function(field) {
       paste0("Convert unicode characters to ASCII equivalents in ", field)
     })
