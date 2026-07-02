@@ -140,6 +140,19 @@ test_that("dtxsid, casrn, name populated from curated_data", {
  expect_equal(result$name, curated_fixture$name)
 })
 
+test_that("identifier fallbacks scan all candidate columns", {
+ curated <- tibble::tibble(
+   dtxsid = "DTXSID7020182",
+   registry_id = "71-43-2",
+   registry_id_tag = "CASRN",
+   chemical_name = "Benzene"
+ )
+ result <- map_to_toxval_schema(curated, harmonized_fixture[1, ])
+
+ expect_equal(result$casrn, "71-43-2")
+ expect_equal(result$name, "Benzene")
+})
+
 test_that("consensus_dtxsid takes precedence over bare dtxsid", {
  curated <- dplyr::mutate(curated_fixture, consensus_dtxsid = c("DTXSID999", NA_character_))
  result <- map_to_toxval_schema(curated, harmonized_fixture)

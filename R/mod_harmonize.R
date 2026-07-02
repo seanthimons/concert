@@ -563,10 +563,14 @@ mod_harmonize_server <- function(id, data_store) {
 
               # Stage 5: Map to ToxVal schema (SCHM-01, UITG-06)
               incProgress(0.10, detail = "Mapping to ToxVal schema...")
-              # Expand curated_data rows to match harmonized rows via orig_row_id.
-              # parse_numeric_results() expands range values (1 row -> 3 rows),
-              # so harmonize_tibble may have more rows than resolution_state.
-              expanded_curated <- data_store$resolution_state[harmonize_tibble$orig_row_id, ]
+              # map_to_toxval_schema() expands original rows via orig_row_id.
+              # During clean-data pipeline runs, curation may not have produced
+              # resolution_state yet, so fall back to the cleaned input rows.
+              curated_for_toxval <- data_store$resolution_state
+              if (is.null(curated_for_toxval)) {
+                curated_for_toxval <- input_df
+              }
+              curated_for_toxval <- tibble::as_tibble(curated_for_toxval)
 
               # Merge duration columns if present (D-10)
               if (!is.null(data_store$duration_results)) {
@@ -575,31 +579,26 @@ mod_harmonize_server <- function(id, data_store) {
                   "study_duration_value",
                   "study_duration_units"
                 )]
-                # Duration orig_row_id maps to input_df rows (pre-range-expansion).
-                # expanded_curated rows correspond to harmonize_tibble$orig_row_id
-                # which may include range-expanded rows. Map duration values through
-                # the same orig_row_id that produced expanded_curated.
-                dur_values_expanded <- dur_for_merge$study_duration_value[harmonize_tibble$orig_row_id]
-                dur_units_expanded <- dur_for_merge$study_duration_units[harmonize_tibble$orig_row_id]
-                expanded_curated$study_duration_value <- dur_values_expanded
-                expanded_curated$study_duration_units <- dur_units_expanded
+                dur_idx <- match(seq_len(nrow(curated_for_toxval)), dur_for_merge$orig_row_id)
+                curated_for_toxval$study_duration_value <- dur_for_merge$study_duration_value[dur_idx]
+                curated_for_toxval$study_duration_units <- dur_for_merge$study_duration_units[dur_idx]
               }
 
-              # Merge date_year into expanded_curated for original_year ToxVal mapping (DATE-06, D-16)
+              # Merge date_year into original-row data for original_year ToxVal mapping (DATE-06, D-16)
               if (!is.null(data_store$date_results)) {
-                year_expanded <- data_store$date_results$date_year[harmonize_tibble$orig_row_id]
-                expanded_curated$year <- year_expanded
+                date_idx <- match(seq_len(nrow(curated_for_toxval)), data_store$date_results$orig_row_id)
+                curated_for_toxval$year <- data_store$date_results$date_year[date_idx]
               }
 
-              # Merge media_category into expanded_curated for ToxVal mapping (D-16, MEDIA-05)
+              # Merge media_category into original-row data for ToxVal mapping (D-16, MEDIA-05)
               if (!is.null(data_store$media_results)) {
-                media_expanded <- data_store$media_results$media_category[harmonize_tibble$orig_row_id]
-                expanded_curated$media <- media_expanded
+                media_idx <- match(seq_len(nrow(curated_for_toxval)), data_store$media_results$orig_row_id)
+                curated_for_toxval$media <- data_store$media_results$media_category[media_idx]
               }
 
               toxval_tibble <- tryCatch(
                 map_to_toxval_schema(
-                  curated_data = expanded_curated,
+                  curated_data = curated_for_toxval,
                   harmonized_data = harmonize_tibble,
                   source_name = data_store$file_info$name
                 ),
