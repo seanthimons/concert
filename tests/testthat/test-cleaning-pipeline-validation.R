@@ -342,3 +342,29 @@ test_that("Carbon backbone formulas not corrupted by isotope expansion", {
   # C12H22O11 should be blocked as bare formula (not mangled by isotope expansion)
   expect_true(any(grepl("BLOCK", formula_result$cleaned_data$cleaning_flag, ignore.case = TRUE), na.rm = TRUE))
 })
+
+test_that("Reference substring flags build one audit reason per matched row", {
+  df <- tibble::tibble(
+    name = c(
+      "plasticizer blend",
+      "dibutyl phthalate plasticizer",
+      "solvent mix",
+      "organic solvent",
+      "acetone"
+    )
+  )
+  refs <- tibble::tibble(
+    term = c("plasticizer", "solvent"),
+    pattern = c("plasticizer", "solvent"),
+    match_mode = "literal_word",
+    source = "test",
+    active = TRUE,
+    notes = NA_character_
+  )
+
+  result <- flag_reference_matches(df, "name", refs, "warning", "functional category")
+
+  expect_equal(nrow(result$audit_trail), 4)
+  expect_equal(length(result$audit_trail$reason), nrow(result$audit_trail))
+  expect_true(all(grepl("match type: substring", result$audit_trail$reason, fixed = TRUE)))
+})

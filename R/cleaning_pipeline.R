@@ -2108,16 +2108,17 @@ flag_reference_matches <- function(df, name_cols, reference_list, flag_type, fla
           audit_steps <- c(audit_steps, rep(paste0("flag_", flag_type), length(matched_positions)))
           audit_originals <- c(audit_originals, col_values[matched_positions])
           audit_news <- c(audit_news, df_result$cleaning_flag[matched_positions])
+          match_reason <- paste0(
+            "Matched '",
+            active_refs$term[ref_idx],
+            "' (source: ",
+            active_refs$source[ref_idx],
+            ", match type: substring) in ",
+            col_name
+          )
           audit_reasons <- c(
             audit_reasons,
-            paste0(
-              "Matched '",
-              active_refs$term[ref_idx],
-              "' (source: ",
-              active_refs$source[ref_idx],
-              ", match type: substring) in ",
-              col_name
-            )
+            rep(match_reason, length(matched_positions))
           )
 
           # Remove matched rows from candidates (shrinks search space)
