@@ -374,6 +374,34 @@ test_that("harmonize_run_nonce dispatch populates unit results and leaves pre-ru
   })
 })
 
+test_that("harmonize dispatch maps ToxVal output before resolution_state exists", {
+  data_store <- make_dispatch_store()
+  input_df <- tibble::tibble(
+    chemical_name = c("A", "B"),
+    casrn = c("111-11-1", "222-22-2"),
+    result = c("1-3", "10"),
+    unit = c("ug/L", "mg/L"),
+    media = c("surface_water", "surface_water"),
+    consensus_dtxsid = c("DTXSID0000001", "DTXSID0000002")
+  )
+  data_store$clean <- input_df
+  data_store$cleaned_data <- input_df
+  data_store$resolution_state <- NULL
+
+  shiny::testServer(mod_harmonize_server, args = list(data_store = data_store), {
+    session$flushReact()
+
+    data_store$harmonize_step_mask <- list(units = TRUE, duration = FALSE, dates = FALSE, media = FALSE)
+    data_store$harmonize_run_nonce <- data_store$harmonize_run_nonce + 1L
+    session$flushReact()
+
+    expect_false(is.null(data_store$toxval_output))
+    expect_equal(nrow(data_store$toxval_output), 4L)
+    expect_equal(data_store$toxval_output$name, c("A", "A", "A", "B"))
+    expect_equal(data_store$toxval_output$casrn, c("111-11-1", "111-11-1", "111-11-1", "222-22-2"))
+  })
+})
+
 test_that("manual harmonization run defaults all steps after masked request clears stale mask", {
   data_store <- make_dispatch_store()
 

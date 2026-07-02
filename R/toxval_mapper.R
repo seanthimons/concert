@@ -117,8 +117,8 @@ map_to_toxval_schema <- function(curated_data, harmonized_data, source_name = NU
   result <- tibble::tibble(
     # Core identifiers (1-3)
     dtxsid = pick_char("consensus_dtxsid", "dtxsid"),
-    casrn = pick_char("casrn", c("cas", names(row_data)[tag_values(row_data, c("CASRN", "CAS"))])[1]),
-    name = pick_char("name", c("analyte", "chemical", "chemical_name", names(row_data)[tag_values(row_data, c("Name"))])[1]),
+    casrn = pick_char("casrn", c("cas", names(row_data)[tag_values(row_data, c("CASRN", "CAS"))])),
+    name = pick_char("name", c("analyte", "chemical", "chemical_name", names(row_data)[tag_values(row_data, c("Name"))])),
 
     # Source information (4-5)
     source = if ("source" %in% names(row_data)) pick_char("source") else rep(source_name, n_rows),
