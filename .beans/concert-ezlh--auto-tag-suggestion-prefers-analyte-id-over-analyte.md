@@ -1,11 +1,11 @@
 ---
 # concert-ezlh
 title: Auto-tag suggestion prefers analyte_id over analyte
-status: todo
+status: completed
 type: bug
 priority: normal
 created_at: 2026-06-19T17:36:20Z
-updated_at: 2026-06-19T17:36:20Z
+updated_at: 2026-07-03T19:26:00Z
 parent: concert-sr8r
 ---
 
@@ -63,3 +63,13 @@ Prefer a minimal ranking change in `suggest_column_tags()` over hard-coding only
 - Do not sample cell values for this fix.
 - Do not auto-apply tags; suggestions must remain reviewable pre-fills.
 - Do not broaden bare generic tokens such as `id`, `name`, `date`, or `value` into standalone suggestions.
+
+
+
+## Summary of Changes
+
+No code change required. The identifier-guard in `R/auto_tag_columns.R:55-61` already
+zeroes out identifier columns (e.g. `analyte_id`) so they cannot steal the singular `Name`
+suggestion from the real `analyte` column, and a regression test already covers it
+(`tests/testthat/test-auto-tag-columns.R:73-85`, `analyte_id` -> "", `analyte` -> "Name").
+Verified passing.

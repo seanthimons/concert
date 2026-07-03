@@ -63,7 +63,6 @@ mod_file_upload_ui <- function(id) {
             "Header Row Number:",
             value = 1,
             min = 1,
-            max = 100,
             step = 1
           )
         ),
@@ -451,61 +450,83 @@ mod_file_upload_server <- function(
     # --- Detection Mode Observers ---
 
     # Update detection when mode or manual row changes
-    observeEvent(c(input$detection_mode, input$manual_header_row), {
-      req(data_store$raw)
-
-      tryCatch(
-        {
-          # Re-run detection
-          detection <- detect_data_start(
-            data_store$raw,
-            mode = input$detection_mode,
-            manual_row = if (input$detection_mode == "manual") input$manual_header_row else NULL
-          )
-
-          # Re-extract clean data
-          clean_df <- extract_clean_data(data_store$raw, detection)
-          clean_df <- handle_merged_cells(clean_df)
-          clean_df <- clean_df %>%
-            janitor::clean_names() %>%
-            janitor::remove_empty(which = c("rows", "cols"))
-          assert_no_source_result_flag(clean_df, "uploaded data")
-
-          # Validate cleaned data
-          if (nrow(clean_df) == 0) {
-            notify_user(
-              paste0(
-                "Warning: No data rows found with current settings. ",
-                "Try a different header row or detection mode."
-              ),
-              type = "warning",
-              duration = 8
-            )
-          }
-
-          if (ncol(clean_df) == 0) {
-            notify_user(
-              "Warning: No columns found after cleaning.",
-              type = "warning",
-              duration = 8
-            )
-            return()
-          }
-
-          # Update stored data
-          data_store$clean <- clean_df
-          data_store$detection <- detection
-        },
-        error = function(e) {
-          log_condition("file upload detection update", e, level = "warning")
+    observeEvent(
+      c(input$detection_mode, input$manual_header_row),
+      {
+        if (is.null(data_store$raw)) {
           notify_user(
-            paste("Error updating detection:", e$message),
-            type = "warning",
-            duration = 5
+            "Upload a file before changing header-detection settings.",
+            type = "warning"
           )
+          return()
         }
-      )
-    })
+
+        if (
+          input$detection_mode == "manual" &&
+            !is.null(input$manual_header_row) &&
+            input$manual_header_row > nrow(data_store$raw)
+        ) {
+          notify_user(
+            paste0("Header row exceeds file length (", nrow(data_store$raw), " rows)."),
+            type = "warning"
+          )
+          return()
+        }
+
+        tryCatch(
+          {
+            # Re-run detection
+            detection <- detect_data_start(
+              data_store$raw,
+              mode = input$detection_mode,
+              manual_row = if (input$detection_mode == "manual") input$manual_header_row else NULL
+            )
+
+            # Re-extract clean data
+            clean_df <- extract_clean_data(data_store$raw, detection)
+            clean_df <- handle_merged_cells(clean_df)
+            clean_df <- clean_df %>%
+              janitor::clean_names() %>%
+              janitor::remove_empty(which = c("rows", "cols"))
+            assert_no_source_result_flag(clean_df, "uploaded data")
+
+            # Validate cleaned data
+            if (nrow(clean_df) == 0) {
+              notify_user(
+                paste0(
+                  "Warning: No data rows found with current settings. ",
+                  "Try a different header row or detection mode."
+                ),
+                type = "warning",
+                duration = 8
+              )
+            }
+
+            if (ncol(clean_df) == 0) {
+              notify_user(
+                "Warning: No columns found after cleaning.",
+                type = "warning",
+                duration = 8
+              )
+              return()
+            }
+
+            # Update stored data
+            data_store$clean <- clean_df
+            data_store$detection <- detection
+          },
+          error = function(e) {
+            log_condition("file upload detection update", e, level = "warning")
+            notify_user(
+              paste("Error updating detection:", e$message),
+              type = "warning",
+              duration = 5
+            )
+          }
+        )
+      },
+      ignoreInit = TRUE
+    )
 
     # --- Outputs ---
 
