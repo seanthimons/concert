@@ -267,7 +267,7 @@ mod_harmonize_server <- function(id, data_store) {
       # Guard: require a measurement-like tag when numeric tags are present.
       # StudyDate/Media-only runs skip numeric stages and proceed to date/media stages.
       if (has_numeric && !has_measurement && !has_duration_measurement) {
-        showNotification(
+        notify_user(
           "No Result or Numeric Measurement column tagged. Tag a measurement column before running harmonization.",
           type = "warning",
           duration = 5
@@ -391,7 +391,8 @@ mod_harmonize_server <- function(id, data_store) {
                     media_map = data_store$media_map_working
                   ),
                   error = function(e) {
-                    showNotification(
+                    log_condition("media harmonization", e)
+                    notify_user(
                       paste0(
                         "Media harmonization failed for column '",
                         media_cols_pre[1],
@@ -412,7 +413,7 @@ mod_harmonize_server <- function(id, data_store) {
 
                   n_matched <- sum(media_tibble$media_flag != "media_unmatched", na.rm = TRUE)
                   n_unmatched <- sum(media_tibble$media_flag == "media_unmatched", na.rm = TRUE)
-                  showNotification(
+                  notify_user(
                     sprintf("Media harmonized: %d matched, %d unmatched", n_matched, n_unmatched),
                     type = if (n_unmatched > 0) "warning" else "message",
                     duration = 6
@@ -517,7 +518,8 @@ mod_harmonize_server <- function(id, data_store) {
                     orig_row_id = seq_len(nrow(input_df))
                   ),
                   error = function(e) {
-                    showNotification(
+                    log_condition("date parsing harmonization", e)
+                    notify_user(
                       paste0(
                         "Date parsing failed for column '",
                         date_cols[1],
@@ -549,7 +551,7 @@ mod_harmonize_server <- function(id, data_store) {
                       duration = 5
                     )
                   } else {
-                    showNotification(
+                    notify_user(
                       sprintf(
                         "Date parsing: no valid dates found in column '%s'. All rows unparseable.",
                         date_cols[1]
@@ -603,7 +605,8 @@ mod_harmonize_server <- function(id, data_store) {
                   source_name = data_store$file_info$name
                 ),
                 error = function(e) {
-                  showNotification(
+                  log_condition("ToxVal mapping", e, level = "warning")
+                  notify_user(
                     paste("ToxVal mapping failed:", conditionMessage(e)),
                     type = "warning",
                     duration = 8
@@ -616,7 +619,8 @@ mod_harmonize_server <- function(id, data_store) {
           }
         },
         error = function(e) {
-          showNotification(
+          log_condition("harmonization pipeline", e)
+          notify_user(
             paste(
               "Harmonization failed:",
               e$message,
@@ -1141,7 +1145,7 @@ mod_harmonize_server <- function(id, data_store) {
       to_val <- trimws(input$modal_to_unit)
 
       if (from_val == "" || to_val == "") {
-        showNotification(
+        notify_user(
           "From Unit and To Unit are required.",
           type = "warning",
           duration = 3
@@ -1256,7 +1260,7 @@ mod_harmonize_server <- function(id, data_store) {
 
       pattern_val <- trimws(input$modal_corr_pattern)
       if (pattern_val == "") {
-        showNotification(
+        notify_user(
           "Pattern is required.",
           type = "warning",
           duration = 3

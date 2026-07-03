@@ -196,7 +196,7 @@ server <- function(input, output, session) {
     parsed <- concert::parse_concert_export(input$config_import$datapath)
 
     if (is.null(parsed)) {
-      shiny::showNotification(
+      concert::notify_user(
         "Not a valid CONCERT export file. Upload a file exported from CONCERT with Pipeline Config sheet.",
         type = "warning",
         duration = 5
@@ -251,7 +251,8 @@ server <- function(input, output, session) {
           )
         },
         error = function(e) {
-          shiny::showNotification(
+          concert::log_condition("config reference-list import", e)
+          concert::notify_user(
             paste("Failed to import reference lists:", conditionMessage(e)),
             type = "error",
             duration = 5
@@ -275,7 +276,8 @@ server <- function(input, output, session) {
           )
         },
         error = function(e) {
-          shiny::showNotification(
+          concert::log_condition("config column-tag import", e)
+          concert::notify_user(
             paste("Failed to import column tags:", conditionMessage(e)),
             type = "error",
             duration = 5
@@ -500,7 +502,7 @@ server <- function(input, output, session) {
     qc_results <- concert::perform_unicode_qc(data_store$resolution_state)
     data_store$qc_results <- qc_results
     if (qc_results$rows_with_non_ascii > 0) {
-      shiny::showNotification(
+      concert::notify_user(
         sprintf("QC: %d rows contain non-ASCII characters", qc_results$rows_with_non_ascii),
         type = "warning",
         duration = 5

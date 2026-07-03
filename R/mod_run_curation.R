@@ -114,7 +114,7 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
 
       # Check for ComptoxR API key
       if (Sys.getenv("ctx_api_key") == "") {
-        showNotification(
+        notify_user(
           "ComptoxR API key not set. Please set 'ctx_api_key' environment variable and restart R session.",
           type = "error",
           duration = NULL
@@ -127,7 +127,7 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
       has_cas <- any(data_store$column_tags == "CASRN")
 
       if (!has_name && !has_cas) {
-        showNotification(
+        notify_user(
           "Please tag at least one column as 'Chemical Name' or 'CASRN' before running curation.",
           type = "warning",
           duration = 5
@@ -222,7 +222,7 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
 
                 if (postprocess_result$n_dtxsids > 0) {
                   if (postprocess_result$n_failed > 0) {
-                    showNotification(
+                    notify_user(
                       sprintf(
                         "Enrichment: %d of %d DTXSIDs enriched (%d failed)",
                         postprocess_result$n_enriched,
@@ -252,8 +252,9 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
                 ))
               },
               error = function(e) {
+                log_condition("post-curation enrichment", e, level = "warning")
                 warning(sprintf("[enrich] Enrichment failed: %s", e$message))
-                showNotification(
+                notify_user(
                   paste("Enrichment failed (curation results still valid):", e$message),
                   type = "warning",
                   duration = 8
@@ -286,7 +287,8 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
           })
         },
         error = function(e) {
-          showNotification(
+          log_condition("curation pipeline", e)
+          notify_user(
             paste("Curation failed:", e$message),
             type = "error",
             duration = NULL
