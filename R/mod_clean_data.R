@@ -535,7 +535,8 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
           })
         },
         error = function(e) {
-          showNotification(
+          log_condition("clean data pipeline", e)
+          notify_user(
             paste("Pipeline failed:", e$message),
             type = "error",
             duration = NULL
@@ -961,7 +962,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
 
       # Duplicate check (case-insensitive)
       if (tolower(msg$term) %in% tolower(tbl$term)) {
-        showNotification(
+        notify_user(
           sprintf("'%s' already exists in this list", msg$term),
           type = "warning",
           duration = 3
@@ -1071,7 +1072,8 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
           )
         },
         error = function(e) {
-          showNotification(
+          log_condition("reference list CSV import", e)
+          notify_user(
             paste("CSV upload failed:", e$message),
             type = "error",
             duration = NULL
@@ -1248,13 +1250,13 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
 
       selected <- reactable::getReactableState("multi_analyte_table", "selected")
       if (is.null(selected) || length(selected) == 0) {
-        showNotification("Select a multi-analyte row first.", type = "warning")
+        notify_user("Select a multi-analyte row first.", type = "warning")
         return()
       }
 
       multi_analyte_rows <- filter_multi_analyte_rows(data_store$cleaned_data)
       if (nrow(multi_analyte_rows) == 0 || selected[1] > nrow(multi_analyte_rows)) {
-        showNotification("Selected multi-analyte row is no longer available.", type = "warning")
+        notify_user("Selected multi-analyte row is no longer available.", type = "warning")
         return()
       }
 
@@ -1292,7 +1294,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
           showNotification("Multi-analyte resolution applied.", type = "message", duration = 4)
         },
         error = function(e) {
-          showNotification(paste("Multi-analyte resolution failed:", e$message), type = "error", duration = NULL)
+          notify_user(paste("Multi-analyte resolution failed:", e$message), type = "error", duration = NULL)
         }
       )
     })
@@ -1365,7 +1367,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       selected <- reactable::getReactableState("multi_cas_table", "selected")
 
       if (is.null(selected) || length(selected) == 0) {
-        showNotification(
+        notify_user(
           "Please select a row to split",
           type = "warning",
           duration = 3
@@ -1387,7 +1389,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       cas_values <- cas_values[!is.na(cas_values)]
 
       if (length(cas_values) <= 1) {
-        showNotification(
+        notify_user(
           "This row does not have multiple CAS-RNs to split",
           type = "warning",
           duration = 3

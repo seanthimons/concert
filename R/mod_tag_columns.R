@@ -206,7 +206,7 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL, on_ta
     observeEvent(input$suggest_tags, {
       selected_cols <- data_store$selected_columns
       if (is.null(selected_cols) || length(selected_cols) == 0) {
-        showNotification(
+        notify_user(
           "Select at least one column before suggesting tags.",
           type = "warning",
           duration = 5
@@ -291,7 +291,7 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL, on_ta
       }
 
       if (length(col_tag_map) == 0) {
-        showNotification(
+        notify_user(
           "Please select at least one column type before applying tags.",
           type = "warning",
           duration = 5
@@ -305,7 +305,7 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL, on_ta
       # Validate Result/Unit pairing per D-12/D-13
       warning_msg <- validate_tag_pairing(col_tag_map)
       if (!is.null(warning_msg)) {
-        showNotification(warning_msg, type = "warning", duration = 6)
+        notify_user(warning_msg, type = "warning", duration = 6)
       }
 
       # Check for required chemical tags (Name AND CASRN)
@@ -319,7 +319,7 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL, on_ta
         if (!"CASRN" %in% tag_values) {
           missing <- c(missing, "CASRN")
         }
-        showNotification(
+        notify_user(
           paste("Clean Data requires both Name and CASRN columns. Missing:", paste(missing, collapse = ", ")),
           type = "warning",
           duration = 6

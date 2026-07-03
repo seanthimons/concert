@@ -189,7 +189,7 @@ mod_file_upload_server <- function(
           removeNotification(notification_id)
 
           for (warning_msg in hydrated$warnings) {
-            showNotification(warning_msg, type = "warning", duration = 10)
+            notify_user(warning_msg, type = "warning", duration = 10)
           }
 
           showNotification(
@@ -204,7 +204,8 @@ mod_file_upload_server <- function(
         },
         error = function(e) {
           removeNotification(notification_id)
-          showNotification(
+          log_condition("restore CONCERT export session", e)
+          notify_user(
             paste("Failed to restore CONCERT session:", conditionMessage(e)),
             type = "error",
             duration = NULL
@@ -219,7 +220,7 @@ mod_file_upload_server <- function(
       validation <- validate_file(file_info)
 
       if (!validation$success) {
-        showNotification(
+        notify_user(
           validation$message,
           type = "error",
           duration = 10
@@ -284,7 +285,7 @@ mod_file_upload_server <- function(
 
           # Validate cleaned data
           if (nrow(clean_df) == 0) {
-            showNotification(
+            notify_user(
               paste0(
                 "Warning: No data rows found after cleaning. ",
                 "Try adjusting detection settings or using Manual mode."
@@ -331,9 +332,10 @@ mod_file_upload_server <- function(
 
           # Provide more detailed error information
           error_details <- conditionMessage(e)
+          log_condition("file upload processing", e)
 
           # Show error notification with more context
-          showNotification(
+          notify_user(
             div(
               tags$strong("Error processing file:"),
               tags$br(),
@@ -471,7 +473,7 @@ mod_file_upload_server <- function(
 
           # Validate cleaned data
           if (nrow(clean_df) == 0) {
-            showNotification(
+            notify_user(
               paste0(
                 "Warning: No data rows found with current settings. ",
                 "Try a different header row or detection mode."
@@ -482,7 +484,7 @@ mod_file_upload_server <- function(
           }
 
           if (ncol(clean_df) == 0) {
-            showNotification(
+            notify_user(
               "Warning: No columns found after cleaning.",
               type = "warning",
               duration = 8
@@ -495,7 +497,8 @@ mod_file_upload_server <- function(
           data_store$detection <- detection
         },
         error = function(e) {
-          showNotification(
+          log_condition("file upload detection update", e, level = "warning")
+          notify_user(
             paste("Error updating detection:", e$message),
             type = "warning",
             duration = 5

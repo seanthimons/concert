@@ -1355,7 +1355,7 @@ mod_review_results_server <- function(id, data_store) {
           build_wqx_override_choices(load_wqx_dictionary(cache_dir))
         },
         error = function(e) {
-          showNotification(
+          notify_user(
             paste0("WQX dictionary unavailable: ", conditionMessage(e)),
             type = "warning",
             duration = 6
@@ -1422,18 +1422,18 @@ mod_review_results_server <- function(id, data_store) {
     queue_current_review_override <- function(override_type, value) {
       row_idx <- data_store$override_modal_row_idx
       if (is.null(row_idx)) {
-        showNotification("No row selected for override", type = "warning")
+        notify_user("No row selected for override", type = "warning")
         return(FALSE)
       }
 
       override_type <- normalize_review_override_type(override_type)
       value <- trimws(as.character(value)[1])
       if (is.na(value) || !nzchar(value)) {
-        showNotification("Enter an override value first", type = "warning")
+        notify_user("Enter an override value first", type = "warning")
         return(FALSE)
       }
       if (override_type == "dtxsid" && !grepl("^DTXSID\\d+$", value, ignore.case = TRUE)) {
-        showNotification(
+        notify_user(
           paste0("Invalid format: ", value, ". Expected: DTXSIDxxxxxxx"),
           type = "warning",
           duration = 5
@@ -2156,12 +2156,12 @@ mod_review_results_server <- function(id, data_store) {
 
       current_status <- as.character(isolate(data_store$resolution_state)$consensus_status[row_idx])
       if (!current_status %in% c("error", "unresolvable")) {
-        showNotification("Only error/unresolvable rows can be manually edited", type = "warning")
+        notify_user("Only error/unresolvable rows can be manually edited", type = "warning")
         return()
       }
 
       if (!grepl("^DTXSID\\d+$", new_value, ignore.case = TRUE)) {
-        showNotification(
+        notify_user(
           paste0("Invalid format: ", new_value, ". Expected: DTXSIDxxxxxxx"),
           type = "warning",
           duration = 5
@@ -2265,7 +2265,7 @@ mod_review_results_server <- function(id, data_store) {
           data_store$consensus_summary <- recalc_consensus_summary(data_store$resolution_state)
         },
         error = function(e) {
-          showNotification(paste0("Error resolving row: ", e$message), type = "error")
+          notify_user(paste0("Error resolving row: ", e$message), type = "error")
         }
       )
     })
@@ -2522,7 +2522,7 @@ mod_review_results_server <- function(id, data_store) {
           showNotification(msg, type = "message", duration = 2)
         },
         error = function(e) {
-          showNotification(paste0("Error setting row flag: ", e$message), type = "error")
+          notify_user(paste0("Error setting row flag: ", e$message), type = "error")
         }
       )
     }, ignoreInit = TRUE)
@@ -2538,7 +2538,7 @@ mod_review_results_server <- function(id, data_store) {
       chosen_column <- data_store$modal_selected_column
 
       if (is.null(chosen_column)) {
-        showNotification("Please select a candidate first", type = "warning")
+        notify_user("Please select a candidate first", type = "warning")
         return()
       }
 
@@ -2588,7 +2588,7 @@ mod_review_results_server <- function(id, data_store) {
       }
 
       if (is.na(suggested_col)) {
-        showNotification("No suggestion available for this row", type = "warning")
+        notify_user("No suggestion available for this row", type = "warning")
         return()
       }
 
@@ -2620,7 +2620,7 @@ mod_review_results_server <- function(id, data_store) {
           data_store$override_modal_row_idx <- NULL
         },
         error = function(e) {
-          showNotification(paste0("Error accepting suggestion: ", e$message), type = "error")
+          notify_user(paste0("Error accepting suggestion: ", e$message), type = "error")
         }
       )
     })
@@ -2655,7 +2655,7 @@ mod_review_results_server <- function(id, data_store) {
       queue <- data_store$manual_queue
       entries <- normalize_review_override_queue(queue)
       if (length(entries) == 0) {
-        showNotification("No overrides to validate", type = "warning", duration = 3)
+        notify_user("No overrides to validate", type = "warning", duration = 3)
         return()
       }
 
@@ -2682,7 +2682,7 @@ mod_review_results_server <- function(id, data_store) {
           wqx_dictionary <- tryCatch(
             load_wqx_dictionary(resolve_reference_cache_dir()),
             error = function(e) {
-              showNotification(
+              notify_user(
                 paste0("WQX dictionary unavailable: ", conditionMessage(e)),
                 type = "warning",
                 duration = 6
@@ -2716,11 +2716,11 @@ mod_review_results_server <- function(id, data_store) {
         apply_result$valid_rows,
         apply_result$invalid_entries
       )
-      showNotification(msg, type = if (apply_result$invalid_entries > 0) "warning" else "message", duration = 8)
+      notify_user(msg, type = if (apply_result$invalid_entries > 0) "warning" else "message", duration = 8)
 
       # Detail notification for failures
       if (apply_result$invalid_entries > 0) {
-        showNotification(
+        notify_user(
           paste("Failed entries:", paste(apply_result$invalid_details, collapse = "; ")),
           type = "error",
           duration = NULL # Stays until dismissed
@@ -2753,7 +2753,7 @@ mod_review_results_server <- function(id, data_store) {
             duration = 3
           )
         } else {
-          showNotification(
+          notify_user(
             sprintf(
               "QC complete: %d rows contain non-ASCII characters (%d unique characters)",
               qc_results$rows_with_non_ascii,
@@ -2807,7 +2807,7 @@ mod_review_results_server <- function(id, data_store) {
           )
         },
         error = function(e) {
-          showNotification(
+          notify_user(
             paste0("Error applying priority: ", e$message),
             type = "error"
           )
@@ -2841,7 +2841,7 @@ mod_review_results_server <- function(id, data_store) {
           )
         },
         error = function(e) {
-          showNotification(
+          notify_user(
             "Failed to accept suggestions. Please try again.",
             type = "error"
           )
@@ -2892,7 +2892,7 @@ mod_review_results_server <- function(id, data_store) {
       script <- tryCatch(
         replay_script_text(),
         error = function(e) {
-          showNotification(
+          notify_user(
             paste("Could not generate replay script:", conditionMessage(e)),
             type = "error",
             duration = 8
@@ -2977,7 +2977,7 @@ mod_review_results_server <- function(id, data_store) {
             validate_excel_size(data_store$resolution_state, "Curated Data")
           },
           error = function(e) {
-            showNotification(
+            notify_user(
               paste("Export blocked:", conditionMessage(e)),
               type = "error",
               duration = NULL
@@ -3087,12 +3087,12 @@ mod_review_results_server <- function(id, data_store) {
     observeEvent(input$apply_batch_row_flag, {
       selected_rows <- data_store$selected_visible_rows
       if (is.null(selected_rows) || length(selected_rows) == 0) {
-        showNotification("Select one or more visible rows first.", type = "warning")
+        notify_user("Select one or more visible rows first.", type = "warning")
         return()
       }
 
       if (is.null(input$batch_row_flag) || input$batch_row_flag == "") {
-        showNotification("Choose a flag action first.", type = "warning")
+        notify_user("Choose a flag action first.", type = "warning")
         return()
       }
 
@@ -3117,7 +3117,7 @@ mod_review_results_server <- function(id, data_store) {
           updateTextInput(session, "batch_row_flag_reason", value = "")
         },
         error = function(e) {
-          showNotification(paste0("Error applying row flag: ", e$message), type = "error")
+          notify_user(paste0("Error applying row flag: ", e$message), type = "error")
         }
       )
     })
@@ -3179,7 +3179,7 @@ mod_review_results_server <- function(id, data_store) {
       selected_rows <- data_store$selected_error_rows
 
       if (is.null(selected_rows) || length(selected_rows) == 0) {
-        showNotification("No rows selected. Please select error rows first.", type = "warning")
+        notify_user("No rows selected. Please select error rows first.", type = "warning")
         removeModal()
         return()
       }
@@ -3200,7 +3200,7 @@ mod_review_results_server <- function(id, data_store) {
       removeModal()
 
       if (length(new_tags) == 0) {
-        showNotification("No columns tagged. Please select at least one tag.", type = "warning")
+        notify_user("No columns tagged. Please select at least one tag.", type = "warning")
         return()
       }
 
@@ -3225,7 +3225,8 @@ mod_review_results_server <- function(id, data_store) {
             )
           },
           error = function(e) {
-            showNotification(paste("Re-curation failed:", e$message), type = "error", duration = NULL)
+            log_condition("selected-row re-curation", e)
+            notify_user(paste("Re-curation failed:", e$message), type = "error", duration = NULL)
             NULL
           }
         )
@@ -3256,7 +3257,7 @@ mod_review_results_server <- function(id, data_store) {
           )
           n_still_error <- sum(updated_state$consensus_status[selected_rows] == "unresolvable", na.rm = TRUE)
 
-          showNotification(
+          notify_user(
             sprintf("Re-curation complete: %d resolved, %d unresolvable", n_resolved, n_still_error),
             type = if (n_still_error > 0) "warning" else "message",
             duration = 8
