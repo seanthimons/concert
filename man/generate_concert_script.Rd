@@ -18,7 +18,8 @@ generate_concert_script(
   source_name = NULL,
   reference_lists = NULL,
   activate_all_references = FALSE,
-  site_manifest = NULL
+  site_manifest = NULL,
+  site_alias_map = NULL
 )
 }
 \arguments{
@@ -53,6 +54,9 @@ for portable replay.}
 activates all cleaning reference-list rows for the run.}
 
 \item{site_manifest}{Optional curated Dataset Context site manifest to embed
+in the replay script.}
+
+\item{site_alias_map}{Optional Dataset Context raw-label alias map to embed
 in the replay script.}
 }
 \value{

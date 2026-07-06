@@ -18,7 +18,8 @@ build_export_sheets(
   cleaned_data = NULL,
   toxval_output = NULL,
   harmonize_audit = NULL,
-  site_manifest = NULL
+  site_manifest = NULL,
+  site_alias_map = NULL
 )
 }
 \arguments{
@@ -58,6 +59,10 @@ appended.}
 
 \item{site_manifest}{Optional curated site/location manifest from Dataset
 Context. When provided and non-empty, a Site Manifest sheet is included.}
+
+\item{site_alias_map}{Optional Dataset Context raw-label alias map. When
+provided and non-empty, a Site Alias Map sheet is included and the Site
+Manifest is rebuilt from these mappings.}
 }
 \value{
 Named list of data frames with sheet names as keys

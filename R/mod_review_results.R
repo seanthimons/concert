@@ -3039,7 +3039,8 @@ mod_review_results_server <- function(id, data_store) {
         source_name = file_name,
         reference_lists = data_store$reference_lists,
         activate_all_references = isTRUE(data_store$activate_all_references),
-        site_manifest = data_store$site_manifest
+        site_manifest = data_store$site_manifest,
+        site_alias_map = data_store$site_alias_map
       )
     }
 
@@ -3163,7 +3164,8 @@ mod_review_results_server <- function(id, data_store) {
           cleaned_data = data_store$cleaned_data,
           toxval_output = data_store$toxval_output,
           harmonize_audit = data_store$harmonize_audit,
-          site_manifest = data_store$site_manifest
+          site_manifest = data_store$site_manifest,
+          site_alias_map = data_store$site_alias_map
         )
 
         # Write to Excel

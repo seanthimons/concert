@@ -65,14 +65,14 @@ mod_dataset_context_ui <- function(id) {
 }
 
 site_context_audit_columns <- function() {
-  setdiff(site_context_manifest_columns(), site_context_editable_columns())
+  setdiff(site_context_manifest_columns(), c("source_site_label", site_context_editable_columns()))
 }
 
 site_context_table_columns <- function(show_audit_columns = FALSE) {
   if (isTRUE(show_audit_columns)) {
     return(site_context_manifest_columns())
   }
-  setdiff(site_context_manifest_columns(), site_context_audit_columns())
+  c("source_site_label", site_context_editable_columns())
 }
 
 site_context_table_data <- function(manifest, show_audit_columns = FALSE) {
@@ -90,9 +90,10 @@ site_context_datatable <- function(manifest, show_audit_columns = FALSE) {
     editable = list(target = "cell", disable = list(columns = disabled)),
     filter = "top",
     options = list(
-      pageLength = 10,
+      pageLength = 25,
+      lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "All")),
       scrollX = TRUE,
-      dom = "tip"
+      dom = "ltip"
     ),
     class = "compact stripe hover"
   )
@@ -146,6 +147,7 @@ mod_dataset_context_server <- function(id, data_store) {
         if (is.null(data_store$clean)) {
           data_store$site_context_detection <- NULL
           data_store$site_context_candidates <- empty_site_manifest()
+          data_store$site_alias_map <- empty_site_manifest()
           set_site_manifest_working(empty_site_manifest(), rerender_table = TRUE)
           return()
         }
@@ -155,7 +157,9 @@ mod_dataset_context_server <- function(id, data_store) {
         data_store$site_context_detection <- detection
         data_store$site_context_candidates <- candidates
 
-        if (!is.null(data_store$site_manifest) && nrow(normalize_site_manifest(data_store$site_manifest)) > 0L) {
+        if (!is.null(data_store$site_alias_map) && nrow(build_site_alias_map(data_store$site_alias_map)) > 0L) {
+          set_site_manifest_working(data_store$site_alias_map, rerender_table = TRUE)
+        } else if (!is.null(data_store$site_manifest) && nrow(normalize_site_manifest(data_store$site_manifest)) > 0L) {
           set_site_manifest_working(data_store$site_manifest, rerender_table = TRUE)
         } else {
           set_site_manifest_working(candidates, rerender_table = TRUE)
@@ -178,7 +182,7 @@ mod_dataset_context_server <- function(id, data_store) {
         bsicons::bs_icon("geo-alt"),
         div(
           tags$strong("Dataset Context"),
-          tags$div(sprintf("%d distinct site row(s) detected.", nrow(candidates))),
+          tags$div(sprintf("%d distinct raw site label(s) detected.", nrow(candidates))),
           if (length(summary) > 0L) {
             tags$small(class = "text-muted", paste(summary, collapse = "; "))
           }
@@ -187,7 +191,8 @@ mod_dataset_context_server <- function(id, data_store) {
     })
 
     output$site_manifest_summary <- renderUI({
-      manifest <- build_site_manifest(site_manifest_working())
+      alias_map <- build_site_alias_map(site_manifest_working())
+      manifest <- build_site_manifest(alias_map)
       if (nrow(manifest) == 0L) {
         return(div(class = "alert alert-secondary", "No site/location context is currently selected."))
       }
@@ -196,7 +201,8 @@ mod_dataset_context_server <- function(id, data_store) {
       located <- sum(!is.na(manifest$latitude) & !is.na(manifest$longitude))
       div(
         class = "d-flex flex-wrap gap-2 mb-2",
-        tags$span(class = "badge bg-primary", sprintf("%d sites", nrow(manifest))),
+        tags$span(class = "badge bg-primary", sprintf("%d raw labels", nrow(alias_map))),
+        tags$span(class = "badge bg-secondary", sprintf("%d canonical sites", nrow(manifest))),
         tags$span(class = "badge bg-secondary", sprintf("%d with coordinates", located)),
         tags$span(class = "badge bg-secondary", sprintf("%d grouped", grouped))
       )
@@ -224,9 +230,7 @@ mod_dataset_context_server <- function(id, data_store) {
         return()
       }
 
-      if (is.na(col) || col < 1L || col > ncol(manifest)) {
-        col <- col + 1L
-      }
+      col <- col + 1L
       if (is.na(col) || col < 1L || col > ncol(manifest)) {
         return()
       }
@@ -246,12 +250,18 @@ mod_dataset_context_server <- function(id, data_store) {
     })
 
     observeEvent(input$apply_site_manifest, {
-      manifest <- build_site_manifest(site_manifest_working())
+      alias_map <- build_site_alias_map(site_manifest_working())
+      manifest <- build_site_manifest(alias_map)
+      data_store$site_alias_map <- alias_map
       data_store$site_manifest <- manifest
-      data_store$site_context_status <- if (nrow(manifest) > 0L) "curated" else "empty"
+      data_store$site_context_status <- if (nrow(alias_map) > 0L || nrow(manifest) > 0L) "curated" else "empty"
 
       showNotification(
-        sprintf("Dataset context applied: %d site row(s).", nrow(manifest)),
+        sprintf(
+          "Dataset context applied: %d raw label(s) mapped to %d canonical site(s).",
+          nrow(alias_map),
+          nrow(manifest)
+        ),
         type = "message",
         duration = 4
       )
@@ -268,6 +278,7 @@ mod_dataset_context_server <- function(id, data_store) {
 
     observeEvent(input$clear_site_manifest, {
       set_site_manifest_working(empty_site_manifest(), rerender_table = TRUE)
+      data_store$site_alias_map <- empty_site_manifest()
       data_store$site_manifest <- empty_site_manifest()
       data_store$site_context_status <- "empty"
       showNotification("Dataset context cleared.", type = "message", duration = 3)
@@ -278,8 +289,11 @@ mod_dataset_context_server <- function(id, data_store) {
         detection <- data_store$site_context_detection
         !is.null(detection) && isTRUE(detection$has_site_context)
       }),
+      site_alias_map = reactive({
+        build_site_alias_map(site_manifest_working())
+      }),
       site_manifest = reactive({
-        build_site_manifest(site_manifest_working())
+        build_site_manifest(build_site_alias_map(site_manifest_working()))
       })
     )
   })

@@ -2,6 +2,7 @@
 
 empty_site_manifest <- function() {
   tibble::tibble(
+    source_site_label = character(),
     site_order = integer(),
     site_suborder = integer(),
     site_identifier = character(),
@@ -17,6 +18,7 @@ empty_site_manifest <- function() {
     source_latitude = character(),
     source_longitude = character(),
     source_grouping_value = character(),
+    site_label_column = character(),
     site_id_column = character(),
     site_name_column = character(),
     latitude_column = character(),
@@ -95,6 +97,30 @@ site_context_nonblank <- function(x) {
   x[!is.na(x)]
 }
 
+site_context_alias_key <- function(x) {
+  x <- site_context_clean_text(x)
+  x <- gsub("\\s+", " ", x)
+  x <- tolower(x)
+  x[is.na(x) | x == ""] <- NA_character_
+  x
+}
+
+site_context_coalesce_chr <- function(...) {
+  values <- list(...)
+  if (length(values) == 0L) {
+    return(character())
+  }
+
+  n <- max(vapply(values, length, integer(1)), 0L)
+  result <- rep(NA_character_, n)
+  for (value in values) {
+    value <- site_context_chr(value, n)
+    fill <- is.na(result) & !is.na(value)
+    result[fill] <- value[fill]
+  }
+  result
+}
+
 site_context_numeric_ratio <- function(x) {
   values <- site_context_nonblank(x)
   if (length(values) == 0L) {
@@ -153,6 +179,38 @@ site_context_score_site_id <- function(name, values) {
     score <- score - 20
   }
   if (score > 0 && site_context_value_repeats(values)) {
+    score <- score + 5
+  }
+  score
+}
+
+site_context_score_site_label <- function(name, values) {
+  header <- site_context_header(name)
+  exact <- c(
+    "site_label",
+    "station_label",
+    "location_label",
+    "sample_location",
+    "sampling_location",
+    "sampling_site",
+    "sampling_station",
+    "station_name",
+    "location_name",
+    "monitoring_location_name",
+    "monitoring_location"
+  )
+
+  score <- 0
+  if (header %in% exact) {
+    score <- 105
+  } else if (grepl("(site|station|location).*(label|name|description)$", header) ||
+    grepl("^(label|name|description).*(site|station|location)", header)) {
+    score <- 90
+  } else if (grepl("(sample|sampling).*(site|station|location)", header)) {
+    score <- 85
+  }
+
+  if (score > 0 && length(site_context_nonblank(values)) > 0L) {
     score <- score + 5
   }
   score
@@ -276,7 +334,8 @@ site_context_best_column <- function(df, scorer, min_score) {
 #' Detect Site/Location Columns In A Dataset
 #'
 #' Uses cleaned header names and conservative value checks to identify likely
-#' site identifiers, site names, coordinates, and optional grouping metadata.
+#' source site labels, site identifiers, site names, coordinates, and optional
+#' grouping metadata.
 #'
 #' @param df Data frame after file detection/extraction.
 #'
@@ -286,6 +345,7 @@ detect_site_columns <- function(df) {
   if (is.null(df) || !inherits(df, "data.frame") || ncol(df) == 0L) {
     return(list(
       site_id = NA_character_,
+      site_label = NA_character_,
       site_name = NA_character_,
       latitude = NA_character_,
       longitude = NA_character_,
@@ -296,6 +356,7 @@ detect_site_columns <- function(df) {
   }
 
   site_id <- site_context_best_column(df, site_context_score_site_id, 50)
+  site_label <- site_context_best_column(df, site_context_score_site_label, 50)
   site_name <- site_context_best_column(df, site_context_score_site_name, 50)
   latitude <- site_context_best_column(df, site_context_score_latitude, 50)
   longitude <- site_context_best_column(df, site_context_score_longitude, 50)
@@ -309,12 +370,13 @@ detect_site_columns <- function(df) {
 
   list(
     site_id = site_id,
+    site_label = site_label,
     site_name = site_name,
     latitude = latitude,
     longitude = longitude,
     grouping = grouping,
     grouping_type = grouping_type,
-    has_site_context = !is.na(site_id) || !is.na(site_name) || (!is.na(latitude) && !is.na(longitude))
+    has_site_context = !is.na(site_label) || !is.na(site_id) || !is.na(site_name) || (!is.na(latitude) && !is.na(longitude))
   )
 }
 
@@ -322,14 +384,24 @@ site_context_detection_summary <- function(detection) {
   if (is.null(detection) || !isTRUE(detection$has_site_context)) {
     return(character(0))
   }
+  detection_value <- function(field) site_context_detection_value(detection, field)
   parts <- c(
-    if (!is.na(detection$site_id)) paste("site ID:", detection$site_id) else NULL,
-    if (!is.na(detection$site_name)) paste("site name:", detection$site_name) else NULL,
-    if (!is.na(detection$latitude)) paste("latitude:", detection$latitude) else NULL,
-    if (!is.na(detection$longitude)) paste("longitude:", detection$longitude) else NULL,
-    if (!is.na(detection$grouping)) paste("grouping:", detection$grouping) else NULL
+    if (!is.na(detection_value("site_label"))) paste("site label:", detection_value("site_label")) else NULL,
+    if (!is.na(detection_value("site_id"))) paste("site ID:", detection_value("site_id")) else NULL,
+    if (!is.na(detection_value("site_name"))) paste("site name:", detection_value("site_name")) else NULL,
+    if (!is.na(detection_value("latitude"))) paste("latitude:", detection_value("latitude")) else NULL,
+    if (!is.na(detection_value("longitude"))) paste("longitude:", detection_value("longitude")) else NULL,
+    if (!is.na(detection_value("grouping"))) paste("grouping:", detection_value("grouping")) else NULL
   )
   parts
+}
+
+site_context_detection_value <- function(detection, field) {
+  value <- detection[[field]]
+  if (is.null(value) || length(value) == 0L || is.na(value[1])) {
+    return(NA_character_)
+  }
+  as.character(value[1])
 }
 
 site_context_column_values <- function(df, col) {
@@ -382,11 +454,19 @@ site_context_coordinate_identifier <- function(latitude, longitude) {
   )
 }
 
+site_context_coordinate_identifiers <- function(latitude, longitude) {
+  vapply(
+    seq_along(latitude),
+    function(i) site_context_coordinate_identifier(latitude[i], longitude[i]),
+    character(1)
+  )
+}
+
 #' Extract Site Candidates
 #'
-#' Builds a first-seen, distinct site list from detected site/location columns.
-#' User order fields are left blank by default; source row order remains
-#' available as the deterministic fallback order.
+#' Builds a first-seen, distinct raw-label list from detected site/location
+#' columns. User order fields are left blank by default; source row order
+#' remains available as the deterministic fallback order.
 #'
 #' @param df Data frame after file detection/extraction.
 #' @param detection Optional result from `detect_site_columns()`.
@@ -405,25 +485,34 @@ extract_site_candidates <- function(df, detection = NULL) {
   }
 
   n <- nrow(df)
-  source_site_id <- site_context_chr(site_context_column_values(df, detection$site_id), n)
-  source_site_name <- site_context_chr(site_context_column_values(df, detection$site_name), n)
-  source_latitude <- site_context_chr(site_context_column_values(df, detection$latitude), n)
-  source_longitude <- site_context_chr(site_context_column_values(df, detection$longitude), n)
-  source_grouping <- site_context_chr(site_context_column_values(df, detection$grouping), n)
+  site_label_column <- site_context_detection_value(detection, "site_label")
+  site_id_column <- site_context_detection_value(detection, "site_id")
+  site_name_column <- site_context_detection_value(detection, "site_name")
+  latitude_column <- site_context_detection_value(detection, "latitude")
+  longitude_column <- site_context_detection_value(detection, "longitude")
+  grouping_column <- site_context_detection_value(detection, "grouping")
+  grouping_type <- site_context_detection_value(detection, "grouping_type")
+
+  detected_source_site_label <- site_context_chr(site_context_column_values(df, site_label_column), n)
+  source_site_id <- site_context_chr(site_context_column_values(df, site_id_column), n)
+  source_site_name <- site_context_chr(site_context_column_values(df, site_name_column), n)
+  source_latitude <- site_context_chr(site_context_column_values(df, latitude_column), n)
+  source_longitude <- site_context_chr(site_context_column_values(df, longitude_column), n)
+  source_grouping <- site_context_chr(site_context_column_values(df, grouping_column), n)
   latitude <- site_context_num(source_latitude, n)
   longitude <- site_context_num(source_longitude, n)
 
   latitude[latitude < -90 | latitude > 90] <- NA_real_
   longitude[longitude < -180 | longitude > 180] <- NA_real_
 
-  keys <- vapply(seq_len(n), function(i) {
-    identifier <- if (!is.na(source_site_id[i])) {
-      source_site_id[i]
-    } else {
-      site_context_coordinate_identifier(latitude[i], longitude[i])
-    }
-    site_context_key(identifier, source_site_name[i], latitude[i], longitude[i])
-  }, character(1))
+  coordinate_label <- site_context_coordinate_identifiers(latitude, longitude)
+  source_site_label <- site_context_coalesce_chr(
+    detected_source_site_label,
+    source_site_name,
+    source_site_id,
+    coordinate_label
+  )
+  keys <- site_context_alias_key(source_site_label)
 
   keep <- !is.na(keys) & !duplicated(keys)
   if (!any(keep)) {
@@ -442,9 +531,16 @@ extract_site_candidates <- function(df, detection = NULL) {
     if (is.na(id_value)) {
       id_value <- site_context_coordinate_identifier(lat_value, lon_value)
     }
-    label_value <- if (!is.na(name_value)) name_value else id_value
+    if (is.na(id_value)) {
+      id_value <- source_site_label[row]
+    }
+    if (is.na(name_value)) {
+      name_value <- source_site_label[row]
+    }
+    label_value <- source_site_label[row]
 
     tibble::tibble(
+      source_site_label = source_site_label[row],
       site_order = NA_integer_,
       site_suborder = 1L,
       site_identifier = id_value,
@@ -452,7 +548,7 @@ extract_site_candidates <- function(df, detection = NULL) {
       site_label = label_value,
       latitude = as.numeric(lat_value),
       longitude = as.numeric(lon_value),
-      grouping_type = if (!is.na(grouping_value)) detection$grouping_type else NA_character_,
+      grouping_type = if (!is.na(grouping_value)) grouping_type else NA_character_,
       grouping_label = grouping_value,
       source_row = row,
       source_site_id = source_site_id[row],
@@ -460,11 +556,12 @@ extract_site_candidates <- function(df, detection = NULL) {
       source_latitude = site_context_first_nonmissing(source_latitude[group_rows]),
       source_longitude = site_context_first_nonmissing(source_longitude[group_rows]),
       source_grouping_value = grouping_value,
-      site_id_column = detection$site_id,
-      site_name_column = detection$site_name,
-      latitude_column = detection$latitude,
-      longitude_column = detection$longitude,
-      grouping_column = detection$grouping
+      site_label_column = site_label_column,
+      site_id_column = site_id_column,
+      site_name_column = site_name_column,
+      latitude_column = latitude_column,
+      longitude_column = longitude_column,
+      grouping_column = grouping_column
     )
   })
 
@@ -510,7 +607,57 @@ normalize_site_manifest <- function(site_manifest) {
   manifest$source_row[is.na(manifest$source_row)] <- seq_len(n)[is.na(manifest$source_row)]
   manifest$latitude[manifest$latitude < -90 | manifest$latitude > 90] <- NA_real_
   manifest$longitude[manifest$longitude < -180 | manifest$longitude > 180] <- NA_real_
+  manifest$source_site_label <- site_context_coalesce_chr(
+    manifest$source_site_label,
+    manifest$source_site_name,
+    manifest$source_site_id,
+    site_context_coordinate_identifiers(manifest$latitude, manifest$longitude)
+  )
   manifest
+}
+
+#' Build A Deterministic Site Alias Map
+#'
+#' Filters blank aliases and blank canonical destinations, then keeps one row
+#' for each distinct raw dataset site label in first-seen order.
+#'
+#' @param site_manifest Site manifest candidate or user-edited site context.
+#'
+#' @return A deterministic, distinct site alias map.
+#' @export
+build_site_alias_map <- function(site_manifest) {
+  alias_map <- normalize_site_manifest(site_manifest)
+  if (nrow(alias_map) == 0L) {
+    return(alias_map)
+  }
+
+  source_keys <- site_context_alias_key(alias_map$source_site_label)
+  canonical_keys <- vapply(seq_len(nrow(alias_map)), function(i) {
+    site_context_key(
+      alias_map$site_identifier[i],
+      alias_map$site_name[i],
+      alias_map$latitude[i],
+      alias_map$longitude[i]
+    )
+  }, character(1))
+
+  keep <- !is.na(source_keys) & !is.na(canonical_keys)
+  if (!any(keep)) {
+    return(empty_site_manifest())
+  }
+
+  alias_map <- alias_map[keep, , drop = FALSE]
+  source_keys <- source_keys[keep]
+  alias_map <- alias_map[!duplicated(source_keys), , drop = FALSE]
+  rownames(alias_map) <- NULL
+  tibble::as_tibble(alias_map)
+}
+
+site_context_alias_source <- function(site_alias_map = NULL, site_manifest = NULL) {
+  if (!is.null(site_alias_map) && inherits(site_alias_map, "data.frame") && nrow(site_alias_map) > 0L) {
+    return(site_alias_map)
+  }
+  site_manifest
 }
 
 #' Build A Deterministic Site Manifest

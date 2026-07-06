@@ -24,6 +24,7 @@ curate_headless(
   postprocess_candidates = FALSE,
   review_overrides = NULL,
   site_manifest = NULL,
+  site_alias_map = NULL,
   multi_analyte_resolutions = NULL,
   media_map = NULL,
   write_files = TRUE,
@@ -99,6 +100,9 @@ curation. Default FALSE for backward compatibility.}
 replay Review Results edits.}
 
 \item{site_manifest}{Optional curated Dataset Context site manifest to include
+in the workbook export.}
+
+\item{site_alias_map}{Optional Dataset Context raw-label alias map to include
 in the workbook export.}
 
 \item{multi_analyte_resolutions}{Optional data frame/list with \code{row_index}
