@@ -167,17 +167,30 @@ scalar_values_equal <- function(a, b) {
   isTRUE(a_na) && isTRUE(b_na)
 }
 
-scalar_value_matches <- function(a, b) {
-  if (scalar_values_equal(a, b)) {
-    return(TRUE)
+# Vectorized per-cell match of a column against one scalar: exact equality,
+# with NA matching NA. Columns where `==` errors (lists, mismatched factor
+# levels) match nowhere.
+column_match_mask <- function(x, value) {
+  if (length(value) != 1L) {
+    return(logical(length(x)))
   }
+  eq <- tryCatch(x == value, error = function(e) logical(length(x)))
+  (!is.na(eq) & eq) | (is.na(x) & is.na(value))
+}
 
-  if (length(a) != 1 || length(b) != 1) {
-    return(FALSE)
+# Vectorized "cell changed" mask matching scalar_values_equal() semantics,
+# including cell_value()'s NA for columns absent from one frame.
+changed_cell_mask <- function(baseline_state, final_state, col) {
+  n <- nrow(baseline_state)
+  a <- if (col %in% names(baseline_state)) baseline_state[[col]] else rep(NA, n)
+  b <- if (col %in% names(final_state)) final_state[[col]] else rep(NA, n)
+  both_na <- is.na(a) & is.na(b)
+  if (!identical(class(a), class(b)) || !identical(typeof(a), typeof(b))) {
+    # scalar_values_equal() treats cross-type cells as equal only when both NA
+    return(!both_na)
   }
-
-  equal <- tryCatch(a == b, error = function(e) FALSE)
-  isTRUE(equal)
+  eq <- tryCatch(a == b, error = function(e) logical(n))
+  !((!is.na(eq) & eq) | both_na)
 }
 
 cell_value <- function(df, row_idx, col) {
@@ -330,13 +343,7 @@ minimal_stable_row_signature <- function(baseline_state, full_signature, target_
   target_mask[target_rows] <- TRUE
 
   signature_masks <- lapply(stable_cols, function(col) {
-    vapply(
-      seq_len(nrow(baseline_state)),
-      function(row_idx) {
-        scalar_value_matches(baseline_state[[col]][row_idx], full_signature[[col]])
-      },
-      logical(1)
-    )
+    column_match_mask(baseline_state[[col]], full_signature[[col]])
   })
   names(signature_masks) <- stable_cols
 
@@ -499,6 +506,11 @@ build_review_overrides <- function(baseline_state, final_state, tag_map = NULL) 
   branch_signatures <- list()
 
   for (col in names(target_workflows)) {
+    changed_mask <- changed_cell_mask(baseline_state, final_state, col)
+    if (!any(changed_mask)) {
+      next
+    }
+
     workflow <- unname(target_workflows[[col]])
     stable_cols <- stable_override_signature_columns(
       baseline_state,
@@ -511,29 +523,25 @@ build_review_overrides <- function(baseline_state, final_state, tag_map = NULL) 
     } else {
       intersect(workflow_columns(column_workflows, "chemical_tags"), stable_cols)
     }
-    signatures <- lapply(seq_len(nrow(baseline_state)), function(row_idx) {
-      row_signature(baseline_state, row_idx, stable_cols)
-    })
-    keys <- vapply(signatures, signature_key, character(1))
+    # Exact-value grouping; the old dput-text keys could merge doubles that
+    # differ beyond deparse precision, which replay-time matching would split.
+    keys <- if (length(stable_cols) == 0L) {
+      rep(1L, nrow(baseline_state))
+    } else {
+      vctrs::vec_group_id(baseline_state[stable_cols])
+    }
 
     # First pass: find changed groups, validate ambiguity, and collect each
     # group's minimal-readable signature.
     group_rows_list <- list()
     group_values <- list()
     group_min_cols <- character()
-    for (key in unique(keys)) {
+    for (key in unique(keys[changed_mask])) {
       group_rows <- which(keys == key)
 
-      before_values <- lapply(group_rows, function(row_idx) {
-        cell_value(baseline_state, row_idx, col)
-      })
       after_values <- lapply(group_rows, function(row_idx) {
         cell_value(final_state, row_idx, col)
       })
-      changed <- any(!mapply(scalar_values_equal, before_values, after_values))
-      if (!changed) {
-        next
-      }
 
       intended_value <- after_values[[1]]
       same_intended_values <- all(vapply(after_values, scalar_values_equal, logical(1), b = intended_value))
@@ -541,9 +549,10 @@ build_review_overrides <- function(baseline_state, final_state, tag_map = NULL) 
         ambiguous_review_override_error(col, group_rows, stable_cols)
       }
 
+      full_signature <- row_signature(baseline_state, group_rows[1], stable_cols)
       min_sig <- minimal_stable_row_signature(
         baseline_state,
-        signatures[[group_rows[1]]],
+        full_signature,
         group_rows,
         identity_cols
       )
@@ -627,15 +636,7 @@ signature_match_mask <- function(df, signature) {
       return(rep(FALSE, nrow(df)))
     }
 
-    value <- signature[[col]]
-    col_matches <- vapply(
-      seq_len(nrow(df)),
-      function(row_idx) {
-        scalar_value_matches(df[[col]][row_idx], value)
-      },
-      logical(1)
-    )
-    mask <- mask & col_matches
+    mask <- mask & column_match_mask(df[[col]], signature[[col]])
   }
 
   mask

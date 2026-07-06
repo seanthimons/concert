@@ -49,6 +49,7 @@ Imports:
     tidyselect,
     tools,
     units (>= 0.8-0),
+    vctrs,
     writexl
 Suggests:
     bench,
