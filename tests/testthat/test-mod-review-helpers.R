@@ -105,6 +105,55 @@ test_that("candidate_dtxsid_heading links DTXSID to CompTox Dashboard", {
   expect_match(result, 'title="Open in CompTox Dashboard"', fixed = TRUE)
 })
 
+test_that("review override controls expose related parent lookup action", {
+  session <- list(ns = function(id) id)
+
+  result <- as.character(review_override_controls(session))
+
+  expect_match(result, "Find Related Parent", fixed = TRUE)
+  expect_match(result, "find_related_parent", fixed = TRUE)
+})
+
+test_that("related parent cards render experimental metadata and queue button", {
+  parents <- tibble::tibble(
+    parent_dtxsid = "DTXSID9000001",
+    relationship = "predecessor: component",
+    support_n = 2L,
+    source_dtxsids = list(c("DTXSID1000001", "DTXSID1000002")),
+    preferredName = "Shared Markush Parent",
+    casrn = "999-99-9",
+    molecular_formula = "C10H10",
+    molecular_weight = 130.19,
+    rank = 3L,
+    isMarkush = TRUE
+  )
+
+  result <- as.character(related_parent_cards(parents))
+
+  expect_match(result, "Experimental related-substance result", fixed = TRUE)
+  expect_match(result, "Shared Markush Parent", fixed = TRUE)
+  expect_match(result, "Markush", fixed = TRUE)
+  expect_match(result, "DTXSID1000001, DTXSID1000002", fixed = TRUE)
+  expect_match(result, "related-parent-select-btn", fixed = TRUE)
+  expect_match(result, 'data-dtxsid="DTXSID9000001"', fixed = TRUE)
+})
+
+test_that("related parent selections use normal DTXSID override queue entries", {
+  queue <- queue_review_override(
+    list(),
+    row = 1L,
+    group_rows = c(1L, 3L),
+    override_type = "dtxsid",
+    value = "DTXSID9000001"
+  )
+  entries <- normalize_review_override_queue(queue)
+
+  expect_length(entries, 1)
+  expect_equal(entries[[1]]$override_type, "dtxsid")
+  expect_equal(entries[[1]]$value, "DTXSID9000001")
+  expect_equal(entries[[1]]$group_rows, c(1L, 3L))
+})
+
 # ============================================================================
 # Test Group 1: recalc_consensus_summary — WQX counting
 # ============================================================================
