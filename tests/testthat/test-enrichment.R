@@ -196,7 +196,201 @@ test_that("enrich_candidates handles partial API response (some DTXSIDs missing)
 })
 
 # ============================================================================
-# Test Group 6: get_resolution_options - enrichment_cache integration
+# Test Group 6: related parent lookup
+# ============================================================================
+
+test_that("find_related_parent_candidates returns shared predecessor component parents", {
+  related_response <- tibble::tibble(
+    query = c("DTXSID1000001", "DTXSID1000002", "DTXSID1000001"),
+    child = c("DTXSID9000001", "DTXSID9000001", "DTXSID9000002"),
+    relationship = c(
+      "predecessor: component",
+      "predecessor: component",
+      "predecessor: component"
+    )
+  )
+  detail_response <- tibble::tibble(
+    dtxsid = "DTXSID9000001",
+    preferredName = "Shared Markush Parent",
+    casrn = "999-99-9",
+    molFormula = "C10H10",
+    molecularWeight = 130.19,
+    rank = 3L,
+    isMarkush = TRUE
+  )
+
+  testthat::local_mocked_bindings(
+    ct_related = function(query, ...) related_response,
+    ct_chemical_detail_search_bulk = function(dtxsids, ...) detail_response,
+    .package = "ComptoxR"
+  )
+
+  df <- data.frame(
+    dtxsid_A = "DTXSID1000001",
+    dtxsid_B = "DTXSID1000002",
+    stringsAsFactors = FALSE
+  )
+
+  result <- find_related_parent_candidates(df, 1L, c("dtxsid_A", "dtxsid_B"))
+
+  expect_s3_class(result, "tbl_df")
+  expect_equal(result$parent_dtxsid, "DTXSID9000001")
+  expect_equal(result$relationship, "predecessor: component")
+  expect_equal(result$support_n, 2L)
+  expect_equal(result$source_dtxsids[[1]], c("DTXSID1000001", "DTXSID1000002"))
+  expect_equal(result$preferredName, "Shared Markush Parent")
+  expect_equal(result$casrn, "999-99-9")
+  expect_equal(result$molecular_formula, "C10H10")
+  expect_equal(result$molecular_weight, 130.19)
+  expect_equal(result$rank, 3L)
+  expect_true(result$isMarkush)
+})
+
+test_that("find_related_parent_candidates excludes single-support and other relationships", {
+  detail_called <- FALSE
+  related_response <- tibble::tibble(
+    query = c("DTXSID1000001", "DTXSID1000002", "DTXSID1000002"),
+    child = c("DTXSID9000001", "DTXSID9000001", "DTXSID9000002"),
+    relationship = c(
+      "predecessor: component",
+      "successor: component",
+      "predecessor: component"
+    )
+  )
+
+  testthat::local_mocked_bindings(
+    ct_related = function(query, ...) related_response,
+    ct_chemical_detail_search_bulk = function(dtxsids, ...) {
+      detail_called <<- TRUE
+      tibble::tibble()
+    },
+    .package = "ComptoxR"
+  )
+
+  df <- data.frame(
+    dtxsid_A = "DTXSID1000001",
+    dtxsid_B = "DTXSID1000002",
+    stringsAsFactors = FALSE
+  )
+
+  result <- find_related_parent_candidates(df, 1L, c("dtxsid_A", "dtxsid_B"))
+
+  expect_equal(nrow(result), 0)
+  expect_false(detail_called)
+})
+
+test_that("find_related_parent_candidates handles empty inputs and API failures", {
+  related_calls <- 0L
+  testthat::local_mocked_bindings(
+    ct_related = function(query, ...) {
+      related_calls <<- related_calls + 1L
+      stop("related API unavailable")
+    },
+    ct_chemical_detail_search_bulk = function(dtxsids, ...) {
+      stop("detail lookup should not run")
+    },
+    .package = "ComptoxR"
+  )
+
+  single_candidate <- data.frame(
+    dtxsid_A = "DTXSID1000001",
+    dtxsid_B = NA_character_,
+    stringsAsFactors = FALSE
+  )
+  expect_equal(nrow(find_related_parent_candidates(single_candidate, 1L, c("dtxsid_A", "dtxsid_B"))), 0)
+  expect_equal(related_calls, 0L)
+
+  conflict <- data.frame(
+    dtxsid_A = "DTXSID1000001",
+    dtxsid_B = "DTXSID1000002",
+    stringsAsFactors = FALSE
+  )
+  expect_equal(nrow(find_related_parent_candidates(conflict, 1L, c("dtxsid_A", "dtxsid_B"))), 0)
+  expect_equal(related_calls, 1L)
+})
+
+test_that("find_related_parent_candidates ranks Markush, support, rank, then DTXSID", {
+  related_response <- tibble::tibble(
+    query = c(
+      "DTXSID1000001", "DTXSID1000002",
+      "DTXSID1000001", "DTXSID1000002", "DTXSID1000003",
+      "DTXSID1000001", "DTXSID1000002",
+      "DTXSID1000001", "DTXSID1000002"
+    ),
+    child = c(
+      "DTXSID9000003", "DTXSID9000003",
+      "DTXSID9000002", "DTXSID9000002", "DTXSID9000002",
+      "DTXSID9000001", "DTXSID9000001",
+      "DTXSID9000004", "DTXSID9000004"
+    ),
+    relationship = rep("predecessor: component", 9)
+  )
+  detail_response <- tibble::tibble(
+    dtxsid = c("DTXSID9000001", "DTXSID9000002", "DTXSID9000003", "DTXSID9000004"),
+    preferredName = paste("Parent", 1:4),
+    casrn = rep(NA_character_, 4),
+    molFormula = rep(NA_character_, 4),
+    molecularWeight = rep(NA_real_, 4),
+    rank = c(1L, 1L, 99L, NA_integer_),
+    isMarkush = c(FALSE, FALSE, TRUE, FALSE)
+  )
+
+  testthat::local_mocked_bindings(
+    ct_related = function(query, ...) related_response,
+    ct_chemical_detail_search_bulk = function(dtxsids, ...) detail_response,
+    .package = "ComptoxR"
+  )
+
+  df <- data.frame(
+    dtxsid_A = "DTXSID1000001",
+    dtxsid_B = "DTXSID1000002",
+    dtxsid_C = "DTXSID1000003",
+    stringsAsFactors = FALSE
+  )
+
+  result <- find_related_parent_candidates(df, 1L, c("dtxsid_A", "dtxsid_B", "dtxsid_C"))
+
+  expect_equal(
+    result$parent_dtxsid,
+    c("DTXSID9000003", "DTXSID9000002", "DTXSID9000001", "DTXSID9000004")
+  )
+})
+
+test_that("find_related_parent_candidates handles missing isMarkush and rank deterministically", {
+  related_response <- tibble::tibble(
+    query = c("DTXSID1000001", "DTXSID1000002", "DTXSID1000001", "DTXSID1000002"),
+    child = c("DTXSID9000002", "DTXSID9000002", "DTXSID9000001", "DTXSID9000001"),
+    relationship = rep("predecessor: component", 4)
+  )
+  detail_response <- tibble::tibble(
+    dtxsid = c("DTXSID9000002", "DTXSID9000001"),
+    preferredName = c("Parent B", "Parent A"),
+    casrn = c(NA_character_, NA_character_),
+    molFormula = c(NA_character_, NA_character_),
+    molecularWeight = c(NA_real_, NA_real_)
+  )
+
+  testthat::local_mocked_bindings(
+    ct_related = function(query, ...) related_response,
+    ct_chemical_detail_search_bulk = function(dtxsids, ...) detail_response,
+    .package = "ComptoxR"
+  )
+
+  df <- data.frame(
+    dtxsid_A = "DTXSID1000001",
+    dtxsid_B = "DTXSID1000002",
+    stringsAsFactors = FALSE
+  )
+
+  result <- find_related_parent_candidates(df, 1L, c("dtxsid_A", "dtxsid_B"))
+
+  expect_equal(result$parent_dtxsid, c("DTXSID9000001", "DTXSID9000002"))
+  expect_true(all(is.na(result$isMarkush)))
+  expect_true(all(is.na(result$rank)))
+})
+
+# ============================================================================
+# Test Group 7: get_resolution_options - enrichment_cache integration
 # ============================================================================
 
 test_that("get_resolution_options with enrichment_cache returns enrichment metadata", {

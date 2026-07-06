@@ -859,8 +859,107 @@ review_override_controls <- function(session) {
           class = "btn-outline-success"
         )
       )
+    ),
+    div(
+      class = "border-top mt-3 pt-3",
+      actionButton(
+        session$ns("find_related_parent"),
+        "Find Related Parent",
+        icon = icon("sitemap"),
+        class = "btn-outline-secondary"
+      )
     )
   )
+}
+
+format_related_markush_status <- function(value) {
+  if (length(value) != 1 || is.na(value)) {
+    return("Unknown")
+  }
+  if (isTRUE(value)) {
+    "Yes"
+  } else {
+    "No"
+  }
+}
+
+format_related_source_dtxsids <- function(value) {
+  values <- unlist(value, use.names = FALSE)
+  values <- values[!is.na(values) & nzchar(values)]
+  if (length(values) == 0) {
+    return("N/A")
+  }
+  paste(values, collapse = ", ")
+}
+
+related_parent_cards <- function(parents) {
+  if (is.null(parents) || nrow(parents) == 0) {
+    return(div(class = "alert alert-warning mb-3", "No shared related parent candidates found."))
+  }
+
+  cards <- lapply(seq_len(nrow(parents)), function(i) {
+    parent <- parents[i, , drop = FALSE]
+    source_dtxsids <- format_related_source_dtxsids(parent$source_dtxsids[[1]])
+    markush_status <- format_related_markush_status(parent$isMarkush[[1]])
+
+    div(
+      class = "candidate-card card mb-2",
+      style = "border: 2px solid #dee2e6; border-radius: 8px; transition: border-color 0.2s;",
+      div(
+        class = "card-body",
+        div(
+          class = "d-flex justify-content-between align-items-start",
+          div(
+            div(
+              class = "d-flex align-items-center",
+              candidate_dtxsid_heading(parent$parent_dtxsid[[1]]),
+              tags$span(class = "badge bg-secondary ms-2", "Experimental related-substance result")
+            ),
+            if (!is.na(parent$preferredName[[1]])) {
+              tags$p(class = "mb-1 text-muted", parent$preferredName[[1]])
+            } else {
+              NULL
+            }
+          ),
+          tags$button(
+            class = "related-parent-select-btn btn btn-sm btn-outline-success",
+            `data-dtxsid` = parent$parent_dtxsid[[1]],
+            "Queue Parent"
+          )
+        ),
+        tags$hr(class = "my-2"),
+        div(
+          class = "row small",
+          div(class = "col-4", tags$strong("Markush"), tags$br(), markush_status),
+          div(class = "col-4", tags$strong("Support"), tags$br(), parent$support_n[[1]]),
+          div(class = "col-4", tags$strong("Relationship"), tags$br(), parent$relationship[[1]])
+        ),
+        div(
+          class = "row small mt-2",
+          div(class = "col-4", tags$strong("CASRN"), tags$br(), if (!is.na(parent$casrn[[1]])) parent$casrn[[1]] else "N/A"),
+          div(
+            class = "col-4",
+            tags$strong("Formula"),
+            tags$br(),
+            if (!is.na(parent$molecular_formula[[1]])) parent$molecular_formula[[1]] else "N/A"
+          ),
+          div(
+            class = "col-4",
+            tags$strong("Mol. Weight"),
+            tags$br(),
+            if (!is.na(parent$molecular_weight[[1]])) round(parent$molecular_weight[[1]], 2) else "N/A"
+          )
+        ),
+        div(
+          class = "row small mt-2",
+          div(class = "col-4", tags$strong("Rank"), tags$br(), if (!is.na(parent$rank[[1]])) parent$rank[[1]] else "N/A"),
+          div(class = "col-8", tags$strong("Supporting DTXSIDs"), tags$br(), source_dtxsids)
+        )
+      )
+    )
+  })
+
+  div(style = "max-height: 60vh; overflow-y: auto;", cards)
 }
 
 clean_column_names <- function(x) {
@@ -1071,13 +1170,19 @@ mod_review_results_ui <- function(id) {
       var row = $(this).data('row');
       Shiny.setInputValue('%s', {row: row, t: Math.random()}, {priority: 'event'});
     });
+
+    $(document).on('click', '.related-parent-select-btn', function() {
+      var dtxsid = $(this).data('dtxsid');
+      Shiny.setInputValue('%s', {dtxsid: dtxsid, t: Math.random()}, {priority: 'event'});
+    });
   ",
     ns("compare_row_click"),
     ns("compare_row_click"),
     ns("modal_candidate_select"),
     ns("confirm_container"),
     ns("wqx_review_click"),
-    ns("expert_override_click")
+    ns("expert_override_click"),
+    ns("related_parent_select")
   )))
 
   # Inline DTXSID editing JavaScript (namespace-aware)
@@ -2207,6 +2312,55 @@ mod_review_results_server <- function(id, data_store) {
 
     observeEvent(input$queue_wqx_override, {
       queue_current_review_override("wqx", input$expert_override_wqx)
+    })
+
+    observeEvent(input$find_related_parent, {
+      req(data_store$resolution_state, data_store$dtxsid_cols)
+
+      row_idx <- data_store$override_modal_row_idx
+      row_idx <- suppressWarnings(as.integer(row_idx)[1])
+      if (is.na(row_idx) || row_idx < 1L || row_idx > nrow(data_store$resolution_state)) {
+        notify_user("No row selected for related-parent lookup", type = "warning")
+        return()
+      }
+
+      parents <- NULL
+      withProgress(message = "Finding related parent candidates...", value = 0, {
+        incProgress(0.35, detail = "Querying related substances...")
+        parents <- find_related_parent_candidates(
+          data_store$resolution_state,
+          row_idx,
+          data_store$dtxsid_cols
+        )
+        incProgress(0.65, detail = "Preparing candidates...")
+      })
+
+      if (is.null(parents) || nrow(parents) == 0) {
+        notify_user("No shared related parent candidates found.", type = "warning", duration = 5)
+        return()
+      }
+
+      tagged_summary <- tagged_row_summary(
+        data_store$resolution_state,
+        row_idx,
+        data_store$column_tags
+      )
+
+      showModal(modalDialog(
+        title = "Related Parent Candidates",
+        tagList(
+          tagged_summary,
+          related_parent_cards(parents)
+        ),
+        footer = modalButton("Close"),
+        size = "l",
+        easyClose = TRUE
+      ))
+    })
+
+    observeEvent(input$related_parent_select, {
+      dtxsid <- input$related_parent_select$dtxsid
+      queue_current_review_override("dtxsid", dtxsid)
     })
 
     # Show/hide Accept All Suggestions based on suggested row count

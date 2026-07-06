@@ -1005,6 +1005,67 @@ run_curation_pipeline <- function(
 # enrich_candidates
 # ============================================================================
 
+empty_candidate_detail_cache <- function() {
+  tibble::tibble(
+    dtxsid = character(0),
+    preferredName = character(0),
+    casrn = character(0),
+    molecular_formula = character(0),
+    molecular_weight = numeric(0),
+    rank = integer(0),
+    isMarkush = logical(0)
+  )
+}
+
+normalize_markush_value <- function(x) {
+  if (is.logical(x)) {
+    return(x)
+  }
+
+  x_chr <- tolower(trimws(as.character(x)))
+  result <- rep(NA, length(x_chr))
+  result[!is.na(x_chr) & x_chr %in% c("true", "t", "1", "yes", "y")] <- TRUE
+  result[!is.na(x_chr) & x_chr %in% c("false", "f", "0", "no", "n")] <- FALSE
+  result
+}
+
+normalize_candidate_detail_cache <- function(cache) {
+  if (is.null(cache)) {
+    return(NULL)
+  }
+
+  if (!"dtxsid" %in% names(cache)) {
+    cache$dtxsid <- rep(NA_character_, nrow(cache))
+  }
+  if (!"preferredName" %in% names(cache)) {
+    cache$preferredName <- rep(NA_character_, nrow(cache))
+  }
+  if (!"casrn" %in% names(cache)) {
+    cache$casrn <- rep(NA_character_, nrow(cache))
+  }
+  if (!"molecular_formula" %in% names(cache)) {
+    cache$molecular_formula <- rep(NA_character_, nrow(cache))
+  }
+  if (!"molecular_weight" %in% names(cache)) {
+    cache$molecular_weight <- rep(NA_real_, nrow(cache))
+  }
+  if (!"rank" %in% names(cache)) {
+    cache$rank <- rep(NA_integer_, nrow(cache))
+  }
+  if (!"isMarkush" %in% names(cache)) {
+    cache$isMarkush <- rep(NA, nrow(cache))
+  }
+
+  cache$dtxsid <- as.character(cache$dtxsid)
+  cache$preferredName <- as.character(cache$preferredName)
+  cache$casrn <- as.character(cache$casrn)
+  cache$molecular_formula <- as.character(cache$molecular_formula)
+  cache$molecular_weight <- suppressWarnings(as.numeric(cache$molecular_weight))
+  cache$rank <- suppressWarnings(as.integer(cache$rank))
+  cache$isMarkush <- normalize_markush_value(cache$isMarkush)
+  cache
+}
+
 #' Fetch CompTox chemical details for DTXSIDs and return structured cache
 #'
 #' Calls CompTox chemical detail search to retrieve CASRN, molecular formula,
@@ -1019,12 +1080,8 @@ run_curation_pipeline <- function(
 #'   - failed_dtxsids: character vector of DTXSIDs that could not be fetched
 #' @export
 enrich_candidates <- function(dtxsids, existing_cache = NULL) {
-  empty_cache <- tibble::tibble(
-    dtxsid = character(0),
-    casrn = character(0),
-    molecular_formula = character(0),
-    molecular_weight = numeric(0)
-  )
+  empty_cache <- empty_candidate_detail_cache()
+  existing_cache <- normalize_candidate_detail_cache(existing_cache)
 
   # Handle empty input
   if (length(dtxsids) == 0) {
@@ -1074,9 +1131,12 @@ enrich_candidates <- function(dtxsids, existing_cache = NULL) {
     # All queried DTXSIDs are effectively missing
     missing_rows <- tibble::tibble(
       dtxsid = dtxsids_to_fetch,
+      preferredName = NA_character_,
       casrn = NA_character_,
       molecular_formula = NA_character_,
-      molecular_weight = NA_real_
+      molecular_weight = NA_real_,
+      rank = NA_integer_,
+      isMarkush = NA
     )
     combined <- dplyr::bind_rows(existing_cache, missing_rows)
     return(list(cache = combined, failed_dtxsids = character(0)))
@@ -1086,18 +1146,24 @@ enrich_candidates <- function(dtxsids, existing_cache = NULL) {
 
   # Extract and rename columns from API response (camelCase)
   dtxsid_col <- grep("^dtxsid$", names(raw), ignore.case = TRUE, value = TRUE)
+  preferred_col <- grep("^preferred.?name$", names(raw), ignore.case = TRUE, value = TRUE)
   casrn_col <- grep("^casrn$", names(raw), ignore.case = TRUE, value = TRUE)
   formula_col <- grep("^mol.?formula$", names(raw), ignore.case = TRUE, value = TRUE)
   mw_col <- grep("^molecular.?weight$", names(raw), ignore.case = TRUE, value = TRUE)
   if (length(mw_col) == 0) {
     mw_col <- grep("^monoisotopic.?mass$", names(raw), ignore.case = TRUE, value = TRUE)
   }
+  rank_col <- grep("^rank$", names(raw), ignore.case = TRUE, value = TRUE)
+  markush_col <- grep("^is.?markush$", names(raw), ignore.case = TRUE, value = TRUE)
 
   new_cache <- tibble::tibble(
     dtxsid = if (length(dtxsid_col) > 0) raw[[dtxsid_col[1]]] else NA_character_,
+    preferredName = if (length(preferred_col) > 0) raw[[preferred_col[1]]] else NA_character_,
     casrn = if (length(casrn_col) > 0) raw[[casrn_col[1]]] else NA_character_,
     molecular_formula = if (length(formula_col) > 0) raw[[formula_col[1]]] else NA_character_,
-    molecular_weight = if (length(mw_col) > 0) as.numeric(raw[[mw_col[1]]]) else NA_real_
+    molecular_weight = if (length(mw_col) > 0) as.numeric(raw[[mw_col[1]]]) else NA_real_,
+    rank = if (length(rank_col) > 0) as.integer(raw[[rank_col[1]]]) else NA_integer_,
+    isMarkush = if (length(markush_col) > 0) normalize_markush_value(raw[[markush_col[1]]]) else NA
   )
 
   # Handle partial response: add NA rows for DTXSIDs not in API result
@@ -1106,9 +1172,12 @@ enrich_candidates <- function(dtxsids, existing_cache = NULL) {
   if (length(missing_dtxsids) > 0) {
     missing_rows <- tibble::tibble(
       dtxsid = missing_dtxsids,
+      preferredName = NA_character_,
       casrn = NA_character_,
       molecular_formula = NA_character_,
-      molecular_weight = NA_real_
+      molecular_weight = NA_real_,
+      rank = NA_integer_,
+      isMarkush = NA
     )
     new_cache <- dplyr::bind_rows(new_cache, missing_rows)
   }
@@ -1122,6 +1191,186 @@ enrich_candidates <- function(dtxsids, existing_cache = NULL) {
     cache = combined,
     failed_dtxsids = character(0)
   )
+}
+
+empty_related_parent_candidates <- function() {
+  tibble::tibble(
+    parent_dtxsid = character(0),
+    relationship = character(0),
+    support_n = integer(0),
+    source_dtxsids = list(),
+    preferredName = character(0),
+    casrn = character(0),
+    molecular_formula = character(0),
+    molecular_weight = numeric(0),
+    rank = integer(0),
+    isMarkush = logical(0)
+  )
+}
+
+standardize_related_response <- function(raw) {
+  if (is.list(raw) && !is.data.frame(raw)) {
+    raw <- dplyr::bind_rows(lapply(seq_along(raw), function(i) {
+      item <- raw[[i]]
+      if (is.null(item) || !is.data.frame(item) || nrow(item) == 0) {
+        return(NULL)
+      }
+      if (!any(grepl("^query$|^source.?dtxsid$|^input$", names(item), ignore.case = TRUE))) {
+        query_name <- names(raw)[i]
+        item$query <- if (!is.null(query_name) && !is.na(query_name) && nzchar(query_name)) {
+          query_name
+        } else {
+          NA_character_
+        }
+      }
+      item
+    }))
+  }
+
+  if (is.null(raw) || !is.data.frame(raw) || nrow(raw) == 0) {
+    return(tibble::tibble(
+      source_dtxsid = character(0),
+      parent_dtxsid = character(0),
+      relationship = character(0)
+    ))
+  }
+
+  query_col <- grep("^query$|^source.?dtxsid$|^input$", names(raw), ignore.case = TRUE, value = TRUE)
+  related_col <- grep("^child$|^dtxsid$|^related.?dtxsid$", names(raw), ignore.case = TRUE, value = TRUE)
+  relationship_col <- grep("^relationship$", names(raw), ignore.case = TRUE, value = TRUE)
+
+  if (length(query_col) == 0 || length(related_col) == 0 || length(relationship_col) == 0) {
+    return(tibble::tibble(
+      source_dtxsid = character(0),
+      parent_dtxsid = character(0),
+      relationship = character(0)
+    ))
+  }
+
+  tibble::tibble(
+    source_dtxsid = as.character(raw[[query_col[1]]]),
+    parent_dtxsid = as.character(raw[[related_col[1]]]),
+    relationship = as.character(raw[[relationship_col[1]]])
+  )
+}
+
+rank_related_parent_candidates <- function(candidates) {
+  if (is.null(candidates) || nrow(candidates) == 0) {
+    return(empty_related_parent_candidates())
+  }
+
+  markush_rank <- ifelse(is.na(candidates$isMarkush), FALSE, candidates$isMarkush)
+  rank_rank <- ifelse(is.na(candidates$rank), Inf, as.numeric(candidates$rank))
+  candidates[order(!markush_rank, -candidates$support_n, rank_rank, candidates$parent_dtxsid), , drop = FALSE]
+}
+
+find_related_parent_candidates <- function(df, row_idx, dtxsid_cols, relationship = "predecessor: component") {
+  empty_result <- empty_related_parent_candidates()
+
+  row_idx <- suppressWarnings(as.integer(row_idx)[1])
+  if (
+    is.null(df) ||
+      is.na(row_idx) ||
+      row_idx < 1L ||
+      row_idx > nrow(df) ||
+      is.null(dtxsid_cols) ||
+      length(dtxsid_cols) == 0
+  ) {
+    return(empty_result)
+  }
+
+  dtxsid_cols <- intersect(dtxsid_cols, names(df))
+  if (length(dtxsid_cols) == 0) {
+    return(empty_result)
+  }
+
+  candidate_dtxsids <- unique(vapply(dtxsid_cols, function(col) {
+    value <- df[[col]][row_idx]
+    if (length(value) != 1 || is.na(value)) {
+      return(NA_character_)
+    }
+    trimws(as.character(value))
+  }, character(1)))
+  candidate_dtxsids <- candidate_dtxsids[!is.na(candidate_dtxsids) & nzchar(candidate_dtxsids)]
+
+  if (length(candidate_dtxsids) < 2) {
+    return(empty_result)
+  }
+
+  raw_related <- tryCatch(
+    suppressMessages(ComptoxR::ct_related(candidate_dtxsids)),
+    error = function(e) {
+      message(sprintf("[related] Related-substance lookup failed: %s", conditionMessage(e)))
+      NULL
+    }
+  )
+
+  related <- standardize_related_response(raw_related)
+  if (nrow(related) == 0) {
+    return(empty_result)
+  }
+
+  related <- related[
+    related$relationship == relationship &
+      !is.na(related$source_dtxsid) &
+      related$source_dtxsid %in% candidate_dtxsids &
+      !is.na(related$parent_dtxsid) &
+      nzchar(related$parent_dtxsid),
+    ,
+    drop = FALSE
+  ]
+  if (nrow(related) == 0) {
+    return(empty_result)
+  }
+
+  grouped <- split(related, related$parent_dtxsid)
+  supported <- lapply(grouped, function(group) {
+    source_dtxsids <- sort(unique(group$source_dtxsid[!is.na(group$source_dtxsid) & nzchar(group$source_dtxsid)]))
+    if (length(source_dtxsids) < 2) {
+      return(NULL)
+    }
+
+    tibble::tibble(
+      parent_dtxsid = group$parent_dtxsid[1],
+      relationship = relationship,
+      support_n = length(source_dtxsids),
+      source_dtxsids = list(source_dtxsids)
+    )
+  })
+  supported <- Filter(Negate(is.null), supported)
+  if (length(supported) == 0) {
+    return(empty_result)
+  }
+
+  parent_candidates <- dplyr::bind_rows(supported)
+  detail_result <- enrich_candidates(parent_candidates$parent_dtxsid)
+  detail_cache <- normalize_candidate_detail_cache(detail_result$cache)
+
+  if (is.null(detail_cache) || nrow(detail_cache) == 0) {
+    detail_cache <- empty_candidate_detail_cache()
+  }
+  names(detail_cache)[names(detail_cache) == "dtxsid"] <- "parent_dtxsid"
+
+  parent_candidates <- dplyr::left_join(
+    parent_candidates,
+    detail_cache[, c(
+      "parent_dtxsid",
+      "preferredName",
+      "casrn",
+      "molecular_formula",
+      "molecular_weight",
+      "rank",
+      "isMarkush"
+    ), drop = FALSE],
+    by = "parent_dtxsid"
+  )
+
+  missing_cols <- setdiff(names(empty_result), names(parent_candidates))
+  for (col in missing_cols) {
+    parent_candidates[[col]] <- empty_result[[col]][NA_integer_]
+  }
+  parent_candidates <- parent_candidates[, names(empty_result), drop = FALSE]
+  rank_related_parent_candidates(parent_candidates)
 }
 
 # ============================================================================
