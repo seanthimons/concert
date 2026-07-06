@@ -69,6 +69,7 @@ parse_concert_export <- function(file_path) {
         session_state = read_export_sheet(file_path, sheets, "Session State", NULL),
         toxval_output = read_export_sheet(file_path, sheets, "ToxVal Output", NULL),
         site_manifest = read_export_sheet(file_path, sheets, "Site Manifest", NULL),
+        site_alias_map = read_export_sheet(file_path, sheets, "Site Alias Map", NULL),
         harmonization_audit = read_export_sheet(file_path, sheets, "Harmonization Audit", NULL),
         has_full_session_state = all(c("Raw Data", "Curated Data", "Session State") %in% sheets),
         sheet_names = sheets
@@ -102,7 +103,9 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
   cleaned_data <- normalize_optional_sheet(parsed$cleaned_data)
   cleaning_audit <- parsed$cleaning_audit %||% tibble::tibble()
   toxval_output <- normalize_toxval_output(parsed$toxval_output)
-  site_manifest <- build_site_manifest(parsed$site_manifest)
+  site_alias_map <- build_site_alias_map(site_context_alias_source(parsed$site_alias_map, parsed$site_manifest))
+  site_manifest_input <- if (nrow(site_alias_map) > 0L) site_alias_map else parsed$site_manifest
+  site_manifest <- build_site_manifest(site_manifest_input)
   harmonization_audit <- normalize_optional_sheet(parsed$harmonization_audit)
 
   all_tags <- tags_from_column_tag_sheet(parsed$column_tags)
@@ -181,9 +184,10 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
     manual_queue = list(),
     qc_results = if (!is.null(resolution_state)) perform_unicode_qc(resolution_state) else NULL,
     site_context_detection = NULL,
-    site_context_candidates = site_manifest,
+    site_context_candidates = if (nrow(site_alias_map) > 0L) site_alias_map else site_manifest,
+    site_alias_map = site_alias_map,
     site_manifest = site_manifest,
-    site_context_status = if (nrow(site_manifest) > 0L) "curated" else NULL,
+    site_context_status = if (nrow(site_alias_map) > 0L || nrow(site_manifest) > 0L) "curated" else NULL,
     harmonize_results = harmonize_results,
     harmonize_audit = harmonization_audit,
     toxval_output = toxval_output,

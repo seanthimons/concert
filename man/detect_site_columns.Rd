@@ -14,5 +14,6 @@ A list with detected column names and \code{has_site_context}.
 }
 \description{
 Uses cleaned header names and conservative value checks to identify likely
-site identifiers, site names, coordinates, and optional grouping metadata.
+source site labels, site identifiers, site names, coordinates, and optional
+grouping metadata.
 }

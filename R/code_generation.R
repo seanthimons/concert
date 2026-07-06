@@ -879,6 +879,8 @@ format_curate_call_args <- function(args) {
 #'   activates all cleaning reference-list rows for the run.
 #' @param site_manifest Optional curated Dataset Context site manifest to embed
 #'   in the replay script.
+#' @param site_alias_map Optional Dataset Context raw-label alias map to embed
+#'   in the replay script.
 #'
 #' @return Complete R script as a character scalar.
 #' @export
@@ -896,11 +898,15 @@ generate_concert_script <- function(
   source_name = NULL,
   reference_lists = NULL,
   activate_all_references = FALSE,
-  site_manifest = NULL
+  site_manifest = NULL,
+  site_alias_map = NULL
 ) {
   has_review_overrides <- review_overrides_present(review_overrides)
   reference_list_snapshot <- build_reference_list_snapshot(reference_lists)
-  site_manifest_for_replay <- build_site_manifest(site_manifest)
+  site_alias_map_for_replay <- build_site_alias_map(site_context_alias_source(site_alias_map, site_manifest))
+  site_manifest_input <- if (nrow(site_alias_map_for_replay) > 0L) site_alias_map_for_replay else site_manifest
+  site_manifest_for_replay <- build_site_manifest(site_manifest_input)
+  has_site_alias_map <- nrow(site_alias_map_for_replay) > 0L
   has_site_manifest <- nrow(site_manifest_for_replay) > 0L
 
   setup_lines <- c(
@@ -936,7 +942,14 @@ generate_concert_script <- function(
     )
   }
 
-  if (has_site_manifest) {
+  if (has_site_alias_map) {
+    setup_lines <- c(
+      setup_lines,
+      "",
+      paste0("site_alias_map <- ", script_literal(site_alias_map_for_replay)),
+      "site_manifest <- build_site_manifest(site_alias_map)"
+    )
+  } else if (has_site_manifest) {
     setup_lines <- c(
       setup_lines,
       "",
@@ -967,6 +980,9 @@ generate_concert_script <- function(
   }
   if (has_site_manifest) {
     call_args$site_manifest <- "site_manifest"
+  }
+  if (has_site_alias_map) {
+    call_args$site_alias_map <- "site_alias_map"
   }
 
   call_args$postprocess_candidates <- "TRUE"

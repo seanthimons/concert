@@ -164,6 +164,7 @@ server <- function(input, output, session) {
     enrichment_failed = NULL,
     site_context_detection = NULL,
     site_context_candidates = NULL,
+    site_alias_map = NULL,
     site_manifest = NULL,
     site_context_status = NULL,
     # Phase 33: Extended tag types and harmonization state
@@ -356,6 +357,7 @@ server <- function(input, output, session) {
     data_store$selected_visible_rows <- NULL
     data_store$site_context_detection <- NULL
     data_store$site_context_candidates <- NULL
+    data_store$site_alias_map <- NULL
     data_store$site_manifest <- NULL
     data_store$site_context_status <- NULL
     # Phase 33: Reset extended tag types and harmonization state

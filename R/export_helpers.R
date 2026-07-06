@@ -31,6 +31,9 @@
 #'   appended.
 #' @param site_manifest Optional curated site/location manifest from Dataset
 #'   Context. When provided and non-empty, a Site Manifest sheet is included.
+#' @param site_alias_map Optional Dataset Context raw-label alias map. When
+#'   provided and non-empty, a Site Alias Map sheet is included and the Site
+#'   Manifest is rebuilt from these mappings.
 #'
 #' @return Named list of data frames with sheet names as keys
 #' @export
@@ -48,7 +51,8 @@ build_export_sheets <- function(
   cleaned_data = NULL,
   toxval_output = NULL,
   harmonize_audit = NULL,
-  site_manifest = NULL
+  site_manifest = NULL,
+  site_alias_map = NULL
 ) {
   # Sheet 1: Raw Data (detected table with user-facing column names)
   raw_data_sheet <- detected_data %||% raw
@@ -201,7 +205,9 @@ build_export_sheets <- function(
     )
   }
 
-  site_manifest_sheet <- build_site_manifest(site_manifest)
+  site_alias_map_sheet <- build_site_alias_map(site_context_alias_source(site_alias_map, site_manifest))
+  site_manifest_input <- if (nrow(site_alias_map_sheet) > 0L) site_alias_map_sheet else site_manifest
+  site_manifest_sheet <- build_site_manifest(site_manifest_input)
 
   sheets <- list(
     "Raw Data" = raw_data_sheet
@@ -227,6 +233,9 @@ build_export_sheets <- function(
 
   if (nrow(site_manifest_sheet) > 0) {
     sheets[["Site Manifest"]] <- site_manifest_sheet
+  }
+  if (nrow(site_alias_map_sheet) > 0) {
+    sheets[["Site Alias Map"]] <- site_alias_map_sheet
   }
 
   if (!is.null(harmonize_audit)) {

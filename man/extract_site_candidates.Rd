@@ -15,7 +15,7 @@ extract_site_candidates(df, detection = NULL)
 A site manifest candidate tibble.
 }
 \description{
-Builds a first-seen, distinct site list from detected site/location columns.
-User order fields are left blank by default; source row order remains
-available as the deterministic fallback order.
+Builds a first-seen, distinct raw-label list from detected site/location
+columns. User order fields are left blank by default; source row order
+remains available as the deterministic fallback order.
 }
