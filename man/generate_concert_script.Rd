@@ -17,7 +17,8 @@ generate_concert_script(
   format = "parquet",
   source_name = NULL,
   reference_lists = NULL,
-  activate_all_references = FALSE
+  activate_all_references = FALSE,
+  site_manifest = NULL
 )
 }
 \arguments{
@@ -50,6 +51,9 @@ for portable replay.}
 
 \item{activate_all_references}{Logical. Replays the preflight setting that
 activates all cleaning reference-list rows for the run.}
+
+\item{site_manifest}{Optional curated Dataset Context site manifest to embed
+in the replay script.}
 }
 \value{
 Complete R script as a character scalar.

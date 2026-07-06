@@ -57,6 +57,8 @@
 #'   `generate_concert_script()`, content-match spec from
 #'   `build_review_overrides()`, or legacy positional override table/list to
 #'   replay Review Results edits.
+#' @param site_manifest Optional curated Dataset Context site manifest to include
+#'   in the workbook export.
 #' @param multi_analyte_resolutions Optional data frame/list with `row_index`
 #'   (or `row`), `action`, and optional `value`/`values` columns. Applied after
 #'   cleaning and before curation.
@@ -107,6 +109,7 @@ curate_headless <- function(
   starts_with = FALSE,
   postprocess_candidates = FALSE,
   review_overrides = NULL,
+  site_manifest = NULL,
   multi_analyte_resolutions = NULL,
   media_map = NULL,
   write_files = TRUE,
@@ -208,6 +211,7 @@ curate_headless <- function(
     clean_data <- janitor::clean_names(clean_data)
     clean_data <- janitor::remove_empty(clean_data, which = c("rows", "cols"))
     assert_no_source_result_flag(clean_data, "curate_headless input")
+    site_manifest_for_export <- build_site_manifest(site_manifest)
 
     # ------------------------------------------------------------------
     # Step 6: Validate tag_map against cleaned column names
@@ -465,7 +469,8 @@ curate_headless <- function(
         detected_data = clean_data,
         cleaned_data = cleaning_result$cleaned_data,
         toxval_output = toxval_tibble,
-        harmonize_audit = harmonize_audit_tibble
+        harmonize_audit = harmonize_audit_tibble,
+        site_manifest = site_manifest_for_export
       )
 
       fs::dir_create(dirname(output_path), recurse = TRUE)

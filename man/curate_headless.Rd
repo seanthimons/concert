@@ -23,6 +23,7 @@ curate_headless(
   starts_with = FALSE,
   postprocess_candidates = FALSE,
   review_overrides = NULL,
+  site_manifest = NULL,
   multi_analyte_resolutions = NULL,
   media_map = NULL,
   write_files = TRUE,
@@ -96,6 +97,9 @@ curation. Default FALSE for backward compatibility.}
 \code{generate_concert_script()}, content-match spec from
 \code{build_review_overrides()}, or legacy positional override table/list to
 replay Review Results edits.}
+
+\item{site_manifest}{Optional curated Dataset Context site manifest to include
+in the workbook export.}
 
 \item{multi_analyte_resolutions}{Optional data frame/list with \code{row_index}
 (or \code{row}), \code{action}, and optional \code{value}/\code{values} columns. Applied after
