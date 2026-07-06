@@ -469,7 +469,9 @@ test_that("mixed replay edits are grouped by workflow blocks", {
   )
   update_matches <- gregexpr("state <- dplyr::rows_update(", script, fixed = TRUE)[[1]]
 
-  expect_equal(sum(update_matches > 0), 5L)
+  # result and unit share one signature, so they merge into a single table.
+  expect_equal(sum(update_matches > 0), 4L)
+  expect_match(script, "# Measurement tags — result, unit corrections (1)", fixed = TRUE)
   expect_match(script, "# Review Results — row_flag corrections (1)", fixed = TRUE)
   expect_match(script, 'row_flag = "FOLLOW-UP"', fixed = TRUE)
   expect_match(script, 'result = "1.5"', fixed = TRUE)
@@ -764,10 +766,9 @@ test_that("large replay sessions emit deterministic, parseable grouped tables", 
   )
 
   expect_silent(parse(text = script))
-  expect_match(script, "# Measurement tags — result corrections (120)", fixed = TRUE)
-  expect_match(script, "# Measurement tags — unit corrections (120)", fixed = TRUE)
+  expect_match(script, "# Measurement tags — result, unit corrections (120)", fixed = TRUE)
   expect_match(script, "result_fixes <- tibble::tibble(", fixed = TRUE)
-  expect_match(script, "unit_fixes <- tibble::tibble(", fixed = TRUE)
+  expect_no_match(script, "unit_fixes", fixed = TRUE)
 
   script2 <- generate_concert_script(
     input_path = "input.csv",
@@ -815,4 +816,46 @@ test_that("chemical-tag edits render after other workflows and replay correctly"
   replayed <- apply_review_overrides(baseline, spec)
   expect_equal(replayed$result, c("1.5", "3.4"))
   expect_equal(replayed$chemical, c("Acetone (verified)", "Benzene"))
+})
+
+test_that("same-signature multi-column edits merge into one rows_update table", {
+  baseline <- init_resolution_state(tibble::tibble(
+    chemical = c("Acetone", "Benzene", "Toluene"),
+    cas_number = c("67-64-1", "71-43-2", "108-88-3"),
+    consensus_status = rep("agree", 3),
+    consensus_dtxsid = paste0("DTXSID", 1:3),
+    consensus_source = rep("consensus", 3),
+    qc_tier = rep(1L, 3)
+  ))
+  final <- baseline
+  final$manual_preferredName <- NA_character_
+  final$consensus_status[2] <- "manual"
+  final$consensus_dtxsid[2] <- "DTXSID00000000"
+  final$consensus_source[2] <- "user"
+  final$manual_preferredName[2] <- "Benzol"
+  final$row_flag[2] <- "VERIFIED"
+
+  spec <- build_review_overrides(baseline, final)
+  fn_src <- review_overrides_function_literal(spec)
+
+  update_matches <- gregexpr("dplyr::rows_update(", fn_src, fixed = TRUE)[[1]]
+  expect_equal(sum(update_matches > 0), 1L)
+  expect_match(
+    fn_src,
+    "# Review Results — consensus_status, consensus_dtxsid, consensus_source, manual_preferredName, row_flag corrections (1)",
+    fixed = TRUE
+  )
+
+  env <- new.env(parent = globalenv())
+  eval(parse(text = fn_src), envir = env)
+  prepared <- init_review_override_columns(
+    baseline,
+    intersect(attr(env$apply_review_overrides, "review_override_columns"), review_override_columns())
+  )
+  generated <- env$apply_review_overrides(prepared)
+  in_memory <- apply_review_overrides(baseline, spec)
+  for (col in unique(spec$column)) {
+    expect_equal(generated[[col]], in_memory[[col]], info = col)
+    expect_equal(generated[[col]], final[[col]], info = col)
+  }
 })

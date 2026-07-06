@@ -100,7 +100,10 @@ test_that("source labels fall back to site name, site ID, then coordinates", {
     c("A", "B")
   )
   expect_equal(
-    extract_site_candidates(tibble::tibble(latitude = c(45, 46), longitude = c(-93, -94)), coord_detection)$source_site_label,
+    extract_site_candidates(
+      tibble::tibble(latitude = c(45, 46), longitude = c(-93, -94)),
+      coord_detection
+    )$source_site_label,
     c("coord:45,-93", "coord:46,-94")
   )
 })
@@ -409,11 +412,48 @@ test_that("generate_concert_script embeds site manifest replay input", {
     site_manifest = site_manifest
   )
 
-  expect_match(script, "site_alias_map <- structure(list(", fixed = TRUE)
+  expect_match(script, "site_alias_map <- tibble::tibble(", fixed = TRUE)
   expect_match(script, 'site_identifier = c\\("A",[[:space:]]*"B"[[:space:]]*\\)')
   expect_match(script, 'source_site_id = c\\("A",[[:space:]]*"B"[[:space:]]*\\)')
   expect_match(script, "site_manifest <- build_site_manifest(site_alias_map)", fixed = TRUE)
   expect_match(script, "site_manifest = site_manifest", fixed = TRUE)
   expect_match(script, "site_alias_map = site_alias_map", fixed = TRUE)
   expect_silent(parse(text = script))
+})
+
+test_that("embedded site alias map literal omits default columns and round-trips", {
+  site_manifest <- tibble::tibble(
+    source_site_label = c("Influent", "influent ", "INFLUENT-1"),
+    site_order = c(1L, 1L, 1L),
+    site_name = c("Influent", "Influent", "Influent")
+  )
+
+  script <- generate_concert_script(
+    input_path = "input.csv",
+    output_path = "input_curated.xlsx",
+    tag_map = list(chemical = "Name"),
+    header_row = 1L,
+    site_alias_map = build_site_alias_map(site_manifest)
+  )
+
+  expect_match(script, "site_alias_map <- tibble::tibble(", fixed = TRUE)
+  expect_no_match(script, "structure(list(", fixed = TRUE)
+  expect_no_match(script, "latitude", fixed = TRUE)
+  expect_no_match(script, "grouping_type", fixed = TRUE)
+  expect_no_match(script, "site_suborder", fixed = TRUE)
+  expect_silent(parse(text = script))
+
+  env <- new.env(parent = globalenv())
+  for (ex in parse(text = script)) {
+    head_sym <- if (is.call(ex)) as.character(ex[[1]])[1] else ""
+    if (head_sym %in% c("library", "curate_headless")) {
+      next
+    }
+    eval(ex, envir = env)
+  }
+  expect_identical(
+    build_site_alias_map(env$site_alias_map),
+    build_site_alias_map(site_manifest)
+  )
+  expect_identical(env$site_manifest, build_site_manifest(site_manifest))
 })

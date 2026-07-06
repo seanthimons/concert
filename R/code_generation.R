@@ -108,6 +108,42 @@ script_literal <- function(value) {
   paste(utils::capture.output(dput(value)), collapse = "\n")
 }
 
+# Compact tibble literal for embedded site manifests: drops columns that
+# normalize_site_manifest() rebuilds identically on replay (all-NA columns,
+# site_suborder all 1, source_row matching row position).
+site_manifest_script_literal <- function(manifest) {
+  n <- nrow(manifest)
+  keep <- vapply(
+    names(manifest),
+    function(col) {
+      values <- manifest[[col]]
+      if (col == "source_site_label") {
+        return(TRUE)
+      }
+      if (col == "site_suborder") {
+        return(!all(is.na(values) | values == 1L))
+      }
+      if (col == "source_row") {
+        return(!identical(as.integer(values), seq_len(n)))
+      }
+      !all(is.na(values))
+    },
+    logical(1)
+  )
+  cols <- names(manifest)[keep]
+
+  col_lines <- vapply(
+    cols,
+    function(col) {
+      paste0("  ", r_name(col), " = ", script_literal(manifest[[col]]))
+    },
+    character(1)
+  )
+  col_lines[-length(col_lines)] <- paste0(col_lines[-length(col_lines)], ",")
+
+  paste(c("tibble::tibble(", col_lines, ")"), collapse = "\n")
+}
+
 integer_vector_literal <- function(value) {
   value <- as.integer(value)
   if (length(value) == 0) {
@@ -778,17 +814,22 @@ column_vector_literal <- function(values) {
   script_literal(do.call(c, values))
 }
 
-format_rows_update_block <- function(workflow, col, entries) {
-  key_cols <- names(entries$signature[[1]])
-  tbl_var <- make.names(paste0(col, "_fixes"))
+format_rows_update_block <- function(workflow, entries_by_col) {
+  cols <- names(entries_by_col)
+  first <- entries_by_col[[1]]
+  key_cols <- names(first$signature[[1]])
+  tbl_var <- make.names(paste0(cols[1], "_fixes"))
 
   col_lines <- character()
   for (key_col in key_cols) {
-    key_values <- lapply(seq_len(nrow(entries)), function(i) entries$signature[[i]][[key_col]])
+    key_values <- lapply(seq_len(nrow(first)), function(i) first$signature[[i]][[key_col]])
     col_lines <- c(col_lines, paste0("    ", r_name(key_col), " = ", column_vector_literal(key_values)))
   }
-  target_values <- lapply(seq_len(nrow(entries)), function(i) review_value_scalar(entries$value[[i]]))
-  col_lines <- c(col_lines, paste0("    ", r_name(col), " = ", column_vector_literal(target_values)))
+  for (col in cols) {
+    entries <- entries_by_col[[col]]
+    target_values <- lapply(seq_len(nrow(entries)), function(i) review_value_scalar(entries$value[[i]]))
+    col_lines <- c(col_lines, paste0("    ", r_name(col), " = ", column_vector_literal(target_values)))
+  }
   col_lines[-length(col_lines)] <- paste0(col_lines[-length(col_lines)], ",")
 
   by_literal <- if (length(key_cols) == 1L) {
@@ -798,7 +839,12 @@ format_rows_update_block <- function(workflow, col, entries) {
   }
 
   c(
-    sprintf("  # %s \u2014 %s corrections (%d)", replay_workflow_label(workflow), col, nrow(entries)),
+    sprintf(
+      "  # %s \u2014 %s corrections (%d)",
+      replay_workflow_label(workflow),
+      paste(cols, collapse = ", "),
+      nrow(first)
+    ),
     paste0("  ", tbl_var, " <- tibble::tibble("),
     col_lines,
     "  )",
@@ -819,11 +865,27 @@ review_overrides_function_literal <- function(review_overrides) {
   body_lines <- character()
   for (workflow in workflows) {
     workflow_spec <- spec[spec$workflow == workflow, , drop = FALSE]
-    for (col in unique(as.character(workflow_spec$column))) {
+    cols <- unique(as.character(workflow_spec$column))
+    entries_by_col <- lapply(cols, function(col) {
       entries <- workflow_spec[workflow_spec$column == col, , drop = FALSE]
       # Deterministic row order within each table for stable diffs across exports.
-      entries <- entries[order(vapply(entries$signature, signature_key, character(1))), , drop = FALSE]
-      body_lines <- c(body_lines, format_rows_update_block(workflow, col, entries))
+      entries[order(vapply(entries$signature, signature_key, character(1))), , drop = FALSE]
+    })
+    names(entries_by_col) <- cols
+    # Columns whose ordered signatures are identical share one fixes table and
+    # one rows_update call. Columns with differing row sets stay separate:
+    # rows_update overwrites matched cells, so merging them would write NAs
+    # into rows the user never edited.
+    fingerprints <- vapply(
+      entries_by_col,
+      function(entries) {
+        paste(vapply(entries$signature, signature_key, character(1)), collapse = "\n")
+      },
+      character(1)
+    )
+    for (fingerprint in unique(fingerprints)) {
+      group <- entries_by_col[fingerprints == fingerprint]
+      body_lines <- c(body_lines, format_rows_update_block(workflow, group))
     }
   }
 
@@ -946,14 +1008,14 @@ generate_concert_script <- function(
     setup_lines <- c(
       setup_lines,
       "",
-      paste0("site_alias_map <- ", script_literal(site_alias_map_for_replay)),
+      paste0("site_alias_map <- ", site_manifest_script_literal(site_alias_map_for_replay)),
       "site_manifest <- build_site_manifest(site_alias_map)"
     )
   } else if (has_site_manifest) {
     setup_lines <- c(
       setup_lines,
       "",
-      paste0("site_manifest <- ", script_literal(site_manifest_for_replay))
+      paste0("site_manifest <- ", site_manifest_script_literal(site_manifest_for_replay))
     )
   }
 
