@@ -133,6 +133,48 @@ test_that("Dataset Context nudge appears only when site/location columns are det
   }))
 })
 
+test_that("Dataset Context cell edits refresh table data without resetting table state", {
+  replacement_calls <- list()
+  testthat::local_mocked_bindings(
+    replaceData = function(proxy, data, ..., resetPaging = TRUE, clearSelection = "all") {
+      replacement_calls[[length(replacement_calls) + 1L]] <<- list(
+        data = data,
+        resetPaging = resetPaging,
+        clearSelection = clearSelection,
+        dots = list(...)
+      )
+      invisible(proxy)
+    },
+    .package = "DT"
+  )
+
+  site_store <- shiny::reactiveValues(
+    clean = tibble::tibble(
+      site_id = c("A", "B", "A"),
+      latitude = c(45.1, 46.2, 45.1),
+      longitude = c(-93.1, -94.2, -93.1)
+    ),
+    site_context_detection = NULL,
+    site_context_candidates = NULL,
+    site_manifest = NULL,
+    site_context_status = NULL
+  )
+
+  suppressWarnings(shiny::testServer(mod_dataset_context_server, args = list(data_store = site_store), {
+    session$flushReact()
+    expect_length(replacement_calls, 0)
+
+    session$setInputs(site_manifest_table_cell_edit = list(row = 2, col = 0, value = "7"))
+    session$flushReact()
+
+    expect_length(replacement_calls, 1)
+    expect_false(replacement_calls[[1]]$resetPaging)
+    expect_false(replacement_calls[[1]]$dots$rownames)
+    expect_equal(replacement_calls[[1]]$data$site_order, c(NA_integer_, 7L))
+    expect_equal(replacement_calls[[1]]$data$site_identifier, c("A", "B"))
+  }))
+})
+
 test_that("site manifest exports and hydrates with source values intact", {
   reference_lists <- list(
     functional_categories = tibble::tibble(term = character(), source = character(), active = logical()),

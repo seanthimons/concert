@@ -87,6 +87,26 @@ site_context_datatable <- function(manifest) {
 mod_dataset_context_server <- function(id, data_store) {
   moduleServer(id, function(input, output, session) {
     site_manifest_working <- reactiveVal(empty_site_manifest())
+    site_manifest_table_version <- reactiveVal(0L)
+    site_manifest_table_proxy <- DT::dataTableProxy("site_manifest_table", session = session)
+
+    set_site_manifest_working <- function(manifest, rerender_table = FALSE, reset_paging = FALSE) {
+      manifest <- normalize_site_manifest(manifest)
+      site_manifest_working(manifest)
+
+      if (isTRUE(rerender_table)) {
+        site_manifest_table_version(isolate(site_manifest_table_version()) + 1L)
+      } else {
+        DT::replaceData(
+          site_manifest_table_proxy,
+          manifest,
+          rownames = FALSE,
+          resetPaging = reset_paging
+        )
+      }
+
+      invisible(manifest)
+    }
 
     output$has_data <- reactive({
       !is.null(data_store$clean)
@@ -105,7 +125,7 @@ mod_dataset_context_server <- function(id, data_store) {
         if (is.null(data_store$clean)) {
           data_store$site_context_detection <- NULL
           data_store$site_context_candidates <- empty_site_manifest()
-          site_manifest_working(empty_site_manifest())
+          set_site_manifest_working(empty_site_manifest(), rerender_table = TRUE)
           return()
         }
 
@@ -115,9 +135,9 @@ mod_dataset_context_server <- function(id, data_store) {
         data_store$site_context_candidates <- candidates
 
         if (!is.null(data_store$site_manifest) && nrow(normalize_site_manifest(data_store$site_manifest)) > 0L) {
-          site_manifest_working(normalize_site_manifest(data_store$site_manifest))
+          set_site_manifest_working(data_store$site_manifest, rerender_table = TRUE)
         } else {
-          site_manifest_working(candidates)
+          set_site_manifest_working(candidates, rerender_table = TRUE)
         }
       },
       ignoreNULL = FALSE
@@ -162,7 +182,9 @@ mod_dataset_context_server <- function(id, data_store) {
     })
 
     output$site_manifest_table <- DT::renderDT({
-      site_context_datatable(site_manifest_working())
+      site_manifest_table_version()
+      # Cell edits update through replaceData() so DT preserves sort/filter/page state.
+      site_context_datatable(isolate(site_manifest_working()))
     })
 
     observeEvent(input$site_manifest_table_cell_edit, {
@@ -191,7 +213,7 @@ mod_dataset_context_server <- function(id, data_store) {
       }
 
       manifest[[col_name]][row] <- info$value
-      site_manifest_working(normalize_site_manifest(manifest))
+      set_site_manifest_working(manifest, reset_paging = FALSE)
     })
 
     observeEvent(input$apply_site_manifest, {
@@ -211,12 +233,12 @@ mod_dataset_context_server <- function(id, data_store) {
       if (is.null(candidates)) {
         candidates <- empty_site_manifest()
       }
-      site_manifest_working(candidates)
+      set_site_manifest_working(candidates, rerender_table = TRUE)
       showNotification("Dataset context reset to detected values.", type = "message", duration = 3)
     })
 
     observeEvent(input$clear_site_manifest, {
-      site_manifest_working(empty_site_manifest())
+      set_site_manifest_working(empty_site_manifest(), rerender_table = TRUE)
       data_store$site_manifest <- empty_site_manifest()
       data_store$site_context_status <- "empty"
       showNotification("Dataset context cleared.", type = "message", duration = 3)
