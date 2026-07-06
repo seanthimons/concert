@@ -144,14 +144,6 @@ site_manifest_script_literal <- function(manifest) {
   paste(c("tibble::tibble(", col_lines, ")"), collapse = "\n")
 }
 
-integer_vector_literal <- function(value) {
-  value <- as.integer(value)
-  if (length(value) == 0) {
-    return("integer()")
-  }
-  paste0("c(", paste0(value, "L", collapse = ", "), ")")
-}
-
 character_vector_literal <- function(value) {
   value <- as.character(value)
   if (length(value) == 0) {
@@ -350,10 +342,6 @@ stable_override_signature_columns <- function(df, target_col, workflow, column_w
     unique(c(review_signature_excluded_columns(), workflow_exclusions, target_col))
   )
   candidates[vapply(df[candidates], is_stable_signature_column, logical(1))]
-}
-
-stable_review_signature_columns <- function(df) {
-  stable_override_signature_columns(df, target_col = NULL, workflow = "review")
 }
 
 row_signature <- function(df, row_idx, cols) {
