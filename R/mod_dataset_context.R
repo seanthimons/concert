@@ -31,6 +31,10 @@ mod_dataset_context_ui <- function(id) {
         uiOutput(ns("dataset_context_nudge")),
         uiOutput(ns("site_manifest_summary")),
         div(
+          class = "d-flex justify-content-end mb-2",
+          bslib::input_switch(ns("show_site_audit_columns"), "Show audit columns", value = FALSE)
+        ),
+        div(
           class = "dataset-context-table",
           DT::DTOutput(ns("site_manifest_table"))
         ),
@@ -60,11 +64,28 @@ mod_dataset_context_ui <- function(id) {
   )
 }
 
-site_context_datatable <- function(manifest) {
+site_context_audit_columns <- function() {
+  setdiff(site_context_manifest_columns(), site_context_editable_columns())
+}
+
+site_context_table_columns <- function(show_audit_columns = FALSE) {
+  if (isTRUE(show_audit_columns)) {
+    return(site_context_manifest_columns())
+  }
+  setdiff(site_context_manifest_columns(), site_context_audit_columns())
+}
+
+site_context_table_data <- function(manifest, show_audit_columns = FALSE) {
   manifest <- normalize_site_manifest(manifest)
-  disabled <- which(!names(manifest) %in% site_context_editable_columns()) - 1L
+  columns <- intersect(site_context_table_columns(show_audit_columns), names(manifest))
+  manifest[, columns, drop = FALSE]
+}
+
+site_context_datatable <- function(manifest, show_audit_columns = FALSE) {
+  table_data <- site_context_table_data(manifest, show_audit_columns)
+  disabled <- which(!names(table_data) %in% site_context_editable_columns()) - 1L
   DT::datatable(
-    manifest,
+    table_data,
     rownames = FALSE,
     editable = list(target = "cell", disable = list(columns = disabled)),
     filter = "top",
@@ -99,7 +120,7 @@ mod_dataset_context_server <- function(id, data_store) {
       } else {
         DT::replaceData(
           site_manifest_table_proxy,
-          manifest,
+          site_context_table_data(manifest, isTRUE(input$show_site_audit_columns)),
           rownames = FALSE,
           resetPaging = reset_paging
         )
@@ -184,7 +205,10 @@ mod_dataset_context_server <- function(id, data_store) {
     output$site_manifest_table <- DT::renderDT({
       site_manifest_table_version()
       # Cell edits update through replaceData() so DT preserves sort/filter/page state.
-      site_context_datatable(isolate(site_manifest_working()))
+      site_context_datatable(
+        isolate(site_manifest_working()),
+        show_audit_columns = isTRUE(input$show_site_audit_columns)
+      )
     })
 
     observeEvent(input$site_manifest_table_cell_edit, {
@@ -207,7 +231,12 @@ mod_dataset_context_server <- function(id, data_store) {
         return()
       }
 
-      col_name <- names(manifest)[col]
+      table_columns <- site_context_table_columns(isTRUE(input$show_site_audit_columns))
+      table_columns <- intersect(table_columns, names(manifest))
+      col_name <- table_columns[col]
+      if (is.na(col_name)) {
+        return()
+      }
       if (!col_name %in% site_context_editable_columns()) {
         return()
       }

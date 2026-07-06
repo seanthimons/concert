@@ -133,6 +133,24 @@ test_that("Dataset Context nudge appears only when site/location columns are det
   }))
 })
 
+test_that("Dataset Context table hides audit columns until requested", {
+  manifest <- extract_site_candidates(tibble::tibble(
+    site_id = c("A", "B"),
+    latitude = c(45.1, 46.2),
+    longitude = c(-93.1, -94.2)
+  ))
+
+  default_table <- site_context_table_data(manifest)
+  audit_table <- site_context_table_data(manifest, show_audit_columns = TRUE)
+
+  expect_equal(names(default_table), site_context_editable_columns())
+  expect_false("source_row" %in% names(default_table))
+  expect_false("site_id_column" %in% names(default_table))
+  expect_equal(names(audit_table), site_context_manifest_columns())
+  expect_true("source_row" %in% names(audit_table))
+  expect_true("site_id_column" %in% names(audit_table))
+})
+
 test_that("Dataset Context cell edits refresh table data without resetting table state", {
   replacement_calls <- list()
   testthat::local_mocked_bindings(
@@ -172,6 +190,16 @@ test_that("Dataset Context cell edits refresh table data without resetting table
     expect_false(replacement_calls[[1]]$dots$rownames)
     expect_equal(replacement_calls[[1]]$data$site_order, c(NA_integer_, 7L))
     expect_equal(replacement_calls[[1]]$data$site_identifier, c("A", "B"))
+    expect_equal(names(replacement_calls[[1]]$data), site_context_editable_columns())
+
+    session$setInputs(show_site_audit_columns = TRUE)
+    session$setInputs(site_manifest_table_cell_edit = list(row = 1, col = 0, value = "3"))
+    session$flushReact()
+
+    expect_length(replacement_calls, 2)
+    expect_false(replacement_calls[[2]]$resetPaging)
+    expect_equal(replacement_calls[[2]]$data$site_order, c(3L, 7L))
+    expect_equal(names(replacement_calls[[2]]$data), site_context_manifest_columns())
   }))
 })
 
