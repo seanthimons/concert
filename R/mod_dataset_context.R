@@ -41,6 +41,12 @@ mod_dataset_context_ui <- function(id) {
         div(
           class = "dataset-context-actions d-flex flex-wrap mt-3",
           actionButton(
+            ns("fill_selected_aliases"),
+            "Fill selected",
+            icon = icon("clone"),
+            class = "btn-outline-secondary"
+          ),
+          actionButton(
             ns("apply_site_manifest"),
             "Apply",
             icon = icon("check"),
@@ -81,6 +87,23 @@ site_context_table_data <- function(manifest, show_audit_columns = FALSE) {
   manifest[, columns, drop = FALSE]
 }
 
+site_context_fill_selected_aliases <- function(manifest, selected_rows) {
+  manifest <- normalize_site_manifest(manifest)
+  selected_rows <- suppressWarnings(as.integer(selected_rows))
+  selected_rows <- selected_rows[!is.na(selected_rows) & selected_rows >= 1L & selected_rows <= nrow(manifest)]
+  selected_rows <- unique(selected_rows)
+  if (length(selected_rows) < 2L) {
+    return(manifest)
+  }
+
+  source_row <- selected_rows[1]
+  target_rows <- selected_rows[-1]
+  for (col in site_context_editable_columns()) {
+    manifest[[col]][target_rows] <- manifest[[col]][source_row]
+  }
+  normalize_site_manifest(manifest)
+}
+
 site_context_datatable <- function(manifest, show_audit_columns = FALSE) {
   table_data <- site_context_table_data(manifest, show_audit_columns)
   disabled <- which(!names(table_data) %in% site_context_editable_columns()) - 1L
@@ -88,6 +111,7 @@ site_context_datatable <- function(manifest, show_audit_columns = FALSE) {
     table_data,
     rownames = FALSE,
     editable = list(target = "cell", disable = list(columns = disabled)),
+    selection = list(mode = "multiple", target = "row"),
     filter = "top",
     options = list(
       pageLength = 25,
@@ -123,7 +147,8 @@ mod_dataset_context_server <- function(id, data_store) {
           site_manifest_table_proxy,
           site_context_table_data(manifest, isTRUE(input$show_site_audit_columns)),
           rownames = FALSE,
-          resetPaging = reset_paging
+          resetPaging = reset_paging,
+          clearSelection = "none"
         )
       }
 
@@ -247,6 +272,29 @@ mod_dataset_context_server <- function(id, data_store) {
 
       manifest[[col_name]][row] <- info$value
       set_site_manifest_working(manifest, reset_paging = FALSE)
+    })
+
+    observeEvent(input$fill_selected_aliases, {
+      selected_rows <- input$site_manifest_table_rows_selected
+      if (length(selected_rows) < 2L) {
+        showNotification(
+          "Select at least two alias rows, then fill selected.",
+          type = "warning",
+          duration = 4
+        )
+        return()
+      }
+
+      manifest <- site_context_fill_selected_aliases(site_manifest_working(), selected_rows)
+      set_site_manifest_working(manifest, reset_paging = FALSE)
+      showNotification(
+        sprintf(
+          "Copied canonical values from the first selected row to %d row(s).",
+          length(unique(selected_rows)) - 1L
+        ),
+        type = "message",
+        duration = 4
+      )
     })
 
     observeEvent(input$apply_site_manifest, {

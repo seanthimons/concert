@@ -240,6 +240,32 @@ test_that("Dataset Context datatable uses read-only source labels and 25-row pag
   expect_equal(widget$x$options$lengthMenu[[1]], c(10, 25, 50, 100, -1))
   expect_equal(widget$x$options$lengthMenu[[2]], c("10", "25", "50", "100", "All"))
   expect_true(0 %in% widget$x$editable$disable$columns)
+  expect_equal(widget$x$selection$mode, "multiple")
+})
+
+test_that("Dataset Context can fill selected aliases from the first selected row", {
+  manifest <- tibble::tibble(
+    source_site_label = c("Raw Influent", "Raw Infl.", "Plant Inlet"),
+    site_order = c(1L, 2L, 3L),
+    site_suborder = c(1L, 1L, 1L),
+    site_identifier = c("INF", "RAW", "INLET"),
+    site_name = c("Influent", "Raw", "Inlet"),
+    site_label = c("Influent", "Raw", "Inlet"),
+    latitude = c(45.1, 46.2, 47.3),
+    longitude = c(-93.1, -94.2, -95.3),
+    grouping_type = c("watershed", "group", "group"),
+    grouping_label = c("Upper", "Raw group", "Inlet group"),
+    source_row = c(1L, 2L, 3L)
+  )
+
+  result <- site_context_fill_selected_aliases(manifest, c(1L, 2L, 3L))
+
+  expect_equal(result$source_site_label, c("Raw Influent", "Raw Infl.", "Plant Inlet"))
+  expect_equal(result$site_identifier, rep("INF", 3))
+  expect_equal(result$site_name, rep("Influent", 3))
+  expect_equal(result$site_label, rep("Influent", 3))
+  expect_equal(result$latitude, rep(45.1, 3))
+  expect_equal(result$longitude, rep(-93.1, 3))
 })
 
 test_that("Dataset Context cell edits refresh table data without resetting table state", {
@@ -284,6 +310,7 @@ test_that("Dataset Context cell edits refresh table data without resetting table
 
     expect_length(replacement_calls, 1)
     expect_false(replacement_calls[[1]]$resetPaging)
+    expect_equal(replacement_calls[[1]]$clearSelection, "none")
     expect_false(replacement_calls[[1]]$dots$rownames)
     expect_equal(replacement_calls[[1]]$data$site_order, c(NA_integer_, 7L))
     expect_equal(replacement_calls[[1]]$data$site_identifier, c("A", "B"))
@@ -295,6 +322,7 @@ test_that("Dataset Context cell edits refresh table data without resetting table
 
     expect_length(replacement_calls, 2)
     expect_false(replacement_calls[[2]]$resetPaging)
+    expect_equal(replacement_calls[[2]]$clearSelection, "none")
     expect_equal(replacement_calls[[2]]$data$site_order, c(3L, 7L))
     expect_equal(names(replacement_calls[[2]]$data), site_context_manifest_columns())
   }))
