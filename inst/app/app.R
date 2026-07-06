@@ -96,6 +96,12 @@ ui <- page_sidebar(
       concert::mod_tag_columns_ui("tags")
     ),
     nav_panel(
+      "Dataset Context",
+      value = "dataset_context",
+      icon = bsicons::bs_icon("geo-alt"),
+      concert::mod_dataset_context_ui("dataset_context")
+    ),
+    nav_panel(
       "Clean Data",
       value = "clean_data",
       icon = bsicons::bs_icon("magic"),
@@ -156,6 +162,10 @@ server <- function(input, output, session) {
     qc_results = NULL,
     enrichment_cache = NULL,
     enrichment_failed = NULL,
+    site_context_detection = NULL,
+    site_context_candidates = NULL,
+    site_manifest = NULL,
+    site_context_status = NULL,
     # Phase 33: Extended tag types and harmonization state
     numeric_tags = NULL,
     metadata_tags = NULL,
@@ -295,6 +305,7 @@ server <- function(input, output, session) {
     function() {
       bslib::nav_hide("main_tabs", target = "detection_info", session = session)
       bslib::nav_hide("main_tabs", target = "raw_data", session = session)
+      bslib::nav_hide("main_tabs", target = "dataset_context", session = session)
       bslib::nav_hide("main_tabs", target = "clean_data", session = session)
       bslib::nav_hide("main_tabs", target = "tag_columns", session = session)
       bslib::nav_hide("main_tabs", target = "run_curation_tab", session = session)
@@ -343,6 +354,10 @@ server <- function(input, output, session) {
     data_store$display_row_map <- NULL
     data_store$selected_error_rows <- NULL
     data_store$selected_visible_rows <- NULL
+    data_store$site_context_detection <- NULL
+    data_store$site_context_candidates <- NULL
+    data_store$site_manifest <- NULL
+    data_store$site_context_status <- NULL
     # Phase 33: Reset extended tag types and harmonization state
     data_store$numeric_tags <- NULL
     data_store$metadata_tags <- NULL
@@ -363,6 +378,7 @@ server <- function(input, output, session) {
     data_store$media_map_working <- NULL
     bslib::nav_hide("main_tabs", target = "detection_info", session = session)
     bslib::nav_hide("main_tabs", target = "raw_data", session = session)
+    bslib::nav_hide("main_tabs", target = "dataset_context", session = session)
     bslib::nav_hide("main_tabs", target = "clean_data", session = session)
     bslib::nav_hide("main_tabs", target = "tag_columns", session = session)
     bslib::nav_hide("main_tabs", target = "run_curation_tab", session = session)
@@ -408,6 +424,7 @@ server <- function(input, output, session) {
     show_tab_with_pulse("detection_info")
     show_tab_with_pulse("raw_data")
     show_tab_with_pulse("tag_columns")
+    show_tab_with_pulse("dataset_context")
   })
 
   # Show Clean Data tab after tagging
@@ -418,7 +435,7 @@ server <- function(input, output, session) {
 
   # Sidebar visibility based on active tab
   shiny::observeEvent(input$main_tabs, {
-    curation_tabs <- c("clean_data", "tag_columns", "run_curation_tab", "review_results", "harmonize_tab")
+    curation_tabs <- c("dataset_context", "clean_data", "tag_columns", "run_curation_tab", "review_results", "harmonize_tab")
     is_curation <- input$main_tabs %in% curation_tabs
     bslib::toggle_sidebar("main_sidebar", open = !is_curation, session = session)
   })
@@ -462,6 +479,7 @@ server <- function(input, output, session) {
       show_tab_with_pulse("detection_info")
       show_tab_with_pulse("raw_data")
       show_tab_with_pulse("tag_columns")
+      show_tab_with_pulse("dataset_context")
       show_tab_with_pulse("clean_data")
       show_tab_with_pulse("run_curation_tab")
       show_tab_with_pulse("harmonize_tab")
@@ -474,6 +492,8 @@ server <- function(input, output, session) {
   concert::mod_data_preview_server("preview", data_store, preview_rows)
   concert::mod_detection_info_server("detection", data_store)
   concert::mod_raw_data_server("raw", data_store)
+
+  concert::mod_dataset_context_server("dataset_context", data_store)
 
   concert::mod_clean_data_server("cleaning", data_store, on_cleaning_complete = function() {
     show_tab_with_pulse("run_curation_tab")

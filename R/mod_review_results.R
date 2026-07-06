@@ -3038,7 +3038,8 @@ mod_review_results_server <- function(id, data_store) {
         harmonize = should_harmonize,
         source_name = file_name,
         reference_lists = data_store$reference_lists,
-        activate_all_references = isTRUE(data_store$activate_all_references)
+        activate_all_references = isTRUE(data_store$activate_all_references),
+        site_manifest = data_store$site_manifest
       )
     }
 
@@ -3161,7 +3162,8 @@ mod_review_results_server <- function(id, data_store) {
           detected_data = data_store$clean,
           cleaned_data = data_store$cleaned_data,
           toxval_output = data_store$toxval_output,
-          harmonize_audit = data_store$harmonize_audit
+          harmonize_audit = data_store$harmonize_audit,
+          site_manifest = data_store$site_manifest
         )
 
         # Write to Excel

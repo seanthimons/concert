@@ -17,7 +17,8 @@ build_export_sheets(
   detected_data = NULL,
   cleaned_data = NULL,
   toxval_output = NULL,
-  harmonize_audit = NULL
+  harmonize_audit = NULL,
+  site_manifest = NULL
 )
 }
 \arguments{
@@ -54,6 +55,9 @@ placeholder note row.}
 \item{harmonize_audit}{Tibble with numeric measurement harmonization audit rows,
 or NULL (default). When provided, an additional Harmonization Audit sheet is
 appended.}
+
+\item{site_manifest}{Optional curated site/location manifest from Dataset
+Context. When provided and non-empty, a Site Manifest sheet is included.}
 }
 \value{
 Named list of data frames with sheet names as keys
