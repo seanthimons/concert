@@ -145,6 +145,7 @@ classify_consensus <- function(df, dtxsid_cols) {
   consensus_status <- character(nrow(df))
   consensus_dtxsid <- character(nrow(df))
   consensus_source <- character(nrow(df))
+  consensus_name <- rep(NA_character_, nrow(df))
   qc_tier <- integer(nrow(df))
 
   # Pre-compute source_tier column names (avoids repeated sub() inside loop)
@@ -194,7 +195,21 @@ classify_consensus <- function(df, dtxsid_cols) {
         consensus_dtxsid[i] <- NA_character_
         # Find which column had the WQX resolution for source attribution
         wqx_col_idx <- which(!is.na(row_tiers) & grepl("^wqx_", row_tiers))[1]
-        consensus_source[i] <- if (tier_cols[wqx_col_idx] == "source_tier") "Name" else sub("^source_tier_", "", tier_cols[wqx_col_idx])
+        consensus_source[i] <- if (tier_cols[wqx_col_idx] == "source_tier") {
+          "Name"
+        } else {
+          sub("^source_tier_", "", tier_cols[wqx_col_idx])
+        }
+        # Promote the resolved WQX canonical name from the parallel preferredName column
+        # so it survives into the ToxVal export as a non-DTXSID crosswalk key.
+        pref_col <- if (dtxsid_cols[wqx_col_idx] == "dtxsid") {
+          "preferredName"
+        } else {
+          sub("^dtxsid_", "preferredName_", dtxsid_cols[wqx_col_idx])
+        }
+        if (pref_col %in% names(df)) {
+          consensus_name[i] <- as.character(df[[pref_col]][i])
+        }
         qc_tier[i] <- compute_qc_tier("wqx", 0L, k)
         next
       }
@@ -238,6 +253,7 @@ classify_consensus <- function(df, dtxsid_cols) {
   df$consensus_status <- consensus_status
   df$consensus_dtxsid <- consensus_dtxsid
   df$consensus_source <- consensus_source
+  df$consensus_name <- consensus_name
   df$qc_tier <- qc_tier
 
   df
@@ -308,7 +324,9 @@ normalize_row_flag <- function(flag) {
   valid_flags <- valid_row_flags()
   if (!normalized %in% valid_flags) {
     stop(
-      "Invalid row_flag '", flag[1], "'. Valid flags are: ",
+      "Invalid row_flag '",
+      flag[1],
+      "'. Valid flags are: ",
       paste(valid_flags, collapse = ", "),
       call. = FALSE
     )
@@ -357,10 +375,12 @@ set_row_flags <- function(df, row_indices, flag, reason = NULL) {
     return(df)
   }
 
-  if (any(is.na(row_indices)) ||
-    any(row_indices != as.integer(row_indices)) ||
-    any(row_indices < 1L) ||
-    any(row_indices > nrow(df))) {
+  if (
+    any(is.na(row_indices)) ||
+      any(row_indices != as.integer(row_indices)) ||
+      any(row_indices < 1L) ||
+      any(row_indices > nrow(df))
+  ) {
     stop("row_indices must be valid 1-based row positions.", call. = FALSE)
   }
 

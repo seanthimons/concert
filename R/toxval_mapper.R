@@ -113,12 +113,27 @@ map_to_toxval_schema <- function(curated_data, harmonized_data, source_name = NU
     orig_numeric <- harmonized_data$harmonized_value
   }
 
+  # Resolved identifiers. For rows with no DTXSID, promote the resolved WQX
+  # canonical name (consensus_name) into `name` so it survives as a crosswalk
+  # key; DTXSID rows keep the existing raw-text fallback unchanged.
+  dtxsid_vec <- pick_char("consensus_dtxsid", "dtxsid")
+  name_raw <- pick_char(
+    "name",
+    c("analyte", "chemical", "chemical_name", names(row_data)[tag_values(row_data, c("Name"))])
+  )
+  consensus_name <- if ("consensus_name" %in% names(row_data)) {
+    as.character(row_data$consensus_name)
+  } else {
+    rep(NA_character_, n_rows)
+  }
+  name_resolved <- ifelse(is.na(dtxsid_vec) & !is.na(consensus_name), consensus_name, name_raw)
+
   # Build the result tibble with all 56 columns in exact ToxVal order
   result <- tibble::tibble(
     # Core identifiers (1-3)
-    dtxsid = pick_char("consensus_dtxsid", "dtxsid"),
+    dtxsid = dtxsid_vec,
     casrn = pick_char("casrn", c("cas", names(row_data)[tag_values(row_data, c("CASRN", "CAS"))])),
-    name = pick_char("name", c("analyte", "chemical", "chemical_name", names(row_data)[tag_values(row_data, c("Name"))])),
+    name = name_resolved,
 
     # Source information (4-5)
     source = if ("source" %in% names(row_data)) pick_char("source") else rep(source_name, n_rows),
@@ -281,16 +296,24 @@ generate_source_hash <- function(result_tibble) {
   # Exclude source_hash column from hash computation
   cols_to_hash <- setdiff(names(result_tibble), "source_hash")
 
-  vapply(seq_len(nrow(result_tibble)), function(i) {
-    # Concatenate all values for this row
-    row_values <- vapply(cols_to_hash, function(col) {
-      val <- result_tibble[[col]][i]
-      if (is.na(val)) "NA" else as.character(val)
-    }, character(1))
+  vapply(
+    seq_len(nrow(result_tibble)),
+    function(i) {
+      # Concatenate all values for this row
+      row_values <- vapply(
+        cols_to_hash,
+        function(col) {
+          val <- result_tibble[[col]][i]
+          if (is.na(val)) "NA" else as.character(val)
+        },
+        character(1)
+      )
 
-    paste_string <- paste(row_values, collapse = "|")
-    digest::digest(paste_string, algo = "sha256")
-  }, character(1))
+      paste_string <- paste(row_values, collapse = "|")
+      digest::digest(paste_string, algo = "sha256")
+    },
+    character(1)
+  )
 }
 
 #' Assert no bare NA values in tibble
