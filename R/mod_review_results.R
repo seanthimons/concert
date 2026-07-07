@@ -1403,6 +1403,25 @@ mod_review_results_ui <- function(id) {
               "Download Excel",
               class = "btn-primary d-inline-flex align-items-center justify-content-center",
               style = "line-height:1.5;"
+            ),
+            conditionalPanel(
+              condition = paste0("output['", ns("harmonization_completed"), "']"),
+              div(
+                class = "d-inline-flex gap-1 align-items-center",
+                selectInput(
+                  ns("toxval_format"),
+                  NULL,
+                  choices = c("CSV" = "csv", "Parquet" = "parquet"),
+                  selectize = FALSE,
+                  width = "110px"
+                ),
+                downloadButton(
+                  ns("download_toxval"),
+                  "ToxVal",
+                  class = "btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center",
+                  style = "line-height:1.5;"
+                )
+              )
             )
           )
         ),
@@ -3170,7 +3189,7 @@ mod_review_results_server <- function(id, data_store) {
         )
 
         # Write to Excel
-        writexl::write_xlsx(sheets, path = file)
+        write_curation_output(file, "xlsx", sheets = sheets)
       }
     )
 
@@ -3595,5 +3614,26 @@ mod_review_results_server <- function(id, data_store) {
       !is.null(data_store$curation_status) && data_store$curation_status == "completed"
     })
     outputOptions(output, "curation_completed", suspendWhenHidden = FALSE)
+
+    # Harmonization completed indicator (gates the flat ToxVal export control)
+    output$harmonization_completed <- reactive({
+      !is.null(data_store$toxval_output)
+    })
+    outputOptions(output, "harmonization_completed", suspendWhenHidden = FALSE)
+
+    output$download_toxval <- downloadHandler(
+      filename = function() {
+        file_base <- if (!is.null(data_store$file_info)) {
+          tools::file_path_sans_ext(data_store$file_info$name)
+        } else {
+          "curated_data"
+        }
+        paste0(file_base, "_toxval_", format(Sys.Date(), "%Y%m%d"), ".", input$toxval_format)
+      },
+      content = function(file) {
+        req(data_store$toxval_output)
+        write_curation_output(file, input$toxval_format, toxval_tibble = data_store$toxval_output)
+      }
+    )
   })
 }
