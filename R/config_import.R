@@ -150,6 +150,9 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
   dedup_preview <- hydrate_dedup_preview(raw_data, classified_tags$chemical_tags)
   harmonize_results <- hydrate_harmonize_results(harmonization_audit, resolution_state)
 
+  baseline <- restore_script_baseline(parsed$config, parsed$session_state, resolution_state)
+  warnings <- c(warnings, baseline$warnings)
+
   state <- list(
     raw = raw_data,
     clean = raw_data,
@@ -172,7 +175,7 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
     consensus_data = resolution_state,
     consensus_summary = consensus_summary,
     resolution_state = resolution_state,
-    script_baseline_state = resolution_state,
+    script_baseline_state = baseline$state,
     dtxsid_cols = dtxsid_cols,
     priority_order = dtxsid_cols,
     review_visible_cols = NULL,
@@ -345,6 +348,93 @@ restore_resolution_state <- function(curated_data, session_state) {
     resolution_state = init_resolution_state(resolution_state),
     warnings = warnings
   )
+}
+
+# Rebuild the automated replay baseline by patching exported baseline_cell
+# records onto the restored curated state. Exports that predate baseline
+# persistence fall back to the curated state itself (no review diff), with a
+# warning so the user knows regenerated scripts will omit review corrections.
+restore_script_baseline <- function(config, session_state, resolution_state) {
+  if (is.null(resolution_state)) {
+    return(list(state = NULL, warnings = character(0)))
+  }
+
+  baseline_cells <- config_value(config, "baseline_cells")
+  if (is.null(baseline_cells)) {
+    return(list(
+      state = resolution_state,
+      warnings = paste(
+        "This export predates replay-baseline persistence.",
+        "Regenerated replay scripts will not include Review Results corrections;",
+        "re-run curation and review to capture them again."
+      )
+    ))
+  }
+
+  baseline <- resolution_state
+  cells <- baseline_cell_rows(session_state)
+  if (nrow(cells) == 0) {
+    return(list(state = baseline, warnings = character(0)))
+  }
+
+  dropped <- character(0)
+  for (col in unique(cells$key)) {
+    if (!col %in% names(baseline)) {
+      dropped <- c(dropped, col)
+      next
+    }
+    col_cells <- cells[cells$key == col, , drop = FALSE]
+    in_bounds <- col_cells$row_index >= 1L & col_cells$row_index <= nrow(baseline)
+    col_cells <- col_cells[in_bounds, , drop = FALSE]
+
+    values <- baseline[[col]]
+    values[col_cells$row_index] <- coerce_baseline_values(col_cells$value, values)
+    baseline[[col]] <- values
+  }
+
+  warnings <- character(0)
+  if (length(dropped) > 0) {
+    warnings <- sprintf(
+      "Baseline records reference columns missing from Curated Data and were skipped: %s.",
+      paste(dropped, collapse = ", ")
+    )
+  }
+
+  list(state = baseline, warnings = warnings)
+}
+
+baseline_cell_rows <- function(session_state) {
+  if (
+    is.null(session_state) ||
+      nrow(session_state) == 0 ||
+      !all(c("record_type", "row_index", "key", "value") %in% names(session_state))
+  ) {
+    return(tibble::tibble(row_index = integer(), key = character(), value = character()))
+  }
+
+  cells <- session_state %>%
+    dplyr::filter(record_type == "baseline_cell", !is.na(key))
+  tibble::tibble(
+    row_index = suppressWarnings(as.integer(as.numeric(cells$row_index))),
+    key = as.character(cells$key),
+    value = as.character(cells$value)
+  ) %>%
+    dplyr::filter(!is.na(row_index))
+}
+
+coerce_baseline_values <- function(values, target_column) {
+  if (is.logical(target_column)) {
+    return(coerce_logical(values))
+  }
+  if (is.integer(target_column)) {
+    return(suppressWarnings(as.integer(as.numeric(values))))
+  }
+  if (is.numeric(target_column)) {
+    return(suppressWarnings(as.numeric(values)))
+  }
+  values <- as.character(values)
+  values[!is.na(values) & values == "NA"] <- NA_character_
+  values
 }
 
 session_state_rows <- function(session_state) {

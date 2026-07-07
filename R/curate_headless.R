@@ -290,6 +290,7 @@ curate_headless <- function(
       ))
     }
 
+    script_baseline_state <- resolution_state
     if (review_overrides_present(review_overrides)) {
       message("[headless] Applying review overrides...")
       resolution_state <- apply_review_overrides(resolution_state, review_overrides)
@@ -476,7 +477,8 @@ curate_headless <- function(
         toxval_output = toxval_tibble,
         harmonize_audit = harmonize_audit_tibble,
         site_manifest = site_manifest_for_export,
-        site_alias_map = site_alias_map_for_export
+        site_alias_map = site_alias_map_for_export,
+        script_baseline_state = script_baseline_state
       )
 
       fs::dir_create(dirname(output_path), recurse = TRUE)

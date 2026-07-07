@@ -836,7 +836,8 @@ test_that("hydrate_session_state restores full session state from parsed export"
     detected_data = test_data$raw,
     cleaned_data = test_data$cleaned_data,
     toxval_output = toxval_output,
-    harmonize_audit = harmonize_audit
+    harmonize_audit = harmonize_audit,
+    script_baseline_state = test_data$resolution_state
   )
 
   temp_file <- tempfile(fileext = ".xlsx")
@@ -864,6 +865,99 @@ test_that("hydrate_session_state restores full session state from parsed export"
   expect_equal(state$harmonize_results$harmonized$harmonized_unit, "mg/L")
   expect_false(detect_tag_changes(state$prev_chemical_tags, state$column_tags))
   expect_false(detect_tag_changes(state$prev_numeric_tags, state$numeric_tags))
+})
+
+test_that("replay baseline survives export/import and regenerates review overrides", {
+  test_data <- create_test_data()
+
+  # Automated baseline: what curation produced before Review Results edits.
+  baseline <- test_data$resolution_state
+  baseline$consensus_dtxsid <- c("DTXSID3020001", "DTXSID5020584", NA)
+  baseline$consensus_status <- c("agree", "agree_caveat", "error")
+  baseline$.pinned <- c(FALSE, FALSE, FALSE)
+  baseline$.manual_entry <- c(FALSE, FALSE, FALSE)
+  baseline$row_flag <- rep(NA_character_, 3)
+  baseline$row_flag_reason <- rep(NA_character_, 3)
+
+  final <- test_data$resolution_state
+  final$consensus_dtxsid[3] <- "DTXSID9999999"
+  final$consensus_status[3] <- "manual"
+
+  sheets <- build_export_sheets(
+    raw = test_data$raw,
+    resolution_state = final,
+    consensus_summary = test_data$consensus_summary,
+    cleaning_audit = test_data$cleaning_audit,
+    reference_lists = test_data$reference_lists,
+    column_tags = test_data$column_tags,
+    detection = test_data$detection,
+    file_info = test_data$file_info,
+    script_baseline_state = baseline
+  )
+
+  config <- sheets[["Pipeline Config"]]
+  expect_true("baseline_cells" %in% config$key)
+  expect_gt(
+    as.integer(config$value[config$key == "baseline_cells"]),
+    0L
+  )
+
+  temp_file <- tempfile(fileext = ".xlsx")
+  writexl::write_xlsx(sheets, temp_file)
+  on.exit(unlink(temp_file), add = TRUE)
+
+  parsed <- parse_concert_export(temp_file)
+  hydrated <- hydrate_session_state(parsed, test_data$reference_lists)
+  state <- hydrated$state
+
+  expect_equal(hydrated$warnings, character(0))
+  restored_baseline <- state$script_baseline_state
+  expect_equal(restored_baseline$consensus_dtxsid, baseline$consensus_dtxsid)
+  expect_equal(restored_baseline$consensus_status, baseline$consensus_status)
+  expect_equal(restored_baseline$.pinned, baseline$.pinned)
+  expect_equal(restored_baseline$.manual_entry, baseline$.manual_entry)
+  expect_equal(restored_baseline$row_flag, baseline$row_flag)
+
+  # The regenerated replay spec reproduces the review edits from the import.
+  spec <- build_review_overrides(
+    restored_baseline,
+    state$resolution_state,
+    tag_map = list(chemical_name = "Name", cas_number = "CASRN")
+  )
+  expect_s3_class(spec, "concert_review_override_spec")
+  replayed <- apply_review_overrides(restored_baseline, spec)
+  expect_equal(replayed$consensus_dtxsid, state$resolution_state$consensus_dtxsid)
+  expect_equal(replayed$consensus_status, state$resolution_state$consensus_status)
+  expect_equal(replayed$row_flag, state$resolution_state$row_flag)
+})
+
+test_that("imports without baseline records warn and fall back to the curated state", {
+  test_data <- create_test_data()
+
+  sheets <- build_export_sheets(
+    raw = test_data$raw,
+    resolution_state = test_data$resolution_state,
+    consensus_summary = test_data$consensus_summary,
+    cleaning_audit = test_data$cleaning_audit,
+    reference_lists = test_data$reference_lists,
+    column_tags = test_data$column_tags,
+    detection = test_data$detection,
+    file_info = test_data$file_info
+  )
+  expect_false("baseline_cells" %in% sheets[["Pipeline Config"]]$key)
+
+  temp_file <- tempfile(fileext = ".xlsx")
+  writexl::write_xlsx(sheets, temp_file)
+  on.exit(unlink(temp_file), add = TRUE)
+
+  parsed <- parse_concert_export(temp_file)
+  hydrated <- hydrate_session_state(parsed, test_data$reference_lists)
+
+  expect_match(
+    paste(hydrated$warnings, collapse = "\n"),
+    "predates replay-baseline persistence"
+  )
+  expect_equal(hydrated$state$script_baseline_state, hydrated$state$resolution_state)
 })
 
 test_that("hydrate_session_state tolerates missing optional sheets", {

@@ -3165,7 +3165,8 @@ mod_review_results_server <- function(id, data_store) {
           toxval_output = data_store$toxval_output,
           harmonize_audit = data_store$harmonize_audit,
           site_manifest = data_store$site_manifest,
-          site_alias_map = data_store$site_alias_map
+          site_alias_map = data_store$site_alias_map,
+          script_baseline_state = data_store$script_baseline_state
         )
 
         # Write to Excel
