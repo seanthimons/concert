@@ -237,6 +237,27 @@ test_that("precheck_isotope_shortcodes returns TRUE for text with shortcode matc
   expect_equal(result$est_changes, 1L)
 })
 
+test_that("precheck_isotope_shortcodes is case-insensitive and separator-aware", {
+  isotope_lookup <- list(
+    lookup = tibble::tibble(
+      symbol = "Bi",
+      mass = "212",
+      element_name = "Bismuth",
+      shortcode = "bi212",
+      canonical = "Bismuth-212",
+      dtxsid = "DTXSID901016091",
+      source = "wqx_radiochemical"
+    ),
+    elem_alt_names = character()
+  )
+  df <- tibble::tibble(name = c("Bi212", "bi212", "Bi-212", "Bismuth"))
+
+  result <- precheck_isotope_shortcodes(df, "name", isotope_lookup)
+
+  expect_true(result$should_run)
+  expect_equal(result$est_changes, 3L)
+})
+
 # (c) SKIP-03 false-negative companion: embedded shortcode must match via word boundary
 test_that("SKIP-03: precheck_isotope_shortcodes uses word boundaries to avoid false negatives", {
   # "Pb210" shortcode embedded mid-word should NOT trigger (word-boundary protected)

@@ -4,12 +4,15 @@
 \alias{detect_bare_formulas}
 \title{Detect bare molecular formulas}
 \usage{
-detect_bare_formulas(df, name_cols)
+detect_bare_formulas(df, name_cols, isotope_lookup = NULL)
 }
 \arguments{
 \item{df}{Dataframe with name columns}
 
 \item{name_cols}{Character vector of Name-tagged column names}
+
+\item{isotope_lookup}{Optional isotope lookup from \code{\link[=load_isotope_lookup]{load_isotope_lookup()}}. Known
+isotope shortcodes are not blocked as bare formulas.}
 }
 \value{
 List with cleaned_data and audit_trail

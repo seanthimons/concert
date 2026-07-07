@@ -13,8 +13,10 @@ load_isotope_lookup(cache_dir)
 List with components: lookup (tibble), elem_alt_names (named character vector)
 }
 \description{
-Builds a pre-processed lookup table from ComptoxR::pt$isotope for use by
-expand_isotope_shortcodes(). Cached to RDS to avoid rebuilding on every run.
+Builds a pre-processed lookup table from the active \code{ComptoxR::pt} isotope
+data for use by \code{\link[=expand_isotope_shortcodes]{expand_isotope_shortcodes()}}. Cached to RDS to avoid
+rebuilding on every run. If a WQX dictionary cache is already present, missing
+radiochemical isotope shortcodes are added without live CAS lookups.
 }
 \details{
 The lookup contains shortcode->canonical mappings (e.g. "u234" -> "Uranium-234"),

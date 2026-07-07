@@ -925,10 +925,263 @@ load_corrections <- function(cache_dir) {
   load_or_fetch_reference(cache_path, fetch_fn, "one-off corrections")
 }
 
+.isotope_element_alt_names <- function() {
+  c(
+    "cesium" = "Caesium",
+    "aluminum" = "Aluminium",
+    "sulfur" = "Sulphur"
+  )
+}
+
+.empty_isotope_lookup_tbl <- function() {
+  tibble::tibble(
+    symbol = character(),
+    mass = character(),
+    element_name = character(),
+    shortcode = character(),
+    canonical = character(),
+    dtxsid = character(),
+    source = character()
+  )
+}
+
+.empty_isotope_lookup <- function() {
+  list(
+    lookup = .empty_isotope_lookup_tbl(),
+    elem_alt_names = .isotope_element_alt_names()
+  )
+}
+
+.pt_table <- function(pt, candidates) {
+  if (is.null(pt) || is.null(names(pt))) {
+    return(NULL)
+  }
+  for (candidate in candidates) {
+    if (candidate %in% names(pt)) {
+      return(pt[[candidate]])
+    }
+  }
+  NULL
+}
+
+.first_matching_col <- function(tbl, pattern) {
+  hits <- grep(pattern, names(tbl), ignore.case = TRUE, value = TRUE)
+  if (length(hits) == 0) {
+    return(NULL)
+  }
+  hits[1]
+}
+
+.element_symbol_map <- function(pt, elem_alt_names) {
+  elements <- .pt_table(pt, c("elements", "element"))
+  if (!is.data.frame(elements) || nrow(elements) == 0) {
+    return(tibble::tibble(element_key = character(), symbol = character(), element_name = character()))
+  }
+
+  symbol_col <- .first_matching_col(elements, "^symbol$")
+  name_col <- .first_matching_col(elements, "^name$")
+  if (is.null(symbol_col) || is.null(name_col)) {
+    return(tibble::tibble(element_key = character(), symbol = character(), element_name = character()))
+  }
+
+  element_map <- tibble::tibble(
+    element_key = tolower(as.character(elements[[name_col]])),
+    symbol = as.character(elements[[symbol_col]]),
+    element_name = as.character(elements[[name_col]])
+  )
+
+  alt_rows <- purrr::map_dfr(names(elem_alt_names), function(alt_name) {
+    canonical_key <- tolower(unname(elem_alt_names[[alt_name]]))
+    match_idx <- match(canonical_key, element_map$element_key)
+    if (is.na(match_idx)) {
+      return(tibble::tibble(element_key = character(), symbol = character(), element_name = character()))
+    }
+    tibble::tibble(
+      element_key = alt_name,
+      symbol = element_map$symbol[match_idx],
+      element_name = element_map$element_name[match_idx]
+    )
+  })
+
+  dplyr::bind_rows(element_map, alt_rows) |>
+    dplyr::filter(!is.na(element_key), nzchar(element_key), !is.na(symbol), nzchar(symbol)) |>
+    dplyr::distinct(element_key, .keep_all = TRUE)
+}
+
+.build_comptox_isotope_rows <- function(pt) {
+  isotopes <- .pt_table(pt, c("isotope", "isotopes"))
+  if (!is.data.frame(isotopes) || nrow(isotopes) == 0) {
+    warning("ComptoxR isotope table is unavailable or empty - isotope lookup will be empty", call. = FALSE)
+    return(.empty_isotope_lookup_tbl())
+  }
+
+  symbol_col <- .first_matching_col(isotopes, "^element$")
+  mass_col <- .first_matching_col(isotopes, "^z$")
+  name_col <- .first_matching_col(isotopes, "^name$")
+  dtxsid_col <- .first_matching_col(isotopes, "^dtxsid$")
+
+  if (is.null(symbol_col) || is.null(mass_col) || is.null(name_col)) {
+    warning("ComptoxR isotope table has unexpected columns - isotope lookup will be empty", call. = FALSE)
+    return(.empty_isotope_lookup_tbl())
+  }
+
+  lookup <- tibble::tibble(
+    symbol = as.character(isotopes[[symbol_col]]),
+    mass = as.character(isotopes[[mass_col]]),
+    element_name = as.character(isotopes[[name_col]]),
+    dtxsid = if (!is.null(dtxsid_col)) as.character(isotopes[[dtxsid_col]]) else NA_character_
+  ) |>
+    dplyr::mutate(
+      shortcode = tolower(paste0(symbol, mass)),
+      canonical = paste0(element_name, "-", mass),
+      source = "comptox_pt"
+    ) |>
+    dplyr::filter(
+      !is.na(symbol), nzchar(symbol),
+      !is.na(mass), nzchar(mass),
+      !is.na(element_name), nzchar(element_name)
+    ) |>
+    dplyr::distinct(shortcode, .keep_all = TRUE) |>
+    dplyr::select(symbol, mass, element_name, shortcode, canonical, dtxsid, source)
+
+  lookup
+}
+
+.resolve_wqx_isotope_dtxsids <- function(wqx_rows) {
+  if (nrow(wqx_rows) == 0 || !"cas_number" %in% names(wqx_rows)) {
+    return(wqx_rows)
+  }
+
+  cas_values <- unique(stats::na.omit(wqx_rows$cas_number))
+  cas_values <- cas_values[nzchar(cas_values)]
+  if (length(cas_values) == 0) {
+    return(wqx_rows)
+  }
+
+  cas_lookup <- tryCatch(
+    validate_and_lookup_cas(cas_values),
+    error = function(e) {
+      message(sprintf("WQX isotope CAS lookup failed: %s", e$message))
+      NULL
+    }
+  )
+  if (is.null(cas_lookup) || nrow(cas_lookup) == 0 || !"dtxsid" %in% names(cas_lookup)) {
+    return(wqx_rows)
+  }
+
+  key_col <- if ("validated_cas" %in% names(cas_lookup)) "validated_cas" else "original_cas"
+  cas_map <- stats::setNames(cas_lookup$dtxsid, cas_lookup[[key_col]])
+  row_keys <- as_cas(wqx_rows$cas_number)
+  matched <- unname(cas_map[row_keys])
+  wqx_rows$dtxsid <- dplyr::coalesce(matched, wqx_rows$dtxsid)
+  wqx_rows
+}
+
+.build_wqx_isotope_rows <- function(wqx_dictionary, pt, existing_shortcodes = character(), resolve_cas = FALSE) {
+  if (is.null(wqx_dictionary) || !is.data.frame(wqx_dictionary) || nrow(wqx_dictionary) == 0) {
+    return(.empty_isotope_lookup_tbl())
+  }
+
+  required_cols <- c("name", "canonical_name", "type", "cas_number", "group_name")
+  if (!all(required_cols %in% names(wqx_dictionary))) {
+    return(.empty_isotope_lookup_tbl())
+  }
+
+  elem_alt_names <- .isotope_element_alt_names()
+  element_map <- .element_symbol_map(pt, elem_alt_names)
+  if (nrow(element_map) == 0) {
+    return(.empty_isotope_lookup_tbl())
+  }
+
+  canonical <- wqx_dictionary |>
+    dplyr::filter(
+      type == "canonical",
+      !is.na(name),
+      !is.na(canonical_name),
+      name == canonical_name,
+      !is.na(group_name),
+      group_name == "Radiochemical"
+    )
+
+  if (nrow(canonical) == 0) {
+    return(.empty_isotope_lookup_tbl())
+  }
+
+  isotope_parts <- stringr::str_match(canonical$canonical_name, "^([[:alpha:]][[:alpha:] ]*)-([0-9]+[[:alpha:]]*)$")
+  isotope_idx <- which(!is.na(isotope_parts[, 1]))
+  if (length(isotope_idx) == 0) {
+    return(.empty_isotope_lookup_tbl())
+  }
+
+  parsed <- tibble::tibble(
+    element_key = tolower(trimws(isotope_parts[isotope_idx, 2])),
+    mass = isotope_parts[isotope_idx, 3],
+    cas_number = canonical$cas_number[isotope_idx]
+  ) |>
+    dplyr::left_join(element_map, by = "element_key") |>
+    dplyr::filter(!is.na(symbol), nzchar(symbol)) |>
+    dplyr::mutate(
+      shortcode = tolower(paste0(symbol, mass)),
+      canonical = paste0(element_name, "-", mass),
+      dtxsid = NA_character_,
+      source = "wqx_radiochemical"
+    ) |>
+    dplyr::filter(!shortcode %in% existing_shortcodes) |>
+    dplyr::distinct(shortcode, .keep_all = TRUE)
+
+  if (nrow(parsed) == 0) {
+    return(.empty_isotope_lookup_tbl())
+  }
+
+  if (isTRUE(resolve_cas)) {
+    parsed <- .resolve_wqx_isotope_dtxsids(parsed)
+  }
+
+  parsed |>
+    dplyr::select(symbol, mass, element_name, shortcode, canonical, dtxsid, source)
+}
+
+.read_cached_wqx_dictionary <- function(cache_dir) {
+  cache_path <- file.path(cache_dir, "wqx_dictionary.rds")
+  if (!file.exists(cache_path)) {
+    return(NULL)
+  }
+  readRDS(cache_path)
+}
+
+.build_isotope_lookup <- function(pt = NULL, wqx_dictionary = NULL, resolve_wqx_cas = FALSE) {
+  if (is.null(pt)) {
+    if (!requireNamespace("ComptoxR", quietly = TRUE)) {
+      warning("ComptoxR not available - isotope lookup will be empty", call. = FALSE)
+      return(.empty_isotope_lookup())
+    }
+    pt <- ComptoxR::pt
+  }
+
+  pt_lookup <- .build_comptox_isotope_rows(pt)
+  wqx_lookup <- .build_wqx_isotope_rows(
+    wqx_dictionary,
+    pt,
+    existing_shortcodes = pt_lookup$shortcode,
+    resolve_cas = resolve_wqx_cas
+  )
+
+  lookup <- dplyr::bind_rows(pt_lookup, wqx_lookup) |>
+    dplyr::distinct(shortcode, .keep_all = TRUE) |>
+    dplyr::arrange(dplyr::desc(nchar(symbol)), symbol, mass)
+
+  list(
+    lookup = lookup,
+    elem_alt_names = .isotope_element_alt_names()
+  )
+}
+
 #' Load isotope lookup table
 #'
-#' Builds a pre-processed lookup table from ComptoxR::pt$isotope for use by
-#' expand_isotope_shortcodes(). Cached to RDS to avoid rebuilding on every run.
+#' Builds a pre-processed lookup table from the active `ComptoxR::pt` isotope
+#' data for use by [expand_isotope_shortcodes()]. Cached to RDS to avoid
+#' rebuilding on every run. If a WQX dictionary cache is already present, missing
+#' radiochemical isotope shortcodes are added without live CAS lookups.
 #'
 #' The lookup contains shortcode->canonical mappings (e.g. "u234" -> "Uranium-234"),
 #' element name->canonical mappings for spelled-out normalization, and alternate
@@ -941,49 +1194,47 @@ load_isotope_lookup <- function(cache_dir) {
   cache_path <- file.path(cache_dir, "isotope_lookup.rds")
 
   fetch_fn <- function() {
-    if (!requireNamespace("ComptoxR", quietly = TRUE)) {
-      warning("ComptoxR not available - isotope lookup will be empty")
-      return(list(
-        lookup = tibble::tibble(
-          symbol = character(),
-          mass = character(),
-          element_name = character(),
-          shortcode = character(),
-          canonical = character(),
-          dtxsid = character()
-        ),
-        elem_alt_names = character()
-      ))
-    }
-
-    isotopes <- ComptoxR::pt$isotope
-
-    lookup <- tibble::tibble(
-      symbol = isotopes$element,
-      mass = isotopes$Z,
-      element_name = isotopes$Name,
-      shortcode = tolower(paste0(isotopes$element, isotopes$Z)),
-      canonical = paste0(isotopes$Name, "-", isotopes$Z),
-      dtxsid = if ("DTXSID" %in% names(isotopes)) isotopes$DTXSID else NA_character_
+    .build_isotope_lookup(
+      wqx_dictionary = .read_cached_wqx_dictionary(cache_dir),
+      resolve_wqx_cas = FALSE
     )
-
-    # Remove duplicates (keep first occurrence per shortcode)
-    lookup <- lookup[!duplicated(lookup$shortcode), ]
-
-    # Sort by symbol length descending for greedy matching (Pb before P)
-    lookup <- lookup[order(-nchar(lookup$symbol)), ]
-
-    # Alternate element name spellings (American vs IUPAC)
-    elem_alt_names <- c(
-      "cesium" = "Caesium",
-      "aluminum" = "Aluminium",
-      "sulfur" = "Sulphur"
-    )
-
-    list(lookup = lookup, elem_alt_names = elem_alt_names)
   }
 
   load_or_fetch_reference(cache_path, fetch_fn, "isotope lookup")
+}
+
+#' Refresh isotope lookup cache
+#'
+#' Rebuilds `isotope_lookup.rds` from the active `ComptoxR::pt` isotope table,
+#' augments missing radiochemical isotope shortcodes from WQX canonical rows, and
+#' resolves WQX CASRNs through the existing CAS/CCD resolver when requested.
+#'
+#' @param cache_dir Directory for reference cache. Defaults to installed package path.
+#' @param wqx_dictionary Optional WQX dictionary tibble. When `NULL`, the cached
+#'   WQX dictionary is loaded or refreshed through [load_wqx_dictionary()].
+#' @param resolve_wqx_cas Logical. If `TRUE`, WQX CASRNs are resolved to DTXSIDs
+#'   during the explicit refresh.
+#' @return Invisibly returns the rebuilt isotope lookup list
+#' @export
+refresh_isotope_cache <- function(cache_dir = NULL, wqx_dictionary = NULL, resolve_wqx_cas = TRUE) {
+  if (is.null(cache_dir)) {
+    cache_dir <- resolve_reference_cache_dir()
+  }
+  cache_path <- file.path(cache_dir, "isotope_lookup.rds")
+
+  if (is.null(wqx_dictionary)) {
+    wqx_dictionary <- load_wqx_dictionary(cache_dir)
+  }
+
+  result <- .build_isotope_lookup(
+    wqx_dictionary = wqx_dictionary,
+    resolve_wqx_cas = resolve_wqx_cas
+  )
+
+  fs::dir_create(dirname(cache_path), recurse = TRUE)
+  saveRDS(result, cache_path, compress = FALSE)
+  message(sprintf("Isotope lookup refreshed: %d rows written to %s", nrow(result$lookup), cache_path))
+  invisible(result)
 }
 
 #' Add deterministic radiological activity-concentration conversions
