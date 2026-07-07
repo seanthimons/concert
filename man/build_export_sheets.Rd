@@ -19,7 +19,8 @@ build_export_sheets(
   toxval_output = NULL,
   harmonize_audit = NULL,
   site_manifest = NULL,
-  site_alias_map = NULL
+  site_alias_map = NULL,
+  script_baseline_state = NULL
 )
 }
 \arguments{
@@ -63,6 +64,11 @@ Context. When provided and non-empty, a Site Manifest sheet is included.}
 \item{site_alias_map}{Optional Dataset Context raw-label alias map. When
 provided and non-empty, a Site Alias Map sheet is included and the Site
 Manifest is rebuilt from these mappings.}
+
+\item{script_baseline_state}{Optional automated resolution state captured
+before Review Results edits. When provided, cells that differ from
+\code{resolution_state} are persisted as \code{baseline_cell} records in Session
+State so re-imported sessions can regenerate replay review overrides.}
 }
 \value{
 Named list of data frames with sheet names as keys

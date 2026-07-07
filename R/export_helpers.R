@@ -34,6 +34,10 @@
 #' @param site_alias_map Optional Dataset Context raw-label alias map. When
 #'   provided and non-empty, a Site Alias Map sheet is included and the Site
 #'   Manifest is rebuilt from these mappings.
+#' @param script_baseline_state Optional automated resolution state captured
+#'   before Review Results edits. When provided, cells that differ from
+#'   `resolution_state` are persisted as `baseline_cell` records in Session
+#'   State so re-imported sessions can regenerate replay review overrides.
 #'
 #' @return Named list of data frames with sheet names as keys
 #' @export
@@ -52,7 +56,8 @@ build_export_sheets <- function(
   toxval_output = NULL,
   harmonize_audit = NULL,
   site_manifest = NULL,
-  site_alias_map = NULL
+  site_alias_map = NULL,
+  script_baseline_state = NULL
 ) {
   # Sheet 1: Raw Data (detected table with user-facing column names)
   raw_data_sheet <- detected_data %||% raw
@@ -167,6 +172,8 @@ build_export_sheets <- function(
     "No cleaning steps recorded"
   }
 
+  baseline_diff_rows <- build_baseline_diff_rows(script_baseline_state, resolution_state)
+
   config_sheet <- tibble::tibble(
     key = c(
       "concert_export",
@@ -192,8 +199,19 @@ build_export_sheets <- function(
     )
   )
 
+  if (!is.null(baseline_diff_rows)) {
+    config_sheet <- dplyr::bind_rows(
+      config_sheet,
+      tibble::tibble(key = "baseline_cells", value = as.character(nrow(baseline_diff_rows)))
+    )
+  }
+
   # Sheet 8: Session State (internal review state + serialized summary)
-  session_state_sheet <- build_session_state_sheet(resolution_state, consensus_summary)
+  session_state_sheet <- build_session_state_sheet(
+    resolution_state,
+    consensus_summary,
+    baseline_diff_rows
+  )
 
   # Sheet 9: ToxVal Output (always present per D-09)
   toxval_output_sheet <- if (!is.null(toxval_output) && nrow(toxval_output) > 0) {
@@ -268,7 +286,44 @@ consensus_summary_value <- function(consensus_summary, key, default = 0) {
   suppressWarnings(as.numeric(value[1]))
 }
 
-build_session_state_sheet <- function(resolution_state, consensus_summary) {
+# Cells where the automated baseline differs from the final curated state, as
+# long-format records. Restoring these onto a re-imported curated state
+# reconstructs the replay baseline exactly for every column the review UI can
+# edit, without duplicating the full dataset in the export.
+build_baseline_diff_rows <- function(script_baseline_state, resolution_state) {
+  if (is.null(script_baseline_state) || nrow(script_baseline_state) != nrow(resolution_state)) {
+    return(NULL)
+  }
+
+  baseline <- init_resolution_state(script_baseline_state)
+
+  all_row_indices <- integer()
+  all_columns <- character()
+  all_values <- character()
+  for (col in names(resolution_state)) {
+    changed_idx <- which(changed_cell_mask(baseline, resolution_state, col))
+    if (length(changed_idx) == 0) {
+      next
+    }
+    baseline_values <- if (col %in% names(baseline)) {
+      as.character(baseline[[col]][changed_idx])
+    } else {
+      rep(NA_character_, length(changed_idx))
+    }
+    all_row_indices <- c(all_row_indices, changed_idx)
+    all_columns <- c(all_columns, rep(col, length(changed_idx)))
+    all_values <- c(all_values, baseline_values)
+  }
+
+  tibble::tibble(
+    record_type = rep("baseline_cell", length(all_row_indices)),
+    row_index = all_row_indices,
+    key = all_columns,
+    value = all_values
+  )
+}
+
+build_session_state_sheet <- function(resolution_state, consensus_summary, baseline_diff_rows = NULL) {
   state_cols <- c(
     ".pinned",
     ".manual_entry",
@@ -331,7 +386,11 @@ build_session_state_sheet <- function(resolution_state, consensus_summary) {
     }
   }
 
-  dplyr::bind_rows(row_state, summary_rows)
+  sheet <- dplyr::bind_rows(row_state, summary_rows)
+  if (!is.null(baseline_diff_rows) && nrow(baseline_diff_rows) > 0) {
+    sheet <- dplyr::bind_rows(sheet, baseline_diff_rows)
+  }
+  sheet
 }
 
 #' Validate Excel Size Limits
