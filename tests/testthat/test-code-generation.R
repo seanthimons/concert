@@ -85,6 +85,64 @@ test_that("generate_concert_script embeds reference snapshot and activate-all re
   expect_silent(parse(text = script))
 })
 
+test_that("compact reference snapshot literal round-trips through normalization", {
+  overrides <- tibble::tibble(
+    term = c("additive", "isomer", "na", "unknown"),
+    pattern = c("additive", "isomer", "na", "unknown"),
+    match_mode = rep("literal_word", 4),
+    source = c("legacy_review", "user", "legacy_seed", "legacy_seed"),
+    active = c(FALSE, TRUE, TRUE, TRUE),
+    notes = rep(NA_character_, 4)
+  )
+  snapshot <- list(
+    functional_categories = list(default_hash = "func-hash", overrides = empty_reference_list_tbl()),
+    stop_words = list(default_hash = "stop-hash", overrides = overrides),
+    block_patterns = list(default_hash = "block-hash", overrides = empty_reference_list_tbl()),
+    strip_terms = list(default_hash = "strip-hash", overrides = empty_reference_list_tbl())
+  )
+
+  literal <- reference_snapshot_script_literal(snapshot)
+  # Derivable columns are dropped from the emission; active compresses to a
+  # membership test on the smaller (inactive) set.
+  expect_no_match(literal, "pattern =", fixed = TRUE)
+  expect_no_match(literal, "match_mode =", fixed = TRUE)
+  expect_no_match(literal, "notes =", fixed = TRUE)
+  expect_match(literal, 'active = !(term %in% "additive")', fixed = TRUE)
+
+  evaluated <- eval(parse(text = literal))
+  for (type in names(snapshot)) {
+    reconstructed <- normalize_reference_list_tbl(evaluated[[type]]$overrides, type)
+    expect_equal(reconstructed, snapshot[[type]]$overrides, info = type)
+    expect_identical(evaluated[[type]]$default_hash, snapshot[[type]]$default_hash)
+  }
+})
+
+test_that("compact reference snapshot keeps non-derivable columns", {
+  overrides <- tibble::tibble(
+    term = c("alpha", "beta"),
+    pattern = c("alpha[0-9]", "beta"),
+    match_mode = c("regex", "literal_word"),
+    source = c("user", "user"),
+    active = c(TRUE, TRUE),
+    notes = c("custom pattern", NA_character_)
+  )
+  snapshot <- list(
+    functional_categories = list(default_hash = "f", overrides = empty_reference_list_tbl()),
+    stop_words = list(default_hash = "s", overrides = overrides),
+    block_patterns = list(default_hash = "b", overrides = empty_reference_list_tbl()),
+    strip_terms = list(default_hash = "t", overrides = empty_reference_list_tbl())
+  )
+
+  literal <- reference_snapshot_script_literal(snapshot)
+  expect_match(literal, "pattern =", fixed = TRUE)
+  expect_match(literal, "match_mode =", fixed = TRUE)
+  expect_match(literal, "notes =", fixed = TRUE)
+
+  evaluated <- eval(parse(text = literal))
+  reconstructed <- normalize_reference_list_tbl(evaluated$stop_words$overrides, "stop_words")
+  expect_equal(reconstructed, overrides)
+})
+
 test_that("generate_concert_script emits content-matched rows_update tables", {
   baseline <- init_resolution_state(tibble::tibble(
     chemical = c("Acetone", "Benzene"),
@@ -954,5 +1012,163 @@ test_that("bulk induction collapses whole-group edits to one set signature", {
   prepared <- init_review_override_columns(baseline, "row_flag")
   generated <- env$apply_review_overrides(prepared)
   expect_equal(generated$row_flag, final$row_flag)
+  expect_equal(apply_review_overrides(baseline, spec)$row_flag, final$row_flag)
+})
+
+test_that("review edits with chemical tags capture as one compound-keyed curation map", {
+  baseline <- init_resolution_state(tibble::tibble(
+    site = rep(c("Raw PW", "MBR Feed", "Distillate"), times = 3),
+    chemical = rep(c("Acetone", "Benzene", "Toluene"), each = 3),
+    cas_number = rep(c("67-64-1", "71-43-2", "108-88-3"), each = 3),
+    consensus_status = rep("suggested", 9),
+    consensus_dtxsid = rep(paste0("DTXSID", 1:3), each = 3),
+    consensus_source = rep("consensus", 9),
+    qc_tier = rep(1L, 9)
+  ))
+  final <- baseline
+  # Compound-scoped edits: every row of the compound carries the change.
+  acetone <- baseline$chemical == "Acetone"
+  benzene <- baseline$chemical == "Benzene"
+  final$consensus_status[acetone] <- "manual"
+  final$consensus_dtxsid[acetone] <- "DTXSID999"
+  final$consensus_source[acetone] <- "manual_entry"
+  final$row_flag[benzene] <- "SUSPECT"
+
+  tag_map <- list(chemical = "Name", cas_number = "CASRN")
+  spec <- build_review_overrides(baseline, final, tag_map = tag_map)
+
+  expect_true(all(spec$workflow == "review"))
+  # Two compounds x four changed columns, all keyed on chemical identity.
+  expect_equal(nrow(spec), 8L)
+  expect_true(all(vapply(
+    spec$signature,
+    function(sig) identical(names(sig), c("chemical", "cas_number")),
+    logical(1)
+  )))
+
+  fn_src <- review_overrides_function_literal(spec)
+  # Identical signature sets merge every review column into one table.
+  update_matches <- gregexpr("dplyr::rows_update(", fn_src, fixed = TRUE)[[1]]
+  expect_equal(sum(update_matches > 0), 1L)
+  expect_match(
+    fn_src,
+    "# Review Results — consensus_status, consensus_dtxsid, consensus_source, row_flag corrections (2)",
+    fixed = TRUE
+  )
+  expect_no_match(fn_src, '"Raw PW"', fixed = TRUE)
+
+  env <- new.env(parent = globalenv())
+  eval(parse(text = fn_src), envir = env)
+  prepared <- init_review_override_columns(
+    baseline,
+    intersect(attr(env$apply_review_overrides, "review_override_columns"), review_override_columns())
+  )
+  generated <- env$apply_review_overrides(prepared)
+  in_memory <- apply_review_overrides(baseline, spec)
+  for (col in unique(spec$column)) {
+    expect_equal(generated[[col]], in_memory[[col]], info = col)
+    expect_equal(generated[[col]], final[[col]], info = col)
+  }
+})
+
+test_that("compound-keyed overrides propagate to rows the user never opened", {
+  baseline <- init_resolution_state(tibble::tibble(
+    site = c("A", "B", "C"),
+    chemical = rep("Acetone", 3),
+    cas_number = rep("67-64-1", 3),
+    consensus_status = rep("suggested", 3),
+    consensus_dtxsid = rep("DTXSID1", 3),
+    consensus_source = rep("consensus", 3),
+    qc_tier = rep(1L, 3)
+  ))
+  final <- baseline
+  final$consensus_dtxsid <- rep("DTXSID999", 3)
+
+  spec <- build_review_overrides(
+    baseline,
+    final,
+    tag_map = list(chemical = "Name", cas_number = "CASRN")
+  )
+
+  expect_equal(nrow(spec), 1L)
+  # Replay against a state with extra rows of the same compound: all match.
+  wider <- baseline[c(1, 2, 3, 1), ]
+  replayed <- apply_review_overrides(wider, spec)
+  expect_equal(replayed$consensus_dtxsid, rep("DTXSID999", 4))
+})
+
+test_that("non-uniform compound edits fail the compound-scope assertion", {
+  baseline <- init_resolution_state(tibble::tibble(
+    site = c("A", "B"),
+    chemical = rep("Acetone", 2),
+    cas_number = rep("67-64-1", 2),
+    consensus_status = rep("suggested", 2),
+    consensus_dtxsid = rep("DTXSID1", 2),
+    consensus_source = rep("consensus", 2),
+    qc_tier = rep(1L, 2)
+  ))
+  final <- baseline
+  final$consensus_dtxsid[1] <- "DTXSID999"
+
+  expect_error(
+    build_review_overrides(
+      baseline,
+      final,
+      tag_map = list(chemical = "Name", cas_number = "CASRN")
+    ),
+    "not compound-scoped"
+  )
+})
+
+test_that("compound identity falls back to formula-blocked columns for blanked names", {
+  baseline <- init_resolution_state(tibble::tibble(
+    chemical = c("Acetone", NA_character_, NA_character_),
+    cas_number = c("67-64-1", NA_character_, NA_character_),
+    formula_blocked_chemical = c(NA_character_, "Bi212", "Pb212"),
+    consensus_status = c("agree", "error", "error"),
+    consensus_dtxsid = c("DTXSID1", NA_character_, NA_character_),
+    consensus_source = c("consensus", NA_character_, NA_character_),
+    qc_tier = c(1L, 4L, 4L)
+  ))
+  final <- baseline
+  final$consensus_status[2:3] <- "manual"
+  final$consensus_dtxsid[2:3] <- c("DTXSID201", "DTXSID202")
+
+  spec <- build_review_overrides(
+    baseline,
+    final,
+    tag_map = list(chemical = "Name", cas_number = "CASRN")
+  )
+
+  expect_true(all(vapply(
+    spec$signature,
+    function(sig) "formula_blocked_chemical" %in% names(sig),
+    logical(1)
+  )))
+  replayed <- apply_review_overrides(baseline, spec)
+  expect_equal(replayed$consensus_status, final$consensus_status)
+  expect_equal(replayed$consensus_dtxsid, final$consensus_dtxsid)
+})
+
+test_that("all-NA identity key columns drop from the curation map key", {
+  baseline <- init_resolution_state(tibble::tibble(
+    chemical = c("Acetone", "Benzene"),
+    cas_number = c("67-64-1", "71-43-2"),
+    formula_blocked_chemical = c(NA_character_, NA_character_),
+    consensus_status = c("agree", "agree"),
+    consensus_dtxsid = c("DTXSID1", "DTXSID2"),
+    consensus_source = c("consensus", "consensus"),
+    qc_tier = c(1L, 1L)
+  ))
+  final <- baseline
+  final$row_flag[1] <- "VERIFIED"
+
+  spec <- build_review_overrides(
+    baseline,
+    final,
+    tag_map = list(chemical = "Name", cas_number = "CASRN")
+  )
+
+  expect_equal(names(spec$signature[[1]]), c("chemical", "cas_number"))
   expect_equal(apply_review_overrides(baseline, spec)$row_flag, final$row_flag)
 })

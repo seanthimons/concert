@@ -27,3 +27,11 @@ Captures Review Results edits by comparing the automated baseline state
 against the final user-curated state. Overrides are matched by stable row
 contents, not by row position, when a replay script is generated.
 }
+\details{
+When the tag map identifies chemical columns, Review Results edits are
+captured as a single compound-scoped curation map keyed on chemical
+identity (the review table is a deduplicated unique-compound set expanded
+back out, so per-compound values are uniform by construction). Tagged
+measurement, study, and metadata edits remain row-scoped and keep
+content-signature matching.
+}
