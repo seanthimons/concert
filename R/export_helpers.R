@@ -263,6 +263,34 @@ build_export_sheets <- function(
   sheets
 }
 
+#' Write Curation Output in a Requested Format
+#'
+#' Single dispatch point for writing CONCERT export output. Keeps the
+#' "format -> writer + what content" decision in one place so the Shiny app
+#' and the headless pipeline cannot drift.
+#'
+#' @param path Destination file path.
+#' @param format One of "xlsx", "csv", or "parquet". "xlsx" writes the full
+#'   multi-sheet workbook and requires `sheets`. "csv"/"parquet" write the flat
+#'   ToxVal table and require `toxval_tibble`.
+#' @param sheets Named list of data frames from [build_export_sheets()]. Used
+#'   only when `format = "xlsx"`.
+#' @param toxval_tibble Flat 56-column ToxVal tibble from
+#'   [map_to_toxval_schema()]. Used only when `format` is "csv" or "parquet".
+#'
+#' @return The `path`, invisibly.
+#' @export
+write_curation_output <- function(path, format = c("xlsx", "csv", "parquet"), sheets = NULL, toxval_tibble = NULL) {
+  format <- match.arg(format)
+  switch(
+    format,
+    xlsx = writexl::write_xlsx(sheets, path),
+    csv = readr::write_csv(toxval_tibble, path),
+    parquet = arrow::write_parquet(toxval_tibble, path)
+  )
+  invisible(path)
+}
+
 concert_export_version <- function() {
   tryCatch(
     as.character(utils::packageVersion("concert")),

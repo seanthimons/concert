@@ -482,7 +482,7 @@ curate_headless <- function(
       )
 
       fs::dir_create(dirname(output_path), recurse = TRUE)
-      writexl::write_xlsx(sheets, output_path)
+      write_curation_output(output_path, "xlsx", sheets = sheets)
 
       message(sprintf("[headless] Output written to: %s", output_path))
     }
@@ -495,12 +495,12 @@ curate_headless <- function(
 
       if (format %in% c("parquet", "both")) {
         parquet_path <- paste0(toxval_base, "_toxval.parquet")
-        arrow::write_parquet(toxval_tibble, parquet_path)
+        write_curation_output(parquet_path, "parquet", toxval_tibble = toxval_tibble)
         message(sprintf("[headless] Parquet written: %s", basename(parquet_path)))
       }
       if (format %in% c("csv", "both")) {
         csv_path <- paste0(toxval_base, "_toxval.csv")
-        readr::write_csv(toxval_tibble, csv_path)
+        write_curation_output(csv_path, "csv", toxval_tibble = toxval_tibble)
         message(sprintf("[headless] CSV written: %s", basename(csv_path)))
       }
     }
