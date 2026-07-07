@@ -152,6 +152,98 @@ site_manifest_script_literal <- function(manifest) {
   paste(c("tibble::tibble(", col_lines, ")"), collapse = "\n")
 }
 
+# Compact reference-list snapshot literal. Replay reconstruction runs the
+# overrides through normalize_reference_list_tbl(), which rebuilds pattern
+# (from term), match_mode (type default), and notes (NA) when absent — so
+# those columns are emitted only when they differ from what the normalizer
+# would derive. `active` is emitted as a term-membership test on the smaller
+# of the active/inactive sets.
+reference_snapshot_script_literal <- function(snapshot) {
+  entries <- vapply(
+    names(snapshot),
+    function(type) {
+      entry <- snapshot[[type]]
+      paste0(
+        "  ",
+        type,
+        " = list(\n",
+        "    default_hash = ",
+        script_literal(entry$default_hash),
+        ",\n",
+        "    overrides = ",
+        reference_overrides_script_literal(entry$overrides, type),
+        "\n",
+        "  )"
+      )
+    },
+    character(1)
+  )
+  paste0("list(\n", paste(entries, collapse = ",\n"), "\n)")
+}
+
+reference_overrides_script_literal <- function(overrides, type) {
+  if (nrow(overrides) == 0) {
+    return("tibble::tibble(term = character(), source = character(), active = logical())")
+  }
+
+  compact_literal <- function(value) {
+    if (length(value) == 1L) {
+      script_literal(value)
+    } else {
+      character_vector_literal(value)
+    }
+  }
+
+  term <- as.character(overrides$term)
+  cols <- list(term = compact_literal(term))
+
+  if (!identical(as.character(overrides$pattern), term)) {
+    cols$pattern <- compact_literal(overrides$pattern)
+  }
+  default_modes <- reference_list_default_match_mode(type, term)
+  if (!identical(as.character(overrides$match_mode), default_modes)) {
+    cols$match_mode <- compact_literal(overrides$match_mode)
+  }
+
+  source <- as.character(overrides$source)
+  cols$source <- if (length(unique(source)) == 1L) {
+    script_literal(source[[1]])
+  } else {
+    compact_literal(source)
+  }
+
+  cols$active <- active_membership_literal(overrides$active, term)
+
+  if (!all(is.na(overrides$notes))) {
+    cols$notes <- compact_literal(overrides$notes)
+  }
+
+  col_lines <- paste0("      ", names(cols), " = ", unlist(cols, use.names = FALSE))
+  col_lines[-length(col_lines)] <- paste0(col_lines[-length(col_lines)], ",")
+  paste(c("tibble::tibble(", col_lines, "    )"), collapse = "\n")
+}
+
+active_membership_literal <- function(active, term) {
+  active <- as.logical(active)
+  if (anyNA(active)) {
+    return(script_literal(active))
+  }
+  if (all(active)) {
+    return("TRUE")
+  }
+  if (!any(active)) {
+    return("FALSE")
+  }
+  member_literal <- function(members) {
+    if (length(members) == 1L) script_literal(members) else character_vector_literal(members)
+  }
+  if (sum(active) <= sum(!active)) {
+    paste0("term %in% ", member_literal(term[active]))
+  } else {
+    paste0("!(term %in% ", member_literal(term[!active]), ")")
+  }
+}
+
 character_vector_literal <- function(value) {
   value <- as.character(value)
   if (length(value) == 0) {
@@ -269,7 +361,7 @@ legacy_review_overrides_to_table <- function(review_overrides) {
       next
     }
 
-    if (is.null(names(override_values)) || any(!nzchar(names(override_values)))) {
+    if (is.null(names(override_values)) || !all(nzchar(names(override_values)))) {
       stop("review_overrides contains an invalid column name.", call. = FALSE)
     }
 
@@ -459,6 +551,135 @@ induce_bulk_override_signature <- function(
   list(value = review_value_scalar(intended_value), signature = signature)
 }
 
+# Chemical identity key for compound-scoped review overrides: the tagged
+# chemical columns plus the cleaning pipeline's derived identity columns.
+# cas_extract_* columns are tagged CASRN by the pipeline, so they arrive via
+# chemical_tags; formula_extract_*/formula_blocked_* stay untagged and carry
+# identity when the source name column was blanked (e.g. radionuclides).
+compound_identity_columns <- function(df, column_workflows) {
+  chemical_cols <- workflow_columns(column_workflows, "chemical_tags")
+  if (length(chemical_cols) == 0) {
+    return(character())
+  }
+
+  derived <- c(
+    paste0("formula_extract_", chemical_cols),
+    paste0("formula_blocked_", chemical_cols)
+  )
+  candidates <- intersect(names(df), c(chemical_cols, derived))
+  candidates[vapply(df[candidates], is_stable_signature_column, logical(1))]
+}
+
+compound_override_conflict_error <- function(col, rows, key_cols) {
+  stop(
+    sprintf(
+      paste(
+        "Review override for column '%s' is not compound-scoped:",
+        "rows %s share the same chemical identity (%s) but hold different final values.",
+        "Review Results edits are expected to be uniform per compound."
+      ),
+      col,
+      paste(rows, collapse = ", "),
+      paste(key_cols, collapse = ", ")
+    ),
+    call. = FALSE
+  )
+}
+
+# Review Results edits are compound-scoped: the review table is deduplicated to
+# unique compounds and every edit expands to all rows of that compound. Capture
+# them as one curation map keyed on chemical identity instead of searching for
+# minimal row signatures. Every changed column gets an entry for every changed
+# compound (unchanged cells re-write their final value, a no-op), so all review
+# columns share one signature set and the emitter merges them into a single
+# rows_update table.
+build_compound_curation_entries <- function(baseline_state, final_state, review_cols, key_cols) {
+  masks <- lapply(review_cols, function(col) changed_cell_mask(baseline_state, final_state, col))
+  names(masks) <- review_cols
+  changed_cols <- review_cols[vapply(masks, any, logical(1))]
+
+  empty <- list(
+    workflows = character(),
+    columns = character(),
+    values = list(),
+    signatures = list()
+  )
+  if (length(changed_cols) == 0) {
+    return(empty)
+  }
+
+  changed_any <- Reduce(`|`, masks[changed_cols])
+  keys <- vctrs::vec_group_id(baseline_state[key_cols])
+  group_ids <- unique(keys[changed_any])
+  group_rows_list <- lapply(group_ids, function(id) which(keys == id))
+
+  # Compound values per changed column, with the uniformity guarantee checked:
+  # rows sharing a chemical identity must agree on every final value.
+  group_values <- vector("list", length(group_ids))
+  for (i in seq_along(group_ids)) {
+    group_rows <- group_rows_list[[i]]
+    values <- vector("list", length(changed_cols))
+    names(values) <- changed_cols
+    for (col in changed_cols) {
+      after_values <- lapply(group_rows, function(row_idx) cell_value(final_state, row_idx, col))
+      intended_value <- after_values[[1]]
+      if (!all(vapply(after_values, scalar_values_equal, logical(1), b = intended_value))) {
+        compound_override_conflict_error(col, group_rows, key_cols)
+      }
+      values[[col]] <- review_value_scalar(intended_value)
+    }
+    group_values[[i]] <- values
+  }
+
+  # Drop key columns that are NA for every changed compound when the reduced
+  # key still selects exactly the same rows.
+  na_key_cols <- key_cols[vapply(
+    key_cols,
+    function(col) {
+      all(vapply(
+        group_rows_list,
+        function(rows) isTRUE(is.na(baseline_state[[col]][rows[1]])),
+        logical(1)
+      ))
+    },
+    logical(1)
+  )]
+  for (col in na_key_cols) {
+    reduced <- setdiff(key_cols, col)
+    if (length(reduced) == 0) {
+      next
+    }
+    still_exact <- all(vapply(
+      seq_along(group_ids),
+      function(i) {
+        signature <- row_signature(baseline_state, group_rows_list[[i]][1], reduced)
+        identical(which(signature_match_mask(baseline_state, signature)), group_rows_list[[i]])
+      },
+      logical(1)
+    ))
+    if (still_exact) {
+      key_cols <- reduced
+    }
+  }
+
+  n_entries <- length(group_ids) * length(changed_cols)
+  workflows <- rep("review", n_entries)
+  columns <- character(n_entries)
+  values <- vector("list", n_entries)
+  signatures <- vector("list", n_entries)
+  entry <- 0L
+  for (col in changed_cols) {
+    for (i in seq_along(group_ids)) {
+      entry <- entry + 1L
+      columns[entry] <- col
+      values[[entry]] <- group_values[[i]][[col]]
+      signatures[[entry]] <- row_signature(baseline_state, group_rows_list[[i]][1], key_cols)
+    }
+  }
+
+  list(workflows = workflows, columns = columns, values = values, signatures = signatures)
+}
+
 new_review_override_spec <- function(columns, values, signatures, signature_columns, workflows = NULL) {
   if (is.null(workflows)) {
     workflows <- rep("review", length(columns))
@@ -497,15 +718,15 @@ validate_review_override_spec <- function(spec) {
   valid_workflows <- replay_workflow_order()
   if (
     length(workflows) != nrow(spec) ||
-      any(is.na(workflows)) ||
-      any(!workflows %in% valid_workflows)
+      anyNA(workflows) ||
+      !all(workflows %in% valid_workflows)
   ) {
     stop("review_overrides contains an invalid workflow.", call. = FALSE)
   }
   spec$workflow <- workflows
 
   columns <- as.character(spec$column)
-  if (length(columns) != nrow(spec) || any(is.na(columns)) || any(!nzchar(columns))) {
+  if (length(columns) != nrow(spec) || anyNA(columns) || !all(nzchar(columns))) {
     stop("review_overrides contains an invalid column name.", call. = FALSE)
   }
 
@@ -558,6 +779,13 @@ ambiguous_review_override_error <- function(col, rows, stable_cols) {
 #' against the final user-curated state. Overrides are matched by stable row
 #' contents, not by row position, when a replay script is generated.
 #'
+#' When the tag map identifies chemical columns, Review Results edits are
+#' captured as a single compound-scoped curation map keyed on chemical
+#' identity (the review table is a deduplicated unique-compound set expanded
+#' back out, so per-compound values are uniform by construction). Tagged
+#' measurement, study, and metadata edits remain row-scoped and keep
+#' content-signature matching.
+#'
 #' @param baseline_state Resolution state immediately after automated curation
 #'   and postprocessing.
 #' @param final_state Resolution state after Review Results edits.
@@ -597,6 +825,26 @@ build_review_overrides <- function(baseline_state, final_state, tag_map = NULL) 
   columns <- character()
   values <- list()
   branch_signatures <- list()
+
+  # Review Results columns are compound-scoped (the review table is a
+  # deduplicated unique-compound set expanded back out), so when chemical
+  # identity columns are tagged they replace the per-row signature search
+  # with one curation map keyed on chemical identity.
+  review_targets <- names(target_workflows)[target_workflows == "review"]
+  identity_key_cols <- compound_identity_columns(baseline_state, column_workflows)
+  if (length(review_targets) > 0 && length(identity_key_cols) > 0) {
+    compound <- build_compound_curation_entries(
+      baseline_state,
+      final_state,
+      review_targets,
+      identity_key_cols
+    )
+    workflows <- c(workflows, compound$workflows)
+    columns <- c(columns, compound$columns)
+    values <- c(values, compound$values)
+    branch_signatures <- c(branch_signatures, compound$signatures)
+    target_workflows <- target_workflows[!names(target_workflows) %in% review_targets]
+  }
 
   for (col in names(target_workflows)) {
     changed_mask <- changed_cell_mask(baseline_state, final_state, col)
@@ -843,7 +1091,7 @@ apply_review_overrides <- function(resolution_state, review_overrides = NULL) {
   row_numeric <- suppressWarnings(as.numeric(overrides$row))
   if (
     length(row_idx) != nrow(overrides) ||
-      any(is.na(row_idx)) ||
+      anyNA(row_idx) ||
       any(row_numeric != row_idx, na.rm = TRUE) ||
       any(row_idx < 1L) ||
       any(row_idx > nrow(updated))
@@ -852,7 +1100,7 @@ apply_review_overrides <- function(resolution_state, review_overrides = NULL) {
   }
 
   columns <- as.character(overrides$column)
-  if (length(columns) != nrow(overrides) || any(is.na(columns)) || any(!nzchar(columns))) {
+  if (length(columns) != nrow(overrides) || anyNA(columns) || !all(nzchar(columns))) {
     stop("review_overrides contains an invalid column name.", call. = FALSE)
   }
 
@@ -1140,7 +1388,7 @@ generate_concert_script <- function(
     setup_lines <- c(
       setup_lines,
       "",
-      paste0("reference_list_snapshot <- ", script_literal(reference_list_snapshot))
+      paste0("reference_list_snapshot <- ", reference_snapshot_script_literal(reference_list_snapshot))
     )
   }
 
