@@ -59,6 +59,34 @@ test_that("classify_consensus assigns wqx status for wqx_fuzzy source tier", {
   expect_equal(result$consensus_status[1], "wqx")
 })
 
+test_that("classify_consensus promotes preferredName to consensus_name for wqx rows", {
+  # Alias case: raw input differs from the resolved WQX canonical name.
+  df <- data.frame(
+    Chemical = "DO",
+    dtxsid_Chemical = NA_character_,
+    preferredName_Chemical = "Dissolved oxygen",
+    source_tier_Chemical = "wqx_alias",
+    stringsAsFactors = FALSE
+  )
+  result <- classify_consensus(df, "dtxsid_Chemical")
+
+  expect_equal(result$consensus_status[1], "wqx")
+  expect_equal(result$consensus_name[1], "Dissolved oxygen")
+})
+
+test_that("classify_consensus leaves consensus_name NA for non-wqx rows", {
+  df <- data.frame(
+    Chemical = "Unknown",
+    dtxsid_Chemical = NA_character_,
+    preferredName_Chemical = NA_character_,
+    source_tier_Chemical = "miss",
+    stringsAsFactors = FALSE
+  )
+  result <- classify_consensus(df, "dtxsid_Chemical")
+
+  expect_true(is.na(result$consensus_name[1]))
+})
+
 test_that("classify_consensus still assigns error for non-wqx NA-DTXSID rows", {
   df <- data.frame(
     Chemical = "Unknown",
