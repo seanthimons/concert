@@ -130,13 +130,17 @@ format_tagged_row_values <- function(df, row_idx, column_tags) {
     return(character(0))
   }
 
-  values <- vapply(tagged_cols, function(col) {
-    val <- df[[col]][row_idx]
-    if (length(val) != 1 || is.na(val)) {
-      return(NA_character_)
-    }
-    paste0(col, " = '", as.character(val), "'")
-  }, character(1))
+  values <- vapply(
+    tagged_cols,
+    function(col) {
+      val <- df[[col]][row_idx]
+      if (length(val) != 1 || is.na(val)) {
+        return(NA_character_)
+      }
+      paste0(col, " = '", as.character(val), "'")
+    },
+    character(1)
+  )
 
   unname(values[!is.na(values)])
 }
@@ -190,22 +194,26 @@ derive_row_flag_html <- function(flag) {
     "VERIFIED" = "#fff"
   )
 
-  unname(vapply(flag, function(value) {
-    if (value == "") {
-      return("")
-    }
-    bg <- unname(colors[value]) %||% "#6c757d"
-    fg <- unname(text_colors[value]) %||% "#fff"
-    paste0(
-      '<span class="badge row-flag-chip" style="background:',
-      bg,
-      ";color:",
-      fg,
-      ';font-size:0.8em;">',
-      htmltools::htmlEscape(value),
-      "</span>"
-    )
-  }, character(1)))
+  unname(vapply(
+    flag,
+    function(value) {
+      if (value == "") {
+        return("")
+      }
+      bg <- unname(colors[value]) %||% "#6c757d"
+      fg <- unname(text_colors[value]) %||% "#fff"
+      paste0(
+        '<span class="badge row-flag-chip" style="background:',
+        bg,
+        ";color:",
+        fg,
+        ';font-size:0.8em;">',
+        htmltools::htmlEscape(value),
+        "</span>"
+      )
+    },
+    character(1)
+  ))
 }
 
 row_flag_filter_choices <- function(flags) {
@@ -245,7 +253,8 @@ is_unassigned_untagged_review_row <- function(df) {
     rep(NA_character_, n)
   }
 
-  status %in% c("disagree", "suggested", "error", "unresolvable") &
+  status %in%
+    c("disagree", "suggested", "error", "unresolvable") &
     review_blank_or_missing(df[["consensus_dtxsid"]], n) &
     review_blank_or_missing(df[["row_flag"]], n) &
     review_blank_or_missing(df[["qc_flag"]], n) &
@@ -255,9 +264,10 @@ is_unassigned_untagged_review_row <- function(df) {
 }
 
 filter_review_rows <- function(
-    df,
-    error_filter_active = FALSE,
-    unassigned_untagged_filter_active = FALSE) {
+  df,
+  error_filter_active = FALSE,
+  unassigned_untagged_filter_active = FALSE
+) {
   status <- if ("consensus_status" %in% names(df)) {
     as.character(df$consensus_status)
   } else {
@@ -614,9 +624,13 @@ normalize_review_override_queue <- function(queue) {
     )
   }
 
-  names(entries) <- vapply(entries, function(entry) {
-    paste0(entry$override_type, ":", entry$row)
-  }, character(1))
+  names(entries) <- vapply(
+    entries,
+    function(entry) {
+      paste0(entry$override_type, ":", entry$row)
+    },
+    character(1)
+  )
   entries
 }
 
@@ -624,14 +638,21 @@ queue_review_override <- function(queue, row, group_rows, override_type, value) 
   entry <- new_review_override_entry(row, group_rows, override_type, value)
   entries <- normalize_review_override_queue(queue)
 
-  entries <- Filter(function(existing) {
-    length(intersect(existing$group_rows, entry$group_rows)) == 0
-  }, entries)
+  entries <- Filter(
+    function(existing) {
+      length(intersect(existing$group_rows, entry$group_rows)) == 0
+    },
+    entries
+  )
 
   entries[[length(entries) + 1L]] <- entry
-  names(entries) <- vapply(entries, function(item) {
-    paste0(item$override_type, ":", item$row)
-  }, character(1))
+  names(entries) <- vapply(
+    entries,
+    function(item) {
+      paste0(item$override_type, ":", item$row)
+    },
+    character(1)
+  )
   entries
 }
 
@@ -718,7 +739,10 @@ apply_queued_review_overrides <- function(resolution_state, queue, validation_re
 
     if (identical(entry$override_type, "dtxsid")) {
       val_row <- NULL
-      if (!is.null(validation_results) && all(c("searchValue", "dtxsid", "preferredName", "is_valid") %in% names(validation_results))) {
+      if (
+        !is.null(validation_results) &&
+          all(c("searchValue", "dtxsid", "preferredName", "is_valid") %in% names(validation_results))
+      ) {
         val_row <- validation_results[as.character(validation_results$searchValue) == entry$value, , drop = FALSE]
       }
 
@@ -936,7 +960,12 @@ related_parent_cards <- function(parents) {
         ),
         div(
           class = "row small mt-2",
-          div(class = "col-4", tags$strong("CASRN"), tags$br(), if (!is.na(parent$casrn[[1]])) parent$casrn[[1]] else "N/A"),
+          div(
+            class = "col-4",
+            tags$strong("CASRN"),
+            tags$br(),
+            if (!is.na(parent$casrn[[1]])) parent$casrn[[1]] else "N/A"
+          ),
           div(
             class = "col-4",
             tags$strong("Formula"),
@@ -952,7 +981,12 @@ related_parent_cards <- function(parents) {
         ),
         div(
           class = "row small mt-2",
-          div(class = "col-4", tags$strong("Rank"), tags$br(), if (!is.na(parent$rank[[1]])) parent$rank[[1]] else "N/A"),
+          div(
+            class = "col-4",
+            tags$strong("Rank"),
+            tags$br(),
+            if (!is.na(parent$rank[[1]])) parent$rank[[1]] else "N/A"
+          ),
           div(class = "col-8", tags$strong("Supporting DTXSIDs"), tags$br(), source_dtxsids)
         )
       )
@@ -1255,16 +1289,36 @@ mod_review_results_ui <- function(id) {
 
   tagList(
     tags$style(HTML(paste0(
-      "#", ns("review_results_ui"), " .review-action-toolbar { align-items: center; }",
-      "#", ns("review_results_ui"), " .review-action-toolbar .shiny-input-container, ",
-      "#", ns("review_results_ui"), " .review-table-toolbar .shiny-input-container { margin-bottom: 0; }",
-      "#", ns("review_results_ui"), " .review-table-toolbar { align-items: center; }",
-      "#", ns("review_results_ui"), " .review-column-select { width: 180px; }",
-      "#", ns("review_results_ui"), " .review-column-dropdown .dropdown-toggle { min-width: 160px; }",
-      "#", ns("review_results_ui"), " .review-column-dropdown .dropdown-menu { min-width: 300px; max-height: 340px; overflow-y: auto; }",
-      "#", ns("review_results_ui"), " .review-column-dropdown .shiny-input-container { margin-bottom: 0; width: 100%; }",
-      "#", ns("review_results_ui"), " .review-column-dropdown .form-check, ",
-      "#", ns("review_results_ui"), " .review-column-dropdown .checkbox { margin-bottom: 0.25rem; }"
+      "#",
+      ns("review_results_ui"),
+      " .review-action-toolbar { align-items: center; }",
+      "#",
+      ns("review_results_ui"),
+      " .review-action-toolbar .shiny-input-container, ",
+      "#",
+      ns("review_results_ui"),
+      " .review-table-toolbar .shiny-input-container { margin-bottom: 0; }",
+      "#",
+      ns("review_results_ui"),
+      " .review-table-toolbar { align-items: center; }",
+      "#",
+      ns("review_results_ui"),
+      " .review-column-select { width: 180px; }",
+      "#",
+      ns("review_results_ui"),
+      " .review-column-dropdown .dropdown-toggle { min-width: 160px; }",
+      "#",
+      ns("review_results_ui"),
+      " .review-column-dropdown .dropdown-menu { min-width: 300px; max-height: 340px; overflow-y: auto; }",
+      "#",
+      ns("review_results_ui"),
+      " .review-column-dropdown .shiny-input-container { margin-bottom: 0; width: 100%; }",
+      "#",
+      ns("review_results_ui"),
+      " .review-column-dropdown .form-check, ",
+      "#",
+      ns("review_results_ui"),
+      " .review-column-dropdown .checkbox { margin-bottom: 0.25rem; }"
     ))),
     filter_persist_js,
     resolution_js,
@@ -1778,15 +1832,19 @@ mod_review_results_server <- function(id, data_store) {
       paste0("(", length(visible_cols), ")")
     })
 
-    observeEvent(input$visible_cols, {
-      req(data_store$resolution_state, data_store$column_tags, data_store$clean)
+    observeEvent(
+      input$visible_cols,
+      {
+        req(data_store$resolution_state, data_store$column_tags, data_store$clean)
 
-      df_names <- derive_review_display_column_names(names(data_store$resolution_state), data_store$qc_results)
-      upload_col_names <- names(data_store$clean)
-      internal_hidden <- review_internal_hidden_cols(df_names, data_store$dtxsid_cols %||% character(0))
-      choices <- derive_review_column_choices(upload_col_names, df_names, internal_hidden)
-      data_store$review_visible_cols <- intersect(clean_column_names(input$visible_cols), choices)
-    }, ignoreNULL = TRUE)
+        df_names <- derive_review_display_column_names(names(data_store$resolution_state), data_store$qc_results)
+        upload_col_names <- names(data_store$clean)
+        internal_hidden <- review_internal_hidden_cols(df_names, data_store$dtxsid_cols %||% character(0))
+        choices <- derive_review_column_choices(upload_col_names, df_names, internal_hidden)
+        data_store$review_visible_cols <- intersect(clean_column_names(input$visible_cols), choices)
+      },
+      ignoreNULL = TRUE
+    )
 
     # Copy done notification
     observeEvent(input$copy_done, {
@@ -1866,7 +1924,10 @@ mod_review_results_server <- function(id, data_store) {
         names(df_display),
         internal_hidden
       )
-      hidden_cols <- setdiff(unique(c(internal_hidden, hidden_by_visibility)), review_required_visible_cols(names(df_display)))
+      hidden_cols <- setdiff(
+        unique(c(internal_hidden, hidden_by_visibility)),
+        review_required_visible_cols(names(df_display))
+      )
 
       col_defs <- list()
 
@@ -1945,9 +2006,13 @@ mod_review_results_server <- function(id, data_store) {
             ),
             style = "width:100%;font-size:0.85em;padding:2px;",
             htmltools::tags$option(value = "", "All"),
-            Map(function(value, label) {
-              htmltools::tags$option(value = unname(value), label)
-            }, choices, choice_labels)
+            Map(
+              function(value, label) {
+                htmltools::tags$option(value = unname(value), label)
+              },
+              choices,
+              choice_labels
+            )
           )
         }
       }
@@ -2669,36 +2734,40 @@ mod_review_results_server <- function(id, data_store) {
       update_wqx_override_selectize()
     })
 
-    observeEvent(input$modal_apply_row_flag, {
-      row_idx <- data_store$modal_row_idx
-      if (is.null(row_idx)) {
-        return()
-      }
-
-      tryCatch(
-        {
-          group_rows <- get_group_rows(row_idx, isolate(data_store$dedup_group_map))
-          updated_df <- set_row_flags(
-            data_store$resolution_state,
-            group_rows,
-            input$modal_row_flag,
-            reason = input$modal_row_flag_reason
-          )
-          data_store$resolution_state <- updated_df
-
-          flag <- normalize_row_flag(input$modal_row_flag)
-          msg <- if (is.na(flag)) {
-            sprintf("%d row(s) cleared", length(group_rows))
-          } else {
-            sprintf("%d row(s) flagged %s", length(group_rows), flag)
-          }
-          showNotification(msg, type = "message", duration = 2)
-        },
-        error = function(e) {
-          notify_user(paste0("Error setting row flag: ", e$message), type = "error")
+    observeEvent(
+      input$modal_apply_row_flag,
+      {
+        row_idx <- data_store$modal_row_idx
+        if (is.null(row_idx)) {
+          return()
         }
-      )
-    }, ignoreInit = TRUE)
+
+        tryCatch(
+          {
+            group_rows <- get_group_rows(row_idx, isolate(data_store$dedup_group_map))
+            updated_df <- set_row_flags(
+              data_store$resolution_state,
+              group_rows,
+              input$modal_row_flag,
+              reason = input$modal_row_flag_reason
+            )
+            data_store$resolution_state <- updated_df
+
+            flag <- normalize_row_flag(input$modal_row_flag)
+            msg <- if (is.na(flag)) {
+              sprintf("%d row(s) cleared", length(group_rows))
+            } else {
+              sprintf("%d row(s) flagged %s", length(group_rows), flag)
+            }
+            showNotification(msg, type = "message", duration = 2)
+          },
+          error = function(e) {
+            notify_user(paste0("Error setting row flag: ", e$message), type = "error")
+          }
+        )
+      },
+      ignoreInit = TRUE
+    )
 
     # Handle modal candidate selection
     observeEvent(input$modal_candidate_select, {
