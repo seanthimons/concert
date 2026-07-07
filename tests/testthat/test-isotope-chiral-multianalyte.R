@@ -182,6 +182,28 @@ test_that("expand_isotope_shortcodes normalizes 'iodine 131' to Iodine-131", {
   expect_equal(result$cleaned_data$chemical_name[1], "Iodine-131")
 })
 
+test_that("expand_isotope_shortcodes normalizes Bi-212 variants with DTXSID", {
+  isotope_lookup <- list(
+    lookup = tibble::tibble(
+      symbol = "Bi",
+      mass = "212",
+      element_name = "Bismuth",
+      shortcode = "bi212",
+      canonical = "Bismuth-212",
+      dtxsid = "DTXSID901016091",
+      source = "wqx_radiochemical"
+    ),
+    elem_alt_names = character()
+  )
+  df <- tibble::tibble(chemical_name = c("Bi212", "bi212", "Bi-212"))
+
+  result <- expand_isotope_shortcodes(df, c("chemical_name"), isotope_lookup)
+
+  expect_equal(result$cleaned_data$chemical_name, rep("Bismuth-212", 3))
+  expect_true(all(grepl("isotope_match", result$cleaned_data$cleaning_flag)))
+  expect_equal(result$cleaned_data$isotope_dtxsid, rep("DTXSID901016091", 3))
+})
+
 test_that("expand_isotope_shortcodes does NOT expand C12H22O11 (carbon backbone exclusion, ISOT-03)", {
   df <- tibble::tibble(chemical_name = c("C12H22O11"))
   result <- expand_isotope_shortcodes(df, c("chemical_name"))

@@ -191,3 +191,30 @@ test_that("detect_bare_formulas still correctly identifies true bare formulas af
   expect_equal(result$cleaned_data$cleaning_flag[3], "BLOCK: bare formula")
   expect_equal(result$cleaned_data$cleaning_flag[4], "BLOCK: bare formula")
 })
+
+test_that("detect_bare_formulas preserves known isotope shortcodes when lookup is available", {
+  isotope_lookup <- list(
+    lookup = tibble::tibble(
+      symbol = "Bi",
+      mass = "212",
+      element_name = "Bismuth",
+      shortcode = "bi212",
+      canonical = "Bismuth-212",
+      dtxsid = "DTXSID901016091",
+      source = "wqx_radiochemical"
+    ),
+    elem_alt_names = character()
+  )
+  df <- tibble::tibble(
+    chemical_name = c("Bi212", "C10H22", "NaCl")
+  )
+
+  result <- detect_bare_formulas(df, c("chemical_name"), isotope_lookup)
+
+  expect_equal(result$cleaned_data$chemical_name[1], "Bi212")
+  expect_true(is.na(result$cleaned_data$cleaning_flag[1]))
+  expect_true(is.na(result$cleaned_data$chemical_name[2]))
+  expect_true(is.na(result$cleaned_data$chemical_name[3]))
+  expect_equal(result$cleaned_data$cleaning_flag[2], "BLOCK: bare formula")
+  expect_equal(result$cleaned_data$cleaning_flag[3], "BLOCK: bare formula")
+})

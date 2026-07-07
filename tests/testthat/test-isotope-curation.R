@@ -1,16 +1,141 @@
-test_that("requested radiochemical isotopes are present in isotope lookup", {
-  isotope_lookup <- load_isotope_lookup(resolve_reference_cache_dir())
+mock_isotope_pt <- function(include_bi212 = FALSE) {
+  isotopes <- tibble::tibble(
+    element = "K",
+    Z = "40",
+    Name = "Potassium",
+    DTXSID = "DTXSID10904161"
+  )
 
-  requested <- c("Potassium-40", "Lead-212", "Thallium-208")
-  missing <- setdiff(requested, isotope_lookup$lookup$canonical)
-  if (length(missing) > 0) {
-    warning(
-      sprintf("ComptoxR isotope table is missing requested isotopes: %s", paste(missing, collapse = ", ")),
-      call. = FALSE
+  if (isTRUE(include_bi212)) {
+    isotopes <- dplyr::bind_rows(
+      isotopes,
+      tibble::tibble(
+        element = "Bi",
+        Z = "212",
+        Name = "Bismuth",
+        DTXSID = "DTXSID_PT_BI212"
+      )
     )
   }
 
-  expect_true("Potassium-40" %in% isotope_lookup$lookup$canonical)
+  list(
+    isotopes = isotopes,
+    elements = tibble::tibble(
+      Symbol = c("K", "Bi", "Pb", "Tl"),
+      Name = c("Potassium", "Bismuth", "Lead", "Thallium")
+    )
+  )
+}
+
+mock_wqx_bi212 <- function() {
+  tibble::tibble(
+    name = "Bismuth-212",
+    canonical_name = "Bismuth-212",
+    type = "canonical",
+    cas_number = "14913-49-6",
+    group_name = "Radiochemical",
+    description = NA_character_
+  )
+}
+
+test_that("requested radiochemical isotopes are present in isotope lookup", {
+  isotope_lookup <- load_isotope_lookup(resolve_reference_cache_dir())
+
+  requested <- c("Potassium-40", "Lead-212", "Thallium-208", "Bismuth-212")
+  missing <- setdiff(requested, isotope_lookup$lookup$canonical)
+
+  expect_equal(missing, character(0))
+  expect_equal(
+    isotope_lookup$lookup$dtxsid[match("Bismuth-212", isotope_lookup$lookup$canonical)],
+    "DTXSID901016091"
+  )
+})
+
+test_that("isotope lookup adds missing WQX radiochemical rows with CCD DTXSID", {
+  testthat::local_mocked_bindings(
+    validate_and_lookup_cas = function(unique_cas) {
+      expect_equal(unique_cas, "14913-49-6")
+      tibble::tibble(
+        original_cas = unique_cas,
+        validated_cas = unique_cas,
+        is_valid = TRUE,
+        dtxsid = "DTXSID901016091",
+        preferredName = "Bismuth-212",
+        rank = 1L
+      )
+    },
+    .package = "concert"
+  )
+
+  isotope_lookup <- .build_isotope_lookup(
+    pt = mock_isotope_pt(include_bi212 = FALSE),
+    wqx_dictionary = mock_wqx_bi212(),
+    resolve_wqx_cas = TRUE
+  )
+
+  bi212 <- isotope_lookup$lookup[isotope_lookup$lookup$shortcode == "bi212", ]
+
+  expect_equal(nrow(bi212), 1L)
+  expect_equal(bi212$canonical, "Bismuth-212")
+  expect_equal(bi212$dtxsid, "DTXSID901016091")
+  expect_equal(bi212$source, "wqx_radiochemical")
+})
+
+test_that("Comptox PT isotope rows take precedence over WQX rows", {
+  validate_called <- FALSE
+  testthat::local_mocked_bindings(
+    validate_and_lookup_cas = function(unique_cas) {
+      validate_called <<- TRUE
+      tibble::tibble()
+    },
+    .package = "concert"
+  )
+
+  isotope_lookup <- .build_isotope_lookup(
+    pt = mock_isotope_pt(include_bi212 = TRUE),
+    wqx_dictionary = mock_wqx_bi212(),
+    resolve_wqx_cas = TRUE
+  )
+
+  bi212 <- isotope_lookup$lookup[isotope_lookup$lookup$shortcode == "bi212", ]
+
+  expect_equal(nrow(bi212), 1L)
+  expect_equal(bi212$canonical, "Bismuth-212")
+  expect_equal(bi212$dtxsid, "DTXSID_PT_BI212")
+  expect_equal(bi212$source, "comptox_pt")
+  expect_false(validate_called)
+})
+
+test_that("refresh_isotope_cache writes rebuilt lookup", {
+  withr::with_tempdir({
+    built <- list(
+      lookup = tibble::tibble(
+        symbol = "Bi",
+        mass = "212",
+        element_name = "Bismuth",
+        shortcode = "bi212",
+        canonical = "Bismuth-212",
+        dtxsid = "DTXSID901016091",
+        source = "wqx_radiochemical"
+      ),
+      elem_alt_names = character()
+    )
+
+    testthat::local_mocked_bindings(
+      .build_isotope_lookup = function(wqx_dictionary, resolve_wqx_cas) {
+        expect_equal(wqx_dictionary, mock_wqx_bi212())
+        expect_true(resolve_wqx_cas)
+        built
+      },
+      .package = "concert"
+    )
+
+    result <- refresh_isotope_cache(cache_dir = ".", wqx_dictionary = mock_wqx_bi212())
+
+    expect_true(file.exists("isotope_lookup.rds"))
+    expect_equal(readRDS("isotope_lookup.rds"), built)
+    expect_equal(result, built)
+  })
 })
 
 test_that("unresolved isotope matches remain searchable while pre-resolved isotopes are skipped", {

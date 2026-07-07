@@ -441,10 +441,22 @@ precheck_isotope_shortcodes <- function(df, name_cols, isotope_lookup) {
   if (length(name_cols) == 0) {
     return(list(should_run = FALSE, est_changes = 0L))
   }
-  shortcodes <- lookup_df$shortcode
-  # Sort by length descending so longer prefixes match first (greedy)
-  shortcodes <- shortcodes[order(nchar(shortcodes), decreasing = TRUE)]
-  pattern <- paste0("\\b(", paste(stringr::str_escape(shortcodes), collapse = "|"), ")\\b")
+  if (all(c("symbol", "mass") %in% names(lookup_df))) {
+    lookup_df <- lookup_df[order(nchar(lookup_df$symbol), decreasing = TRUE), , drop = FALSE]
+    token_patterns <- paste0(
+      "(?<![0-9A-Za-z])(?i:",
+      stringr::str_escape(lookup_df$symbol),
+      ")(?:\\s*[- ]\\s*)?",
+      stringr::str_escape(lookup_df$mass),
+      "\\b(?![A-Z])"
+    )
+    pattern <- paste(token_patterns, collapse = "|")
+  } else {
+    shortcodes <- lookup_df$shortcode
+    # Sort by length descending so longer prefixes match first (greedy)
+    shortcodes <- shortcodes[order(nchar(shortcodes), decreasing = TRUE)]
+    pattern <- paste0("(?i)\\b(", paste(stringr::str_escape(shortcodes), collapse = "|"), ")\\b")
+  }
   est_changes <- as.integer(sum(vapply(
     name_cols,
     function(col) sum(stringr::str_detect(df[[col]], pattern), na.rm = TRUE),
@@ -1787,6 +1799,27 @@ bare_formula_regex <- function() {
   paste0("^(?:", element_chunk, "|", group_chunk, ")+(?:[+-]\\d*)?$")
 }
 
+known_isotope_shortcode_mask <- function(values, isotope_lookup = NULL) {
+  if (is.null(isotope_lookup)) {
+    return(rep(FALSE, length(values)))
+  }
+
+  lookup_df <- if (is.data.frame(isotope_lookup)) isotope_lookup else isotope_lookup$lookup
+  if (is.null(lookup_df) || nrow(lookup_df) == 0 || !"shortcode" %in% names(lookup_df)) {
+    return(rep(FALSE, length(values)))
+  }
+
+  shortcodes <- unique(tolower(stats::na.omit(lookup_df$shortcode)))
+  if (length(shortcodes) == 0) {
+    return(rep(FALSE, length(values)))
+  }
+
+  normalized_values <- tolower(as.character(values)) |>
+    stringr::str_remove_all("[\\s.-]+")
+
+  !is.na(normalized_values) & normalized_values %in% shortcodes
+}
+
 #' Detect bare molecular formulas
 #'
 #' Uses an element-token regex to identify bare molecular formulas (H2O, NaCl, CuSO4).
@@ -1795,13 +1828,15 @@ bare_formula_regex <- function() {
 #'
 #' @param df Dataframe with name columns
 #' @param name_cols Character vector of Name-tagged column names
+#' @param isotope_lookup Optional isotope lookup from [load_isotope_lookup()]. Known
+#'   isotope shortcodes are not blocked as bare formulas.
 #' @return List with cleaned_data and audit_trail
 #'
 #' @examples
 #' df <- tibble::tibble(chemical_name = c("H2O", "acetone", "NaCl"))
 #' detect_bare_formulas(df, c("chemical_name"))
 #' @export
-detect_bare_formulas <- function(df, name_cols) {
+detect_bare_formulas <- function(df, name_cols, isotope_lookup = NULL) {
   # Initialize result
   df_result <- df
   audit_rows <- list()
@@ -1865,6 +1900,9 @@ detect_bare_formulas <- function(df, name_cols) {
       )
       is_bare_formula[is.na(is_bare_formula)] <- FALSE
     }
+
+    known_isotope_shortcode <- known_isotope_shortcode_mask(col_values, isotope_lookup)
+    is_bare_formula[known_isotope_shortcode] <- FALSE
 
     # Get indices of bare formulas
     bare_formula_idx <- which(is_bare_formula)
@@ -2644,7 +2682,7 @@ run_cleaning_pipeline_masked <- function(
       }
 
       if (mask$bare_formula) {
-        formula_result <- detect_bare_formulas(df_work, name_cols)
+        formula_result <- detect_bare_formulas(df_work, name_cols, reference_lists$isotope_lookup)
         df_work <- formula_result$cleaned_data
         audit_parts[[length(audit_parts) + 1]] <- formula_result$audit_trail
       }
@@ -2955,26 +2993,22 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
     return(list(cleaned_data = df, audit_trail = empty_audit))
   }
 
-  # Resolve lookup: use cached, or build from ComptoxR, or bail
+  # Resolve lookup: use cached, or build from local package data.
 
   if (!is.null(isotope_lookup)) {
-    lookup <- isotope_lookup$lookup
-    ELEMENT_ALT_NAMES <- isotope_lookup$elem_alt_names
-  } else if (requireNamespace("ComptoxR", quietly = TRUE)) {
-    isotopes <- ComptoxR::pt$isotope
-    lookup <- tibble::tibble(
-      symbol = isotopes$element,
-      mass = isotopes$Z,
-      element_name = isotopes$Name,
-      shortcode = tolower(paste0(isotopes$element, isotopes$Z)),
-      canonical = paste0(isotopes$Name, "-", isotopes$Z),
-      dtxsid = if ("DTXSID" %in% names(isotopes)) isotopes$DTXSID else NA_character_
-    )
-    lookup <- lookup[!duplicated(lookup$shortcode), ]
-    lookup <- lookup[order(-nchar(lookup$symbol)), ]
-    ELEMENT_ALT_NAMES <- c("cesium" = "Caesium", "aluminum" = "Aluminium", "sulfur" = "Sulphur")
+    lookup <- if (is.data.frame(isotope_lookup)) isotope_lookup else isotope_lookup$lookup
+    ELEMENT_ALT_NAMES <- if (!is.data.frame(isotope_lookup) && "elem_alt_names" %in% names(isotope_lookup)) {
+      isotope_lookup$elem_alt_names
+    } else {
+      .isotope_element_alt_names()
+    }
   } else {
-    warning("ComptoxR not available - skipping isotope shortcode expansion")
+    built_lookup <- .build_isotope_lookup(resolve_wqx_cas = FALSE)
+    lookup <- built_lookup$lookup
+    ELEMENT_ALT_NAMES <- built_lookup$elem_alt_names
+  }
+
+  if (is.null(lookup) || nrow(lookup) == 0) {
     return(list(cleaned_data = df, audit_trail = empty_audit))
   }
 

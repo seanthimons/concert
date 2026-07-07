@@ -12,7 +12,7 @@ expand_isotope_shortcodes(df, name_cols, isotope_lookup = NULL)
 \item{name_cols}{Character vector of Name-tagged column names}
 
 \item{isotope_lookup}{Optional pre-built lookup from load_isotope_lookup().
-If NULL, falls back to building from ComptoxR::pt$isotope directly.}
+If NULL, falls back to building from local package isotope data.}
 }
 \value{
 List with cleaned_data (tibble) and audit_trail (tibble)
