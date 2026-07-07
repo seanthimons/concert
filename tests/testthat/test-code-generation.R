@@ -111,9 +111,10 @@ test_that("generate_concert_script emits content-matched rows_update tables", {
   expect_match(script, "apply_review_overrides <- function(resolution_state)", fixed = TRUE)
   expect_match(script, "state <- resolution_state", fixed = TRUE)
   expect_match(script, "# Review Results — row_flag corrections (1)", fixed = TRUE)
-  expect_match(script, "row_flag_fixes <- tibble::tibble(", fixed = TRUE)
-  expect_match(script, 'chemical = "Acetone"', fixed = TRUE)
-  expect_match(script, 'row_flag = "VERIFIED"', fixed = TRUE)
+  expect_match(script, "row_flag_fixes <- tibble::tribble(", fixed = TRUE)
+  expect_match(script, "~chemical", fixed = TRUE)
+  expect_match(script, '"Acetone"', fixed = TRUE)
+  expect_match(script, '"VERIFIED"', fixed = TRUE)
   expect_match(
     script,
     'state <- dplyr::rows_update(state, row_flag_fixes, by = "chemical", unmatched = "ignore")',
@@ -277,7 +278,7 @@ test_that("duplicate stable-content rows require identical intended edits", {
     header_row = 1L,
     review_overrides = overrides
   )
-  branch_matches <- gregexpr('row_flag = "VERIFIED"', script, fixed = TRUE)[[1]]
+  branch_matches <- gregexpr('"VERIFIED"', script, fixed = TRUE)[[1]]
   expect_equal(sum(branch_matches > 0), 1L)
 })
 
@@ -314,7 +315,7 @@ test_that("minimal row signatures add only enough columns to disambiguate near d
     'by = c("site", "chemical", "sample_id"), unmatched = "ignore"',
     fixed = TRUE
   )
-  expect_match(script, 'row_flag = "FOLLOW-UP"', fixed = TRUE)
+  expect_match(script, '"FOLLOW-UP"', fixed = TRUE)
   expect_no_match(script, "cas_number", fixed = TRUE)
 })
 
@@ -339,10 +340,10 @@ test_that("generated rows_update tables preserve typed NA values", {
     review_overrides = build_review_overrides(baseline, final)
   )
 
-  expect_match(script, "consensus_dtxsid = NA_character_", fixed = TRUE)
-  expect_match(script, "qc_tier = NA_integer_", fixed = TRUE)
-  expect_match(script, "consensus_dtxsid_fixes <- tibble::tibble(", fixed = TRUE)
-  expect_match(script, "qc_tier_fixes <- tibble::tibble(", fixed = TRUE)
+  expect_match(script, "NA_character_", fixed = TRUE)
+  expect_match(script, "NA_integer_", fixed = TRUE)
+  expect_match(script, "consensus_dtxsid_fixes <- tibble::tribble(", fixed = TRUE)
+  expect_match(script, "qc_tier_fixes <- tibble::tribble(", fixed = TRUE)
   expect_silent(parse(text = script))
 })
 
@@ -370,9 +371,9 @@ test_that("review replay predicates ignore tagged measurement columns", {
     )
   )
 
-  expect_match(script, "row_flag_fixes <- tibble::tibble(", fixed = TRUE)
-  expect_match(script, 'chemical = "Acetone"', fixed = TRUE)
-  expect_match(script, 'row_flag = "VERIFIED"', fixed = TRUE)
+  expect_match(script, "row_flag_fixes <- tibble::tribble(", fixed = TRUE)
+  expect_match(script, '"Acetone"', fixed = TRUE)
+  expect_match(script, '"VERIFIED"', fixed = TRUE)
   expect_match(
     script,
     'state <- dplyr::rows_update(state, row_flag_fixes, by = "chemical", unmatched = "ignore")',
@@ -413,9 +414,9 @@ test_that("tagged Result edits replay in a measurement workflow block", {
   )
 
   expect_match(script, "# Measurement tags — result corrections (1)", fixed = TRUE)
-  expect_match(script, "result_fixes <- tibble::tibble(", fixed = TRUE)
-  expect_match(script, 'chemical = "Acetone"', fixed = TRUE)
-  expect_match(script, 'result = "1.5"', fixed = TRUE)
+  expect_match(script, "result_fixes <- tibble::tribble(", fixed = TRUE)
+  expect_match(script, '"Acetone"', fixed = TRUE)
+  expect_match(script, '"1.5"', fixed = TRUE)
   expect_no_match(script, "row_flag", fixed = TRUE)
 })
 
@@ -473,11 +474,11 @@ test_that("mixed replay edits are grouped by workflow blocks", {
   expect_equal(sum(update_matches > 0), 4L)
   expect_match(script, "# Measurement tags — result, unit corrections (1)", fixed = TRUE)
   expect_match(script, "# Review Results — row_flag corrections (1)", fixed = TRUE)
-  expect_match(script, 'row_flag = "FOLLOW-UP"', fixed = TRUE)
-  expect_match(script, 'result = "1.5"', fixed = TRUE)
-  expect_match(script, 'unit = "ug/L"', fixed = TRUE)
-  expect_match(script, 'media = "surface water"', fixed = TRUE)
-  expect_match(script, 'species = "Daphnia magna"', fixed = TRUE)
+  expect_match(script, '"FOLLOW-UP"', fixed = TRUE)
+  expect_match(script, '"1.5"', fixed = TRUE)
+  expect_match(script, '"ug/L"', fixed = TRUE)
+  expect_match(script, '"surface water"', fixed = TRUE)
+  expect_match(script, '"Daphnia magna"', fixed = TRUE)
   # Review Results section renders before the chemical-identity-keyed workflows.
   expect_lt(
     regexpr("row_flag_fixes", script, fixed = TRUE),
@@ -539,8 +540,8 @@ test_that("stable context disambiguates tagged measurement edits without Result 
     review_overrides = overrides
   )
 
-  expect_match(script, 'chemical = "Acetone"', fixed = TRUE)
-  expect_match(script, 'sample_id = "S1"', fixed = TRUE)
+  expect_match(script, '"Acetone"', fixed = TRUE)
+  expect_match(script, '"S1"', fixed = TRUE)
   expect_match(
     script,
     'by = c("chemical", "sample_id"), unmatched = "ignore"',
@@ -766,8 +767,12 @@ test_that("large replay sessions emit deterministic, parseable grouped tables", 
   )
 
   expect_silent(parse(text = script))
-  expect_match(script, "# Measurement tags — result, unit corrections (120)", fixed = TRUE)
-  expect_match(script, "result_fixes <- tibble::tibble(", fixed = TRUE)
+  expect_match(script, "# Measurement tags — result corrections (120)", fixed = TRUE)
+  expect_match(script, "result_fixes <- tibble::tribble(", fixed = TRUE)
+  # unit is a constant-value bulk edit: induced to a %in% mask, no table.
+  expect_match(script, "# Measurement tags — unit corrections (120)", fixed = TRUE)
+  expect_match(script, "matched <- state$chemical %in% c(", fixed = TRUE)
+  expect_match(script, 'state$unit[matched] <- "ug/L"', fixed = TRUE)
   expect_no_match(script, "unit_fixes", fixed = TRUE)
 
   script2 <- generate_concert_script(
@@ -858,4 +863,96 @@ test_that("same-signature multi-column edits merge into one rows_update table", 
     expect_equal(generated[[col]], in_memory[[col]], info = col)
     expect_equal(generated[[col]], final[[col]], info = col)
   }
+})
+
+test_that("single-key constant-value bulk edits emit a vectorized %in% assignment", {
+  n <- 30L
+  baseline <- init_resolution_state(tibble::tibble(
+    chemical = paste0("Chem", seq_len(n)),
+    result = as.character(seq_len(n)),
+    unit = rep("mg/L", n),
+    consensus_status = rep("agree", n),
+    consensus_dtxsid = paste0("DTXSID", seq_len(n)),
+    consensus_source = rep("consensus", n),
+    qc_tier = rep(1L, n)
+  ))
+  final <- baseline
+  final$unit[seq_len(12L)] <- "ug/L"
+
+  tag_map <- list(chemical = "Name", result = "Result", unit = "Unit")
+  spec <- build_review_overrides(baseline, final, tag_map = tag_map)
+  fn_src <- review_overrides_function_literal(spec)
+
+  expect_match(fn_src, "# Measurement tags — unit corrections (12)", fixed = TRUE)
+  expect_match(fn_src, "matched <- state$chemical %in% c(", fixed = TRUE)
+  expect_match(fn_src, 'state$unit[matched] <- "ug/L"', fixed = TRUE)
+  expect_no_match(fn_src, "rows_update", fixed = TRUE)
+  expect_silent(parse(text = fn_src))
+
+  env <- new.env(parent = globalenv())
+  eval(parse(text = fn_src), envir = env)
+  prepared <- init_review_override_columns(
+    baseline,
+    intersect(attr(env$apply_review_overrides, "review_override_columns"), review_override_columns())
+  )
+  generated <- env$apply_review_overrides(prepared)
+  in_memory <- apply_review_overrides(baseline, spec)
+  expect_equal(generated$unit, in_memory$unit)
+  expect_equal(generated$unit, final$unit)
+})
+
+test_that("bulk induction refuses when unchanged rows share the predicate value", {
+  baseline <- init_resolution_state(tibble::tibble(
+    chemical = rep(c("Benzene", "Toluene"), each = 2),
+    sample_id = rep(c("S1", "S2"), times = 2),
+    consensus_status = rep("agree", 4),
+    consensus_dtxsid = rep(c("DTXSID1", "DTXSID2"), each = 2),
+    consensus_source = rep("consensus", 4),
+    qc_tier = rep(1L, 4)
+  ))
+  final <- baseline
+  # Diagonal of the chemical x sample grid: no single column separates the
+  # edited set, so replay must fall back to per-row content matching.
+  final$row_flag[c(1L, 4L)] <- "SUSPECT"
+
+  spec <- build_review_overrides(baseline, final)
+  expect_equal(nrow(spec), 2L)
+  fn_src <- review_overrides_function_literal(spec)
+  expect_match(fn_src, "row_flag_fixes <- tibble::tribble(", fixed = TRUE)
+  expect_no_match(fn_src, "%in%", fixed = TRUE)
+
+  env <- new.env(parent = globalenv())
+  eval(parse(text = fn_src), envir = env)
+  prepared <- init_review_override_columns(baseline, "row_flag")
+  generated <- env$apply_review_overrides(prepared)
+  expect_equal(generated$row_flag, final$row_flag)
+  expect_equal(apply_review_overrides(baseline, spec)$row_flag, final$row_flag)
+})
+
+test_that("bulk induction collapses whole-group edits to one set signature", {
+  baseline <- init_resolution_state(tibble::tibble(
+    chemical = rep(c("Benzene", "Toluene", "Xylene"), each = 4),
+    sample_id = paste0("S", 1:12),
+    consensus_status = rep("agree", 12),
+    consensus_dtxsid = rep(paste0("DTXSID", 1:3), each = 4),
+    consensus_source = rep("consensus", 12),
+    qc_tier = rep(1L, 12)
+  ))
+  final <- baseline
+  final$row_flag[baseline$chemical %in% c("Benzene", "Xylene")] <- "SUSPECT"
+
+  spec <- build_review_overrides(baseline, final)
+  expect_equal(nrow(spec), 1L)
+  expect_equal(spec$signature[[1]], list(chemical = c("Benzene", "Xylene")))
+
+  fn_src <- review_overrides_function_literal(spec)
+  expect_match(fn_src, 'matched <- state$chemical %in% c("Benzene", "Xylene")', fixed = TRUE)
+  expect_match(fn_src, 'state$row_flag[matched] <- "SUSPECT"', fixed = TRUE)
+
+  env <- new.env(parent = globalenv())
+  eval(parse(text = fn_src), envir = env)
+  prepared <- init_review_override_columns(baseline, "row_flag")
+  generated <- env$apply_review_overrides(prepared)
+  expect_equal(generated$row_flag, final$row_flag)
+  expect_equal(apply_review_overrides(baseline, spec)$row_flag, final$row_flag)
 })

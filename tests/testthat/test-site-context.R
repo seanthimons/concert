@@ -457,3 +457,34 @@ test_that("embedded site alias map literal omits default columns and round-trips
   )
   expect_identical(env$site_manifest, build_site_manifest(site_manifest))
 })
+
+test_that("constant site alias columns compress to rep() in the embedded literal", {
+  site_manifest <- tibble::tibble(
+    source_site_label = paste0("Site variant ", 1:6),
+    site_order = rep(1L, 6),
+    site_name = rep("Influent", 6)
+  )
+
+  script <- generate_concert_script(
+    input_path = "input.csv",
+    output_path = "out.xlsx",
+    tag_map = list(chemical = "Name"),
+    header_row = 1L,
+    site_alias_map = build_site_alias_map(site_manifest)
+  )
+
+  expect_match(script, 'site_name = rep("Influent", 6L)', fixed = TRUE)
+  expect_match(script, "site_order = rep(1L, 6L)", fixed = TRUE)
+  expect_silent(parse(text = script))
+
+  env <- new.env(parent = globalenv())
+  for (ex in parse(text = script)) {
+    head_sym <- if (is.call(ex)) as.character(ex[[1]])[1] else ""
+    if (head_sym %in% c("library", "curate_headless")) next
+    eval(ex, envir = env)
+  }
+  expect_identical(
+    build_site_alias_map(env$site_alias_map),
+    build_site_alias_map(site_manifest)
+  )
+})
