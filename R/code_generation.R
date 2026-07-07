@@ -135,7 +135,15 @@ site_manifest_script_literal <- function(manifest) {
   col_lines <- vapply(
     cols,
     function(col) {
-      paste0("  ", r_name(col), " = ", script_literal(manifest[[col]]))
+      values <- manifest[[col]]
+      # Constant columns (a consolidated site name repeated per raw label)
+      # compress to rep(); short vectors stay as plain c() for readability.
+      literal <- if (length(values) >= 4L && !anyNA(values) && length(unique(values)) == 1L) {
+        paste0("rep(", script_literal(values[[1]]), ", ", length(values), "L)")
+      } else {
+        script_literal(values)
+      }
+      paste0("  ", r_name(col), " = ", literal)
     },
     character(1)
   )
@@ -197,8 +205,12 @@ scalar_values_equal <- function(a, b) {
 
 # Vectorized per-cell match of a column against one scalar: exact equality,
 # with NA matching NA. Columns where `==` errors (lists, mismatched factor
-# levels) match nowhere.
+# levels) match nowhere. Vector values are induced bulk signatures matched by
+# set membership; %in% matches NA cells to NA members like the scalar branch.
 column_match_mask <- function(x, value) {
+  if (length(value) > 1L) {
+    return(tryCatch(x %in% value, error = function(e) logical(length(x))))
+  }
   if (length(value) != 1L) {
     return(logical(length(x)))
   }
@@ -397,6 +409,56 @@ minimal_stable_row_signature <- function(baseline_state, full_signature, target_
   full_signature
 }
 
+# A bulk edit that writes one value is often characterized exactly by a single
+# column: every changed row holds one of a few values there and no unchanged
+# row does. That collapses to one set-membership signature instead of one
+# entry per distinct row context.
+# ponytail: single-column predicates only; multi-column induction is
+# combinatorial and per-row entries remain the correct fallback.
+induce_bulk_override_signature <- function(
+  baseline_state,
+  final_state,
+  col,
+  changed_mask,
+  stable_cols,
+  identity_cols
+) {
+  changed_idx <- which(changed_mask)
+  if (length(changed_idx) < 2L || length(stable_cols) == 0L) {
+    return(NULL)
+  }
+
+  after_values <- lapply(changed_idx, function(row_idx) cell_value(final_state, row_idx, col))
+  intended_value <- after_values[[1]]
+  if (!all(vapply(after_values, scalar_values_equal, logical(1), b = intended_value))) {
+    return(NULL)
+  }
+
+  # Identity columns first so predicates read like recognizable chemicals,
+  # then prefer the fewest distinct values among exact matches.
+  candidates <- unique(c(intersect(identity_cols, stable_cols), stable_cols))
+  best_values <- NULL
+  best_col <- NULL
+  for (candidate in candidates) {
+    column_values <- baseline_state[[candidate]]
+    changed_values <- unique(column_values[changed_idx])
+    if (!is.null(best_values) && length(changed_values) >= length(best_values)) {
+      next
+    }
+    if (identical(column_match_mask(column_values, changed_values), changed_mask)) {
+      best_values <- changed_values
+      best_col <- candidate
+    }
+  }
+  if (is.null(best_col)) {
+    return(NULL)
+  }
+
+  signature <- list()
+  signature[[best_col]] <- sort(best_values, na.last = TRUE)
+  list(value = review_value_scalar(intended_value), signature = signature)
+}
+
 new_review_override_spec <- function(columns, values, signatures, signature_columns, workflows = NULL) {
   if (is.null(workflows)) {
     workflows <- rep("review", length(columns))
@@ -452,7 +514,14 @@ validate_review_override_spec <- function(spec) {
     if (!is.list(signature) || is.null(names(signature))) {
       stop("review_overrides contains an invalid row signature.", call. = FALSE)
     }
-    lapply(signature, review_value_scalar)
+    # Scalar signatures match one row's contents; longer atomic vectors are
+    # induced set-membership signatures for bulk edits.
+    lapply(signature, function(value) {
+      if (length(value) == 0L || is.list(value)) {
+        stop("review_overrides values must be scalar.", call. = FALSE)
+      }
+      value
+    })
   })
 
   spec
@@ -547,6 +616,23 @@ build_review_overrides <- function(baseline_state, final_state, tag_map = NULL) 
     } else {
       intersect(workflow_columns(column_workflows, "chemical_tags"), stable_cols)
     }
+
+    induced <- induce_bulk_override_signature(
+      baseline_state,
+      final_state,
+      col,
+      changed_mask,
+      stable_cols,
+      identity_cols
+    )
+    if (!is.null(induced)) {
+      workflows <- c(workflows, workflow)
+      columns <- c(columns, col)
+      values[[length(values) + 1L]] <- induced$value
+      branch_signatures[[length(branch_signatures) + 1L]] <- induced$signature
+      next
+    }
+
     # Exact-value grouping; the old dput-text keys could merge doubles that
     # differ beyond deparse precision, which replay-time matching would split.
     keys <- if (length(stable_cols) == 0L) {
@@ -795,30 +881,86 @@ replay_workflow_label <- function(workflow) {
   )
 }
 
-# Combine a list of scalar values into a single typed vector literal. Combining
-# with c() preserves the column type (including typed NA) so the generated table
-# matches the resolution-state column type that dplyr::rows_update() requires.
-column_vector_literal <- function(values) {
-  script_literal(do.call(c, values))
+override_block_comment <- function(workflow, cols, n) {
+  sprintf(
+    "  # %s \u2014 %s corrections (%d)",
+    replay_workflow_label(workflow),
+    paste(cols, collapse = ", "),
+    n
+  )
 }
 
-format_rows_update_block <- function(workflow, entries_by_col) {
+override_values_constant <- function(entries) {
+  values <- lapply(seq_len(nrow(entries)), function(i) review_value_scalar(entries$value[[i]]))
+  all(vapply(values, scalar_values_equal, logical(1), b = values[[1]]))
+}
+
+# Bulk edits that set one value across many rows keyed on a single column
+# collapse to a vectorized %in% mask instead of a one-row-per-key table.
+# %in% matches NA keys, mirroring column_match_mask()/rows_update semantics.
+format_in_assignment_block <- function(workflow, entries_by_col) {
+  cols <- names(entries_by_col)
+  first <- entries_by_col[[1]]
+  key_col <- names(first$signature[[1]])
+  key_values <- lapply(seq_len(nrow(first)), function(i) first$signature[[i]][[key_col]])
+  combined_keys <- do.call(c, key_values)
+
+  assignment_lines <- vapply(
+    cols,
+    function(col) {
+      value <- review_value_scalar(entries_by_col[[col]]$value[[1]])
+      paste0("  state$", r_name(col), "[matched] <- ", script_literal(value))
+    },
+    character(1)
+  )
+
+  c(
+    override_block_comment(workflow, cols, length(combined_keys)),
+    paste0("  matched <- state$", r_name(key_col), " %in% ", script_literal(combined_keys)),
+    assignment_lines,
+    ""
+  )
+}
+
+# Row-wise tribble keeps each correction on one line with its keys and new
+# values adjacent, instead of parallel column vectors.
+format_tribble_block <- function(workflow, entries_by_col) {
   cols <- names(entries_by_col)
   first <- entries_by_col[[1]]
   key_cols <- names(first$signature[[1]])
+  n <- nrow(first)
   tbl_var <- make.names(paste0(cols[1], "_fixes"))
 
-  col_lines <- character()
-  for (key_col in key_cols) {
-    key_values <- lapply(seq_len(nrow(first)), function(i) first$signature[[i]][[key_col]])
-    col_lines <- c(col_lines, paste0("    ", r_name(key_col), " = ", column_vector_literal(key_values)))
+  header <- paste0("~", vapply(c(key_cols, cols), r_name, character(1)))
+  cells <- matrix("", nrow = n, ncol = length(header))
+  for (i in seq_len(n)) {
+    key_cells <- vapply(
+      key_cols,
+      function(key_col) script_literal(first$signature[[i]][[key_col]]),
+      character(1)
+    )
+    value_cells <- vapply(
+      cols,
+      function(col) script_literal(review_value_scalar(entries_by_col[[col]]$value[[i]])),
+      character(1)
+    )
+    cells[i, ] <- c(key_cells, value_cells)
   }
-  for (col in cols) {
-    entries <- entries_by_col[[col]]
-    target_values <- lapply(seq_len(nrow(entries)), function(i) review_value_scalar(entries$value[[i]]))
-    col_lines <- c(col_lines, paste0("    ", r_name(col), " = ", column_vector_literal(target_values)))
+
+  # Attach separators before padding so columns align without space-before-comma.
+  tokens <- matrix(paste0(cells, ","), nrow = n)
+  tokens[n, ncol(tokens)] <- cells[n, ncol(tokens)]
+  header_tokens <- paste0(header, ",")
+  widths <- pmax(nchar(header_tokens), apply(matrix(nchar(tokens), nrow = n), 2, max))
+  pad <- function(row) {
+    vapply(seq_along(row), function(j) formatC(row[j], width = -widths[j]), character(1))
   }
-  col_lines[-length(col_lines)] <- paste0(col_lines[-length(col_lines)], ",")
+  header_line <- paste0("    ", trimws(paste(pad(header_tokens), collapse = " "), which = "right"))
+  body_rows <- vapply(
+    seq_len(n),
+    function(i) paste0("    ", trimws(paste(pad(tokens[i, ]), collapse = " "), which = "right")),
+    character(1)
+  )
 
   by_literal <- if (length(key_cols) == 1L) {
     script_literal(key_cols)
@@ -827,14 +969,10 @@ format_rows_update_block <- function(workflow, entries_by_col) {
   }
 
   c(
-    sprintf(
-      "  # %s \u2014 %s corrections (%d)",
-      replay_workflow_label(workflow),
-      paste(cols, collapse = ", "),
-      nrow(first)
-    ),
-    paste0("  ", tbl_var, " <- tibble::tibble("),
-    col_lines,
+    override_block_comment(workflow, cols, n),
+    paste0("  ", tbl_var, " <- tibble::tribble("),
+    header_line,
+    body_rows,
     "  )",
     sprintf(
       "  state <- dplyr::rows_update(state, %s, by = %s, unmatched = \"ignore\")",
@@ -843,6 +981,20 @@ format_rows_update_block <- function(workflow, entries_by_col) {
     ),
     ""
   )
+}
+
+format_override_block <- function(workflow, entries_by_col) {
+  first <- entries_by_col[[1]]
+  key_cols <- names(first$signature[[1]])
+  all_constant <- all(vapply(entries_by_col, override_values_constant, logical(1)))
+  set_based <- any(lengths(first$signature[[1]]) > 1L)
+  # ponytail: mixed constant/varying columns in one group all stay tabular;
+  # split emission if measurement shows those groups dominate script size.
+  if (length(key_cols) == 1L && all_constant && (nrow(first) >= 2L || set_based)) {
+    format_in_assignment_block(workflow, entries_by_col)
+  } else {
+    format_tribble_block(workflow, entries_by_col)
+  }
 }
 
 review_overrides_function_literal <- function(review_overrides) {
@@ -873,7 +1025,7 @@ review_overrides_function_literal <- function(review_overrides) {
     )
     for (fingerprint in unique(fingerprints)) {
       group <- entries_by_col[fingerprints == fingerprint]
-      body_lines <- c(body_lines, format_rows_update_block(workflow, group))
+      body_lines <- c(body_lines, format_override_block(workflow, group))
     }
   }
 
