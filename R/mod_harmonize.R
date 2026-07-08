@@ -185,6 +185,12 @@ mod_harmonize_server <- function(id, data_store) {
       }
     })
 
+    observe({
+      if (is.null(data_store$numeric_correction_queue)) {
+        data_store$numeric_correction_queue <- empty_numeric_correction_queue()
+      }
+    })
+
     media_map_ready <- reactiveVal(FALSE)
     observe({
       if (
@@ -235,6 +241,13 @@ mod_harmonize_server <- function(id, data_store) {
     has_media_tag <- function() {
       any(current_study_tag_values() == "Media", na.rm = TRUE)
     }
+
+    current_numeric_parse_issues <- reactive({
+      extract_unparseable_numeric_issues(
+        harmonize_audit = data_store$harmonize_audit,
+        harmonize_results = data_store$harmonize_results
+      )
+    })
 
     run_harmonization_pipeline <- function(mask = NULL) {
       req(data_store$clean)
@@ -364,257 +377,81 @@ mod_harmonize_server <- function(id, data_store) {
           } else {
             # --- FULL MODE: Parse + harmonize everything ---
             withProgress(message = "Running harmonization...", value = 0, {
-              # Use cleaned_data (post-cleaning) when present, otherwise raw clean
-              input_df <- if (!is.null(data_store$cleaned_data)) {
-                data_store$cleaned_data
-              } else {
-                data_store$clean
-              }
-
-              # Pre-stage: Media harmonization for ppb/ppm routing (MEDIA-05, D-12)
               incProgress(0.05, detail = "Harmonizing media...")
-              media_cols_pre <- if (!is.null(data_store$study_type_tags)) {
-                local_stv <- unlist(data_store$study_type_tags)
-                names(local_stv)[local_stv == "Media"]
-              } else {
-                character(0)
-              }
-              data_store$media_results <- NULL
-              data_store$detection_results <- NULL
-              media_for_harmonize <- NULL
-
-              if (h_mask$media && length(media_cols_pre) > 0) {
-                media_tibble <- tryCatch(
-                  harmonize_media(
-                    raw_media = as.character(input_df[[media_cols_pre[1]]]),
-                    orig_row_id = seq_len(nrow(input_df)),
-                    media_map = data_store$media_map_working
-                  ),
-                  error = function(e) {
-                    log_condition("media harmonization", e)
-                    notify_user(
-                      paste0(
-                        "Media harmonization failed for column '",
-                        media_cols_pre[1],
-                        "': ",
-                        conditionMessage(e),
-                        ". Column skipped."
-                      ),
-                      type = "error",
-                      duration = 10
-                    )
-                    NULL
-                  }
-                )
-                if (!is.null(media_tibble)) {
-                  data_store$media_results <- media_tibble
-                  # Per-row media_category for ppb/ppm routing (D-12 tier 1)
-                  media_for_harmonize <- media_tibble$media_category
-
-                  n_matched <- sum(media_tibble$media_flag != "media_unmatched", na.rm = TRUE)
-                  n_unmatched <- sum(media_tibble$media_flag == "media_unmatched", na.rm = TRUE)
-                  notify_user(
-                    sprintf("Media harmonized: %d matched, %d unmatched", n_matched, n_unmatched),
-                    type = if (n_unmatched > 0) "warning" else "message",
-                    duration = 6
-                  )
-                }
-              }
+              input_df <- data_store$resolution_state %||% data_store$cleaned_data %||% data_store$clean
+              combined_tags <- combine_tag_maps(
+                data_store$numeric_tags,
+                data_store$study_type_tags
+              )
 
               if (has_measurement) {
                 incProgress(0.15, detail = "Applying corrections...")
                 incProgress(0.30, detail = "Parsing numeric measurements...")
                 incProgress(0.15, detail = "Harmonizing units...")
-
-                measurement_result <- harmonize_tagged_numeric_measurements(
-                  input_df = input_df,
-                  tag_values = numeric_tags_vec,
-                  unit_map = data_store$unit_map_working,
-                  corrections = data_store$corrections_working,
-                  media = media_for_harmonize,
-                  apply_units = isTRUE(h_mask$units) && length(unit_cols) > 0
-                )
-
-                harmonize_tibble <- measurement_result$toxval_harmonized
-
-                detection_result <- classify_harmonized_detection(
-                  input_df = input_df,
-                  tag_values = numeric_tags_vec,
-                  measurement_result = measurement_result
-                )
-                if (!is.null(detection_result)) {
-                  data_store$detection_results <- detection_result$expanded_detection
-                  input_df <- append_detection_fields(
-                    input_df,
-                    detection_result$row_detection,
-                    allow_existing_generated = TRUE
-                  )
-                  if (!is.null(data_store$resolution_state)) {
-                    data_store$resolution_state <- append_detection_fields(
-                      data_store$resolution_state,
-                      detection_result$row_detection,
-                      allow_existing_generated = TRUE
-                    )
-                  }
-                }
-
-                incProgress(0.15, detail = "Finalizing...")
-                data_store$harmonize_results <- measurement_result$harmonize_results
-                data_store$harmonize_audit <- measurement_result$audit
               } else {
-                # StudyDate/Media-only: build identity harmonize_tibble (1:1 rows, no parse/harmonize)
                 incProgress(0.55, detail = "Preparing date/media pipeline...")
-                n_rows <- nrow(input_df)
-                harmonize_tibble <- build_identity_harmonize_tibble(n_rows)
-                parse_tibble <- tibble::tibble(
-                  orig_row_id = seq_len(n_rows),
-                  raw_value = rep(NA_character_, n_rows),
-                  numeric_value = rep(NA_real_, n_rows),
-                  value_flag = rep("", n_rows)
-                )
-                data_store$harmonize_results <- list(
-                  parsed = parse_tibble,
-                  harmonized = harmonize_tibble,
-                  input_data = input_df
-                )
-                data_store$harmonize_audit <- NULL
               }
 
-              # Stage 4.5: Duration harmonization (D-13, DUR-03)
               incProgress(0.05, detail = "Harmonizing durations...")
-              duration_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Duration"]
-              duration_unit_cols <- names(numeric_tags_vec)[numeric_tags_vec == "DurationUnit"]
-              data_store$duration_results <- NULL
-
-              if (h_mask$duration && length(duration_cols) > 0 && length(duration_unit_cols) > 0) {
-                dur_tibble <- harmonize_units(
-                  values = as.numeric(input_df[[duration_cols[1]]]),
-                  units = as.character(input_df[[duration_unit_cols[1]]]),
-                  unit_map = data_store$unit_map_working,
-                  category = "duration"
-                )
-                data_store$duration_results <- tibble::tibble(
-                  orig_row_id = dur_tibble$orig_row_id,
-                  study_duration_value = dur_tibble$harmonized_value,
-                  study_duration_units = dur_tibble$harmonized_unit,
-                  duration_unit_flag = dur_tibble$unit_flag
-                )
-              }
-
-              # Stage 4.6: Date parsing (DATE-01, DATE-05)
               incProgress(0.05, detail = "Parsing dates...")
-              study_type_tags_vec <- unlist(data_store$study_type_tags)
-              date_cols <- if (!is.null(study_type_tags_vec)) {
-                names(study_type_tags_vec)[study_type_tags_vec == "StudyDate"]
-              } else {
-                character(0)
-              }
-              data_store$date_results <- NULL
-
-              if (h_mask$dates && length(date_cols) > 0) {
-                date_tibble <- tryCatch(
-                  parse_dates(
-                    raw_dates = as.character(input_df[[date_cols[1]]]),
-                    orig_row_id = seq_len(nrow(input_df))
-                  ),
-                  error = function(e) {
-                    log_condition("date parsing harmonization", e)
-                    notify_user(
-                      paste0(
-                        "Date parsing failed for column '",
-                        date_cols[1],
-                        "': ",
-                        conditionMessage(e),
-                        ". Column skipped."
-                      ),
-                      type = "error",
-                      duration = 10
-                    )
-                    NULL
-                  }
-                )
-
-                if (!is.null(date_tibble)) {
-                  data_store$date_results <- date_tibble
-
-                  n_parsed <- sum(date_tibble$date_flag != "unparseable", na.rm = TRUE)
-                  n_ambiguous <- sum(date_tibble$date_flag == "ambiguous", na.rm = TRUE)
-
-                  if (n_parsed > 0) {
-                    showNotification(
-                      sprintf(
-                        "Date parsing complete. %d dates parsed, %d flagged as ambiguous.",
-                        n_parsed,
-                        n_ambiguous
-                      ),
-                      type = "message",
-                      duration = 5
-                    )
-                  } else {
-                    notify_user(
-                      sprintf(
-                        "Date parsing: no valid dates found in column '%s'. All rows unparseable.",
-                        date_cols[1]
-                      ),
-                      type = "warning",
-                      duration = 8
-                    )
-                  }
-                }
-              }
-
-              # Stage 5: Map to ToxVal schema (SCHM-01, UITG-06)
               incProgress(0.10, detail = "Mapping to ToxVal schema...")
-              # map_to_toxval_schema() expands original rows via orig_row_id.
-              # During clean-data pipeline runs, curation may not have produced
-              # resolution_state yet, so fall back to the cleaned input rows.
-              curated_for_toxval <- data_store$resolution_state
-              if (is.null(curated_for_toxval)) {
-                curated_for_toxval <- input_df
-              }
-              curated_for_toxval <- tibble::as_tibble(curated_for_toxval)
 
-              # Merge duration columns if present (D-10)
-              if (!is.null(data_store$duration_results)) {
-                dur_for_merge <- data_store$duration_results[, c(
-                  "orig_row_id",
-                  "study_duration_value",
-                  "study_duration_units"
-                )]
-                dur_idx <- match(seq_len(nrow(curated_for_toxval)), dur_for_merge$orig_row_id)
-                curated_for_toxval$study_duration_value <- dur_for_merge$study_duration_value[dur_idx]
-                curated_for_toxval$study_duration_units <- dur_for_merge$study_duration_units[dur_idx]
-              }
+              runtime_result <- run_harmonization_runtime(
+                input_data = input_df,
+                tag_map = combined_tags,
+                unit_map = data_store$unit_map_working,
+                corrections = data_store$corrections_working,
+                media_map = data_store$media_map_working,
+                source_name = data_store$file_info$name,
+                step_mask = h_mask
+              )
 
-              # Merge date_year into original-row data for original_year ToxVal mapping (DATE-06, D-16)
-              if (!is.null(data_store$date_results)) {
-                date_idx <- match(seq_len(nrow(curated_for_toxval)), data_store$date_results$orig_row_id)
-                curated_for_toxval$year <- data_store$date_results$date_year[date_idx]
+              data_store$harmonize_results <- runtime_result$harmonize_results
+              data_store$harmonize_audit <- runtime_result$harmonize_audit
+              data_store$media_results <- runtime_result$media_results
+              data_store$duration_results <- runtime_result$duration_results
+              data_store$date_results <- runtime_result$date_results
+              data_store$detection_results <- runtime_result$detection_results
+              data_store$toxval_output <- runtime_result$toxval_output
+
+              if (!is.null(data_store$resolution_state)) {
+                data_store$resolution_state <- runtime_result$data
+              } else if (!is.null(data_store$cleaned_data)) {
+                data_store$cleaned_data <- runtime_result$data
               }
 
-              # Merge media_category into original-row data for ToxVal mapping (D-16, MEDIA-05)
               if (!is.null(data_store$media_results)) {
-                media_idx <- match(seq_len(nrow(curated_for_toxval)), data_store$media_results$orig_row_id)
-                curated_for_toxval$media <- data_store$media_results$media_category[media_idx]
+                n_matched <- sum(data_store$media_results$media_flag != "media_unmatched", na.rm = TRUE)
+                n_unmatched <- sum(data_store$media_results$media_flag == "media_unmatched", na.rm = TRUE)
+                notify_user(
+                  sprintf("Media harmonized: %d matched, %d unmatched", n_matched, n_unmatched),
+                  type = if (n_unmatched > 0) "warning" else "message",
+                  duration = 6
+                )
               }
 
-              toxval_tibble <- tryCatch(
-                map_to_toxval_schema(
-                  curated_data = curated_for_toxval,
-                  harmonized_data = harmonize_tibble,
-                  source_name = data_store$file_info$name
-                ),
-                error = function(e) {
-                  log_condition("ToxVal mapping", e, level = "warning")
+              if (!is.null(data_store$date_results)) {
+                n_parsed <- sum(data_store$date_results$date_flag != "unparseable", na.rm = TRUE)
+                n_ambiguous <- sum(data_store$date_results$date_flag == "ambiguous", na.rm = TRUE)
+
+                if (n_parsed > 0) {
+                  showNotification(
+                    sprintf(
+                      "Date parsing complete. %d dates parsed, %d flagged as ambiguous.",
+                      n_parsed,
+                      n_ambiguous
+                    ),
+                    type = "message",
+                    duration = 5
+                  )
+                } else {
                   notify_user(
-                    paste("ToxVal mapping failed:", conditionMessage(e)),
+                    "Date parsing: no valid dates found. All rows unparseable.",
                     type = "warning",
                     duration = 8
                   )
-                  NULL
                 }
-              )
-              data_store$toxval_output <- toxval_tibble
+              }
             })
           }
         },
@@ -825,6 +662,12 @@ mod_harmonize_server <- function(id, data_store) {
           )
         ),
         bslib::accordion_panel(
+          title = uiOutput(session$ns("numeric_issues_title")),
+          value = "numeric_parse_issues",
+          icon = bsicons::bs_icon("exclamation-triangle"),
+          uiOutput(session$ns("numeric_issues_panel"))
+        ),
+        bslib::accordion_panel(
           title = uiOutput(session$ns("unmatched_title")),
           value = "unmatched_units",
           icon = bsicons::bs_icon("question-circle"),
@@ -867,6 +710,16 @@ mod_harmonize_server <- function(id, data_store) {
         0
       }
       sprintf("Corrections Editor (%d corrections)", n)
+    })
+
+    output$numeric_issues_title <- renderUI({
+      issues <- current_numeric_parse_issues()
+      queue <- normalize_numeric_correction_queue(data_store$numeric_correction_queue)
+      if (nrow(queue) > 0L) {
+        sprintf("Numeric Parse Issues (%d, %d queued)", nrow(issues), nrow(queue))
+      } else {
+        sprintf("Numeric Parse Issues (%d)", nrow(issues))
+      }
     })
 
     output$unmatched_title <- renderUI({
@@ -1292,6 +1145,235 @@ mod_harmonize_server <- function(id, data_store) {
 
       data_store$corrections_working <- dplyr::bind_rows(tbl, new_row)
       removeModal()
+    })
+
+    # --- Numeric parse issues assistant ----------------------------------------
+    # Exact-value quick corrections for parse_flag == "unparseable" values.
+    # Arbitrary regex editing stays in the Corrections Editor above.
+
+    output$numeric_issues_panel <- renderUI({
+      ns <- session$ns
+      queue <- normalize_numeric_correction_queue(data_store$numeric_correction_queue)
+
+      if (is.null(data_store$harmonize_results) && is.null(data_store$harmonize_audit)) {
+        return(p(
+          class = "text-muted small",
+          "Run harmonization to see numeric values that failed parsing."
+        ))
+      }
+
+      issues <- current_numeric_parse_issues()
+      if (nrow(issues) == 0L) {
+        return(div(
+          class = "alert alert-success py-2 mb-0",
+          bsicons::bs_icon("check-circle", class = "me-1"),
+          "No unparseable numeric values found."
+        ))
+      }
+
+      queued_replacement <- function(issue_row) {
+        idx <- which(
+          queue$measurement_column == issue_row$measurement_column &&
+            queue$original_value == issue_row$original_value
+        )
+        if (length(idx) == 0L) {
+          return("")
+        }
+        queue$replacement[idx[length(idx)]]
+      }
+
+      issue_controls <- lapply(seq_len(nrow(issues)), function(i) {
+        issue <- issues[i, ]
+        role_label <- if (!is.na(issue$measurement_role) && nzchar(issue$measurement_role)) {
+          issue$measurement_role
+        } else {
+          "Measurement"
+        }
+        column_label <- if (!is.na(issue$measurement_column) && nzchar(issue$measurement_column)) {
+          issue$measurement_column
+        } else {
+          "(unknown column)"
+        }
+
+        div(
+          class = "border rounded p-2 mb-2",
+          div(
+            class = "d-flex justify-content-between align-items-start gap-2 flex-wrap",
+            div(
+              tags$code(issue$original_value),
+              div(
+                class = "small text-muted",
+                sprintf("%s column: %s", role_label, column_label)
+              )
+            ),
+            span(
+              class = "badge bg-warning text-dark",
+              sprintf("%d rows", issue$row_count)
+            )
+          ),
+          textInput(
+            ns(paste0("numeric_replacement_", i)),
+            "Replacement",
+            value = queued_replacement(issue),
+            placeholder = "e.g., 6.90E+01"
+          )
+        )
+      })
+
+      queue_status <- if (nrow(queue) > 0L) {
+        div(
+          class = "alert alert-info py-2 mb-2",
+          bsicons::bs_icon("inbox", class = "me-1"),
+          sprintf("%d exact-value correction(s) queued.", nrow(queue))
+        )
+      }
+
+      div(
+        p(
+          class = "text-muted small mb-2",
+          paste(
+            "Enter replacement values for exact malformed strings, queue them,",
+            "then apply all queued corrections in one run."
+          )
+        ),
+        queue_status,
+        issue_controls,
+        div(
+          class = "d-flex gap-2 flex-wrap mt-2",
+          actionButton(
+            ns("queue_numeric_replacements"),
+            "Queue Filled Replacements",
+            class = "btn-outline-primary btn-sm",
+            icon = icon("plus")
+          ),
+          if (nrow(queue) > 0L) {
+            actionButton(
+              ns("apply_numeric_corrections"),
+              "Apply & Re-run",
+              class = "btn-primary btn-sm",
+              icon = icon("play")
+            )
+          },
+          if (nrow(queue) > 0L) {
+            actionButton(
+              ns("clear_numeric_queue"),
+              "Clear Queue",
+              class = "btn-outline-secondary btn-sm",
+              icon = icon("trash")
+            )
+          }
+        )
+      )
+    })
+
+    observeEvent(input$queue_numeric_replacements, {
+      issues <- current_numeric_parse_issues()
+      if (nrow(issues) == 0L) {
+        notify_user(
+          "No numeric parse issues are available to queue.",
+          type = "message",
+          duration = 3
+        )
+        return()
+      }
+
+      entries <- lapply(seq_len(nrow(issues)), function(i) {
+        replacement <- input[[paste0("numeric_replacement_", i)]]
+        if (is.null(replacement) || !nzchar(trimws(replacement))) {
+          return(NULL)
+        }
+
+        tibble::tibble(
+          measurement_column = as.character(issues$measurement_column[i]),
+          original_value = as.character(issues$original_value[i]),
+          pattern = build_exact_numeric_correction_pattern(issues$original_value[i]),
+          replacement = trimws(replacement)
+        )
+      })
+      entries <- Filter(Negate(is.null), entries)
+
+      if (length(entries) == 0L) {
+        notify_user(
+          "Enter at least one replacement before queueing corrections.",
+          type = "warning",
+          duration = 4
+        )
+        return()
+      }
+
+      queued <- upsert_numeric_correction_queue(
+        data_store$numeric_correction_queue,
+        dplyr::bind_rows(entries)
+      )
+      data_store$numeric_correction_queue <- queued
+
+      showNotification(
+        sprintf("%d numeric correction(s) queued.", length(entries)),
+        type = "message",
+        duration = 3
+      )
+    })
+
+    observeEvent(input$clear_numeric_queue, {
+      data_store$numeric_correction_queue <- empty_numeric_correction_queue()
+      showNotification("Numeric correction queue cleared.", type = "message", duration = 3)
+    })
+
+    observeEvent(input$apply_numeric_corrections, {
+      queue <- normalize_numeric_correction_queue(data_store$numeric_correction_queue)
+      if (nrow(queue) == 0L) {
+        notify_user(
+          "Queue at least one numeric correction before applying.",
+          type = "warning",
+          duration = 4
+        )
+        return()
+      }
+
+      validation <- validate_numeric_correction_queue(queue)
+      if (nrow(validation$invalid) > 0L) {
+        notify_user(
+          sprintf(
+            paste(
+              "%d queued replacement(s) were rejected because they still do",
+              "not parse as numeric values."
+            ),
+            nrow(validation$invalid)
+          ),
+          type = "warning",
+          duration = 6
+        )
+      }
+
+      if (nrow(validation$valid) == 0L) {
+        data_store$numeric_correction_queue <- validation$invalid[
+          ,
+          names(empty_numeric_correction_queue()),
+          drop = FALSE
+        ]
+        return()
+      }
+
+      data_store$corrections_working <- append_numeric_corrections(
+        data_store$corrections_working,
+        validation$valid
+      )
+      data_store$numeric_correction_queue <- if (nrow(validation$invalid) > 0L) {
+        validation$invalid[, names(empty_numeric_correction_queue()), drop = FALSE]
+      } else {
+        empty_numeric_correction_queue()
+      }
+
+      showNotification(
+        sprintf(
+          "Applied %d numeric correction(s). Re-running harmonization...",
+          nrow(validation$valid)
+        ),
+        type = "message",
+        duration = 4
+      )
+
+      run_harmonization_pipeline()
     })
 
     # --- Media classification DT table (MEDIT-01, D-07, D-08, D-12) ----------

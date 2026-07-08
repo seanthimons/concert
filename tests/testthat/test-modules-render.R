@@ -28,6 +28,12 @@ create_test_store <- function() {
     harmonize_step_mask = NULL,
     harmonize_run_nonce = 0L,
     toxval_output = NULL,
+    numeric_correction_queue = tibble::tibble(
+      measurement_column = character(),
+      original_value = character(),
+      pattern = character(),
+      replacement = character()
+    ),
     prev_chemical_tags = NULL,
     prev_numeric_tags = NULL,
     # Phase 34: Editor working copies
@@ -333,6 +339,9 @@ test_that("Review Results renders replay Code controls after curation completion
   expect_match(src, "download_replay_script")
   expect_match(src, "navigator.clipboard.writeText")
   expect_match(src, "generate_concert_script")
+  expect_match(src, "unit_map = data_store$unit_map_working", fixed = TRUE)
+  expect_match(src, "corrections = data_store$corrections_working", fixed = TRUE)
+  expect_match(src, "media_map = data_store$media_map_working", fixed = TRUE)
 })
 
 test_that("Tag Columns table puts Type before Column Name", {

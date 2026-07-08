@@ -63,6 +63,191 @@ build_measurement_audit_from_results <- function(parsed, harmonized) {
   )
 }
 
+empty_numeric_parse_issues <- function() {
+  tibble::tibble(
+    measurement_column = character(),
+    measurement_role = character(),
+    original_value = character(),
+    row_count = integer()
+  )
+}
+
+empty_numeric_correction_queue <- function() {
+  tibble::tibble(
+    measurement_column = character(),
+    original_value = character(),
+    pattern = character(),
+    replacement = character()
+  )
+}
+
+normalize_numeric_correction_queue <- function(queue) {
+  if (is.null(queue) || length(queue) == 0L) {
+    return(empty_numeric_correction_queue())
+  }
+
+  queue <- tibble::as_tibble(queue)
+  required <- names(empty_numeric_correction_queue())
+  for (col in setdiff(required, names(queue))) {
+    queue[[col]] <- character(nrow(queue))
+  }
+
+  queue <- queue[, required, drop = FALSE]
+  for (col in required) {
+    queue[[col]] <- as.character(queue[[col]])
+  }
+  queue
+}
+
+extract_unparseable_numeric_issues <- function(harmonize_audit = NULL, harmonize_results = NULL) {
+  source_tbl <- harmonize_audit
+  if ((is.null(source_tbl) || nrow(source_tbl) == 0L) &&
+    !is.null(harmonize_results) && !is.null(harmonize_results$parsed)) {
+    source_tbl <- harmonize_results$parsed
+  }
+
+  if (is.null(source_tbl) || nrow(source_tbl) == 0L || !"parse_flag" %in% names(source_tbl)) {
+    return(empty_numeric_parse_issues())
+  }
+
+  source_tbl <- tibble::as_tibble(source_tbl)
+  unparseable <- source_tbl[!is.na(source_tbl$parse_flag) & source_tbl$parse_flag == "unparseable", , drop = FALSE]
+  if (nrow(unparseable) == 0L) {
+    return(empty_numeric_parse_issues())
+  }
+
+  value_col <- if ("original_value" %in% names(unparseable)) {
+    "original_value"
+  } else if ("orig_result" %in% names(unparseable)) {
+    "orig_result"
+  } else {
+    NULL
+  }
+  if (is.null(value_col)) {
+    return(empty_numeric_parse_issues())
+  }
+
+  issue_rows <- tibble::tibble(
+    measurement_column = if ("measurement_column" %in% names(unparseable)) {
+      as.character(unparseable$measurement_column)
+    } else {
+      rep(NA_character_, nrow(unparseable))
+    },
+    measurement_role = if ("measurement_role" %in% names(unparseable)) {
+      as.character(unparseable$measurement_role)
+    } else {
+      rep(NA_character_, nrow(unparseable))
+    },
+    original_value = as.character(unparseable[[value_col]]),
+    .row_id = if ("orig_row_id" %in% names(unparseable)) {
+      as.character(unparseable$orig_row_id)
+    } else {
+      as.character(seq_len(nrow(unparseable)))
+    }
+  )
+
+  group_key <- paste(
+    ifelse(is.na(issue_rows$measurement_column), "<NA>", issue_rows$measurement_column),
+    ifelse(is.na(issue_rows$measurement_role), "<NA>", issue_rows$measurement_role),
+    ifelse(is.na(issue_rows$original_value), "<NA>", issue_rows$original_value),
+    sep = "\r"
+  )
+
+  grouped <- split(seq_len(nrow(issue_rows)), group_key)
+  issues <- lapply(grouped, function(idx) {
+    first <- issue_rows[idx[1], ]
+    tibble::tibble(
+      measurement_column = first$measurement_column,
+      measurement_role = first$measurement_role,
+      original_value = first$original_value,
+      row_count = length(unique(issue_rows$.row_id[idx]))
+    )
+  })
+
+  out <- dplyr::bind_rows(issues)
+  out[order(-out$row_count, out$measurement_column, out$measurement_role, out$original_value), , drop = FALSE]
+}
+
+escape_exact_regex_value <- function(value) {
+  value <- as.character(value)
+  gsub("([][{}()+*^$|\\\\?.])", "\\\\\\1", value, perl = TRUE)
+}
+
+build_exact_numeric_correction_pattern <- function(value) {
+  paste0("^", escape_exact_regex_value(value), "$")
+}
+
+upsert_numeric_correction_queue <- function(queue, entries) {
+  queue <- normalize_numeric_correction_queue(queue)
+  entries <- normalize_numeric_correction_queue(entries)
+  if (nrow(entries) == 0L) {
+    return(queue)
+  }
+
+  combined <- dplyr::bind_rows(queue, entries)
+  key <- paste(combined$measurement_column, combined$original_value, sep = "\r")
+  combined[!duplicated(key, fromLast = TRUE), , drop = FALSE]
+}
+
+validate_numeric_correction_queue <- function(queue) {
+  queue <- normalize_numeric_correction_queue(queue)
+  if (nrow(queue) == 0L) {
+    return(list(valid = queue, invalid = tibble::add_column(queue, reason = character())))
+  }
+
+  validation <- lapply(seq_len(nrow(queue)), function(i) {
+    replacement <- trimws(queue$replacement[i])
+    if (!nzchar(replacement)) {
+      return("Replacement is required.")
+    }
+
+    parsed <- suppressWarnings(parse_numeric_results(replacement))
+    if (any(parsed$parse_flag == "unparseable", na.rm = TRUE)) {
+      return("Replacement is still unparseable.")
+    }
+    if (any(parsed$parse_flag != "", na.rm = TRUE) || all(is.na(parsed$numeric_value))) {
+      return("Replacement did not parse to a numeric value.")
+    }
+
+    NA_character_
+  })
+  reasons <- unlist(validation, use.names = FALSE)
+  valid_mask <- is.na(reasons)
+
+  valid <- queue[valid_mask, , drop = FALSE]
+  invalid <- queue[!valid_mask, , drop = FALSE]
+  invalid$reason <- reasons[!valid_mask]
+
+  list(valid = valid, invalid = invalid)
+}
+
+append_numeric_corrections <- function(corrections_tbl, queue) {
+  queue <- normalize_numeric_correction_queue(queue)
+  if (nrow(queue) == 0L) {
+    if (is.null(corrections_tbl)) {
+      return(tibble::tibble(pattern = character(), replacement = character()))
+    }
+    return(corrections_tbl)
+  }
+
+  new_rows <- queue[, c("pattern", "replacement"), drop = FALSE]
+  new_rows <- new_rows[!duplicated(new_rows$pattern, fromLast = TRUE), , drop = FALSE]
+
+  if (is.null(corrections_tbl)) {
+    corrections_tbl <- tibble::tibble(pattern = character(), replacement = character())
+  }
+  corrections_tbl <- tibble::as_tibble(corrections_tbl)
+  for (col in c("pattern", "replacement")) {
+    if (!col %in% names(corrections_tbl)) {
+      corrections_tbl[[col]] <- character(nrow(corrections_tbl))
+    }
+  }
+  corrections_tbl <- corrections_tbl[, c("pattern", "replacement"), drop = FALSE]
+  corrections_tbl <- corrections_tbl[!corrections_tbl$pattern %in% new_rows$pattern, , drop = FALSE]
+
+  dplyr::bind_rows(corrections_tbl, new_rows)
+}
+
 harmonize_measurement_column <- function(
   input_df,
   measurement_col,

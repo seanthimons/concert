@@ -173,6 +173,155 @@ test_that("QC metric handles missing consensus_dtxsid column", {
   expect_equal(n_dtxsid, 0L)
 })
 
+# --- Numeric parse issues assistant helper tests ---
+
+test_that("numeric parse issue extraction groups duplicate malformed values by measurement column", {
+  audit <- tibble::tibble(
+    measurement_column = c("result", "result", "result", "reporting_limit"),
+    measurement_role = c("Result", "Result", "Result", "ReportingLimit"),
+    original_value = c("6.90E+0.1", "6.90E+0.1", "1.2", "bad limit"),
+    orig_row_id = c(1L, 2L, 3L, 1L),
+    parse_flag = c("unparseable", "unparseable", "", "unparseable")
+  )
+
+  issues <- extract_unparseable_numeric_issues(harmonize_audit = audit)
+
+  expect_equal(nrow(issues), 2L)
+  result_issue <- issues[issues$measurement_column == "result", ]
+  expect_equal(result_issue$measurement_role, "Result")
+  expect_equal(result_issue$original_value, "6.90E+0.1")
+  expect_equal(result_issue$row_count, 2L)
+
+  limit_issue <- issues[issues$measurement_column == "reporting_limit", ]
+  expect_equal(limit_issue$measurement_role, "ReportingLimit")
+  expect_equal(limit_issue$row_count, 1L)
+})
+
+test_that("exact numeric correction patterns escape regex metacharacters", {
+  values <- c("6.90E+0.1", "< 1", "1,2", "(5)")
+  patterns <- build_exact_numeric_correction_pattern(values)
+
+  expect_equal(
+    patterns,
+    c("^6\\.90E\\+0\\.1$", "^< 1$", "^1,2$", "^\\(5\\)$")
+  )
+  expect_true(all(vapply(seq_along(values), function(i) {
+    grepl(patterns[i], values[i])
+  }, logical(1))))
+})
+
+test_that("queued numeric replacement validation accepts parsed values and rejects unparseable values", {
+  queue <- tibble::tibble(
+    measurement_column = c("result", "result"),
+    original_value = c("6.90E+0.1", "bad"),
+    pattern = build_exact_numeric_correction_pattern(c("6.90E+0.1", "bad")),
+    replacement = c("6.90E+01", "6.90E+0.1")
+  )
+
+  validation <- validate_numeric_correction_queue(queue)
+
+  expect_equal(validation$valid$replacement, "6.90E+01")
+  expect_equal(validation$invalid$replacement, "6.90E+0.1")
+  expect_match(validation$invalid$reason, "unparseable")
+})
+
+test_that("numeric corrections append by exact pattern and replace older matching patterns", {
+  corrections <- tibble::tibble(
+    pattern = c("^old$", "^6\\.90E\\+0\\.1$"),
+    replacement = c("1", "69")
+  )
+  queue <- tibble::tibble(
+    measurement_column = "result",
+    original_value = "6.90E+0.1",
+    pattern = "^6\\.90E\\+0\\.1$",
+    replacement = "6.90E+01"
+  )
+
+  result <- append_numeric_corrections(corrections, queue)
+
+  expect_equal(nrow(result), 2L)
+  expect_equal(result$replacement[result$pattern == "^old$"], "1")
+  expect_equal(result$replacement[result$pattern == "^6\\.90E\\+0\\.1$"], "6.90E+01")
+})
+
+make_runtime_unit_map <- function() {
+  tibble::tibble(
+    from_unit = c("custom ug/L", "mg/L", "day", "hr"),
+    to_unit = c("mg/L", "mg/L", "hr", "hr"),
+    multiplier = c(0.001, 1, 24, 1),
+    category = c(
+      "mass_concentration",
+      "mass_concentration",
+      "duration",
+      "duration"
+    ),
+    confidence = "HIGH",
+    source = "test"
+  )
+}
+
+make_runtime_media_map <- function() {
+  tibble::tibble(
+    term = c("stormwater", "soil matrix"),
+    canonical = c("surface water", "soil"),
+    canonical_term = c("surface water", "soil"),
+    envo_id = c("ENVO:00002042", "ENVO:00001998"),
+    parent = NA_character_,
+    media_category = c("aqueous", "solid"),
+    source = "user",
+    active = TRUE
+  )
+}
+
+make_runtime_fixture <- function() {
+  tibble::tibble(
+    chemical_name = c("A", "B"),
+    casrn = c("111-11-1", "222-22-2"),
+    result = c("6.90E+0.1", "2"),
+    reporting_limit = c("10", "3"),
+    unit = c("custom ug/L", "custom ug/L"),
+    media = c("stormwater", "soil matrix"),
+    study_date = c("2015-03-15", "2016"),
+    duration = c(2, 1),
+    duration_unit = c("day", "hr"),
+    consensus_dtxsid = c("DTXSID0000001", "DTXSID0000002")
+  )
+}
+
+test_that("shared harmonization runtime returns all harmonized artifacts", {
+  result <- run_harmonization_runtime(
+    input_data = make_runtime_fixture(),
+    tag_map = list(
+      chemical_name = "Name",
+      casrn = "CASRN",
+      result = "Result",
+      reporting_limit = "ReportingLimit",
+      unit = "Unit",
+      media = "Media",
+      study_date = "StudyDate",
+      duration = "Duration",
+      duration_unit = "DurationUnit"
+    ),
+    unit_map = make_runtime_unit_map(),
+    corrections = tibble::tibble(
+      pattern = "^6\\.90E\\+0\\.1$",
+      replacement = "6.90E+01"
+    ),
+    media_map = make_runtime_media_map(),
+    source_name = "runtime-fixture"
+  )
+
+  expect_equal(result$harmonize_results$parsed$numeric_value[1], 69)
+  expect_equal(result$harmonize_audit$harmonized_value[1], 0.069)
+  expect_equal(result$media_results$canonical_media, c("surface water", "soil"))
+  expect_equal(result$date_results$date_year, c(2015, 2016))
+  expect_equal(result$duration_results$study_duration_value, c(48, 1))
+  expect_s3_class(result$detection_results, "tbl_df")
+  expect_true("result_flag" %in% names(result$data))
+  expect_equal(result$toxval_output$source, rep("runtime-fixture", 2))
+  expect_equal(result$toxval_output$toxval_numeric, c(0.069, 0.002))
+})
+
 # --- load_corrections integration test ---
 
 test_that("load_corrections returns correct tibble structure", {
@@ -319,6 +468,7 @@ make_dispatch_store <- function() {
     date_results = NULL,
     detection_results = NULL,
     toxval_output = NULL,
+    numeric_correction_queue = empty_numeric_correction_queue(),
     harmonize_results_stale = FALSE,
     changed_units = character(0),
     harmonize_step_mask = NULL,
@@ -421,5 +571,118 @@ test_that("manual harmonization run defaults all steps after masked request clea
 
     expect_false(is.null(data_store$media_results))
     expect_equal(data_store$media_results$canonical_media[1], "surface water")
+  })
+})
+
+test_that("app full harmonization path matches shared runtime output", {
+  data_store <- make_dispatch_store()
+  fixture <- make_runtime_fixture()
+  unit_map <- make_runtime_unit_map()
+  media_map <- make_runtime_media_map()
+  corrections <- tibble::tibble(
+    pattern = "^6\\.90E\\+0\\.1$",
+    replacement = "6.90E+01"
+  )
+  numeric_tags <- list(
+    result = "Result",
+    reporting_limit = "ReportingLimit",
+    unit = "Unit",
+    duration = "Duration",
+    duration_unit = "DurationUnit"
+  )
+  study_type_tags <- list(media = "Media", study_date = "StudyDate")
+
+  data_store$clean <- fixture
+  data_store$cleaned_data <- fixture
+  data_store$resolution_state <- fixture
+  data_store$numeric_tags <- numeric_tags
+  data_store$study_type_tags <- study_type_tags
+  data_store$unit_map_working <- unit_map
+  data_store$corrections_working <- corrections
+  data_store$media_map_working <- media_map
+  data_store$reference_lists <- list(
+    unit_map = unit_map,
+    corrections = corrections,
+    media_map = media_map
+  )
+
+  expected <- run_harmonization_runtime(
+    input_data = fixture,
+    tag_map = combine_tag_maps(numeric_tags, study_type_tags),
+    unit_map = unit_map,
+    corrections = corrections,
+    media_map = media_map,
+    source_name = "dispatch.csv"
+  )
+
+  shiny::testServer(mod_harmonize_server, args = list(data_store = data_store), {
+    session$flushReact()
+
+    data_store$harmonize_step_mask <- NULL
+    data_store$harmonize_run_nonce <- data_store$harmonize_run_nonce + 1L
+    session$flushReact()
+
+    expect_equal(data_store$toxval_output, expected$toxval_output)
+    expect_equal(data_store$harmonize_audit, expected$harmonize_audit)
+    expect_equal(data_store$media_results, expected$media_results)
+    expect_equal(data_store$duration_results, expected$duration_results)
+    expect_equal(data_store$date_results, expected$date_results)
+    expect_equal(data_store$detection_results, expected$detection_results)
+  })
+})
+
+test_that("numeric parse assistant queues corrections, appends them, and clears resolved issues", {
+  data_store <- make_dispatch_store()
+  input_df <- tibble::tibble(
+    chemical_name = c("A", "B", "C"),
+    casrn = c("111-11-1", "222-22-2", "333-33-3"),
+    result = c("6.90E+0.1", "2", "bad"),
+    unit = c("mg/L", "mg/L", "mg/L"),
+    media = c("surface_water", "surface_water", "surface_water"),
+    consensus_dtxsid = c("DTXSID0000001", "DTXSID0000002", "DTXSID0000003")
+  )
+  data_store$clean <- input_df
+  data_store$cleaned_data <- input_df
+  data_store$resolution_state <- input_df
+
+  shiny::testServer(mod_harmonize_server, args = list(data_store = data_store), {
+    session$flushReact()
+
+    data_store$harmonize_step_mask <- list(units = TRUE, duration = FALSE, dates = FALSE, media = FALSE)
+    data_store$harmonize_run_nonce <- data_store$harmonize_run_nonce + 1L
+    expect_warning(session$flushReact(), "2 values could not be parsed")
+
+    issues <- extract_unparseable_numeric_issues(
+      harmonize_audit = data_store$harmonize_audit,
+      harmonize_results = data_store$harmonize_results
+    )
+    expect_equal(issues$original_value, c("6.90E+0.1", "bad"))
+
+    session$setInputs(numeric_replacement_1 = "6.90E+01")
+    session$setInputs(numeric_replacement_2 = "3")
+    session$setInputs(queue_numeric_replacements = 1)
+    session$flushReact()
+
+    expect_equal(nrow(data_store$numeric_correction_queue), 2L)
+
+    session$setInputs(apply_numeric_corrections = 1)
+    session$flushReact()
+
+    expect_equal(nrow(data_store$numeric_correction_queue), 0L)
+    expect_equal(
+      data_store$corrections_working$pattern,
+      c("^6\\.90E\\+0\\.1$", "^bad$")
+    )
+    expect_equal(
+      data_store$corrections_working$replacement,
+      c("6.90E+01", "3")
+    )
+
+    resolved <- extract_unparseable_numeric_issues(
+      harmonize_audit = data_store$harmonize_audit,
+      harmonize_results = data_store$harmonize_results
+    )
+    expect_equal(nrow(resolved), 0L)
+    expect_equal(data_store$harmonize_results$parsed$numeric_value, c(69, 2, 3))
   })
 })
