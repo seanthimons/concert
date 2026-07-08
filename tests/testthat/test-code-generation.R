@@ -37,6 +37,64 @@ test_that("generate_concert_script includes replay settings and combined tag map
   expect_no_match(script, "verbose", fixed = TRUE)
 })
 
+test_that("generate_concert_script embeds harmonization references only for harmonized replay", {
+  unit_map <- tibble::tibble(
+    from_unit = "custom-unit",
+    to_unit = "mg/L",
+    multiplier = 2,
+    category = "mass_concentration"
+  )
+  corrections <- tibble::tibble(
+    pattern = "^6\\.90E\\+0\\.1$",
+    replacement = "6.90E+01"
+  )
+  media_map <- tibble::tibble(
+    term = "stormwater",
+    canonical_term = "surface water",
+    media_category = "aqueous",
+    source = "user",
+    active = TRUE
+  )
+
+  script <- generate_concert_script(
+    input_path = "input.csv",
+    output_path = "input_curated.xlsx",
+    tag_map = list(chemical = "Name", result = "Result", unit = "Unit", media = "Media"),
+    header_row = 1L,
+    harmonize = TRUE,
+    unit_map = unit_map,
+    corrections = corrections,
+    media_map = media_map
+  )
+
+  expect_match(script, "unit_map <-", fixed = TRUE)
+  expect_match(script, "corrections <-", fixed = TRUE)
+  expect_match(script, "media_map <-", fixed = TRUE)
+  expect_match(script, "unit_map = unit_map", fixed = TRUE)
+  expect_match(script, "corrections = corrections", fixed = TRUE)
+  expect_match(script, "media_map = media_map", fixed = TRUE)
+  expect_match(script, '"^6\\\\.90E\\\\+0\\\\.1$"', fixed = TRUE)
+  expect_silent(parse(text = script))
+
+  non_harmonized <- generate_concert_script(
+    input_path = "input.csv",
+    output_path = "input_curated.xlsx",
+    tag_map = list(chemical = "Name", result = "Result"),
+    header_row = 1L,
+    harmonize = FALSE,
+    unit_map = unit_map,
+    corrections = corrections,
+    media_map = media_map
+  )
+
+  expect_no_match(non_harmonized, "unit_map <-", fixed = TRUE)
+  expect_no_match(non_harmonized, "corrections <-", fixed = TRUE)
+  expect_no_match(non_harmonized, "media_map <-", fixed = TRUE)
+  expect_no_match(non_harmonized, "unit_map = unit_map", fixed = TRUE)
+  expect_no_match(non_harmonized, "corrections = corrections", fixed = TRUE)
+  expect_no_match(non_harmonized, "media_map = media_map", fixed = TRUE)
+})
+
 test_that("generate_concert_script embeds reference snapshot and activate-all replay setting", {
   mock_snapshot <- list(
     functional_categories = list(

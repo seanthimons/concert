@@ -35,12 +35,106 @@ test_that("curate_headless can run harmonized output fully in memory", {
     verbose = FALSE
   )
 
-  expect_named(result, c("data", "audit_trail", "harmonize_audit", "detection"))
+  expect_named(result, c(
+    "data",
+    "audit_trail",
+    "harmonize_audit",
+    "harmonize_results",
+    "media_results",
+    "duration_results",
+    "date_results",
+    "detection",
+    "detection_results",
+    "row_data"
+  ))
   expect_s3_class(result$data, "tbl_df")
   expect_equal(result$data$source, "EPA SSWQS")
   expect_s3_class(result$detection, "tbl_df")
   expect_true("result_flag" %in% names(result$detection))
   expect_false(file.exists(output_path))
+})
+
+test_that("curate_headless uses harmonization references from reference_lists", {
+  input_path <- tempfile(fileext = ".csv")
+  readr::write_csv(
+    tibble::tibble(
+      chemical = "A",
+      result = "bad numeric",
+      unit = "custom-unit",
+      media = "stormwater"
+    ),
+    input_path
+  )
+  withr::defer(unlink(input_path))
+
+  refs <- list(
+    functional_categories = tibble::tibble(term = character(), source = character(), active = logical()),
+    stop_words = tibble::tibble(term = character(), source = character(), active = logical()),
+    block_patterns = tibble::tibble(term = character(), source = character(), active = logical()),
+    strip_terms = tibble::tibble(term = character(), source = character(), active = logical()),
+    isotope_lookup = list(lookup = tibble::tibble(), elem_alt_names = character())
+  )
+  refs$unit_map <- tibble::tibble(
+    from_unit = "custom-unit",
+    to_unit = "mg/L",
+    multiplier = 2,
+    category = "mass_concentration",
+    confidence = "HIGH",
+    source = "test"
+  )
+  refs$corrections <- tibble::tibble(
+    pattern = "^bad numeric$",
+    replacement = "5"
+  )
+  refs$media_map <- tibble::tibble(
+    term = "stormwater",
+    canonical = "surface water",
+    canonical_term = "surface water",
+    envo_id = "ENVO:00002042",
+    parent = NA_character_,
+    media_category = "aqueous",
+    source = "user",
+    active = TRUE
+  )
+
+  local_mocked_bindings(
+    run_curation_pipeline = function(cleaned_data, merged_tags, ...) {
+      cleaned_data$consensus_status <- "agree"
+      cleaned_data$consensus_dtxsid <- "DTXSID0000001"
+      list(
+        results = cleaned_data,
+        consensus_summary = list(
+          n_agree = 1,
+          n_disagree = 0,
+          n_agree_caveat = 0,
+          n_single = 0,
+          n_manual = 0,
+          n_error = 0,
+          n_unresolvable = 0
+        )
+      )
+    }
+  )
+
+  result <- curate_headless(
+    input_path = input_path,
+    output_path = NULL,
+    tag_map = list(
+      chemical = "Name",
+      result = "Result",
+      unit = "Unit",
+      media = "Media"
+    ),
+    reference_lists = refs,
+    harmonize = TRUE,
+    write_files = FALSE,
+    verbose = FALSE
+  )
+
+  expect_equal(result$data$toxval_numeric, 10)
+  expect_equal(result$data$toxval_units, "mg/L")
+  expect_equal(result$harmonize_audit$corrected_value[1], "5")
+  expect_equal(result$media_results$canonical_media, "surface water")
 })
 
 test_that("curate_headless requires output_path only when writing files", {

@@ -1308,6 +1308,14 @@ format_curate_call_args <- function(args) {
   arg_lines
 }
 
+append_optional_script_object <- function(lines, name, value) {
+  if (is.null(value)) {
+    return(lines)
+  }
+
+  c(lines, "", paste0(name, " <- ", script_literal(value)))
+}
+
 #' Generate a CONCERT replay script
 #'
 #' @param input_path Character input file path shown at the top of the script.
@@ -1321,6 +1329,12 @@ format_curate_call_args <- function(args) {
 #' @param starts_with Logical. Enables CompTox starts-with fallback search.
 #' @param harmonize Logical. Re-run harmonization during replay.
 #' @param media Optional dataset-wide media fallback.
+#' @param unit_map Optional effective unit harmonization map to embed when
+#'   `harmonize = TRUE`.
+#' @param corrections Optional effective numeric corrections table to embed when
+#'   `harmonize = TRUE`.
+#' @param media_map Optional effective media harmonization map to embed when
+#'   `harmonize = TRUE`.
 #' @param format ToxVal output format for harmonized headless runs.
 #' @param source_name Optional source name for ToxVal mapping.
 #' @param reference_lists Optional current cleaning reference lists to snapshot
@@ -1344,6 +1358,9 @@ generate_concert_script <- function(
   starts_with = FALSE,
   harmonize = FALSE,
   media = NULL,
+  unit_map = NULL,
+  corrections = NULL,
+  media_map = NULL,
   format = "parquet",
   source_name = NULL,
   reference_lists = NULL,
@@ -1407,6 +1424,12 @@ generate_concert_script <- function(
     )
   }
 
+  if (isTRUE(harmonize)) {
+    setup_lines <- append_optional_script_object(setup_lines, "unit_map", unit_map)
+    setup_lines <- append_optional_script_object(setup_lines, "corrections", corrections)
+    setup_lines <- append_optional_script_object(setup_lines, "media_map", media_map)
+  }
+
   call_args <- list(
     input_path = "input_path",
     output_path = "output_path",
@@ -1446,6 +1469,15 @@ generate_concert_script <- function(
     call_args$format <- script_literal(format)
     if (!is.null(media)) {
       call_args$media <- script_literal(media)
+    }
+    if (!is.null(unit_map)) {
+      call_args$unit_map <- "unit_map"
+    }
+    if (!is.null(corrections)) {
+      call_args$corrections <- "corrections"
+    }
+    if (!is.null(media_map)) {
+      call_args$media_map <- "media_map"
     }
     if (!is.null(source_name)) {
       call_args$source_name <- script_literal(source_name)

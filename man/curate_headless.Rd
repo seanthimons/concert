@@ -133,6 +133,13 @@ Invisibly returns a list:
 \item \code{$data} -- 56-column ToxVal tibble (per D-05)
 \item \code{$audit_trail} -- cleaning audit tibble
 \item \code{$harmonize_audit} -- harmonization audit tibble (per D-06)
+\item \code{$harmonize_results} -- parsed and unit-harmonized
+measurement tables
+\item \code{$media_results}, \code{$duration_results},
+\code{$date_results}, and \code{$detection_results} --
+harmonization sidecar artifacts
+\item \code{$row_data} -- curated row data updated with generated
+detection, media, duration, and date fields
 }
 }
 }

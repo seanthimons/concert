@@ -14,6 +14,9 @@ generate_concert_script(
   starts_with = FALSE,
   harmonize = FALSE,
   media = NULL,
+  unit_map = NULL,
+  corrections = NULL,
+  media_map = NULL,
   format = "parquet",
   source_name = NULL,
   reference_lists = NULL,
@@ -42,6 +45,15 @@ generate_concert_script(
 \item{harmonize}{Logical. Re-run harmonization during replay.}
 
 \item{media}{Optional dataset-wide media fallback.}
+
+\item{unit_map}{Optional effective unit harmonization map to embed when
+\code{harmonize = TRUE}.}
+
+\item{corrections}{Optional effective numeric corrections table to embed when
+\code{harmonize = TRUE}.}
+
+\item{media_map}{Optional effective media harmonization map to embed when
+\code{harmonize = TRUE}.}
 
 \item{format}{ToxVal output format for harmonized headless runs.}
 

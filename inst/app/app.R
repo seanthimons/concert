@@ -182,6 +182,12 @@ server <- function(input, output, session) {
     toxval_output = NULL,
     prev_chemical_tags = NULL,
     prev_numeric_tags = NULL,
+    numeric_correction_queue = tibble::tibble(
+      measurement_column = character(),
+      original_value = character(),
+      pattern = character(),
+      replacement = character()
+    ),
     # Phase 34: Harmonize working copies (session-local, initialized from reference_lists)
     unit_map_working = NULL,
     corrections_working = NULL,

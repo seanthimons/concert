@@ -85,6 +85,13 @@
 #'         \item \code{$data} -- 56-column ToxVal tibble (per D-05)
 #'         \item \code{$audit_trail} -- cleaning audit tibble
 #'         \item \code{$harmonize_audit} -- harmonization audit tibble (per D-06)
+#'         \item \code{$harmonize_results} -- parsed and unit-harmonized
+#'           measurement tables
+#'         \item \code{$media_results}, \code{$duration_results},
+#'           \code{$date_results}, and \code{$detection_results} --
+#'           harmonization sidecar artifacts
+#'         \item \code{$row_data} -- curated row data updated with generated
+#'           detection, media, duration, and date fields
 #'       }
 #'     }
 #'   }
@@ -300,6 +307,7 @@ curate_headless <- function(
     # ------------------------------------------------------------------
     # Step 8b: Run harmonization pipeline (when harmonize = TRUE)
     # ------------------------------------------------------------------
+    harmonization_runtime_result <- NULL
     toxval_tibble <- NULL
     harmonize_audit_tibble <- NULL
     detection_tibble <- NULL
@@ -307,149 +315,27 @@ curate_headless <- function(
     if (harmonize) {
       message("[headless] Running harmonization pipeline...")
 
-      # Load unit_map from cache if not provided
-      cache_dir_ref <- NULL
-      if (is.null(unit_map)) {
-        cache_dir_ref <- resolve_reference_cache_dir()
-        unit_map <- load_unit_map(cache_dir_ref)
-      }
-      # Load corrections from cache if not provided
-      if (is.null(corrections)) {
-        if (is.null(cache_dir_ref)) {
-          cache_dir_ref <- resolve_reference_cache_dir()
-        }
-        corrections <- load_corrections(cache_dir_ref)
-      }
-
-      # Identify tagged columns for harmonization (per D-04)
-      tag_values <- unlist(merged_tags, use.names = TRUE)
-      result_cols <- names(tag_values)[tag_values == "Result"]
-      numeric_cols <- names(tag_values)[tag_values %in% c("Numeric", "ReportingLimit", "Uncertainty")]
-      unit_cols <- names(tag_values)[tag_values == "Unit"]
-      duration_cols <- names(tag_values)[tag_values == "Duration"]
-
-      has_study <- any(tag_values %in% c("StudyDate", "Media"))
-
-      if (length(result_cols) == 0 && length(numeric_cols) == 0 && length(duration_cols) == 0 && !has_study) {
-        stop(
-          "curate_headless: harmonize=TRUE requires at least one column tagged as 'Result', 'Numeric', 'Duration', 'StudyDate', or 'Media' in tag_map."
-        )
-      }
-
-      # Use resolution_state as input (same as mod_harmonize.R pattern)
-      input_df <- resolution_state
-
-      # Stage 3d: Media harmonization (MEDIA-05, MEDIA-06, D-12)
-      # Must run BEFORE Stage 3 (harmonize_units) so input_df$media is populated
-      # for the three-tier media_for_harmonize cascade at Stage 3.
-      message("[headless] Stage 3d: Harmonizing media...")
-      media_cols_pre <- names(tag_values)[tag_values == "Media"]
-
-      if (length(media_cols_pre) > 0) {
-        media_tibble_pre <- harmonize_media(
-          raw_media = as.character(input_df[[media_cols_pre[1]]]),
-          orig_row_id = seq_len(nrow(input_df)),
-          media_map = media_map
-        )
-        input_df$media <- media_tibble_pre$media_category[
-          match(seq_len(nrow(input_df)), media_tibble_pre$orig_row_id)
-        ]
-        message(sprintf(
-          "[headless] Media harmonized: %d matched, %d unmatched",
-          sum(media_tibble_pre$media_flag != "media_unmatched", na.rm = TRUE),
-          sum(media_tibble_pre$media_flag == "media_unmatched", na.rm = TRUE)
-        ))
-      } else if (!is.null(media)) {
-        # D-13 fallback: dataset-wide media parameter populates column
-        input_df$media <- media
-      }
-
-      # Stages 1-3: Apply corrections, parse measurements, and harmonize units.
-      if (length(result_cols) > 0 || length(numeric_cols) > 0) {
-        message("[headless] Stages 1-3: Harmonizing numeric measurements...")
-      } else {
-        message("[headless] No Result or Numeric column - skipping numeric measurement stages.")
-      }
-
-      media_for_harmonize <- if ("media" %in% names(input_df)) {
-        input_df$media
-      } else {
-        media
-      }
-
-      measurement_result <- harmonize_tagged_numeric_measurements(
-        input_df = input_df,
-        tag_values = tag_values,
+      harmonization_refs <- resolve_harmonization_references(
         unit_map = unit_map,
         corrections = corrections,
-        media = media_for_harmonize,
-        apply_units = length(unit_cols) > 0
+        media_map = media_map,
+        reference_lists = reference_lists
       )
-      harmonize_tibble <- measurement_result$toxval_harmonized
-      harmonize_audit_tibble <- measurement_result$audit
 
-      detection_result <- classify_harmonized_detection(
-        input_df = input_df,
-        tag_values = tag_values,
-        measurement_result = measurement_result
-      )
-      if (!is.null(detection_result)) {
-        detection_tibble <- detection_result$expanded_detection
-        input_df <- append_detection_fields(
-          input_df,
-          detection_result$row_detection,
-          allow_existing_generated = TRUE
-        )
-        resolution_state <- append_detection_fields(
-          resolution_state,
-          detection_result$row_detection,
-          allow_existing_generated = TRUE
-        )
-      }
-
-      # Stage 3.5: Duration harmonization (D-13, DUR-03)
-      message("[headless] Stage 3.5: Harmonizing durations...")
-      duration_cols <- names(tag_values)[tag_values == "Duration"]
-      duration_unit_cols <- names(tag_values)[tag_values == "DurationUnit"]
-
-      if (length(duration_cols) > 0 && length(duration_unit_cols) > 0) {
-        dur_tibble <- harmonize_units(
-          values = as.numeric(input_df[[duration_cols[1]]]),
-          units = as.character(input_df[[duration_unit_cols[1]]]),
-          unit_map = unit_map,
-          category = "duration"
-        )
-        # Join by position: dur_tibble$orig_row_id is 1:nrow(input_df)
-        input_df$study_duration_value <- dur_tibble$harmonized_value[
-          match(seq_len(nrow(input_df)), dur_tibble$orig_row_id)
-        ]
-        input_df$study_duration_units <- dur_tibble$harmonized_unit[
-          match(seq_len(nrow(input_df)), dur_tibble$orig_row_id)
-        ]
-      }
-
-      # Stage 3c: Date parsing (DATE-05, DATE-06)
-      message("[headless] Stage 3c: Parsing dates...")
-      date_cols <- names(tag_values)[tag_values == "StudyDate"]
-
-      if (length(date_cols) > 0) {
-        date_tibble <- parse_dates(
-          raw_dates = as.character(input_df[[date_cols[1]]]),
-          orig_row_id = seq_len(nrow(input_df))
-        )
-        # Join by position via match() -- same pattern as duration (lines 288-293)
-        input_df$year <- date_tibble$date_year[
-          match(seq_len(nrow(input_df)), date_tibble$orig_row_id)
-        ]
-      }
-
-      # Stage 4: Map to ToxVal schema
-      message("[headless] Stage 4: Mapping to ToxVal schema...")
-      toxval_tibble <- map_to_toxval_schema(
-        curated_data = input_df,
-        harmonized_data = harmonize_tibble,
+      harmonization_runtime_result <- run_harmonization_runtime(
+        input_data = resolution_state,
+        tag_map = merged_tags,
+        unit_map = harmonization_refs$unit_map,
+        corrections = harmonization_refs$corrections,
+        media_map = harmonization_refs$media_map,
+        media = media,
         source_name = source_name %||% tools::file_path_sans_ext(basename(input_path))
       )
+      resolution_state <- harmonization_runtime_result$data
+      toxval_tibble <- harmonization_runtime_result$toxval_output
+      harmonize_audit_tibble <- harmonization_runtime_result$harmonize_audit
+      detection_tibble <- harmonization_runtime_result$detection_results
+
       message(sprintf("[headless] ToxVal schema: %d rows x %d columns", nrow(toxval_tibble), ncol(toxval_tibble)))
     }
 
@@ -513,7 +399,13 @@ curate_headless <- function(
         data = toxval_tibble,
         audit_trail = cleaning_result$audit_trail,
         harmonize_audit = harmonize_audit_tibble,
-        detection = detection_tibble
+        harmonize_results = harmonization_runtime_result$harmonize_results,
+        media_results = harmonization_runtime_result$media_results,
+        duration_results = harmonization_runtime_result$duration_results,
+        date_results = harmonization_runtime_result$date_results,
+        detection = detection_tibble,
+        detection_results = detection_tibble,
+        row_data = resolution_state
       ))
     } else {
       invisible(list(data = resolution_state, audit_trail = cleaning_result$audit_trail))

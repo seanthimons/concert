@@ -194,6 +194,7 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
     harmonize_results = harmonize_results,
     harmonize_audit = harmonization_audit,
     toxval_output = toxval_output,
+    numeric_correction_queue = empty_numeric_correction_queue(),
     harmonize_results_stale = FALSE,
     changed_units = character(0)
   )
