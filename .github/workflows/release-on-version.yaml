@@ -43,6 +43,12 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - name: Configure git user
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: Set up R
         # r-lib/actions/setup-r v2 pinned by commit SHA.
         uses: r-lib/actions/setup-r@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
@@ -206,8 +212,6 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         shell: bash
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add DESCRIPTION NEWS.md
           commit_message="chore: bump package version to $VERSION"
           if [ -n "$PR_NUMBER" ]; then
