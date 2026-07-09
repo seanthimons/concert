@@ -1,4 +1,4 @@
-# CONCERT Shiny Data Upload & Preview Application
+# CONCERT Shiny Application
 # Upload CSV/XLSX files with intelligent frontmatter detection
 
 # Load Shiny UI packages (required for DSL-style UI code)
@@ -21,6 +21,7 @@ options(
   shiny.maxRequestSize = 50 * 1024^2 # 50MB upload limit
 )
 
+app_version <- as.character(utils::packageVersion("concert"))
 
 # UI Definition
 ui <- page_sidebar(
@@ -54,7 +55,7 @@ ui <- page_sidebar(
   ),
 
   # Title
-  title = "CONCERT Data Upload & Preview",
+  title = paste("CONCERT", app_version),
 
   # Sidebar — delegated to upload module
   sidebar = sidebar(
