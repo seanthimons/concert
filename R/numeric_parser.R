@@ -23,7 +23,7 @@ NARRATIVE_TERMS <- c(
 #'
 #' Applies a chain of normalizations to prepare a raw result string for numeric parsing.
 #' Normalization order:
-#'   (a) Replace unicode qualifiers: >= -> >=, <= -> <=
+#'   (a) Replace unicode comparison symbols (U+2265, U+2264) with ASCII >= and <=
 #'   (a2) Strip trailing footnote asterisks: "0.00036*" -> "0.00036"
 #'   (a3) Collapse doubled decimal point typos: "0..00013" -> "0.00013"
 #'   (b) Replace x10 scientific notation with e; caret and spaces optional:

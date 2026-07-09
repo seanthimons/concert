@@ -10,7 +10,11 @@
 # Source workbook: EPA State-Specific Water Quality Standards criteria search
 # tool export (https://www.epa.gov/wqs-tech).
 
-sswqs_xlsx <- "C:/Users/sxthi/Documents/epa-sswqs/data/raw/sswqs_criteria.xlsx"
+# Override with SSWQS_XLSX env var when the workbook lives elsewhere
+sswqs_xlsx <- Sys.getenv(
+  "SSWQS_XLSX",
+  "C:/Users/sxthi/Documents/epa-sswqs/data/raw/sswqs_criteria.xlsx"
+)
 stopifnot(file.exists(sswqs_xlsx))
 
 devtools::load_all(quiet = TRUE)
@@ -18,6 +22,9 @@ devtools::load_all(quiet = TRUE)
 sheets <- rio::import_list(sswqs_xlsx)
 dat <- janitor::clean_names(sheets[[which.max(sapply(sheets, nrow))]])
 res <- as.character(dat$criterion_value)
+# Normalize embedded line breaks so every CSV record stays on one line;
+# the parser squishes all whitespace, so this does not change outcomes
+res <- gsub("[\r\n]+", " ", res)
 corpus <- sort(unique(res[is.na(suppressWarnings(as.numeric(res))) & !is.na(res) & res != ""]))
 message(length(corpus), " distinct non-numeric criterion_value strings")
 
