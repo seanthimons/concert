@@ -1,9 +1,25 @@
-name: Release on PR Merge
+name: Release
 
 on:
   pull_request:
     branches: [main]
     types: [closed]
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: Version bump for this release
+        required: true
+        default: patch
+        type: choice
+        options:
+          - none
+          - patch
+          - minor
+          - major
+      release_note:
+        description: Release note for manual releases
+        required: false
+        default: Manual release.
 
 permissions:
   contents: write
@@ -14,7 +30,9 @@ concurrency:
 
 jobs:
   release:
-    if: github.event.pull_request.merged == true
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
 
     steps:
@@ -36,11 +54,14 @@ jobs:
         # r-lib/actions/setup-pandoc v2 pinned by commit SHA.
         uses: r-lib/actions/setup-pandoc@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
 
-      - name: Bump package version
+      - name: Resolve release version
         id: version
         env:
+          EVENT_NAME: ${{ github.event_name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
+          VERSION_TYPE: ${{ inputs.version_type }}
+          MANUAL_RELEASE_NOTE: ${{ inputs.release_note }}
         shell: bash
         run: |
           git pull --ff-only origin main
@@ -50,13 +71,27 @@ jobs:
             gsub("\\s+", " ", trimws(x))
           }
 
-          bump_patch_version <- function(version) {
+          bump_version <- function(version, version_type) {
             parts <- strsplit(version, ".", fixed = TRUE)[[1]]
             if (length(parts) != 3 || any(!grepl("^[0-9]+$", parts))) {
               stop("DESCRIPTION Version must have three numeric components: ", version)
             }
 
-            parts[3] <- as.character(as.integer(parts[3]) + 1L)
+            numeric_parts <- as.integer(parts)
+            if (identical(version_type, "major")) {
+              numeric_parts[1] <- numeric_parts[1] + 1L
+              numeric_parts[2] <- 0L
+              numeric_parts[3] <- 0L
+            } else if (identical(version_type, "minor")) {
+              numeric_parts[2] <- numeric_parts[2] + 1L
+              numeric_parts[3] <- 0L
+            } else if (identical(version_type, "patch")) {
+              numeric_parts[3] <- numeric_parts[3] + 1L
+            } else if (!identical(version_type, "none")) {
+              stop("Unsupported release version_type: ", version_type)
+            }
+
+            parts <- as.character(numeric_parts)
             paste(parts, collapse = ".")
           }
 
@@ -67,39 +102,64 @@ jobs:
           }
 
           current_version <- sub("^Version:[[:space:]]*", "", desc[version_line])
-          new_version <- bump_patch_version(current_version)
+          event_name <- Sys.getenv("EVENT_NAME")
+          version_type <- clean_line(Sys.getenv("VERSION_TYPE"))
+          if (identical(event_name, "pull_request")) {
+            version_type <- "patch"
+          } else if (!nzchar(version_type)) {
+            version_type <- "patch"
+          }
+
+          new_version <- bump_version(current_version, version_type)
           tag <- paste0("v", new_version)
 
-          tag_exists <- system2(
+          local_tag_exists <- system2(
             "git",
             c("rev-parse", "-q", "--verify", paste0("refs/tags/", tag)),
             stdout = TRUE,
             stderr = TRUE
           )
-          if (length(tag_exists) > 0) {
+          remote_tag_status <- system2(
+            "git",
+            c("ls-remote", "--exit-code", "--tags", "origin", paste0("refs/tags/", tag)),
+            stdout = TRUE,
+            stderr = TRUE
+          )
+          remote_tag_exists <- identical(attr(remote_tag_status, "status"), 0L) ||
+            (is.null(attr(remote_tag_status, "status")) && length(remote_tag_status) > 0)
+
+          if (length(local_tag_exists) > 0 || isTRUE(remote_tag_exists)) {
             stop("Release tag ", tag, " already exists.")
           }
 
-          desc[version_line] <- paste("Version:", new_version)
-          writeLines(desc, "DESCRIPTION")
+          commit_needed <- !identical(version_type, "none")
+          if (commit_needed) {
+            desc[version_line] <- paste("Version:", new_version)
+            writeLines(desc, "DESCRIPTION")
+          }
 
           pr_number <- clean_line(Sys.getenv("PR_NUMBER"))
           pr_title <- clean_line(Sys.getenv("PR_TITLE"))
+          manual_note <- clean_line(Sys.getenv("MANUAL_RELEASE_NOTE"))
 
           if (nzchar(pr_number)) {
             note <- paste0("* Release from PR #", pr_number, ": ", pr_title)
+          } else if (nzchar(manual_note)) {
+            note <- paste0("* ", manual_note)
           } else {
-            stop("Release workflow requires a merged pull request event.")
+            note <- "* Manual release."
           }
 
-          news <- readLines("NEWS.md", warn = FALSE)
-          new_section <- c(
-            paste0("# concert ", new_version),
-            "",
-            note,
-            ""
-          )
-          writeLines(c(new_section, news), "NEWS.md")
+          if (commit_needed) {
+            news <- readLines("NEWS.md", warn = FALSE)
+            new_section <- c(
+              paste0("# concert ", new_version),
+              "",
+              note,
+              ""
+            )
+            writeLines(c(new_section, news), "NEWS.md")
+          }
 
           notes_path <- file.path(Sys.getenv("RUNNER_TEMP"), "release-notes.md")
           writeLines(note, notes_path)
@@ -107,7 +167,9 @@ jobs:
           output <- Sys.getenv("GITHUB_OUTPUT")
           write(paste0("previous_version=", current_version), output, append = TRUE)
           write(paste0("version=", new_version), output, append = TRUE)
+          write(paste0("version_type=", version_type), output, append = TRUE)
           write(paste0("tag=", tag), output, append = TRUE)
+          write(paste0("commit_needed=", tolower(commit_needed)), output, append = TRUE)
           write(paste0("notes_path=", notes_path), output, append = TRUE)
           RSCRIPT
 
@@ -137,6 +199,7 @@ jobs:
           echo "tarball=$RUNNER_TEMP/pkg-build/concert_${VERSION}.tar.gz" >> "$GITHUB_OUTPUT"
 
       - name: Commit version bump
+        if: steps.version.outputs.commit_needed == 'true'
         id: commit
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -152,12 +215,16 @@ jobs:
           fi
           git commit -m "$commit_message"
           git push origin HEAD:main
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve release commit
+        id: release_commit
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Create tag and GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_SHA: ${{ steps.commit.outputs.sha }}
+          RELEASE_SHA: ${{ steps.release_commit.outputs.sha }}
           TAG: ${{ steps.version.outputs.tag }}
           NOTES_PATH: ${{ steps.version.outputs.notes_path }}
           TARBALL: ${{ steps.build.outputs.tarball }}
