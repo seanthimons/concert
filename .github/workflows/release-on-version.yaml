@@ -1,26 +1,36 @@
-name: Release on Version Bump
+name: Release on PR Merge
 
 on:
-  push:
+  pull_request:
     branches: [main]
-    paths:
-      - DESCRIPTION
-      - NEWS.md
+    types: [closed]
   workflow_dispatch:
+    inputs:
+      release_note:
+        description: Release note for a manual version bump
+        required: false
+        default: Manual release.
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
 jobs:
   release:
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout main
         # actions/checkout v5 pinned by commit SHA for supply-chain stability.
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Set up R
@@ -38,98 +48,104 @@ jobs:
         # r-lib/actions/setup-tinytex v2 pinned by commit SHA.
         uses: r-lib/actions/setup-tinytex@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
 
-      - name: Decide whether to release
-        id: release
+      - name: Bump package version
+        id: version
         env:
-          BEFORE_SHA: ${{ github.event.before }}
-          GITHUB_SHA: ${{ github.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          MANUAL_RELEASE_NOTE: ${{ inputs.release_note }}
         shell: bash
         run: |
+          git pull --ff-only origin main
+
           Rscript - <<'RSCRIPT'
-          read_version <- function(path) {
-            unname(read.dcf(path, fields = "Version")[1, "Version"])
+          clean_line <- function(x) {
+            gsub("\\s+", " ", trimws(x))
           }
 
-          current_version <- read_version("DESCRIPTION")
-          previous_version <- NA_character_
-          before <- Sys.getenv("BEFORE_SHA")
-
-          if (nzchar(before) && !grepl("^0+$", before)) {
-            previous_description <- tryCatch(
-              system2("git", c("show", paste0(before, ":DESCRIPTION")), stdout = TRUE),
-              error = function(e) character()
-            )
-            if (length(previous_description) > 0) {
-              previous_version <- unname(read.dcf(textConnection(previous_description), fields = "Version")[1, "Version"])
+          bump_patch_version <- function(version) {
+            parts <- strsplit(version, ".", fixed = TRUE)[[1]]
+            if (length(parts) != 3 || any(!grepl("^[0-9]+$", parts))) {
+              stop("DESCRIPTION Version must have three numeric components: ", version)
             }
+
+            parts[3] <- as.character(as.integer(parts[3]) + 1L)
+            paste(parts, collapse = ".")
           }
 
-          tag <- paste0("v", current_version)
-          should_release <- TRUE
-          reason <- NULL
-
-          if (identical(current_version, "0.1.0")) {
-            should_release <- FALSE
-            reason <- "0.1.0 is the initial package version and is not auto-tagged."
-          } else if (!grepl("^[0-9]+\\.[0-9]+\\.[0-9]+$", current_version)) {
-            stop("DESCRIPTION Version must have three numeric components for package releases: ", current_version)
-          } else if (!is.na(previous_version) && identical(previous_version, current_version)) {
-            should_release <- FALSE
-            reason <- "DESCRIPTION Version did not change."
+          desc <- readLines("DESCRIPTION", warn = FALSE)
+          version_line <- grep("^Version:[[:space:]]*", desc)
+          if (length(version_line) != 1) {
+            stop("DESCRIPTION must contain exactly one Version field.")
           }
 
-          if (isTRUE(should_release)) {
-            tag_exists <- system2("git", c("rev-parse", "-q", "--verify", paste0("refs/tags/", tag)), stdout = TRUE, stderr = TRUE)
-            if (length(tag_exists) > 0) {
-              tag_commit <- system2("git", c("rev-list", "-n", "1", tag), stdout = TRUE)
-              if (!identical(tag_commit, Sys.getenv("GITHUB_SHA"))) {
-                stop("Release tag ", tag, " already exists at ", tag_commit, ", not ", Sys.getenv("GITHUB_SHA"))
-              }
-              should_release <- FALSE
-              reason <- paste("Release tag", tag, "already exists at this commit.")
-            }
+          current_version <- sub("^Version:[[:space:]]*", "", desc[version_line])
+          new_version <- bump_patch_version(current_version)
+          tag <- paste0("v", new_version)
+
+          tag_exists <- system2(
+            "git",
+            c("rev-parse", "-q", "--verify", paste0("refs/tags/", tag)),
+            stdout = TRUE,
+            stderr = TRUE
+          )
+          if (length(tag_exists) > 0) {
+            stop("Release tag ", tag, " already exists.")
           }
+
+          desc[version_line] <- paste("Version:", new_version)
+          writeLines(desc, "DESCRIPTION")
+
+          pr_number <- clean_line(Sys.getenv("PR_NUMBER"))
+          pr_title <- clean_line(Sys.getenv("PR_TITLE"))
+          manual_note <- clean_line(Sys.getenv("MANUAL_RELEASE_NOTE"))
+
+          if (nzchar(pr_number)) {
+            note <- paste0("* Release from PR #", pr_number, ": ", pr_title)
+          } else if (nzchar(manual_note)) {
+            note <- paste0("* ", manual_note)
+          } else {
+            note <- "* Manual release."
+          }
+
+          news <- readLines("NEWS.md", warn = FALSE)
+          new_section <- c(
+            paste0("# concert ", new_version),
+            "",
+            note,
+            ""
+          )
+          writeLines(c(new_section, news), "NEWS.md")
+
+          notes_path <- file.path(Sys.getenv("RUNNER_TEMP"), "release-notes.md")
+          writeLines(note, notes_path)
 
           output <- Sys.getenv("GITHUB_OUTPUT")
-          write(paste0("version=", current_version), output, append = TRUE)
-          write(paste0("previous_version=", ifelse(is.na(previous_version), "", previous_version)), output, append = TRUE)
+          write(paste0("previous_version=", current_version), output, append = TRUE)
+          write(paste0("version=", new_version), output, append = TRUE)
           write(paste0("tag=", tag), output, append = TRUE)
-          write(paste0("should_release=", tolower(should_release)), output, append = TRUE)
-
-          if (!is.null(reason)) {
-            message(reason)
-          }
+          write(paste0("notes_path=", notes_path), output, append = TRUE)
           RSCRIPT
 
-      - name: Extract release notes
-        if: steps.release.outputs.should_release == 'true'
+      - name: Commit version bump
+        id: commit
         env:
-          VERSION: ${{ steps.release.outputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         shell: bash
         run: |
-          Rscript - <<'RSCRIPT'
-          version <- Sys.getenv("VERSION")
-          lines <- readLines("NEWS.md", warn = FALSE)
-          heading_pattern <- paste0("^#+\\s+.*\\b", gsub("\\.", "\\\\.", version), "\\b")
-          heading <- grep(heading_pattern, lines)
-          if (length(heading) == 0) {
-            stop("NEWS.md does not contain a section for version ", version)
-          }
-
-          start <- heading[1] + 1L
-          rest <- if (start <= length(lines)) lines[start:length(lines)] else character()
-          next_heading <- grep("^#+\\s+", rest)
-          end <- if (length(next_heading) == 0) length(lines) else start + next_heading[1] - 2L
-          notes <- if (start <= end) lines[start:end] else character()
-          notes <- notes[seq_len(max(which(nzchar(trimws(notes))), 0))]
-          if (length(notes) == 0) {
-            stop("NEWS.md section for version ", version, " is empty")
-          }
-          writeLines(notes, "release-notes.md")
-          RSCRIPT
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add DESCRIPTION NEWS.md
+          commit_message="chore: bump package version to $VERSION"
+          if [ -n "$PR_NUMBER" ]; then
+            commit_message="$commit_message (#$PR_NUMBER)"
+          fi
+          git commit -m "$commit_message"
+          git push origin HEAD:main
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Install package dependencies
-        if: steps.release.outputs.should_release == 'true'
         # r-lib/actions/setup-r-dependencies v2 pinned by commit SHA.
         uses: r-lib/actions/setup-r-dependencies@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
         with:
@@ -137,21 +153,32 @@ jobs:
           needs: check
 
       - name: Validate release
-        if: steps.release.outputs.should_release == 'true'
         run: Rscript -e "rcmdcheck::rcmdcheck(args = '--as-cran', error_on = 'warning')"
 
-      - name: Create tag and GitHub release
-        if: steps.release.outputs.should_release == 'true'
+      - name: Build source package
+        id: build
         env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
         shell: bash
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "Release $TAG" "$GITHUB_SHA"
+          R CMD build .
+          mkdir -p "$RUNNER_TEMP/pkg-build"
+          mv "concert_${VERSION}.tar.gz" "$RUNNER_TEMP/pkg-build/"
+          echo "tarball=$RUNNER_TEMP/pkg-build/concert_${VERSION}.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Create tag and GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.commit.outputs.sha }}
+          TAG: ${{ steps.version.outputs.tag }}
+          NOTES_PATH: ${{ steps.version.outputs.notes_path }}
+          TARBALL: ${{ steps.build.outputs.tarball }}
+        shell: bash
+        run: |
+          git tag -a "$TAG" -m "Release $TAG" "$RELEASE_SHA"
           git push origin "refs/tags/$TAG"
-          gh release create "$TAG" \
-            --target "$GITHUB_SHA" \
+          gh release create "$TAG" "$TARBALL#Source package" \
+            --target "$RELEASE_SHA" \
             --title "$TAG" \
-            --notes-file release-notes.md
+            --notes-file "$NOTES_PATH" \
+            --verify-tag
