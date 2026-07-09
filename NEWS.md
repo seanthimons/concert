@@ -1,3 +1,7 @@
+# concert 0.1.2
+
+* Release from PR #47: feat(parser): salvage SSWQS-style numeric strings and reclassify zero-digit values
+
 # concert 0.1.1
 
 * App header now displays the concise CONCERT name with the current package
