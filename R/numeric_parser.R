@@ -6,37 +6,73 @@
 
 # Known narrative strings (case-insensitive matching)
 NARRATIVE_TERMS <- c(
-  "bdl", "nd", "non-detect", "nondetect", "trace", "not detected",
-  "below detection", "below quantitation", "bql", "lod", "loq"
+  "bdl",
+  "nd",
+  "non-detect",
+  "nondetect",
+  "trace",
+  "not detected",
+  "below detection",
+  "below quantitation",
+  "bql",
+  "lod",
+  "loq"
 )
 
 #' Normalize a raw numeric string
 #'
 #' Applies a chain of normalizations to prepare a raw result string for numeric parsing.
 #' Normalization order:
-#'   (a) Replace unicode qualifiers: >= -> >=, <= -> <=
-#'   (b) Replace x10^ and X10^ with e (scientific notation)
+#'   (a) Replace unicode comparison symbols (U+2265, U+2264) with ASCII >= and <=
+#'   (a2) Strip trailing footnote asterisks: "0.00036*" -> "0.00036"
+#'   (a3) Collapse doubled decimal point typos: "0..00013" -> "0.00013"
+#'   (b) Replace x10 scientific notation with e; caret and spaces optional:
+#'       "2.5x10^3", "6 x 10-4", "7x106" -> "2.5e3", "6e-4", "7e6"
+#'   (b2) Word multiplier: "7 million" -> "7e6"
+#'   (b3) Spaced E notation (whole-string match only): "5.0 E - 9" -> "5.0e-9"
 #'   (c) Detect Fortran exponents: digits followed by +/- digits at end of string (no e/E)
 #'   (d) Strip commas between digits
 #'   (e) Squish whitespace (collapse internal, trim edges)
 #'
+#' Rules (a2)-(b3) were derived from string variants observed in the EPA SSWQS
+#' criteria dataset (see tests/testthat/data/sswqs_criterion_values.csv).
+#'
 #' @param x Character vector of raw result strings
+#' @param fortran Apply the Fortran exponent step (c). Set FALSE for the
+#'   pre-range-detection form, where "5-10" must stay a range separator.
 #' @return Character vector of normalized strings
-normalize_numeric_string <- function(x) {
+normalize_numeric_string <- function(x, fortran = TRUE) {
   # (a) Unicode qualifiers
   x <- gsub("\u2265", ">=", x, fixed = TRUE)
   x <- gsub("\u2264", "<=", x, fixed = TRUE)
 
-  # (b) x10^ notation -> e notation (case-insensitive)
-  x <- gsub("[xX]10\\^", "e", x)
+  # (a2) Trailing footnote asterisks
+  x <- gsub("\\*+\\s*$", "", x)
+
+  # (a3) Doubled decimal point typo
+  x <- gsub("(\\d)\\.\\.(\\d)", "\\1.\\2", x)
+
+  # (b) x10 notation -> e notation; caret and surrounding spaces optional.
+  # Requires a digit before x and literal 10, so ranges ("0.0 - 0.5"),
+  # qualifiers ("< 5"), and words are never touched.
+  x <- gsub("(\\d)\\s*[xX]\\s*10\\s*\\^?\\s*([+-]?\\d+)", "\\1e\\2", x)
+
+  # (b2) Word multiplier
+  x <- gsub("(\\d)\\s*[mM]illion\\b", "\\1e6", x)
+
+  # (b3) Spaced E notation, anchored to the whole string so multi-token
+  # values (ranges, narratives) cannot match
+  x <- gsub("^\\s*(\\d+(?:\\.\\d+)?)\\s*[eE]\\s*([+-]?)\\s*(\\d+)\\s*$", "\\1e\\2\\3", x)
 
   # (c) Fortran exponents: e.g. "4.56+02" or "4.56-02" (no e/E already present)
   # Condition: only apply when no 'e' or 'E' exists in the string already
-  x <- ifelse(
-    !grepl("[eE]", x) & grepl("(\\d)([+-])(\\d+)$", x),
-    gsub("(\\d)([+-])(\\d+)$", "\\1e\\2\\3", x),
-    x
-  )
+  if (fortran) {
+    x <- ifelse(
+      !grepl("[eE]", x) & grepl("(\\d)([+-])(\\d+)$", x),
+      gsub("(\\d)([+-])(\\d+)$", "\\1e\\2\\3", x),
+      x
+    )
+  }
 
   # (d) Strip commas between digits (multi-pass for chains like 1,234,567)
   for (pass in 1:3) {
@@ -122,8 +158,11 @@ split_ranges <- function(remainder, qualifier) {
   candidate_values <- remainder[candidate_ids]
 
   # Pre-guard (b): Fortran exponent patterns (e.g., "4.56-02") are NOT ranges.
+  # Only a leading-zero two-digit tail counts as a Fortran exponent; anything
+  # else ("6.5-9", "0.63-3200") is a genuine range. A looser guard silently
+  # misparsed pH-style ranges as exponents (SSWQS corpus, 34 cases).
   is_fortran <- !grepl("[eE]", candidate_values) &
-    grepl("^[+-]?[0-9]+\\.[0-9]+[+-][0-9]+$", candidate_values)
+    grepl("^[+-]?[0-9]+\\.[0-9]+[+-]0[0-9]$", candidate_values)
   candidate_ids <- candidate_ids[!is_fortran]
   candidate_values <- candidate_values[!is_fortran]
   if (length(candidate_ids) == 0) {
@@ -151,10 +190,15 @@ split_ranges <- function(remainder, qualifier) {
 
 #' Parse messy numeric result strings into a structured tibble
 #'
-#' Handles whitespace, commas, scientific notation (x10^, Fortran exponents, standard e),
-#' qualifier extraction (<, >, <=, >=, ~, =), unicode qualifiers (>=, <=),
-#' narrative detection (BDL, ND, trace, etc.), range splitting (5-10 -> 3 rows),
-#' and unparseable values.
+#' Handles whitespace, commas, scientific notation (x10 with or without caret and
+#' spaces, spaced E, Fortran exponents, standard e), word multipliers ("7 million"),
+#' footnote asterisks and doubled-decimal typos, qualifier extraction
+#' (<, >, <=, >=, ~, =), unicode qualifiers (>=, <=), narrative detection
+#' (BDL, ND, trace, etc.), range splitting (5-10 -> 3 rows), and unparseable values.
+#'
+#' Unparseable strings containing no digits (e.g. "See note") are reclassified as
+#' narrative: numeric_value = NA, parse_flag = "narrative", excluded from the
+#' unparseable warning and the correction workflow.
 #'
 #' Range splitting (PARS-03): "5-10" becomes 3 rows per D-02 and D-03:
 #'   - low row: qualifier=">=", range_bin="low"
@@ -198,20 +242,10 @@ parse_numeric_results <- function(values) {
   # Step 2: assign orig_row_id
   orig_row_id <- seq_along(values)
 
-  # Step 3a: partial normalization (unicode, x10^, commas, whitespace) - BEFORE Fortran exponents
+  # Step 3a: partial normalization (all steps except Fortran exponents)
   # This is the form used for range detection: Fortran exponent normalization would convert
   # "5-10" -> "5e-10", destroying the range separator. Ranges must be detected first.
-  pre_norm <- orig_result
-  # (a) Unicode qualifiers
-  pre_norm <- gsub("\u2265", ">=", pre_norm, fixed = TRUE)
-  pre_norm <- gsub("\u2264", "<=", pre_norm, fixed = TRUE)
-  # (b) x10^ notation
-  pre_norm <- gsub("[xX]10\\^", "e", pre_norm)
-  # (d) Strip commas (3-pass)
-  for (pass in 1:3) pre_norm <- gsub("(\\d),(\\d)", "\\1\\2", pre_norm)
-  # (e) Squish whitespace
-  pre_norm <- gsub("\\s+", " ", pre_norm)
-  pre_norm <- trimws(pre_norm)
+  pre_norm <- normalize_numeric_string(orig_result, fortran = FALSE)
 
   # Step 3b: extract qualifiers from pre-norm form (for range pre-guard)
   qe_pre <- extract_qualifier(pre_norm)
@@ -239,6 +273,14 @@ parse_numeric_results <- function(values) {
   single_parse_flag[is_narrative[single_ids]] <- "narrative"
   unparseable <- !is_narrative[single_ids] & is.na(single_numeric)
   single_parse_flag[unparseable] <- "unparseable"
+
+  # Unparseable strings with no digits at all ("See note", "Not Detectable")
+  # are narrative text, not fixable data errors: flag as narrative so they
+  # skip the correction workflow and the unparseable warning.
+  no_digits <- unparseable & !grepl("[0-9]", orig_result[single_ids])
+  single_parse_flag[no_digits] <- "narrative"
+  unparseable <- unparseable & !no_digits
+
   single_numeric[single_parse_flag != ""] <- NA_real_
 
   n_unparseable <- sum(unparseable)
