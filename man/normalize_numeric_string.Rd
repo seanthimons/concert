@@ -4,10 +4,13 @@
 \alias{normalize_numeric_string}
 \title{Normalize a raw numeric string}
 \usage{
-normalize_numeric_string(x)
+normalize_numeric_string(x, fortran = TRUE)
 }
 \arguments{
 \item{x}{Character vector of raw result strings}
+
+\item{fortran}{Apply the Fortran exponent step (c). Set FALSE for the
+pre-range-detection form, where "5-10" must stay a range separator.}
 }
 \value{
 Character vector of normalized strings
@@ -15,9 +18,18 @@ Character vector of normalized strings
 \description{
 Applies a chain of normalizations to prepare a raw result string for numeric parsing.
 Normalization order:
-(a) Replace unicode qualifiers: >= -> >=, <= -> <=
-(b) Replace x10^ and X10^ with e (scientific notation)
+(a) Replace unicode comparison symbols (U+2265, U+2264) with ASCII >= and <=
+(a2) Strip trailing footnote asterisks: "0.00036*" -> "0.00036"
+(a3) Collapse doubled decimal point typos: "0..00013" -> "0.00013"
+(b) Replace x10 scientific notation with e; caret and spaces optional:
+"2.5x10^3", "6 x 10-4", "7x106" -> "2.5e3", "6e-4", "7e6"
+(b2) Word multiplier: "7 million" -> "7e6"
+(b3) Spaced E notation (whole-string match only): "5.0 E - 9" -> "5.0e-9"
 (c) Detect Fortran exponents: digits followed by +/- digits at end of string (no e/E)
 (d) Strip commas between digits
 (e) Squish whitespace (collapse internal, trim edges)
+}
+\details{
+Rules (a2)-(b3) were derived from string variants observed in the EPA SSWQS
+criteria dataset (see tests/testthat/data/sswqs_criterion_values.csv).
 }
