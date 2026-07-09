@@ -4,12 +4,6 @@ on:
   pull_request:
     branches: [main]
     types: [closed]
-  workflow_dispatch:
-    inputs:
-      release_note:
-        description: Release note for a manual version bump
-        required: false
-        default: Manual release.
 
 permissions:
   contents: write
@@ -20,9 +14,7 @@ concurrency:
 
 jobs:
   release:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
     steps:
@@ -49,7 +41,6 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
-          MANUAL_RELEASE_NOTE: ${{ inputs.release_note }}
         shell: bash
         run: |
           git pull --ff-only origin main
@@ -94,14 +85,11 @@ jobs:
 
           pr_number <- clean_line(Sys.getenv("PR_NUMBER"))
           pr_title <- clean_line(Sys.getenv("PR_TITLE"))
-          manual_note <- clean_line(Sys.getenv("MANUAL_RELEASE_NOTE"))
 
           if (nzchar(pr_number)) {
             note <- paste0("* Release from PR #", pr_number, ": ", pr_title)
-          } else if (nzchar(manual_note)) {
-            note <- paste0("* ", manual_note)
           } else {
-            note <- "* Manual release."
+            stop("Release workflow requires a merged pull request event.")
           }
 
           news <- readLines("NEWS.md", warn = FALSE)
