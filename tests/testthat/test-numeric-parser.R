@@ -185,7 +185,7 @@ test_that("unparseable: 'abc123xyz' returns NA numeric_value and parse_flag='unp
 
 test_that("warning: vector with 2 unparseable values emits warning containing '2'", {
   expect_warning(
-    parse_numeric_results(c("abc", "xyz")),
+    parse_numeric_results(c("abc1", "2xyz")),
     "2"
   )
 })
@@ -348,4 +348,113 @@ test_that("range integration: orig_row_id linkage — first range gets id=1, sec
   # 3 rows with id=1 (range), 1 row with id=2 (single)
   expect_equal(sum(result$orig_row_id == 1), 3)
   expect_equal(sum(result$orig_row_id == 2), 1)
+})
+
+# ---- SSWQS salvage rules: x10 without caret / with spaces ----
+
+test_that("salvage: '6 x 10-4' spaced x10 with implicit exponent converts to 6e-4", {
+  result <- parse_numeric_results(c("6 x 10-4"))
+  expect_equal(result$numeric_value, 6e-4)
+  expect_equal(result$parse_flag, "")
+})
+
+test_that("salvage: '3 X 10-8' uppercase X converts to 3e-8", {
+  result <- parse_numeric_results(c("3 X 10-8"))
+  expect_equal(result$numeric_value, 3e-8)
+})
+
+test_that("salvage: '5.0x10-9' compact caretless form converts to 5e-9", {
+  result <- parse_numeric_results(c("5.0x10-9"))
+  expect_equal(result$numeric_value, 5e-9)
+})
+
+test_that("salvage: '5.0 x 10^-9' spaced caret form converts to 5e-9", {
+  result <- parse_numeric_results(c("5.0 x 10^-9"))
+  expect_equal(result$numeric_value, 5e-9)
+})
+
+test_that("salvage: '7x106' bare positive exponent converts to 7e6", {
+  result <- parse_numeric_results(c("7x106"))
+  expect_equal(result$numeric_value, 7e6)
+})
+
+test_that("salvage: '6 x 10-10' two-digit exponent converts to 6e-10", {
+  result <- parse_numeric_results(c("6 x 10-10"))
+  expect_equal(result$numeric_value, 6e-10)
+})
+
+# ---- SSWQS salvage rules: spaced E notation ----
+
+test_that("salvage: '5.0 E - 9' fully spaced E converts to 5e-9", {
+  result <- parse_numeric_results(c("5.0 E - 9"))
+  expect_equal(result$numeric_value, 5e-9)
+})
+
+test_that("salvage: '5.0 E -9' converts to 5e-9", {
+  result <- parse_numeric_results(c("5.0 E -9"))
+  expect_equal(result$numeric_value, 5e-9)
+})
+
+test_that("salvage: '5.1 E-9' converts to 5.1e-9", {
+  result <- parse_numeric_results(c("5.1 E-9"))
+  expect_equal(result$numeric_value, 5.1e-9)
+})
+
+# ---- SSWQS salvage rules: word multiplier and typos ----
+
+test_that("salvage: '7 million' converts to 7e6", {
+  result <- parse_numeric_results(c("7 million"))
+  expect_equal(result$numeric_value, 7e6)
+  expect_equal(result$parse_flag, "")
+})
+
+test_that("salvage: '0..00013' doubled decimal typo converts to 0.00013", {
+  result <- parse_numeric_results(c("0..00013"))
+  expect_equal(result$numeric_value, 0.00013)
+})
+
+test_that("salvage: '0.00036*' trailing footnote asterisk is stripped", {
+  result <- parse_numeric_results(c("0.00036*"))
+  expect_equal(result$numeric_value, 0.00036)
+})
+
+# ---- Fortran guard tightening: X.Y-Z ranges are no longer eaten as exponents ----
+
+test_that("range: '0.63-3,200' comma range splits (low=0.63, high=3200), not Fortran", {
+  result <- parse_numeric_results(c("0.63-3,200"))
+  expect_equal(nrow(result), 3)
+  expect_equal(result$numeric_value[result$range_bin == "low"], 0.63)
+  expect_equal(result$numeric_value[result$range_bin == "high"], 3200)
+})
+
+test_that("range: '6.5-9' pH-style range splits, not parsed as 6.5e-9", {
+  result <- parse_numeric_results(c("6.5-9"))
+  expect_equal(nrow(result), 3)
+  expect_equal(result$numeric_value[result$range_bin == "low"], 6.5)
+  expect_equal(result$numeric_value[result$range_bin == "high"], 9)
+})
+
+test_that("not a range: leading-zero exponent '4.56-02' still parses as Fortran 0.0456", {
+  result <- parse_numeric_results(c("4.56-02"))
+  expect_equal(nrow(result), 1)
+  expect_equal(result$numeric_value, 0.0456)
+})
+
+# ---- Zero-digit unparseable reclassified as narrative ----
+
+test_that("zero-digit: 'See note' returns parse_flag='narrative', NA, and no warning", {
+  result <- expect_no_warning(parse_numeric_results(c("See note")))
+  expect_true(is.na(result$numeric_value))
+  expect_equal(result$parse_flag, "narrative")
+})
+
+test_that("zero-digit: 'Not Detectable' returns parse_flag='narrative' with no warning", {
+  result <- expect_no_warning(parse_numeric_results(c("Not Detectable")))
+  expect_equal(result$parse_flag, "narrative")
+})
+
+test_that("digit-bearing unparseable values still flag and warn", {
+  expect_warning(result <- parse_numeric_results(c("19/15", "10% increase", "6.90E+0.1")), "3")
+  expect_equal(result$parse_flag, rep("unparseable", 3))
+  expect_true(all(is.na(result$numeric_value)))
 })

@@ -14,12 +14,17 @@ A tibble with columns: orig_row_id, orig_result, numeric_value, qualifier,
 range_bin, parse_flag. Range values produce 3 rows sharing the same orig_row_id.
 }
 \description{
-Handles whitespace, commas, scientific notation (x10^, Fortran exponents, standard e),
-qualifier extraction (<, >, <=, >=, ~, =), unicode qualifiers (>=, <=),
-narrative detection (BDL, ND, trace, etc.), range splitting (5-10 -> 3 rows),
-and unparseable values.
+Handles whitespace, commas, scientific notation (x10 with or without caret and
+spaces, spaced E, Fortran exponents, standard e), word multipliers ("7 million"),
+footnote asterisks and doubled-decimal typos, qualifier extraction
+(<, >, <=, >=, ~, =), unicode qualifiers (>=, <=), narrative detection
+(BDL, ND, trace, etc.), range splitting (5-10 -> 3 rows), and unparseable values.
 }
 \details{
+Unparseable strings containing no digits (e.g. "See note") are reclassified as
+narrative: numeric_value = NA, parse_flag = "narrative", excluded from the
+unparseable warning and the correction workflow.
+
 Range splitting (PARS-03): "5-10" becomes 3 rows per D-02 and D-03:
 \itemize{
 \item low row: qualifier=">=", range_bin="low"
