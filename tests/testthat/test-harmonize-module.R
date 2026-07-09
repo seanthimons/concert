@@ -11,14 +11,15 @@
 test_that("apply_corrections applies pattern replacements correctly", {
   # Replicate apply_corrections logic from R/mod_harmonize.R
   apply_corrections_test <- function(values, corrections_tbl) {
-    if (is.null(corrections_tbl) || nrow(corrections_tbl) == 0) return(values)
+    if (is.null(corrections_tbl) || nrow(corrections_tbl) == 0) {
+      return(values)
+    }
     result <- values
     for (i in seq_len(nrow(corrections_tbl))) {
       tryCatch(
         result <- gsub(corrections_tbl$pattern[i], corrections_tbl$replacement[i], result),
         error = function(e) {
-          warning(sprintf("Correction pattern '%s' failed: %s",
-                          corrections_tbl$pattern[i], e$message))
+          warning(sprintf("Correction pattern '%s' failed: %s", corrections_tbl$pattern[i], e$message))
         }
       )
     }
@@ -41,14 +42,15 @@ test_that("apply_corrections applies pattern replacements correctly", {
 
 test_that("apply_corrections returns values unchanged with empty corrections", {
   apply_corrections_test <- function(values, corrections_tbl) {
-    if (is.null(corrections_tbl) || nrow(corrections_tbl) == 0) return(values)
+    if (is.null(corrections_tbl) || nrow(corrections_tbl) == 0) {
+      return(values)
+    }
     result <- values
     for (i in seq_len(nrow(corrections_tbl))) {
       tryCatch(
         result <- gsub(corrections_tbl$pattern[i], corrections_tbl$replacement[i], result),
         error = function(e) {
-          warning(sprintf("Correction pattern '%s' failed: %s",
-                          corrections_tbl$pattern[i], e$message))
+          warning(sprintf("Correction pattern '%s' failed: %s", corrections_tbl$pattern[i], e$message))
         }
       )
     }
@@ -64,14 +66,15 @@ test_that("apply_corrections returns values unchanged with empty corrections", {
 
 test_that("apply_corrections skips bad regex patterns without crashing", {
   apply_corrections_test <- function(values, corrections_tbl) {
-    if (is.null(corrections_tbl) || nrow(corrections_tbl) == 0) return(values)
+    if (is.null(corrections_tbl) || nrow(corrections_tbl) == 0) {
+      return(values)
+    }
     result <- values
     for (i in seq_len(nrow(corrections_tbl))) {
       tryCatch(
         result <- gsub(corrections_tbl$pattern[i], corrections_tbl$replacement[i], result),
         error = function(e) {
-          warning(sprintf("Correction pattern '%s' failed: %s",
-                          corrections_tbl$pattern[i], e$message))
+          warning(sprintf("Correction pattern '%s' failed: %s", corrections_tbl$pattern[i], e$message))
         }
       )
     }
@@ -105,14 +108,17 @@ test_that("add_passthrough_mapping creates correct identity mapping", {
     source = "ECOTOX"
   )
 
-  result <- dplyr::bind_rows(base_map, tibble::tibble(
-    from_unit   = "NTU",
-    to_unit     = "NTU",
-    multiplier  = 1,
-    category    = "dimensionless",
-    confidence  = "LOW",
-    source      = "user_passthrough"
-  ))
+  result <- dplyr::bind_rows(
+    base_map,
+    tibble::tibble(
+      from_unit = "NTU",
+      to_unit = "NTU",
+      multiplier = 1,
+      category = "dimensionless",
+      confidence = "LOW",
+      source = "user_passthrough"
+    )
+  )
 
   expect_equal(nrow(result), 2)
   new_row <- result[result$from_unit == "NTU", ]
@@ -151,9 +157,9 @@ test_that("QC metrics compute correctly from known pipeline output", {
 
   hr <- list(parsed = parsed, harmonized = harmonized, input_data = input_data)
 
-  n_parsed     <- nrow(hr$parsed)
+  n_parsed <- nrow(hr$parsed)
   n_harmonized <- sum(hr$harmonized$unit_flag != "unmatched", na.rm = TRUE)
-  n_dtxsid     <- sum(!is.na(hr$input_data$consensus_dtxsid))
+  n_dtxsid <- sum(!is.na(hr$input_data$consensus_dtxsid))
   n_na_numeric <- sum(is.na(hr$parsed$numeric_value))
 
   expect_equal(n_parsed, 5)
@@ -205,9 +211,13 @@ test_that("exact numeric correction patterns escape regex metacharacters", {
     patterns,
     c("^6\\.90E\\+0\\.1$", "^< 1$", "^1,2$", "^\\(5\\)$")
   )
-  expect_true(all(vapply(seq_along(values), function(i) {
-    grepl(patterns[i], values[i])
-  }, logical(1))))
+  expect_true(all(vapply(
+    seq_along(values),
+    function(i) {
+      grepl(patterns[i], values[i])
+    },
+    logical(1)
+  )))
 })
 
 test_that("queued numeric replacement validation accepts parsed values and rejects unparseable values", {
@@ -327,8 +337,7 @@ test_that("shared harmonization runtime returns all harmonized artifacts", {
 test_that("load_corrections returns correct tibble structure", {
   cache_dir <- system.file("extdata", "reference_cache", package = "concert")
   skip_if(cache_dir == "", message = "concert not installed as package")
-  skip_if_not(exists("load_corrections"),
-              message = "load_corrections not exported from installed concert package")
+  skip_if_not(exists("load_corrections"), message = "load_corrections not exported from installed concert package")
   result <- load_corrections(cache_dir)
   expect_s3_class(result, "tbl_df")
   expect_equal(names(result), c("pattern", "replacement"))
@@ -636,7 +645,7 @@ test_that("numeric parse assistant queues corrections, appends them, and clears 
   input_df <- tibble::tibble(
     chemical_name = c("A", "B", "C"),
     casrn = c("111-11-1", "222-22-2", "333-33-3"),
-    result = c("6.90E+0.1", "2", "bad"),
+    result = c("6.90E+0.1", "2", "b4d"),
     unit = c("mg/L", "mg/L", "mg/L"),
     media = c("surface_water", "surface_water", "surface_water"),
     consensus_dtxsid = c("DTXSID0000001", "DTXSID0000002", "DTXSID0000003")
@@ -656,7 +665,7 @@ test_that("numeric parse assistant queues corrections, appends them, and clears 
       harmonize_audit = data_store$harmonize_audit,
       harmonize_results = data_store$harmonize_results
     )
-    expect_equal(issues$original_value, c("6.90E+0.1", "bad"))
+    expect_equal(issues$original_value, c("6.90E+0.1", "b4d"))
 
     session$setInputs(numeric_replacement_1 = "6.90E+01")
     session$setInputs(numeric_replacement_2 = "3")
@@ -671,7 +680,7 @@ test_that("numeric parse assistant queues corrections, appends them, and clears 
     expect_equal(nrow(data_store$numeric_correction_queue), 0L)
     expect_equal(
       data_store$corrections_working$pattern,
-      c("^6\\.90E\\+0\\.1$", "^bad$")
+      c("^6\\.90E\\+0\\.1$", "^b4d$")
     )
     expect_equal(
       data_store$corrections_working$replacement,
