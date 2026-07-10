@@ -1315,6 +1315,212 @@ augment_radiological_unit_map <- function(unit_map) {
   dplyr::bind_rows(radiological_rows, unit_map)
 }
 
+augment_environmental_unit_map <- function(unit_map) {
+  make_rows <- function(from_unit,
+                        to_unit,
+                        multiplier = 1,
+                        category = "dimensionless",
+                        confidence = "HIGH",
+                        source = "concert_environmental",
+                        offset = 0,
+                        conversion_type = NULL) {
+    n <- length(from_unit)
+    if (length(to_unit) == 1) to_unit <- rep(to_unit, n)
+    if (length(multiplier) == 1) multiplier <- rep(multiplier, n)
+    if (length(category) == 1) category <- rep(category, n)
+    if (length(confidence) == 1) confidence <- rep(confidence, n)
+    if (length(source) == 1) source <- rep(source, n)
+    if (length(offset) == 1) offset <- rep(offset, n)
+    if (is.null(conversion_type)) {
+      conversion_type <- ifelse(offset == 0, "linear", "affine")
+    } else if (length(conversion_type) == 1) {
+      conversion_type <- rep(conversion_type, n)
+    }
+
+    tibble::tibble(
+      from_unit = from_unit,
+      to_unit = to_unit,
+      multiplier = as.numeric(multiplier),
+      category = category,
+      confidence = confidence,
+      source = source,
+      offset = as.numeric(offset),
+      conversion_type = conversion_type
+    )
+  }
+
+  lb_to_kg <- 0.45359237
+  short_ton_to_kg <- 907.18474
+  acre_foot_to_m3 <- 1233.48183754752
+
+  environmental_rows <- dplyr::bind_rows(
+    make_rows(
+      from_unit = c("%"),
+      to_unit = "%",
+      category = "dimensionless"
+    ),
+    make_rows(
+      from_unit = c(
+        "\u00b0C", "deg C", "degree Celsius", "degrees Celsius",
+        "Degrees Celsius"
+      ),
+      to_unit = "deg C",
+      category = "temperature"
+    ),
+    make_rows(
+      from_unit = c(
+        "\u00b0F", "F", "deg F", "degree Fahrenheit", "degrees Fahrenheit",
+        "Degrees Fahrenheit"
+      ),
+      to_unit = "deg C",
+      multiplier = 5 / 9,
+      category = "temperature",
+      offset = -32 * 5 / 9,
+      conversion_type = "affine"
+    ),
+    make_rows(
+      from_unit = c("cm", "centimeter", "centimeters"),
+      to_unit = "meters",
+      multiplier = 0.01,
+      category = "length"
+    ),
+    make_rows(
+      from_unit = c("meters"),
+      to_unit = "meters",
+      category = "length"
+    ),
+    make_rows(
+      from_unit = c("cfs", "ft3/s", "ft^3/s", "cubic foot per second", "cubic feet per second"),
+      to_unit = "m3/s",
+      multiplier = 0.02831685,
+      category = "flow"
+    ),
+    make_rows(
+      from_unit = c("m^-1", "1/m", "per meter"),
+      to_unit = "1/m",
+      category = "reciprocal_length"
+    ),
+    make_rows(
+      from_unit = c("kg/yr"),
+      to_unit = "kg/yr",
+      category = "mass_time"
+    ),
+    make_rows(
+      from_unit = c("lbs/year", "pounds per year", "pounds/year", "lb/year", "lb/yr", "lbs/yr"),
+      to_unit = "kg/yr",
+      multiplier = lb_to_kg,
+      category = "mass_time"
+    ),
+    make_rows(
+      from_unit = c(
+        "pounds per acre-foot of lake volume per year",
+        "pounds/acre-foot of lake volume/year"
+      ),
+      to_unit = "kg/m3/yr",
+      multiplier = lb_to_kg / acre_foot_to_m3,
+      category = "loading_rate"
+    ),
+    make_rows(
+      from_unit = c("tons/million cubic meters of water"),
+      to_unit = "kg/m3",
+      multiplier = short_ton_to_kg / 1e6,
+      category = "mass_volume"
+    ),
+    make_rows(
+      from_unit = c("g O2/m2-day"),
+      to_unit = "g O2/m2/d",
+      category = "areal_rate"
+    ),
+    make_rows(
+      from_unit = c("SAR", "TUa", "TUc", "threshold odor number", "total thms"),
+      to_unit = c("SAR", "TUa", "TUc", "threshold odor number", "total THMs"),
+      category = "domain_unit"
+    ),
+    make_rows(
+      from_unit = c(
+        "cells/ml", "cells/mL",
+        "count/ml", "count/mL",
+        "mpn", "MPN",
+        "MBN per 100 mL", "MBN/100 ml", "MBN/100 mL"
+      ),
+      to_unit = c(
+        "cells/mL", "cells/mL",
+        "count/mL", "count/mL",
+        "MPN", "MPN",
+        "MPN/100 mL", "MPN/100 mL", "MPN/100 mL"
+      ),
+      category = "microbiology"
+    ),
+    make_rows(
+      from_unit = c(
+        "micromhos", "micromhos/cm", "umhos", "umhos/cm",
+        "\u00b5mhos/cm", "\u03bcmhos/cm",
+        "uS/cm", "\u00b5S/cm", "\u03bcS/cm",
+        "microsiemens per centimeter", "microSiemens per centimeter"
+      ),
+      to_unit = "uS/cm",
+      category = "conductance"
+    ),
+    make_rows(
+      from_unit = c("mrem", "millirem", "millirems"),
+      to_unit = "mrem",
+      category = "radiation_dose"
+    ),
+    make_rows(
+      from_unit = c("mrem/yr", "millirem/year", "millirems/year"),
+      to_unit = "mrem/yr",
+      category = "radiation_dose_rate"
+    ),
+    make_rows(
+      from_unit = c("mV", "millivolt", "millivolts"),
+      to_unit = "mV",
+      category = "electric_potential"
+    ),
+    make_rows(
+      from_unit = c("mOsm/kg", "milliosmole/kg", "milliosmoles/kg"),
+      to_unit = "mOsm/kg",
+      category = "osmolality"
+    ),
+    make_rows(
+      from_unit = c("mg TAN/L", "mg/L as CaCO3", "mg/L as N", "mg/L as NH3"),
+      to_unit = c("mg TAN/L", "mg/L as CaCO3", "mg/L as N", "mg/L as NH3"),
+      category = "chemistry_qualifier"
+    ),
+    make_rows(
+      from_unit = c("No Units", "no units", "no unit name", "[no units]"),
+      to_unit = "[no units]",
+      category = "none"
+    ),
+    make_rows(
+      from_unit = c("pH Units", "pH units", "standard units"),
+      to_unit = "pH units",
+      category = "dimensionless"
+    ),
+    make_rows(
+      from_unit = c(
+        "NTU", "ntu", "nephelometric turbidity units",
+        "JTU", "jtu", "Jackson Turbidity Units",
+        "FTU", "formazin turbidity units"
+      ),
+      to_unit = "NTU",
+      category = "turbidity"
+    ),
+    make_rows(
+      from_unit = c("parts per billion (ppb)", "parts/billion (ppb)"),
+      to_unit = "mg/L",
+      multiplier = 0.001,
+      category = "concentration"
+    )
+  )
+
+  if (is.null(unit_map) || nrow(unit_map) == 0) {
+    return(environmental_rows)
+  }
+
+  unit_map <- unit_map[!tolower(unit_map$from_unit) %in% tolower(environmental_rows$from_unit), , drop = FALSE]
+  dplyr::bind_rows(environmental_rows, unit_map)
+}
+
 #' Load unit conversion map
 #'
 #' Returns a tibble of unit conversion factors for harmonizing measurement units.
@@ -1329,7 +1535,7 @@ augment_radiological_unit_map <- function(unit_map) {
 #' - source: Provenance (ECOTOX, SSWQS, user_added)
 #'
 #' @param cache_dir Directory for cache files (e.g., "inst/extdata")
-#' @return Tibble with columns: from_unit, to_unit, multiplier, category, confidence, source
+#' @return Tibble with columns: from_unit, to_unit, multiplier, category, confidence, source, offset, conversion_type
 #' @export
 load_unit_map <- function(cache_dir = NULL) {
   cache_dir <- resolve_reference_cache_dir(cache_dir)
@@ -1349,7 +1555,10 @@ load_unit_map <- function(cache_dir = NULL) {
     )
   }
 
-  augment_radiological_unit_map(load_or_fetch_reference(cache_path, fetch_fn, "unit conversion map"))
+  unit_map <- load_or_fetch_reference(cache_path, fetch_fn, "unit conversion map")
+  unit_map <- augment_radiological_unit_map(unit_map)
+  unit_map <- augment_environmental_unit_map(unit_map)
+  normalize_unit_map_schema(unit_map)
 }
 
 #' Load unit synonym normalization table

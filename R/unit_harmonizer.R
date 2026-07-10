@@ -23,6 +23,7 @@ normalize_unit_string <- function(x) {
   # U+00B5 = micro sign, U+03BC = Greek lowercase mu
   x <- gsub("\u00B5", "u", x, fixed = TRUE)
   x <- gsub("\u03BC", "u", x, fixed = TRUE)
+  x <- gsub("\\bmug\\b", "ug", x, ignore.case = TRUE)
 
   # (c) Collapse spaces around "/"
   x <- gsub("\\s*/\\s*", "/", x)
@@ -280,12 +281,39 @@ get_ppx_conversion_factor <- function(unit) {
   }
 }
 
+normalize_unit_map_schema <- function(unit_map) {
+  if (is.null(unit_map) || nrow(unit_map) == 0) {
+    return(unit_map)
+  }
+
+  if (!"offset" %in% names(unit_map)) {
+    unit_map$offset <- rep(0, nrow(unit_map))
+  }
+  unit_map$offset <- as.numeric(unit_map$offset)
+  unit_map$offset[is.na(unit_map$offset)] <- 0
+
+  inferred_type <- ifelse(unit_map$offset == 0, "linear", "affine")
+  if (!"conversion_type" %in% names(unit_map)) {
+    unit_map$conversion_type <- inferred_type
+  } else {
+    unit_map$conversion_type <- as.character(unit_map$conversion_type)
+    missing_type <- is.na(unit_map$conversion_type) | unit_map$conversion_type == ""
+    unit_map$conversion_type[missing_type] <- inferred_type[missing_type]
+    invalid_type <- !unit_map$conversion_type %in% c("linear", "affine")
+    unit_map$conversion_type[invalid_type] <- inferred_type[invalid_type]
+  }
+
+  unit_map$conversion_type[unit_map$offset != 0] <- "affine"
+  unit_map
+}
+
 lookup_unit_mapping <- function(unit, unit_map) {
   exact_idx <- match(unit, unit_map$from_unit)
   if (!is.na(exact_idx)) {
     return(list(
       to_unit = unit_map$to_unit[exact_idx],
       multiplier = unit_map$multiplier[exact_idx],
+      offset = unit_map$offset[exact_idx],
       flag = ""
     ))
   }
@@ -295,11 +323,12 @@ lookup_unit_mapping <- function(unit, unit_map) {
     return(list(
       to_unit = unit_map$to_unit[ci_idx],
       multiplier = unit_map$multiplier[ci_idx],
+      offset = unit_map$offset[ci_idx],
       flag = "case_fallback"
     ))
   }
 
-  list(to_unit = unit, multiplier = 1, flag = "unmatched")
+  list(to_unit = unit, multiplier = 1, offset = 0, flag = "unmatched")
 }
 
 #' Harmonize unit values using a conversion table
@@ -336,7 +365,7 @@ lookup_unit_mapping <- function(unit, unit_map) {
 #' @return A tibble with columns:
 #'   - orig_row_id: Integer linking back to input position
 #'   - orig_unit: Original unit string before normalization
-#'   - harmonized_value: Value after conversion (value * multiplier)
+#'   - harmonized_value: Value after conversion (value * multiplier + offset)
 #'   - harmonized_unit: Target unit from table (or original if unmatched)
 #'   - conversion_factor: Multiplier applied (1 for pass-through)
 #'   - unit_flag: Status - "" (exact match), "case_fallback", "unmatched",
@@ -369,6 +398,8 @@ harmonize_units <- function(
   use_dedup = TRUE,
   category = NULL
 ) {
+  unit_map <- normalize_unit_map_schema(unit_map)
+
   # Category filter (D-12): isolate conversion table to a single category
   if (!is.null(category)) {
     unit_map <- unit_map[unit_map$category == category, , drop = FALSE]
@@ -416,6 +447,7 @@ harmonize_units <- function(
   harmonized_value <- values
   harmonized_unit <- orig_unit
   conversion_factor <- rep(1, n)
+  conversion_offset <- rep(0, n)
   unit_flag <- rep("", n)
 
   # Handle media parameter - expand to vector if scalar/NULL
@@ -505,6 +537,7 @@ harmonize_units <- function(
     # Initialize per-unique result vectors
     u_harmonized_unit <- orig_unit[first_idx]
     u_conversion_factor <- rep(1.0, n_unique)
+    u_conversion_offset <- rep(0.0, n_unique)
     u_unit_flag <- rep("", n_unique)
 
     # ---- Unique-subset: molarity conversion ----
@@ -533,6 +566,7 @@ harmonize_units <- function(
 
       u_ppx_targets <- character(length(u_ppx_idx))
       u_ppx_factors <- numeric(length(u_ppx_idx))
+      u_ppx_offsets <- numeric(length(u_ppx_idx))
       u_ppx_flags <- character(length(u_ppx_idx))
       for (i in seq_along(u_ppx_idx)) {
         media_target <- get_media_target(u_ppx_units[i], u_ppx_media[i])
@@ -540,16 +574,19 @@ harmonize_units <- function(
           mapped <- lookup_unit_mapping(u_ppx_units[i], unit_map)
           u_ppx_targets[i] <- mapped$to_unit
           u_ppx_factors[i] <- mapped$multiplier
+          u_ppx_offsets[i] <- mapped$offset
           u_ppx_flags[i] <- mapped$flag
         } else {
           u_ppx_targets[i] <- media_target
           u_ppx_factors[i] <- get_ppx_conversion_factor(u_ppx_units[i])
+          u_ppx_offsets[i] <- 0
           u_ppx_flags[i] <- ""
         }
       }
 
       u_harmonized_unit[u_ppx_idx] <- u_ppx_targets
       u_conversion_factor[u_ppx_idx] <- u_ppx_factors
+      u_conversion_offset[u_ppx_idx] <- u_ppx_offsets
       u_unit_flag[u_ppx_idx] <- u_ppx_flags
     }
 
@@ -580,6 +617,7 @@ harmonize_units <- function(
 
       u_harmonized_unit[u_matched_global] <- unit_map$to_unit[u_map_rows]
       u_conversion_factor[u_matched_global] <- unit_map$multiplier[u_map_rows]
+      u_conversion_offset[u_matched_global] <- unit_map$offset[u_map_rows]
 
       u_still_unmatched_local <- is.na(u_lookup_idx)
       u_still_unmatched_global <- u_std_indices[u_still_unmatched_local]
@@ -591,10 +629,11 @@ harmonize_units <- function(
     stopifnot(!anyNA(key_to_unique)) # T-37-12: match is guaranteed (unique_keys derived from dedup_keys)
     harmonized_unit <- u_harmonized_unit[key_to_unique]
     conversion_factor <- u_conversion_factor[key_to_unique]
+    conversion_offset <- u_conversion_offset[key_to_unique]
     unit_flag <- u_unit_flag[key_to_unique]
 
-    # Compute harmonized_value via vectorized multiply (O(n), already optimal)
-    harmonized_value <- values * conversion_factor
+    # Compute harmonized_value via vectorized affine conversion (O(n)).
+    harmonized_value <- values * conversion_factor + conversion_offset
 
     # needs_mw rows must preserve original value (no conversion applied)
     harmonized_value[unit_flag == "needs_mw"] <- values[unit_flag == "needs_mw"]
@@ -633,6 +672,7 @@ harmonize_units <- function(
 
       ppx_targets <- character(length(ppx_idx))
       ppx_factors <- numeric(length(ppx_idx))
+      ppx_offsets <- numeric(length(ppx_idx))
       ppx_flags <- character(length(ppx_idx))
       for (i in seq_along(ppx_idx)) {
         media_target <- get_media_target(ppx_units[i], ppx_media[i])
@@ -640,17 +680,20 @@ harmonize_units <- function(
           mapped <- lookup_unit_mapping(ppx_units[i], unit_map)
           ppx_targets[i] <- mapped$to_unit
           ppx_factors[i] <- mapped$multiplier
+          ppx_offsets[i] <- mapped$offset
           ppx_flags[i] <- mapped$flag
         } else {
           ppx_targets[i] <- media_target
           ppx_factors[i] <- get_ppx_conversion_factor(ppx_units[i])
+          ppx_offsets[i] <- 0
           ppx_flags[i] <- ""
         }
       }
 
-      harmonized_value[ppx_idx] <- values[ppx_idx] * ppx_factors
+      harmonized_value[ppx_idx] <- values[ppx_idx] * ppx_factors + ppx_offsets
       harmonized_unit[ppx_idx] <- ppx_targets
       conversion_factor[ppx_idx] <- ppx_factors
+      conversion_offset[ppx_idx] <- ppx_offsets
       unit_flag[ppx_idx] <- ppx_flags
     }
 
@@ -688,7 +731,9 @@ harmonize_units <- function(
 
       harmonized_unit[matched_global] <- unit_map$to_unit[map_rows]
       conversion_factor[matched_global] <- unit_map$multiplier[map_rows]
-      harmonized_value[matched_global] <- values[matched_global] * conversion_factor[matched_global]
+      conversion_offset[matched_global] <- unit_map$offset[map_rows]
+      harmonized_value[matched_global] <-
+        values[matched_global] * conversion_factor[matched_global] + conversion_offset[matched_global]
 
       # Handle truly unmatched (pass through with flag)
       still_unmatched_local <- is.na(lookup_idx)

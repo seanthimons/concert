@@ -10,7 +10,7 @@ load_unit_map(cache_dir = NULL)
 \item{cache_dir}{Directory for cache files (e.g., "inst/extdata")}
 }
 \value{
-Tibble with columns: from_unit, to_unit, multiplier, category, confidence, source
+Tibble with columns: from_unit, to_unit, multiplier, category, confidence, source, offset, conversion_type
 }
 \description{
 Returns a tibble of unit conversion factors for harmonizing measurement units.
@@ -21,9 +21,11 @@ Structure:
 \itemize{
 \item from_unit: Source unit string (case-sensitive)
 \item to_unit: Target canonical unit
-\item multiplier: Conversion factor (from_unit * multiplier = to_unit)
+\item multiplier: Conversion factor (from_unit * multiplier + offset = to_unit)
 \item category: Unit category (concentration, mass, dose, etc.)
 \item confidence: Match quality ("HIGH" for exact case, "LOW" for case-insensitive or approximate)
 \item source: Provenance (ECOTOX, SSWQS, user_added)
+\item offset: Additive offset applied after multiplier; defaults to 0
+\item conversion_type: "linear" or "affine"; defaults to "linear"
 }
 }
