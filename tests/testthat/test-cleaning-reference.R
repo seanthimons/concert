@@ -455,6 +455,7 @@ test_that("load_unit_map returns correct structure", {
   # Check required columns
   expected_cols <- c("from_unit", "to_unit", "multiplier", "category", "confidence", "source")
   expect_true(all(expected_cols %in% names(result)))
+  expect_true(all(c("offset", "conversion_type") %in% names(result)))
 
   # Check column types
   expect_type(result$from_unit, "character")
@@ -463,6 +464,8 @@ test_that("load_unit_map returns correct structure", {
   expect_type(result$category, "character")
   expect_type(result$confidence, "character")
   expect_type(result$source, "character")
+  expect_type(result$offset, "double")
+  expect_type(result$conversion_type, "character")
 
   # Check minimum row count
   expect_gte(nrow(result), 100)
@@ -489,6 +492,31 @@ test_that("load_unit_map contains expected conversions", {
   ugl_row <- result[result$from_unit == "ug/L" & result$to_unit == "mg/L", ]
   expect_equal(nrow(ugl_row), 1)
   expect_equal(ugl_row$multiplier, 0.001)
+})
+
+test_that("load_unit_map applies environmental overrides and affine metadata", {
+  candidates <- c(
+    file.path(getwd(), "inst", "extdata"),
+    file.path(getwd(), "..", "..", "inst", "extdata")
+  )
+  cache_dir <- candidates[sapply(candidates, function(d) file.exists(file.path(d, "unit_conversion.rds")))][1]
+  if (is.na(cache_dir)) skip("unit_conversion.rds not found")
+
+  result <- load_unit_map(cache_dir)
+
+  percent_row <- result[result$from_unit == "%", ]
+  expect_equal(nrow(percent_row), 1)
+  expect_equal(percent_row$to_unit, "%")
+  expect_equal(percent_row$multiplier, 1)
+  expect_equal(percent_row$offset, 0)
+  expect_equal(percent_row$conversion_type, "linear")
+
+  fahrenheit_row <- result[result$from_unit == "\u00b0F", ]
+  expect_equal(nrow(fahrenheit_row), 1)
+  expect_equal(fahrenheit_row$to_unit, "deg C")
+  expect_equal(fahrenheit_row$multiplier, 5 / 9)
+  expect_equal(fahrenheit_row$offset, -32 * 5 / 9)
+  expect_equal(fahrenheit_row$conversion_type, "affine")
 })
 
 test_that("load_all_reference_lists includes unit_map", {

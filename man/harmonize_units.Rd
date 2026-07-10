@@ -20,7 +20,8 @@ harmonize_units(
 
 \item{units}{Character vector of unit strings (same length as values)}
 
-\item{unit_map}{Tibble from load_unit_map() with columns: from_unit, to_unit, multiplier}
+\item{unit_map}{Tibble from load_unit_map() with columns: from_unit, to_unit, multiplier.
+Optional offset and conversion_type columns enable affine conversions.}
 
 \item{media}{Optional character vector - media context for ppb/ppm routing.
 Values: "aqueous", "air", "solid", or NULL. Unknown media falls back to
@@ -42,7 +43,7 @@ A tibble with columns:
 \itemize{
 \item orig_row_id: Integer linking back to input position
 \item orig_unit: Original unit string before normalization
-\item harmonized_value: Value after conversion (value * multiplier)
+\item harmonized_value: Value after conversion (value * multiplier + offset)
 \item harmonized_unit: Target unit from table (or original if unmatched)
 \item conversion_factor: Multiplier applied (1 for pass-through)
 \item unit_flag: Status - "" (exact match), "case_fallback", "unmatched",
