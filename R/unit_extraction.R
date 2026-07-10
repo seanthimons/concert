@@ -251,6 +251,163 @@ extract_sswqs_units <- function(parquet_path) {
   tibble::tibble(unit = sort(units))
 }
 
+#' Extract candidate units from WQX Characteristic Alias inventory
+#'
+#' Scans EPA's `Characteristic Alias.csv` for unit-bearing alias conventions.
+#' This is an inventory/gap-analysis helper only; WQX aliases are evidence for
+#' observed unit strings, not conversion authority.
+#'
+#' @param alias_path Path to `Characteristic Alias.csv`. Defaults to the bundled
+#'   WQX reference-source CSV when available.
+#' @return A tibble with candidate unit strings and evidence counts.
+#'
+#' @keywords internal
+extract_wqx_alias_units <- function(alias_path = NULL) {
+  if (is.null(alias_path)) {
+    candidates <- c(
+      system.file("extdata", "reference_sources", "wqx", "Characteristic Alias.csv", package = "concert"),
+      file.path("inst", "extdata", "reference_sources", "wqx", "Characteristic Alias.csv"),
+      file.path(getwd(), "inst", "extdata", "reference_sources", "wqx", "Characteristic Alias.csv"),
+      file.path("..", "..", "inst", "extdata", "reference_sources", "wqx", "Characteristic Alias.csv"),
+      file.path(getwd(), "..", "..", "inst", "extdata", "reference_sources", "wqx", "Characteristic Alias.csv")
+    )
+    candidates <- unique(candidates[nzchar(candidates)])
+    alias_path <- candidates[file.exists(candidates)][1]
+  }
+
+  if (is.na(alias_path) || !file.exists(alias_path)) {
+    stop("Characteristic Alias.csv not found")
+  }
+
+  alias_tbl <- readr::read_csv(
+    alias_path,
+    show_col_types = FALSE,
+    col_types = readr::cols(.default = readr::col_character())
+  )
+
+  alias_name <- trimws(alias_tbl[["Alias Name"]])
+  description <- trimws(alias_tbl[["Description"]])
+  characteristic_name <- trimws(alias_tbl[["Characteristic Name"]])
+  alias_type <- trimws(alias_tbl[["Alias Type Name"]])
+  row_id <- seq_len(nrow(alias_tbl))
+
+  evidence <- tibble::tibble(
+    row_id = integer(0),
+    candidate_unit = character(0),
+    extraction_pattern = character(0)
+  )
+
+  add_evidence <- function(rows, units, pattern) {
+    units <- trimws(units)
+    keep <- !is.na(units) & nzchar(units)
+    if (!any(keep)) {
+      return(invisible(NULL))
+    }
+    evidence <<- dplyr::bind_rows(
+      evidence,
+      tibble::tibble(
+        row_id = rows[keep],
+        candidate_unit = units[keep],
+        extraction_pattern = rep(pattern, sum(keep))
+      )
+    )
+    invisible(NULL)
+  }
+
+  is_likely_unit_candidate <- function(units) {
+    grepl(
+      paste(
+        c(
+          "unit", "degree", "celsius", "fahrenheit", "centigrade",
+          "mg", "ug", "ng", "pg", "fg", "ppm", "ppb", "percent",
+          "siemens", "mhos", "turbidity", "ntu", "jtu", "ftu",
+          "meter", "lit(er|re)", "gram", "tons?", "pH", "%"
+        ),
+        collapse = "|"
+      ),
+      units,
+      ignore.case = TRUE,
+      perl = TRUE
+    )
+  }
+
+  pipe_rows <- which(grepl("|", alias_name, fixed = TRUE))
+  if (length(pipe_rows) > 0) {
+    pipe_units <- vapply(
+      strsplit(alias_name[pipe_rows], "|", fixed = TRUE),
+      function(parts) {
+        if (length(parts) >= 2) trimws(parts[2]) else NA_character_
+      },
+      character(1)
+    )
+    likely_pipe_unit <- is_likely_unit_candidate(pipe_units)
+    likely_pipe_unit[is.na(likely_pipe_unit)] <- FALSE
+    pipe_units[!likely_pipe_unit] <- NA_character_
+    add_evidence(pipe_rows, pipe_units, "pipe_delimited_alias")
+  }
+
+  unit_phrases <- c(
+    "No Units",
+    "pH Units",
+    "Degrees Celsius",
+    "degrees Celsius",
+    "Degrees Fahrenheit",
+    "degrees Fahrenheit",
+    "Degrees Centigrade",
+    "standard units",
+    "microsiemens per centimeter",
+    "milligrams per liter",
+    "micrograms per liter",
+    "nephelometric turbidity units",
+    "Jackson Turbidity Units",
+    "formazin turbidity units",
+    "threshold odor number",
+    "most probable number per 100 milliliters",
+    "colonies per milliliter",
+    "short tons per day"
+  )
+
+  search_text <- paste(alias_name, description)
+  search_text_lower <- tolower(search_text)
+  for (phrase in unit_phrases) {
+    phrase_rows <- which(grepl(tolower(phrase), search_text_lower, fixed = TRUE))
+    if (length(phrase_rows) > 0) {
+      add_evidence(phrase_rows, rep(phrase, length(phrase_rows)), "unit_phrase")
+    }
+  }
+
+  storet_rows <- which(alias_type == "STORET PARM CODE")
+  storet_pattern <- "\\b(UG/L|MG/L|NG/L|PG/L|FG/L|PPB|PPM|JTU|NTU|FTU|MPN/100 ML|%)\\b"
+  for (row in storet_rows) {
+    matches <- regmatches(alias_name[row], gregexpr(storet_pattern, alias_name[row], perl = TRUE))[[1]]
+    if (length(matches) > 0 && !identical(matches, character(0))) {
+      add_evidence(rep(row, length(matches)), matches, "storet_code_token")
+    }
+  }
+
+  if (nrow(evidence) == 0) {
+    return(tibble::tibble(
+      candidate_unit = character(0),
+      evidence_count = integer(0),
+      extraction_patterns = character(0),
+      example_alias = character(0),
+      example_characteristic = character(0)
+    ))
+  }
+
+  evidence |>
+    dplyr::arrange(row_id, candidate_unit, extraction_pattern) |>
+    dplyr::group_by(candidate_unit) |>
+    dplyr::summarise(
+      evidence_count = dplyr::n(),
+      extraction_patterns = paste(sort(unique(extraction_pattern)), collapse = ", "),
+      example_alias = alias_name[row_id[1]],
+      example_characteristic = characteristic_name[row_id[1]],
+      .groups = "drop"
+    ) |>
+    dplyr::arrange(dplyr::desc(evidence_count), candidate_unit)
+}
+
 
 #' Build comprehensive unit conversion table
 #'

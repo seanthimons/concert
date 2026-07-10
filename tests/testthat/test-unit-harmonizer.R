@@ -97,6 +97,23 @@ test_that("normalize: U+03BC mu symbol normalizes to ASCII u", {
   expect_equal(result$conversion_factor, 0.001)
 })
 
+test_that("normalize: unicode-cleaned mug token normalizes to ug", {
+  unit_map <- tibble::tibble(
+    from_unit = "ug/g",
+    to_unit = "mg/kg",
+    multiplier = 1,
+    category = "mass_fraction",
+    confidence = "HIGH",
+    source = "test"
+  )
+
+  result <- harmonize_units(c(9), c("mug/g"), unit_map)
+
+  expect_equal(result$harmonized_value, 9)
+  expect_equal(result$harmonized_unit, "mg/kg")
+  expect_equal(result$unit_flag, "")
+})
+
 test_that("normalize: single spaces around '/' collapsed", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(1), c("mg / L"), unit_map)
@@ -973,6 +990,179 @@ test_that("harmonize_units use_dedup=FALSE forces direct path even with high dup
   expect_equal(result_dedup$harmonized_value, result_no_dedup$harmonized_value)
   expect_equal(result_dedup$harmonized_unit, result_no_dedup$harmonized_unit)
   expect_equal(result_dedup$conversion_factor, result_no_dedup$conversion_factor)
+})
+
+# ==============================================================================
+# Affine and environmental unit overlays
+# ==============================================================================
+
+test_that("affine unit rows apply offset while reporting multiplier", {
+  unit_map <- tibble::tibble(
+    from_unit = "\u00b0F",
+    to_unit = "deg C",
+    multiplier = 5 / 9,
+    offset = -32 * 5 / 9,
+    conversion_type = "affine",
+    category = "temperature",
+    confidence = "HIGH",
+    source = "test"
+  )
+
+  result <- harmonize_units(c(32, 68), c("\u00b0F", "\u00b0F"), unit_map, use_dedup = FALSE)
+
+  expect_equal(result$harmonized_value, c(0, 20), tolerance = 1e-12)
+  expect_equal(result$harmonized_unit, c("deg C", "deg C"))
+  expect_equal(result$conversion_factor, rep(5 / 9, 2))
+  expect_equal(result$unit_flag, c("", ""))
+})
+
+test_that("affine conversions are identical with dedup on and off", {
+  unit_map <- tibble::tibble(
+    from_unit = "\u00b0F",
+    to_unit = "deg C",
+    multiplier = 5 / 9,
+    offset = -32 * 5 / 9,
+    conversion_type = "affine",
+    category = "temperature",
+    confidence = "HIGH",
+    source = "test"
+  )
+  values <- rep(c(32, 68), 30)
+  units <- rep("\u00b0F", length(values))
+
+  result_dedup <- harmonize_units(values, units, unit_map, use_dedup = TRUE)
+  result_no_dedup <- harmonize_units(values, units, unit_map, use_dedup = FALSE)
+
+  expect_equal(result_dedup, result_no_dedup)
+})
+
+test_that("unit maps without offset columns default to linear conversion", {
+  unit_map <- make_test_unit_map()
+
+  result <- harmonize_units(c(1000), c("ug/L"), unit_map)
+
+  expect_equal(result$harmonized_value, 1)
+  expect_equal(result$conversion_factor, 0.001)
+})
+
+test_that("plain percent is dimensionless while descriptive percent phrases remain unmatched", {
+  unit_map <- load_unit_map()
+
+  result <- harmonize_units(
+    values = c(12, 1, 1),
+    units = c("%", "% cover", "% of total count"),
+    unit_map = unit_map
+  )
+
+  expect_equal(result$harmonized_value[1], 12)
+  expect_equal(result$harmonized_unit[1], "%")
+  expect_equal(result$conversion_factor[1], 1)
+  expect_equal(result$unit_flag[1], "")
+  expect_equal(result$unit_flag[2:3], c("unmatched", "unmatched"))
+})
+
+test_that("SSWQS unmatched environmental units harmonize through bundled overlays", {
+  unit_map <- load_unit_map()
+  units <- c(
+    "\u00b0C",
+    "\u00b0F",
+    "F",
+    "mug/g",
+    "cells/ml",
+    "cfs",
+    "cm",
+    "count/ml",
+    "g O2/m2-day",
+    "m^-1",
+    "MBN per 100 mL",
+    "mg TAN/L",
+    "mg/L as CaCO3",
+    "mg/l as n",
+    "mg/L as NH3",
+    "micromhos",
+    "milliosmoles/kg",
+    "millirems",
+    "millivolts",
+    "mpn",
+    "mrem/yr",
+    "no unit name",
+    "parts per billion (ppb)",
+    "pounds per acre-foot of lake volume per year",
+    "pounds per year",
+    "SAR",
+    "threshold odor number",
+    "tons/million cubic meters of water",
+    "total thms",
+    "TUa",
+    "TUc"
+  )
+
+  result <- harmonize_units(rep(1, length(units)), units, unit_map, media = "aqueous")
+
+  expect_false(any(result$unit_flag == "unmatched"))
+  expect_equal(result$harmonized_unit, c(
+    "deg C",
+    "deg C",
+    "deg C",
+    "mg/kg",
+    "cells/mL",
+    "m3/s",
+    "meters",
+    "count/mL",
+    "g O2/m2/d",
+    "1/m",
+    "MPN/100 mL",
+    "mg TAN/L",
+    "mg/L as CaCO3",
+    "mg/L as N",
+    "mg/L as NH3",
+    "uS/cm",
+    "mOsm/kg",
+    "mrem",
+    "mV",
+    "MPN",
+    "mrem/yr",
+    "[no units]",
+    "mg/L",
+    "kg/m3/yr",
+    "kg/yr",
+    "SAR",
+    "threshold odor number",
+    "kg/m3",
+    "total THMs",
+    "TUa",
+    "TUc"
+  ))
+  expect_equal(result$harmonized_value[2], -17.2222222222222, tolerance = 1e-12)
+  expect_equal(result$harmonized_value[3], -17.2222222222222, tolerance = 1e-12)
+  expect_equal(result$conversion_factor[6], 0.02831685)
+  expect_equal(result$conversion_factor[7], 0.01)
+  expect_equal(result$conversion_factor[23], 0.001)
+  expect_equal(result$conversion_factor[25], 0.45359237)
+})
+
+test_that("bare total remains unmatched because it is not a unit", {
+  unit_map <- load_unit_map()
+
+  result <- harmonize_units(1, "total", unit_map)
+
+  expect_equal(result$harmonized_unit, "total")
+  expect_equal(result$unit_flag, "unmatched")
+})
+
+test_that("high-confidence WQX-derived unit aliases are curated explicitly", {
+  unit_map <- load_unit_map()
+
+  result <- harmonize_units(
+    values = c(1, 7, 68, 68, 1, 10),
+    units = c("No Units", "pH Units", "Degrees Fahrenheit", "F", "nephelometric turbidity units", "feet"),
+    unit_map = unit_map
+  )
+
+  expect_equal(result$harmonized_unit, c("[no units]", "pH units", "deg C", "deg C", "NTU", "meters"))
+  expect_equal(result$harmonized_value[3], 20, tolerance = 1e-12)
+  expect_equal(result$harmonized_value[4], 20, tolerance = 1e-12)
+  expect_equal(result$harmonized_value[6], 3.048)
 })
 
 # ==============================================================================
