@@ -1,3 +1,7 @@
+# concert 0.1.3
+
+* Release from PR #48: fix: harmonize environmental units
+
 # concert 0.1.2
 
 * Release from PR #47: feat(parser): salvage SSWQS-style numeric strings and reclassify zero-digit values
