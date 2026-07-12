@@ -1,0 +1,47 @@
+name: Commit Lint
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  commit-lint:
+    runs-on: ubuntu-latest
+    name: Conventional Commits
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 0
+
+      - name: Check commit subjects follow Conventional Commits
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          # ponytail: plain-regex check over the allowed autonewsmd commit types;
+          # no commitlint/Node dependency to pin or configure.
+          pattern='^(feat|fix|refactor|perf|build|test|ci|docs|style|chore)(\([a-z0-9_-]+\))?!?: .+'
+          fail=0
+          while IFS= read -r sha; do
+            # skip merge commits (>1 parent) and bot-authored commits
+            if [ "$(git rev-list --parents -n1 "$sha" | wc -w)" -gt 2 ]; then continue; fi
+            if [ "$(git show -s --format='%an' "$sha")" = "github-actions[bot]" ]; then continue; fi
+            subject="$(git show -s --format='%s' "$sha")"
+            if ! printf '%s' "$subject" | grep -qE "$pattern"; then
+              echo "::error::Non-conventional commit ${sha:0:8}: ${subject}"
+              fail=1
+            fi
+          done < <(git rev-list "${BASE_SHA}..${HEAD_SHA}")
+          if [ "$fail" -ne 0 ]; then
+            echo "Commit subjects must follow Conventional Commits:"
+            echo "  <type>[(scope)][!]: <description>"
+            echo "  type in feat|fix|refactor|perf|build|test|ci|docs|style|chore"
+            exit 1
+          fi
+          echo "All commit subjects follow Conventional Commits."

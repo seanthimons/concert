@@ -3,53 +3,63 @@ name: R-CMD-check
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'NEWS.md'
+      - '**/*.md'
+      - '.planning/**'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'NEWS.md'
+      - '**/*.md'
+      - '.planning/**'
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: r-cmd-check-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   r-cmd-check:
+    if: github.actor != 'github-actions[bot]'
     name: ${{ matrix.config.os }} (${{ matrix.config.r }})
     runs-on: ${{ matrix.config.os }}
-    continue-on-error: ${{ matrix.config.experimental }}
 
     strategy:
       fail-fast: false
       matrix:
         config:
-          - { os: ubuntu-latest, r: release, experimental: false }
-          - { os: windows-latest, r: release, experimental: false }
-          - { os: macos-latest, r: release, experimental: false }
+          - { os: ubuntu-latest,  r: release }
+          - { os: windows-latest, r: release }
+          - { os: macos-latest,   r: release }
+
+    env:
+      GITHUB_PAT: ${{ github.token }}
+      R_KEEP_PKG_SOURCE: yes
 
     steps:
       - name: Checkout repository
-        # actions/checkout v5 pinned by commit SHA for supply-chain stability.
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Set up R
-        # r-lib/actions/setup-r v2 pinned by commit SHA.
-        uses: r-lib/actions/setup-r@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
+        uses: r-lib/actions/setup-r@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2
         with:
           r-version: ${{ matrix.config.r }}
           use-public-rspm: true
 
       - name: Set up pandoc
-        # r-lib/actions/setup-pandoc v2 pinned by commit SHA.
-        uses: r-lib/actions/setup-pandoc@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
+        uses: r-lib/actions/setup-pandoc@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2
 
       - name: Install package dependencies
-        # r-lib/actions/setup-r-dependencies v2 pinned by commit SHA.
-        uses: r-lib/actions/setup-r-dependencies@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
-        env:
-          GITHUB_PAT: ${{ github.token }}
+        uses: r-lib/actions/setup-r-dependencies@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2
         with:
-          extra-packages: |
-            any::rcmdcheck
-            github::seanthimons/ComptoxR
+          extra-packages: any::rcmdcheck
           needs: check
 
       - name: Check package
-        run: Rscript -e "rcmdcheck::rcmdcheck(args = '--no-manual', error_on = 'warning')"
+        uses: r-lib/actions/check-r-package@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2
+        with:
+          upload-snapshots: true
