@@ -52,7 +52,10 @@ Imports:
     vctrs,
     writexl
 Suggests:
+    autonewsmd,
     bench,
     testthat (>= 3.0.0),
     withr
+Remotes:
+    seanthimons/ComptoxR@*release
 Config/roxygen2/version: 8.0.0

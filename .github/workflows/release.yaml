@@ -1,0 +1,133 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version component to bump'
+        required: true
+        default: patch
+        type: choice
+        options: [none, patch, minor, major]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    env:
+      GITHUB_PAT: ${{ github.token }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2
+        with:
+          use-public-rspm: true
+
+      - name: Set up pandoc
+        uses: r-lib/actions/setup-pandoc@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2
+
+      - name: Install package dependencies
+        uses: r-lib/actions/setup-r-dependencies@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2
+        with:
+          extra-packages: |
+            any::desc
+            any::devtools
+            any::autonewsmd
+            any::rcmdcheck
+
+      - name: Configure git identity
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version and document
+        if: inputs.version_type != 'none'
+        shell: Rscript {0}
+        run: |
+          desc::desc_bump_version("${{ inputs.version_type }}")
+          devtools::document()
+
+      - name: Read metadata and guard against existing tag
+        id: metadata
+        shell: bash
+        run: |
+          package="$(Rscript -e "cat(read.dcf('DESCRIPTION', fields = 'Package')[1, 'Package'])")"
+          version="$(Rscript -e "cat(read.dcf('DESCRIPTION', fields = 'Version')[1, 'Version'])")"
+          if git ls-remote --exit-code --tags origin "refs/tags/v${version}" >/dev/null 2>&1; then
+            echo "::error::Tag v${version} already exists on origin."
+            exit 1
+          fi
+          echo "package=$package" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check package
+        shell: Rscript {0}
+        run: rcmdcheck::rcmdcheck(args = "--no-manual", error_on = "warning")
+
+      - name: Commit version bump and tag locally
+        env:
+          VERSION: ${{ steps.metadata.outputs.version }}
+        run: |
+          git add DESCRIPTION man/ NAMESPACE
+          git diff --cached --quiet || git commit -m "chore: bump version to ${VERSION} [skip ci]"
+          git tag "v${VERSION}"
+
+      - name: Generate NEWS.md
+        shell: Rscript {0}
+        run: |
+          an <- autonewsmd::autonewsmd$new(
+            repo_name = "${{ steps.metadata.outputs.package }}",
+            repo_path = getwd()
+          )
+          an$generate()
+          an$write(force = TRUE)
+
+      - name: Commit NEWS.md and finalize tag
+        env:
+          VERSION: ${{ steps.metadata.outputs.version }}
+        run: |
+          git add NEWS.md
+          if ! git diff --cached --quiet; then
+            git commit -m "docs: update NEWS.md for v${VERSION} [skip ci]"
+            git tag -f "v${VERSION}"
+          fi
+
+      - name: Build source package
+        env:
+          PACKAGE: ${{ steps.metadata.outputs.package }}
+          VERSION: ${{ steps.metadata.outputs.version }}
+        run: |
+          R CMD build .
+          test -f "${PACKAGE}_${VERSION}.tar.gz"
+
+      - name: Push commits and tag
+        env:
+          VERSION: ${{ steps.metadata.outputs.version }}
+        run: |
+          git push origin main
+          git push origin "v${VERSION}"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+          PACKAGE: ${{ steps.metadata.outputs.package }}
+          VERSION: ${{ steps.metadata.outputs.version }}
+        run: |
+          gh release create "v${VERSION}" \
+            --title "${PACKAGE} v${VERSION}" \
+            --notes "See [NEWS.md](https://github.com/${{ github.repository }}/blob/main/NEWS.md) for details." \
+            "${PACKAGE}_${VERSION}.tar.gz"
