@@ -7,7 +7,6 @@ empty_site_manifest <- function() {
     site_suborder = integer(),
     site_identifier = character(),
     site_name = character(),
-    site_label = character(),
     latitude = numeric(),
     longitude = numeric(),
     grouping_type = character(),
@@ -37,7 +36,6 @@ site_context_editable_columns <- function() {
     "site_suborder",
     "site_identifier",
     "site_name",
-    "site_label",
     "latitude",
     "longitude",
     "grouping_type",
@@ -419,27 +417,9 @@ site_context_first_nonmissing <- function(x) {
   x[idx[1]]
 }
 
-site_context_key <- function(site_identifier, site_name, latitude, longitude) {
+site_context_key <- function(site_identifier) {
   site_identifier <- site_context_clean_text(site_identifier)
-  site_name <- site_context_clean_text(site_name)
-  latitude <- suppressWarnings(as.numeric(latitude))
-  longitude <- suppressWarnings(as.numeric(longitude))
-
-  if (!is.na(site_identifier)) {
-    return(paste0("id:", tolower(site_identifier)))
-  }
-  if (!is.na(site_name)) {
-    return(paste0("name:", tolower(site_name)))
-  }
-  if (!is.na(latitude) && !is.na(longitude)) {
-    return(paste0(
-      "coord:",
-      site_context_format_number(latitude),
-      ",",
-      site_context_format_number(longitude)
-    ))
-  }
-  NA_character_
+  if (is.na(site_identifier)) NA_character_ else paste0("id:", tolower(site_identifier))
 }
 
 site_context_coordinate_identifier <- function(latitude, longitude) {
@@ -537,15 +517,12 @@ extract_site_candidates <- function(df, detection = NULL) {
     if (is.na(name_value)) {
       name_value <- source_site_label[row]
     }
-    label_value <- source_site_label[row]
-
     tibble::tibble(
       source_site_label = source_site_label[row],
       site_order = NA_integer_,
       site_suborder = 1L,
       site_identifier = id_value,
       site_name = name_value,
-      site_label = label_value,
       latitude = as.numeric(lat_value),
       longitude = as.numeric(lon_value),
       grouping_type = if (!is.na(grouping_value)) grouping_type else NA_character_,
@@ -632,14 +609,13 @@ build_site_alias_map <- function(site_manifest) {
   }
 
   source_keys <- site_context_alias_key(alias_map$source_site_label)
-  canonical_keys <- vapply(seq_len(nrow(alias_map)), function(i) {
-    site_context_key(
-      alias_map$site_identifier[i],
-      alias_map$site_name[i],
-      alias_map$latitude[i],
-      alias_map$longitude[i]
-    )
-  }, character(1))
+  canonical_keys <- vapply(
+    seq_len(nrow(alias_map)),
+    function(i) {
+      site_context_key(alias_map$site_identifier[i])
+    },
+    character(1)
+  )
 
   keep <- !is.na(source_keys) & !is.na(canonical_keys)
   if (!any(keep)) {
@@ -663,7 +639,7 @@ site_context_alias_source <- function(site_alias_map = NULL, site_manifest = NUL
 #' Build A Deterministic Site Manifest
 #'
 #' Sorts by user-curated order/suborder, filters blank rows, and enforces one
-#' row per site identifier/name/coordinate key.
+#' row per site identifier.
 #'
 #' @param site_manifest Site manifest candidate or user-edited site context.
 #'
@@ -675,14 +651,13 @@ build_site_manifest <- function(site_manifest) {
     return(manifest)
   }
 
-  keys <- vapply(seq_len(nrow(manifest)), function(i) {
-    site_context_key(
-      manifest$site_identifier[i],
-      manifest$site_name[i],
-      manifest$latitude[i],
-      manifest$longitude[i]
-    )
-  }, character(1))
+  keys <- vapply(
+    seq_len(nrow(manifest)),
+    function(i) {
+      site_context_key(manifest$site_identifier[i])
+    },
+    character(1)
+  )
 
   nonblank <- !is.na(keys)
   if (!any(nonblank)) {

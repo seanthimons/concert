@@ -12,8 +12,19 @@ mod_dataset_context_ui <- function(id) {
 
   tagList(
     tags$style(HTML(paste0(
-      "#", ns("dataset_context_ui"), " .dataset-context-actions { gap: 0.5rem; }",
-      "#", ns("dataset_context_ui"), " .dataset-context-table .dataTables_wrapper { width: 100%; }"
+      "#",
+      ns("dataset_context_ui"),
+      " .dataset-context-actions { gap: 0.5rem; }",
+      "#",
+      ns("dataset_context_ui"),
+      " .dataset-context-table .dataTables_wrapper { width: 100%; }",
+      "#",
+      ns("dataset_context_ui"),
+      " th[data-site-context-tooltip] { cursor: help; }",
+      "#",
+      ns("dataset_context_ui"),
+      " th[data-site-context-tooltip]::after {",
+      " content: ' \\24D8'; color: var(--bs-secondary-color); font-size: 0.8em; }"
     ))),
     div(
       id = ns("dataset_context_ui"),
@@ -87,6 +98,37 @@ site_context_table_data <- function(manifest, show_audit_columns = FALSE) {
   manifest[, columns, drop = FALSE]
 }
 
+site_context_column_labels <- function() {
+  c(
+    source_site_label = "Source site label",
+    site_order = "Site order",
+    site_suborder = "Site suborder",
+    site_identifier = "Site identifier",
+    site_name = "Site name",
+    latitude = "Latitude",
+    longitude = "Longitude",
+    grouping_type = "Grouping type",
+    grouping_label = "Grouping label"
+  )
+}
+
+site_context_column_tooltips <- function() {
+  c(
+    source_site_label = paste(
+      "The raw value detected in the uploaded dataset and used to match this alias row.",
+      "It is read-only here: change it in the source file, or edit the canonical fields in this table."
+    ),
+    site_identifier = paste(
+      "The required canonical key used to merge alias rows into sites.",
+      "Edit it here when raw labels should belong to the same or different canonical sites."
+    ),
+    site_name = paste(
+      "The human-readable display name exported for the canonical site.",
+      "Edit it here to change presentation; Site identifier controls identity and merging."
+    )
+  )
+}
+
 site_context_fill_selected_aliases <- function(manifest, selected_rows) {
   manifest <- normalize_site_manifest(manifest)
   selected_rows <- suppressWarnings(as.integer(selected_rows))
@@ -107,9 +149,18 @@ site_context_fill_selected_aliases <- function(manifest, selected_rows) {
 site_context_datatable <- function(manifest, show_audit_columns = FALSE) {
   table_data <- site_context_table_data(manifest, show_audit_columns)
   disabled <- which(!names(table_data) %in% site_context_editable_columns()) - 1L
+  labels <- site_context_column_labels()
+  column_labels <- unname(ifelse(names(table_data) %in% names(labels), labels[names(table_data)], names(table_data)))
+  tooltips <- site_context_column_tooltips()
+  column_tooltips <- unname(ifelse(
+    names(table_data) %in% names(tooltips),
+    tooltips[names(table_data)],
+    NA_character_
+  ))
   DT::datatable(
     table_data,
     rownames = FALSE,
+    colnames = column_labels,
     editable = list(target = "cell", disable = list(columns = disabled)),
     selection = list(mode = "multiple", target = "row"),
     filter = "top",
@@ -117,7 +168,25 @@ site_context_datatable <- function(manifest, show_audit_columns = FALSE) {
       pageLength = 25,
       lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "All")),
       scrollX = TRUE,
-      dom = "ltip"
+      dom = "ltip",
+      initComplete = DT::JS(sprintf(
+        paste0(
+          "function(settings, json) {",
+          "var tooltips = %s;",
+          "this.api().columns().every(function() {",
+          "var tooltip = tooltips[this.index()];",
+          "if (!tooltip) return;",
+          "var header = this.header();",
+          "header.setAttribute('title', tooltip);",
+          "header.setAttribute('data-site-context-tooltip', '');",
+          "if (window.bootstrap && bootstrap.Tooltip) {",
+          "bootstrap.Tooltip.getOrCreateInstance(header, {container: 'body'});",
+          "}",
+          "});",
+          "}"
+        ),
+        jsonlite::toJSON(column_tooltips, na = "null")
+      ))
     ),
     class = "compact stripe hover"
   )
