@@ -221,6 +221,229 @@ row_flag_filter_choices <- function(flags) {
   c("Untagged" = "__untagged__", stats::setNames(tagged_flags, tagged_flags))
 }
 
+review_filter_domain_levels <- function(column_name) {
+  switch(
+    column_name,
+    match_type = c(
+      "Exact Match",
+      "CAS Lookup",
+      "Starts-With",
+      "WQX Exact",
+      "WQX Alias",
+      "WQX Fuzzy",
+      "Isotope Match",
+      "No Match"
+    ),
+    consensus_status = c(
+      "agree",
+      "agree_caveat",
+      "single",
+      "wqx",
+      "disagree",
+      "error",
+      "manual",
+      "unresolvable",
+      "auto_resolved",
+      "suggested"
+    ),
+    row_flag = valid_row_flags(),
+    character(0)
+  )
+}
+
+review_filter_value_type <- function(values) {
+  if (inherits(values, "Date")) {
+    return("date")
+  }
+  if (inherits(values, "POSIXt")) {
+    return("datetime")
+  }
+  if (is.logical(values)) {
+    return("logical")
+  }
+  if (is.numeric(values)) {
+    return("number")
+  }
+  "character"
+}
+
+review_filter_blank <- function(values) {
+  blank <- is.na(values)
+  if (is.character(values) || is.factor(values)) {
+    blank <- blank | trimws(as.character(values)) == ""
+  }
+  blank
+}
+
+review_filter_token <- function(type, value = NULL) {
+  token <- if (identical(type, "blank")) {
+    list(type = "blank")
+  } else {
+    list(type = type, value = unname(value))
+  }
+  as.character(jsonlite::toJSON(token, auto_unbox = TRUE, digits = NA, na = "null"))
+}
+
+build_review_filter_choices <- function(values, column_name, native_limit = 50L) {
+  blank <- review_filter_blank(values)
+  if (all(blank)) {
+    return(NULL)
+  }
+
+  type <- review_filter_value_type(values)
+  populated <- values[!blank]
+  if (identical(type, "character")) {
+    populated <- as.character(populated)
+  }
+  populated <- unique(populated)
+
+  if (type %in% c("number", "date", "datetime", "logical")) {
+    populated <- sort(populated)
+  } else {
+    labels <- as.character(populated)
+    domain <- review_filter_domain_levels(column_name)
+    domain_values <- intersect(domain, populated)
+    remaining <- setdiff(populated, domain_values)
+    remaining <- remaining[order(tolower(remaining), remaining, method = "radix")]
+    populated <- c(domain_values, remaining)
+  }
+
+  token_values <- switch(
+    type,
+    date = format(populated, "%Y-%m-%d"),
+    datetime = format(populated, "%Y-%m-%dT%H:%M:%OS6%z"),
+    logical = as.logical(populated),
+    number = as.numeric(populated),
+    as.character(populated)
+  )
+  labels <- switch(
+    type,
+    date = format(populated, "%Y-%m-%d"),
+    datetime = format(populated, "%Y-%m-%d %H:%M:%S %Z"),
+    as.character(populated)
+  )
+  tokens <- vapply(
+    seq_along(token_values),
+    function(i) review_filter_token(type, token_values[[i]]),
+    character(1)
+  )
+
+  choices <- data.frame(label = labels, token = tokens, stringsAsFactors = FALSE)
+  if (any(blank)) {
+    choices <- rbind(
+      data.frame(
+        label = "(Blank)",
+        token = review_filter_token("blank"),
+        stringsAsFactors = FALSE
+      ),
+      choices
+    )
+  }
+
+  list(
+    choices = choices,
+    populated_count = as.integer(length(populated)),
+    searchable = length(populated) > as.integer(native_limit)
+  )
+}
+
+review_filter_matches <- function(values, token) {
+  parsed <- jsonlite::fromJSON(token, simplifyVector = TRUE)
+  if (identical(parsed$type, "blank")) {
+    return(review_filter_blank(values))
+  }
+
+  type <- review_filter_value_type(values)
+  if (!identical(type, parsed$type)) {
+    return(rep(FALSE, length(values)))
+  }
+
+  comparable <- switch(
+    type,
+    date = format(values, "%Y-%m-%d"),
+    datetime = format(values, "%Y-%m-%dT%H:%M:%OS6%z"),
+    logical = as.logical(values),
+    number = as.numeric(values),
+    as.character(values)
+  )
+  matches <- !review_filter_blank(values) & comparable == parsed$value
+  matches[is.na(matches)] <- FALSE
+  matches
+}
+
+review_exact_filter_method <- function() {
+  htmlwidgets::JS(
+    "function(rows, columnId, filterValue) {
+      if (!filterValue) return rows;
+      var token;
+      try { token = JSON.parse(filterValue); } catch (e) { return rows; }
+      return rows.filter(function(row) {
+        var value = row.values[columnId];
+        if (token.type === 'blank') {
+          return value == null || (typeof value === 'string' && value.trim() === '');
+        }
+        if (token.type === 'number') {
+          return typeof value === 'number' && value === token.value;
+        }
+        if (token.type === 'logical') {
+          return typeof value === 'boolean' && value === token.value;
+        }
+        if (token.type === 'character') {
+          return typeof value === 'string' && value === token.value;
+        }
+        return value === token.value;
+      });
+    }"
+  )
+}
+
+make_review_filter_input <- function(config, table_id, column_name) {
+  force(config)
+  force(table_id)
+  force(column_name)
+
+  function(values, name) {
+    classes <- c("review-filter-select", if (config$searchable) "review-filter-selectize")
+    htmltools::tags$select(
+      class = paste(classes, collapse = " "),
+      `data-filter-column` = column_name,
+      `aria-label` = paste("Filter", column_name),
+      onchange = "window.concertReviewFilters.apply(this)",
+      style = "width:100%;font-size:0.85em;padding:2px;",
+      htmltools::tags$option(value = "", "All"),
+      lapply(seq_len(nrow(config$choices)), function(i) {
+        htmltools::tags$option(
+          value = config$choices$token[[i]],
+          config$choices$label[[i]]
+        )
+      })
+    )
+  }
+}
+
+apply_review_filter_definitions <- function(df, col_defs, table_id) {
+  for (column_name in names(df)) {
+    definition <- col_defs[[column_name]] %||% reactable::colDef()
+    config <- if (!identical(column_name, "Resolution")) {
+      build_review_filter_choices(df[[column_name]], column_name)
+    } else {
+      NULL
+    }
+
+    if (is.null(config)) {
+      definition$filterable <- FALSE
+      definition$filterInput <- NULL
+      definition$filterMethod <- NULL
+    } else {
+      definition$filterable <- TRUE
+      definition$filterMethod <- review_exact_filter_method()
+      definition$filterInput <- make_review_filter_input(config, table_id, column_name)
+    }
+    col_defs[[column_name]] <- definition
+  }
+  col_defs
+}
+
 review_blank_or_missing <- function(x, n) {
   if (is.null(x)) {
     return(rep(TRUE, n))
@@ -1112,13 +1335,59 @@ mod_review_results_ui <- function(id) {
     (function() {
       var tableId = '%s';
       var savedFilters = [];
+      var api = window.concertReviewFilters || {};
+
+      api.tableId = tableId;
+      api.apply = function(select) {
+        var columnId = select.getAttribute('data-filter-column');
+        Reactable.setFilter(tableId, columnId, select.value || undefined);
+      };
+      api.initialize = function(root) {
+        var scope = root || document;
+        var selects = scope.querySelectorAll ? scope.querySelectorAll('select.review-filter-selectize') : [];
+        selects.forEach(function(select) {
+          if (select.selectize || !window.jQuery || !jQuery.fn.selectize) return;
+          jQuery(select).selectize({
+            create: false,
+            maxItems: 1,
+            allowEmptyOption: true,
+            closeAfterSelect: true
+          });
+        });
+      };
+      api.setControlValue = function(select, value) {
+        if (select.selectize) {
+          select.selectize.setValue(value || '', true);
+        } else {
+          select.value = value || '';
+        }
+      };
+      api.restoreControls = function(filters) {
+        var container = document.getElementById(tableId);
+        if (!container) return;
+        container.querySelectorAll('select.review-filter-select').forEach(function(select) {
+          var columnId = select.getAttribute('data-filter-column');
+          var match = filters.find(function(filter) { return filter.id === columnId; });
+          api.setControlValue(select, match ? match.value : '');
+        });
+      };
+      api.clear = function() {
+        try {
+          var state = Reactable.getState(tableId);
+          var filters = (state && state.filters) ? state.filters.slice() : [];
+          filters.forEach(function(filter) {
+            Reactable.setFilter(tableId, filter.id, undefined);
+          });
+        } catch (e) {}
+        api.restoreControls([]);
+      };
+      window.concertReviewFilters = api;
 
       // Before Shiny recalculates the output, save current filters
       $(document).on('shiny:recalculating', function(event) {
         if (event.target && event.target.id === tableId) {
           try {
             var state = Reactable.getState(tableId);
-            if (state && state.sorted) { /* table exists */ }
             savedFilters = (state && state.filters) ? state.filters.slice() : [];
           } catch(e) {
             savedFilters = [];
@@ -1126,30 +1395,20 @@ mod_review_results_ui <- function(id) {
         }
       });
 
-      // After the output is recalculated, restore filters
+      // After the output is recalculated, initialize controls and restore filters
       $(document).on('shiny:value', function(event) {
-        if (event.target && event.target.id === tableId && savedFilters.length > 0) {
+        if (event.target && event.target.id === tableId) {
           var filtersToRestore = savedFilters.slice();
           savedFilters = [];
-          // Small delay to let reactable initialize
           setTimeout(function() {
-            filtersToRestore.forEach(function(f) {
+            var container = document.getElementById(tableId);
+            if (container) api.initialize(container);
+            filtersToRestore.forEach(function(filter) {
               try {
-                Reactable.setFilter(tableId, f.id, f.value);
+                Reactable.setFilter(tableId, filter.id, filter.value);
               } catch(e) {}
             });
-            // Also restore the <select> dropdown values to match
-            filtersToRestore.forEach(function(f) {
-              var container = document.getElementById(tableId);
-              if (!container) return;
-              var selects = container.querySelectorAll('select');
-              selects.forEach(function(sel) {
-                var onChange = sel.getAttribute('onchange') || '';
-                if (onChange.indexOf(\"'\" + f.id + \"'\") !== -1) {
-                  sel.value = f.value || '';
-                }
-              });
-            });
+            api.restoreControls(filtersToRestore);
           }, 50);
         }
       });
@@ -1266,25 +1525,10 @@ mod_review_results_ui <- function(id) {
   clear_filters_js <- tags$script(HTML(sprintf(
     "
     $(document).on('click', '#%s', function() {
-      var tableId = '%s';
-      try {
-        var state = Reactable.getState(tableId);
-        var filters = (state && state.filters) ? state.filters.slice() : [];
-        filters.forEach(function(f) {
-          Reactable.setFilter(tableId, f.id, undefined);
-        });
-      } catch(e) {}
-
-      var container = document.getElementById(tableId);
-      if (container) {
-        container.querySelectorAll('select').forEach(function(sel) {
-          sel.value = '';
-        });
-      }
+      if (window.concertReviewFilters) window.concertReviewFilters.clear();
     });
   ",
-    ns("clear_table_filters"),
-    ns("curation_table")
+    ns("clear_table_filters")
   )))
 
   tagList(
@@ -1987,51 +2231,10 @@ mod_review_results_server <- function(id, data_store) {
         )
       }
 
-      # Dropdown filter helper
       table_id <- session$ns("curation_table")
-      make_select_filter <- function(choices, col_name) {
-        function(values, name) {
-          choice_labels <- names(choices)
-          if (is.null(choice_labels) || length(choice_labels) == 0) {
-            choice_labels <- as.character(choices)
-          } else {
-            choice_labels[choice_labels == ""] <- as.character(choices[choice_labels == ""])
-          }
-
-          htmltools::tags$select(
-            onchange = sprintf(
-              "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
-              table_id,
-              col_name
-            ),
-            style = "width:100%;font-size:0.85em;padding:2px;",
-            htmltools::tags$option(value = "", "All"),
-            Map(
-              function(value, label) {
-                htmltools::tags$option(value = unname(value), label)
-              },
-              choices,
-              choice_labels
-            )
-          )
-        }
-      }
 
       # Badge: match_type
       if ("match_type" %in% names(df_display)) {
-        match_levels <- intersect(
-          c(
-            "Exact Match",
-            "CAS Lookup",
-            "Starts-With",
-            "WQX Exact",
-            "WQX Alias",
-            "WQX Fuzzy",
-            "Isotope Match",
-            "No Match"
-          ),
-          unique(as.character(df_display$match_type))
-        )
         match_colors <- c(
           "Exact Match" = "#28a745",
           "CAS Lookup" = "#007bff",
@@ -2057,35 +2260,12 @@ mod_review_results_server <- function(id, data_store) {
               ),
               val
             )
-          },
-          filterMethod = htmlwidgets::JS(
-            "function(rows, columnId, filterValue) {
-              return rows.filter(function(row) {
-                return row.values[columnId] === filterValue;
-              });
-            }"
-          ),
-          filterInput = make_select_filter(match_levels, "match_type")
+          }
         )
       }
 
       # Badge: consensus_status
       if ("consensus_status" %in% names(df_display)) {
-        status_levels <- intersect(
-          c(
-            "agree",
-            "agree_caveat",
-            "single",
-            "wqx",
-            "disagree",
-            "error",
-            "manual",
-            "unresolvable",
-            "auto_resolved",
-            "suggested"
-          ),
-          unique(as.character(df_display$consensus_status))
-        )
         status_colors <- c(
           "agree" = "#28a745",
           "agree_caveat" = "#17a2b8",
@@ -2110,71 +2290,20 @@ mod_review_results_server <- function(id, data_store) {
               ),
               val
             )
-          },
-          filterMethod = htmlwidgets::JS(
-            "function(rows, columnId, filterValue) {
-              return rows.filter(function(row) {
-                return row.values[columnId] === filterValue;
-              });
-            }"
-          ),
-          filterInput = make_select_filter(status_levels, "consensus_status")
+          }
         )
       }
 
       # Badge: row_flag
       if ("row_flag" %in% names(df_display)) {
-        flag_levels <- row_flag_filter_choices(df_display$row_flag)
         col_defs[["row_flag"]] <- reactable::colDef(
           name = "Flag",
           html = TRUE,
           minWidth = 100,
           cell = function(value, index) {
             derive_row_flag_html(value)
-          },
-          filterMethod = htmlwidgets::JS(
-            "function(rows, columnId, filterValue) {
-              return rows.filter(function(row) {
-                var value = row.values[columnId];
-                if (filterValue === '__untagged__') return value == null || value === '';
-                return row.values[columnId] === filterValue;
-              });
-            }"
-          ),
-          filterInput = make_select_filter(flag_levels, "row_flag")
+          }
         )
-      }
-
-      # Dropdown filter: qc_flag
-      if ("qc_flag" %in% names(df_display)) {
-        qc_levels <- na.omit(unique(df_display$qc_flag))
-        if (length(qc_levels) > 0) {
-          col_defs[["qc_flag"]] <- reactable::colDef(
-            filterMethod = htmlwidgets::JS(
-              "function(rows, columnId, filterValue) {
-                return rows.filter(function(row) {
-                  var val = row.values[columnId];
-                  if (filterValue === '__na__') return val == null || val === '';
-                  return val === filterValue;
-                });
-              }"
-            ),
-            filterInput = function(values, name) {
-              htmltools::tags$select(
-                onchange = sprintf(
-                  "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
-                  table_id,
-                  "qc_flag"
-                ),
-                style = "width:100%;font-size:0.85em;padding:2px;",
-                htmltools::tags$option(value = "", "All"),
-                lapply(qc_levels, function(val) {
-                  htmltools::tags$option(value = val, val)
-                })
-              )
-            }
-          )
-        }
       }
 
       # Resolution: HTML content
@@ -2234,6 +2363,8 @@ mod_review_results_server <- function(id, data_store) {
       for (hidden_col in intersect(hidden_cols, names(df_display))) {
         col_defs[[hidden_col]] <- reactable::colDef(show = FALSE)
       }
+
+      col_defs <- apply_review_filter_definitions(df_display, col_defs, table_id)
 
       reactable::reactable(
         df_display,

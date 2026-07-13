@@ -281,6 +281,152 @@ test_that("row_flag_filter_choices includes untagged even when every row is flag
   expect_equal(result[["VERIFIED"]], "VERIFIED")
 })
 
+test_that("review filter choices deduplicate, sort, and preserve exact text", {
+  values <- c(
+    "beta",
+    "Alpha",
+    "alpha",
+    "beta",
+    NA_character_,
+    "",
+    "   ",
+    "quote's",
+    "<tag>",
+    "caf\u00e9",
+    "\u03a9mega"
+  )
+
+  result <- build_review_filter_choices(values, "User supplied column")
+
+  expect_false(result$searchable)
+  expect_equal(result$populated_count, 7L)
+  expect_equal(
+    result$choices$label,
+    c("(Blank)", "<tag>", "Alpha", "alpha", "beta", "caf\u00e9", "quote's", "\u03a9mega")
+  )
+  expect_equal(length(unique(result$choices$token)), nrow(result$choices))
+  expect_true(all(vapply(result$choices$token, jsonlite::validate, logical(1))))
+})
+
+test_that("review filter choices sort typed values naturally", {
+  numbers <- build_review_filter_choices(c(10, 2, NA_real_, -1, 2), "number")
+  dates <- build_review_filter_choices(
+    as.Date(c("2025-12-31", NA, "2024-01-02", "2024-01-02")),
+    "date"
+  )
+  logicals <- build_review_filter_choices(c(TRUE, NA, FALSE, TRUE), "logical")
+
+  expect_equal(numbers$choices$label, c("(Blank)", "-1", "2", "10"))
+  expect_equal(dates$choices$label, c("(Blank)", "2024-01-02", "2025-12-31"))
+  expect_equal(logicals$choices$label, c("(Blank)", "FALSE", "TRUE"))
+})
+
+test_that("review filter tokens match exact typed values and normalized blanks", {
+  values <- c("Alpha", "alpha", "quote's", "<tag>", "caf\u00e9", "", "  ", NA_character_)
+  choices <- build_review_filter_choices(values, "special")$choices
+  alpha_token <- choices$token[choices$label == "Alpha"]
+  blank_token <- choices$token[choices$label == "(Blank)"]
+
+  expect_equal(review_filter_matches(values, alpha_token), c(TRUE, rep(FALSE, 7)))
+  expect_equal(
+    review_filter_matches(values, blank_token),
+    c(rep(FALSE, 5), TRUE, TRUE, TRUE)
+  )
+
+  logical_token <- build_review_filter_choices(c(TRUE, FALSE), "logical")$choices$token[2]
+  numeric_token <- build_review_filter_choices(c(1, 2), "numeric")$choices$token[1]
+  date_token <- build_review_filter_choices(as.Date(c("2024-01-01", "2024-01-02")), "date")$choices$token[1]
+
+  expect_equal(review_filter_matches(c(FALSE, TRUE), logical_token), c(FALSE, TRUE))
+  expect_equal(review_filter_matches(c(1, 1L, 2), numeric_token), c(TRUE, TRUE, FALSE))
+  expect_equal(
+    review_filter_matches(as.Date(c("2024-01-01", "2024-01-02")), date_token),
+    c(TRUE, FALSE)
+  )
+})
+
+test_that("review filter choices use searchable controls only above 50 populated values", {
+  native <- build_review_filter_choices(sprintf("value-%02d", 1:50), "fifty")
+  searchable <- build_review_filter_choices(sprintf("value-%02d", 1:51), "fifty one")
+
+  expect_false(native$searchable)
+  expect_true(searchable$searchable)
+  expect_no_match(
+    as.character(make_review_filter_input(native, "table", "fifty")(NULL, NULL)),
+    "review-filter-selectize",
+    fixed = TRUE
+  )
+  expect_match(
+    as.character(make_review_filter_input(searchable, "table", "fifty one")(NULL, NULL)),
+    "review-filter-selectize",
+    fixed = TRUE
+  )
+})
+
+test_that("review filter choices omit all-empty columns", {
+  expect_null(build_review_filter_choices(c(NA_character_, "", "   "), "empty"))
+  expect_null(build_review_filter_choices(c(NA_real_, NA_real_), "empty numeric"))
+})
+
+test_that("review status filters retain semantic ordering", {
+  statuses <- c("suggested", "agree", "error", "manual", "disagree")
+  matches <- c("No Match", "WQX Fuzzy", "Exact Match", "CAS Lookup")
+  flags <- c("VERIFIED", "BAD", "FOLLOW-UP")
+
+  expect_equal(
+    build_review_filter_choices(statuses, "consensus_status")$choices$label,
+    c("agree", "disagree", "error", "manual", "suggested")
+  )
+  expect_equal(
+    build_review_filter_choices(matches, "match_type")$choices$label,
+    c("Exact Match", "CAS Lookup", "WQX Fuzzy", "No Match")
+  )
+  expect_equal(
+    build_review_filter_choices(flags, "row_flag")$choices$label,
+    c("BAD", "FOLLOW-UP", "VERIFIED")
+  )
+})
+
+test_that("review column definitions receive dropdowns except Resolution and empty columns", {
+  df <- data.frame(
+    `User's <column>` = c("A", "B"),
+    consensus_status = c("error", "agree"),
+    hidden_value = c("x", "y"),
+    all_empty = c(NA_character_, "  "),
+    Resolution = c("one", "two"),
+    check.names = FALSE
+  )
+  defs <- list(
+    consensus_status = reactable::colDef(cell = function(value) value),
+    hidden_value = reactable::colDef(show = FALSE),
+    Resolution = reactable::colDef(html = TRUE)
+  )
+
+  result <- apply_review_filter_definitions(df, defs, "review-results-curation_table")
+
+  eligible <- c("User's <column>", "consensus_status", "hidden_value")
+  expect_true(all(vapply(result[eligible], function(def) is.function(def$filterInput), logical(1))))
+  expect_true(all(vapply(result[eligible], function(def) inherits(def$filterMethod, "JS_EVAL"), logical(1))))
+  expect_false(result$hidden_value$show)
+  expect_false(result$all_empty$filterable)
+  expect_false(result$Resolution$filterable)
+  expect_null(result$Resolution$filterInput)
+
+  special_html <- as.character(result[["User's <column>"]]$filterInput(NULL, NULL))
+  expect_match(special_html, "review-filter-select", fixed = TRUE)
+  expect_match(special_html, "data-filter-column=\"User&#39;s &lt;column&gt;\"", fixed = TRUE)
+})
+
+test_that("review filter scripts initialize, restore, and clear native and searchable controls", {
+  ui_html <- as.character(mod_review_results_ui("review"))
+
+  expect_match(ui_html, "create: false", fixed = TRUE)
+  expect_match(ui_html, "select.selectize.setValue", fixed = TRUE)
+  expect_match(ui_html, "api.restoreControls(filtersToRestore)", fixed = TRUE)
+  expect_match(ui_html, "window.concertReviewFilters.clear()", fixed = TRUE)
+  expect_match(ui_html, "Reactable.setFilter(tableId, filter.id, filter.value)", fixed = TRUE)
+})
+
 # ============================================================================
 # Test Group 3: derive_resolution_html — WQX resolution rendering
 # ============================================================================
