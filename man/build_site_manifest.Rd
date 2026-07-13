@@ -14,5 +14,5 @@ A deterministic, ordered, distinct site manifest.
 }
 \description{
 Sorts by user-curated order/suborder, filters blank rows, and enforces one
-row per site identifier/name/coordinate key.
+row per site identifier.
 }

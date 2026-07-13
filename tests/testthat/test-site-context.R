@@ -115,7 +115,6 @@ test_that("alias map keeps raw labels while manifest collapses canonical sites",
     site_suborder = c(1L, 1L, 1L, 1L),
     site_identifier = c("INF", "INF", "INF", ""),
     site_name = c("Influent", "Influent", "Influent", ""),
-    site_label = c("Influent", "Influent", "Influent", ""),
     source_row = c(1L, 2L, 3L, 4L)
   )
 
@@ -128,13 +127,30 @@ test_that("alias map keeps raw labels while manifest collapses canonical sites",
   expect_equal(manifest$source_site_label, "Raw Influent")
 })
 
+test_that("site identifier is the sole canonical key and site name is display-only", {
+  site_context <- tibble::tibble(
+    source_site_label = c("Alpha raw", "Alpha alias", "No ID"),
+    site_identifier = c("ALPHA", "alpha", NA_character_),
+    site_name = c("Alpha display", "Ignored duplicate name", "Name is not a key"),
+    site_label = c("Legacy label", "Legacy alias label", "Legacy no-ID label")
+  )
+
+  alias_map <- build_site_alias_map(site_context)
+  manifest <- build_site_manifest(alias_map)
+
+  expect_equal(alias_map$source_site_label, c("Alpha raw", "Alpha alias"))
+  expect_equal(manifest$site_identifier, "ALPHA")
+  expect_equal(manifest$site_name, "Alpha display")
+  expect_false("site_label" %in% names(alias_map))
+  expect_false("site_label" %in% names(manifest))
+})
+
 test_that("build_chorus_site_manifest preserves blank orders while using source-row fallback", {
   manifest <- tibble::tibble(
     site_order = c(NA_integer_, NA_integer_, NA_integer_),
     site_suborder = c(1L, 1L, 1L),
     site_identifier = c("C", "A", "B"),
     site_name = c("Gamma", "Alpha", "Beta"),
-    site_label = c("Gamma", "Alpha", "Beta"),
     source_row = c(30L, 10L, 20L)
   )
 
@@ -151,7 +167,6 @@ test_that("build_chorus_site_manifest is ordered, distinct, blank-filtered, and 
     site_suborder = c(1L, 1L, 1L, 1L),
     site_identifier = c("A", "B", "a", ""),
     site_name = c("Alpha", "Beta", "Alpha duplicate", ""),
-    site_label = c("Alpha", "Beta", "Alpha duplicate", ""),
     latitude = c(45.1, 46.2, 45.3, NA),
     longitude = c(-93.1, -94.2, -93.3, NA),
     source_row = c(10L, 5L, 11L, 12L)
@@ -246,6 +261,27 @@ test_that("Dataset Context datatable uses read-only source labels and 25-row pag
   expect_equal(widget$x$selection$mode, "multiple")
 })
 
+test_that("Dataset Context explains source, key, and display fields in table header tooltips", {
+  manifest <- extract_site_candidates(tibble::tibble(
+    site_label = c("Raw Influent", "Plant Inlet"),
+    site_id = c("INF", "INF")
+  ))
+
+  widget <- site_context_datatable(manifest)
+  tooltips <- site_context_column_tooltips()
+  container <- widget$x$container
+  init_complete <- as.character(widget$x$options$initComplete)
+
+  expect_match(container, "Source site label", fixed = TRUE)
+  expect_match(container, "Site identifier", fixed = TRUE)
+  expect_match(container, "Site name", fixed = TRUE)
+  expect_no_match(container, "Site label", fixed = TRUE)
+  expect_match(init_complete, tooltips[["source_site_label"]], fixed = TRUE)
+  expect_match(init_complete, tooltips[["site_identifier"]], fixed = TRUE)
+  expect_match(init_complete, tooltips[["site_name"]], fixed = TRUE)
+  expect_match(init_complete, "data-site-context-tooltip", fixed = TRUE)
+})
+
 test_that("Dataset Context can fill selected aliases from the first selected row", {
   manifest <- tibble::tibble(
     source_site_label = c("Raw Influent", "Raw Infl.", "Plant Inlet"),
@@ -253,7 +289,6 @@ test_that("Dataset Context can fill selected aliases from the first selected row
     site_suborder = c(1L, 1L, 1L),
     site_identifier = c("INF", "RAW", "INLET"),
     site_name = c("Influent", "Raw", "Inlet"),
-    site_label = c("Influent", "Raw", "Inlet"),
     latitude = c(45.1, 46.2, 47.3),
     longitude = c(-93.1, -94.2, -95.3),
     grouping_type = c("watershed", "group", "group"),
@@ -266,7 +301,6 @@ test_that("Dataset Context can fill selected aliases from the first selected row
   expect_equal(result$source_site_label, c("Raw Influent", "Raw Infl.", "Plant Inlet"))
   expect_equal(result$site_identifier, rep("INF", 3))
   expect_equal(result$site_name, rep("Influent", 3))
-  expect_equal(result$site_label, rep("Influent", 3))
   expect_equal(result$latitude, rep(45.1, 3))
   expect_equal(result$longitude, rep(-93.1, 3))
 })
@@ -350,7 +384,6 @@ test_that("site manifest and alias map export and hydrate with source values int
     site_suborder = c(1L, 1L, 1L),
     site_identifier = c("A", "B", "B"),
     site_name = c("Alpha", "Beta", "Beta"),
-    site_label = c("Alpha", "Beta", "Beta"),
     latitude = c(45.1, 46.2, 46.2),
     longitude = c(-93.1, -94.2, -94.2),
     grouping_type = c("watershed", "watershed", "watershed"),
@@ -397,7 +430,6 @@ test_that("generate_concert_script embeds site manifest replay input", {
     site_suborder = c(1L, 1L),
     site_identifier = c("A", "B"),
     site_name = c("Alpha", "Beta"),
-    site_label = c("Alpha", "Beta"),
     latitude = c(45.1, 46.2),
     longitude = c(-93.1, -94.2),
     source_row = c(1L, 2L),
@@ -425,6 +457,7 @@ test_that("embedded site alias map literal omits default columns and round-trips
   site_manifest <- tibble::tibble(
     source_site_label = c("Influent", "influent ", "INFLUENT-1"),
     site_order = c(1L, 1L, 1L),
+    site_identifier = c("INF", "INF", "INF"),
     site_name = c("Influent", "Influent", "Influent")
   )
 
@@ -446,9 +479,7 @@ test_that("embedded site alias map literal omits default columns and round-trips
   env <- new.env(parent = globalenv())
   for (ex in parse(text = script)) {
     head_sym <- if (is.call(ex)) as.character(ex[[1]])[1] else ""
-    if (head_sym %in% c("library", "curate_headless")) {
-      next
-    }
+    if (head_sym %in% c("library", "curate_headless")) next
     eval(ex, envir = env)
   }
   expect_identical(
@@ -462,6 +493,7 @@ test_that("constant site alias columns compress to rep() in the embedded literal
   site_manifest <- tibble::tibble(
     source_site_label = paste0("Site variant ", 1:6),
     site_order = rep(1L, 6),
+    site_identifier = rep("INF", 6),
     site_name = rep("Influent", 6)
   )
 
@@ -480,7 +512,9 @@ test_that("constant site alias columns compress to rep() in the embedded literal
   env <- new.env(parent = globalenv())
   for (ex in parse(text = script)) {
     head_sym <- if (is.call(ex)) as.character(ex[[1]])[1] else ""
-    if (head_sym %in% c("library", "curate_headless")) next
+    if (head_sym %in% c("library", "curate_headless")) {
+      next
+    }
     eval(ex, envir = env)
   }
   expect_identical(
