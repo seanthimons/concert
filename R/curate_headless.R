@@ -43,6 +43,9 @@
 #'   harmonize=FALSE.
 #' @param unit_map Tibble with unit conversion mappings, or NULL (default) to
 #'   load from package cache via load_unit_map().
+#' @param unit_map_snapshot Optional compact replay snapshot from
+#'   `generate_concert_script()`; reconstructs the effective unit map from
+#'   package defaults plus embedded deltas. Mutually exclusive with `unit_map`.
 #' @param corrections Tibble with pattern/replacement columns for one-off
 #'   corrections, or NULL (default) to load from package cache.
 #' @param media Character. Media context for ppb/ppm routing: "aqueous", "air",
@@ -66,6 +69,9 @@
 #'   cleaning and before curation.
 #' @param media_map Optional media harmonization map passed to
 #'   `harmonize_media()`.
+#' @param media_map_snapshot Optional compact replay snapshot from
+#'   `generate_concert_script()`; reconstructs the effective media map from
+#'   package defaults plus embedded deltas. Mutually exclusive with `media_map`.
 #' @param write_files Logical. If TRUE (default), writes XLSX and optional
 #'   parquet/CSV outputs. If FALSE, runs fully in memory and returns the same
 #'   list without requiring or creating output files.
@@ -112,6 +118,7 @@ curate_headless <- function(
   harmonize = FALSE,
   format = "parquet",
   unit_map = NULL,
+  unit_map_snapshot = NULL,
   corrections = NULL,
   media = NULL,
   wqx_threshold = 0.85,
@@ -122,6 +129,7 @@ curate_headless <- function(
   site_alias_map = NULL,
   multi_analyte_resolutions = NULL,
   media_map = NULL,
+  media_map_snapshot = NULL,
   write_files = TRUE,
   source_name = NULL
 ) {
@@ -315,6 +323,19 @@ curate_headless <- function(
     if (harmonize) {
       message("[headless] Running harmonization pipeline...")
 
+      if (!is.null(unit_map_snapshot)) {
+        if (!is.null(unit_map)) {
+          stop("curate_headless: provide either unit_map or unit_map_snapshot, not both.", call. = FALSE)
+        }
+        unit_map <- reconstruct_unit_map_snapshot(unit_map_snapshot)
+      }
+      if (!is.null(media_map_snapshot)) {
+        if (!is.null(media_map)) {
+          stop("curate_headless: provide either media_map or media_map_snapshot, not both.", call. = FALSE)
+        }
+        media_map <- reconstruct_media_map_snapshot(media_map_snapshot)
+      }
+
       harmonization_refs <- resolve_harmonization_references(
         unit_map = unit_map,
         corrections = corrections,
@@ -331,6 +352,21 @@ curate_headless <- function(
         media = media,
         source_name = source_name %||% tools::file_path_sans_ext(basename(input_path))
       )
+      # Advance the replay baseline to the harmonized stage too, so an exported
+      # workbook diffs review edits against a like-staged baseline (see the
+      # matching logic in mod_harmonize).
+      if (!is.null(script_baseline_state) && nrow(script_baseline_state) == nrow(harmonization_runtime_result$data)) {
+        harmonized_baseline <- harmonization_runtime_result$data
+        for (col in intersect(review_override_columns(), names(harmonized_baseline))) {
+          harmonized_baseline[[col]] <- if (col %in% names(script_baseline_state)) {
+            script_baseline_state[[col]]
+          } else {
+            empty_review_override_column(col, nrow(harmonized_baseline))
+          }
+        }
+        script_baseline_state <- harmonized_baseline
+      }
+
       resolution_state <- harmonization_runtime_result$data
       toxval_tibble <- harmonization_runtime_result$toxval_output
       harmonize_audit_tibble <- harmonization_runtime_result$harmonize_audit

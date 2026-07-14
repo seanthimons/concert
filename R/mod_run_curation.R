@@ -157,6 +157,23 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
               data_store$clean
             }
 
+            # Guard against clobbering imported/manual review corrections on a
+            # re-run: capture them as content-matched overrides so they can be
+            # re-applied to the fresh automated results below.
+            prior_overrides <- tryCatch(
+              build_review_overrides(
+                data_store$script_baseline_state,
+                data_store$resolution_state,
+                tag_map = combine_tag_maps(
+                  data_store$column_tags,
+                  data_store$numeric_tags,
+                  data_store$metadata_tags,
+                  data_store$study_type_tags
+                )
+              ),
+              error = function(e) NULL
+            )
+
             pipeline_result <- run_curation_pipeline(
               clean_data = input_data,
               column_tags = data_store$column_tags,
@@ -263,6 +280,37 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
             )
 
             data_store$script_baseline_state <- data_store$resolution_state
+
+            # Re-apply any review corrections captured before the re-run so a
+            # deliberate re-curation does not silently discard them. The pure
+            # automated result stays as script_baseline_state (above) so replay
+            # still diffs corrections against it.
+            if (review_overrides_present(prior_overrides)) {
+              reapplied <- tryCatch(
+                apply_review_overrides(data_store$script_baseline_state, prior_overrides),
+                error = function(e) NULL
+              )
+              if (!is.null(reapplied)) {
+                data_store$resolution_state <- reapplied
+                data_store$consensus_data <- reapplied
+                data_store$curation_results <- reapplied
+                data_store$consensus_summary <- recalc_consensus_summary(reapplied)
+                notify_user(
+                  "Re-applied existing review corrections to the new curation results.",
+                  type = "message",
+                  duration = 6
+                )
+              } else {
+                notify_user(
+                  paste(
+                    "Could not re-apply existing review corrections to the new results;",
+                    "they were not carried over. Re-enter them or restore from an export."
+                  ),
+                  type = "warning",
+                  duration = 10
+                )
+              }
+            }
 
             # Show tier breakdown notification
             notification_msg <- sprintf(

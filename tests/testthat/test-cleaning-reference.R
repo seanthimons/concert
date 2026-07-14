@@ -413,6 +413,73 @@ test_that("reference list snapshots reconstruct effective lists and reject defau
   )
 })
 
+test_that("reference-list overrides ignore provenance-only differences", {
+  defaults <- tibble::tibble(term = c("test", "sample"), source = "app_default", active = TRUE)
+  # Same behavior, only source/notes relabeled by an import.
+  imported <- tibble::tibble(
+    term = c("test", "sample"),
+    source = "imported",
+    active = TRUE,
+    notes = "from upload"
+  )
+  expect_equal(nrow(reference_list_snapshot_overrides(imported, defaults, "stop_words")), 0L)
+
+  # A genuine behavior change (active toggled) is still captured.
+  toggled <- imported
+  toggled$active <- c(TRUE, FALSE)
+  overrides <- reference_list_snapshot_overrides(toggled, defaults, "stop_words")
+  expect_equal(overrides$term, "sample")
+})
+
+test_that("keyed map snapshots capture only behavior deltas and round-trip", {
+  default_map <- tibble::tibble(
+    from_unit = c("mg/L", "ug/L", "dS/m", "dS/m"),
+    to_unit = c("mg/L", "mg/L", "S/m", "uS/cm"),
+    multiplier = c(1, 0.001, 0.1, 1000),
+    source = "ECOTOX"
+  )
+  ignore <- "source"
+
+  # Unedited map -> no overrides, reconstruct is a no-op.
+  snap0 <- build_keyed_map_snapshot(default_map, default_map, "from_unit", ignore)
+  expect_equal(nrow(snap0$overrides), 0L)
+  expect_equal(
+    reconstruct_keyed_map_snapshot(snap0, default_map, "from_unit", ignore),
+    default_map
+  )
+
+  # Provenance-only relabel (source) -> still no overrides despite duplicate keys.
+  relabeled <- default_map
+  relabeled$source <- "user"
+  expect_equal(
+    nrow(build_keyed_map_snapshot(relabeled, default_map, "from_unit", ignore)$overrides),
+    0L
+  )
+
+  # One added row + one changed multiplier -> exactly those two rows.
+  edited <- dplyr::bind_rows(
+    default_map,
+    tibble::tibble(from_unit = "custom", to_unit = "mg/L", multiplier = 5, source = "user")
+  )
+  edited$multiplier[edited$from_unit == "mg/L"] <- 2
+  snap <- build_keyed_map_snapshot(edited, default_map, "from_unit", ignore)
+  expect_setequal(snap$overrides$from_unit, c("mg/L", "custom"))
+
+  recon <- reconstruct_keyed_map_snapshot(snap, default_map, "from_unit", ignore)
+  expect_true("custom" %in% recon$from_unit)
+  # Overrides shadow the stale default under first-match lookup.
+  expect_equal(recon$multiplier[match("mg/L", recon$from_unit)], 2)
+  # Legitimate duplicate-key defaults survive untouched.
+  expect_equal(sum(recon$from_unit == "dS/m"), 2L)
+
+  # Baseline drift warns but still applies overrides.
+  snap$default_hash <- "stale"
+  expect_warning(
+    reconstruct_keyed_map_snapshot(snap, default_map, "from_unit", ignore, label = "unit_map"),
+    "hash mismatch"
+  )
+})
+
 test_that("update_user_reference_list toggles defaults through sidecar and remove reverts default", {
   withr::with_tempdir({
     cache_dir <- "test_cache"

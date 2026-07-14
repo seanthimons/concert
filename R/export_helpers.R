@@ -319,7 +319,28 @@ consensus_summary_value <- function(consensus_summary, key, default = 0) {
 # reconstructs the replay baseline exactly for every column the review UI can
 # edit, without duplicating the full dataset in the export.
 build_baseline_diff_rows <- function(script_baseline_state, resolution_state) {
-  if (is.null(script_baseline_state) || nrow(script_baseline_state) != nrow(resolution_state)) {
+  # Transparency log: when no automated baseline can be persisted, the exported
+  # workbook carries no baseline_cells and a future resume falls back to
+  # reconstructing corrections from the finished state (still full-fidelity, but
+  # over-specified). Log the reason to the console rather than failing silently.
+  if (is.null(script_baseline_state)) {
+    message(
+      "[replay] No automated baseline captured; workbook exported without replay ",
+      "baseline_cells. Replay from this workbook will reconstruct review ",
+      "corrections from the finished state."
+    )
+    return(NULL)
+  }
+  if (nrow(script_baseline_state) != nrow(resolution_state)) {
+    message(sprintf(
+      paste0(
+        "[replay] Baseline row count (%d) does not match curated row count (%d); ",
+        "workbook exported without replay baseline_cells. Replay will reconstruct ",
+        "review corrections from the finished state."
+      ),
+      nrow(script_baseline_state),
+      nrow(resolution_state)
+    ))
     return(NULL)
   }
 

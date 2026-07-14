@@ -351,10 +351,27 @@ restore_resolution_state <- function(curated_data, session_state) {
   )
 }
 
+# A replay baseline whose review-decision columns are reset to their empty
+# defaults. Diffing the imported curated state against it makes every review
+# correction (consensus DTXSID, flags, pins, manual entries) an explicit
+# override, so replay reproduces them against a fresh curation of the raw file.
+# ponytail: covers review-column corrections (the reported case); prior edits
+# to tagged input columns on a baseline-less resume are not recovered because
+# their raw-derived origin isn't known here. Add if that case surfaces.
+empty_review_baseline <- function(resolution_state) {
+  baseline <- init_resolution_state(resolution_state)
+  n <- nrow(baseline)
+  for (col in intersect(review_override_columns(), names(baseline))) {
+    baseline[[col]] <- empty_review_override_column(col, n)
+  }
+  baseline
+}
+
 # Rebuild the automated replay baseline by patching exported baseline_cell
-# records onto the restored curated state. Exports that predate baseline
-# persistence fall back to the curated state itself (no review diff), with a
-# warning so the user knows regenerated scripts will omit review corrections.
+# records onto the restored curated state. Workbooks with no baseline metadata
+# (older exports, or ones where the automated baseline could not be captured)
+# fall back to a review-emptied baseline so regenerated replay scripts still
+# reproduce every correction against the raw file.
 restore_script_baseline <- function(config, session_state, resolution_state) {
   if (is.null(resolution_state)) {
     return(list(state = NULL, warnings = character(0)))
@@ -363,11 +380,11 @@ restore_script_baseline <- function(config, session_state, resolution_state) {
   baseline_cells <- config_value(config, "baseline_cells")
   if (is.null(baseline_cells)) {
     return(list(
-      state = resolution_state,
+      state = empty_review_baseline(resolution_state),
       warnings = paste(
-        "This export predates replay-baseline persistence.",
-        "Regenerated replay scripts will not include Review Results corrections;",
-        "re-run curation and review to capture them again."
+        "This workbook carries no replay baseline.",
+        "Treating all Review Results corrections as overrides so regenerated",
+        "replay scripts reproduce them against the raw file."
       )
     ))
   }
