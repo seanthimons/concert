@@ -931,7 +931,7 @@ test_that("replay baseline survives export/import and regenerates review overrid
   expect_equal(replayed$row_flag, state$resolution_state$row_flag)
 })
 
-test_that("imports without baseline records warn and fall back to the curated state", {
+test_that("imports without baseline records reconstruct a full replay against raw", {
   test_data <- create_test_data()
 
   sheets <- build_export_sheets(
@@ -955,9 +955,32 @@ test_that("imports without baseline records warn and fall back to the curated st
 
   expect_match(
     paste(hydrated$warnings, collapse = "\n"),
-    "predates replay-baseline persistence"
+    "no replay baseline"
   )
-  expect_equal(hydrated$state$script_baseline_state, hydrated$state$resolution_state)
+
+  restored_baseline <- hydrated$state$script_baseline_state
+  resolution <- hydrated$state$resolution_state
+
+  # Review-decision columns are reset in the baseline so every imported
+  # correction (dtxsid, flags, pins) becomes an explicit replay override.
+  expect_true(all(restored_baseline$.pinned == FALSE))
+  expect_true(all(is.na(restored_baseline$row_flag)))
+  expect_false(isTRUE(all.equal(
+    restored_baseline$consensus_dtxsid,
+    resolution$consensus_dtxsid
+  )))
+
+  spec <- build_review_overrides(
+    restored_baseline,
+    resolution,
+    tag_map = list(chemical_name = "Name", cas_number = "CASRN")
+  )
+  expect_s3_class(spec, "concert_review_override_spec")
+
+  replayed <- apply_review_overrides(restored_baseline, spec)
+  expect_equal(replayed$consensus_dtxsid, resolution$consensus_dtxsid)
+  expect_equal(replayed$row_flag, resolution$row_flag)
+  expect_equal(replayed$.pinned, resolution$.pinned)
 })
 
 test_that("hydrate_session_state tolerates missing optional sheets", {

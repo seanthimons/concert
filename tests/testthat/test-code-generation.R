@@ -49,7 +49,7 @@ test_that("generate_concert_script embeds harmonization references only for harm
     replacement = "6.90E+01"
   )
   media_map <- tibble::tibble(
-    term = "stormwater",
+    term = "zzz custom media",
     canonical_term = "surface water",
     media_category = "aqueous",
     source = "user",
@@ -67,12 +67,17 @@ test_that("generate_concert_script embeds harmonization references only for harm
     media_map = media_map
   )
 
-  expect_match(script, "unit_map <-", fixed = TRUE)
+  # Maps are embedded as provenance-blind delta snapshots, not full dictionaries.
+  expect_match(script, "unit_map_snapshot <-", fixed = TRUE)
   expect_match(script, "corrections <-", fixed = TRUE)
-  expect_match(script, "media_map <-", fixed = TRUE)
-  expect_match(script, "unit_map = unit_map", fixed = TRUE)
+  expect_match(script, "media_map_snapshot <-", fixed = TRUE)
+  expect_match(script, "default_hash =", fixed = TRUE)
+  expect_match(script, "unit_map_snapshot = unit_map_snapshot", fixed = TRUE)
   expect_match(script, "corrections = corrections", fixed = TRUE)
-  expect_match(script, "media_map = media_map", fixed = TRUE)
+  expect_match(script, "media_map_snapshot = media_map_snapshot", fixed = TRUE)
+  # Only the user's custom rows land in the overrides, not the baseline map.
+  expect_match(script, "custom-unit", fixed = TRUE)
+  expect_match(script, "zzz custom media", fixed = TRUE)
   expect_match(script, '"^6\\\\.90E\\\\+0\\\\.1$"', fixed = TRUE)
   expect_silent(parse(text = script))
 
@@ -87,12 +92,12 @@ test_that("generate_concert_script embeds harmonization references only for harm
     media_map = media_map
   )
 
-  expect_no_match(non_harmonized, "unit_map <-", fixed = TRUE)
+  expect_no_match(non_harmonized, "unit_map_snapshot <-", fixed = TRUE)
   expect_no_match(non_harmonized, "corrections <-", fixed = TRUE)
-  expect_no_match(non_harmonized, "media_map <-", fixed = TRUE)
-  expect_no_match(non_harmonized, "unit_map = unit_map", fixed = TRUE)
+  expect_no_match(non_harmonized, "media_map_snapshot <-", fixed = TRUE)
+  expect_no_match(non_harmonized, "unit_map_snapshot = unit_map_snapshot", fixed = TRUE)
   expect_no_match(non_harmonized, "corrections = corrections", fixed = TRUE)
-  expect_no_match(non_harmonized, "media_map = media_map", fixed = TRUE)
+  expect_no_match(non_harmonized, "media_map_snapshot = media_map_snapshot", fixed = TRUE)
 })
 
 test_that("generate_concert_script embeds reference snapshot and activate-all replay setting", {

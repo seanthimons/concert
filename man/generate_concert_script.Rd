@@ -46,14 +46,16 @@ generate_concert_script(
 
 \item{media}{Optional dataset-wide media fallback.}
 
-\item{unit_map}{Optional effective unit harmonization map to embed when
-\code{harmonize = TRUE}.}
+\item{unit_map}{Optional effective unit harmonization map. When
+\code{harmonize = TRUE} it is snapshotted against package defaults so only user
+deltas (plus a baseline hash) are embedded.}
 
 \item{corrections}{Optional effective numeric corrections table to embed when
 \code{harmonize = TRUE}.}
 
-\item{media_map}{Optional effective media harmonization map to embed when
-\code{harmonize = TRUE}.}
+\item{media_map}{Optional effective media harmonization map. When
+\code{harmonize = TRUE} it is snapshotted against package defaults so only user
+deltas (plus a baseline hash) are embedded.}
 
 \item{format}{ToxVal output format for harmonized headless runs.}
 

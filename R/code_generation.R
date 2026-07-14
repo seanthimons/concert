@@ -181,6 +181,47 @@ reference_snapshot_script_literal <- function(snapshot) {
   paste0("list(\n", paste(entries, collapse = ",\n"), "\n)")
 }
 
+# Column-wise tibble literal (one column vector per line) for embedded map
+# snapshots. Constant columns compress to rep(); everything else is a plain
+# dput()'d vector, avoiding the structure(list(...)) noise of dput on a tibble.
+tibble_script_literal <- function(tbl, indent = "  ") {
+  cols <- names(tbl)
+  if (length(cols) == 0) {
+    return("tibble::tibble()")
+  }
+
+  col_lines <- vapply(
+    cols,
+    function(col) {
+      values <- tbl[[col]]
+      literal <- if (length(values) >= 4L && !anyNA(values) && length(unique(values)) == 1L) {
+        paste0("rep(", script_literal(values[[1]]), ", ", length(values), "L)")
+      } else {
+        script_literal(values)
+      }
+      paste0(indent, "  ", r_name(col), " = ", literal)
+    },
+    character(1)
+  )
+  col_lines[-length(col_lines)] <- paste0(col_lines[-length(col_lines)], ",")
+  paste(c("tibble::tibble(", col_lines, paste0(indent, ")")), collapse = "\n")
+}
+
+# Compact `list(default_hash = ..., overrides = tibble(...))` literal for a
+# keyed map snapshot (unit_map/media_map), matching the reference-list snapshot
+# shape so replay scripts carry only user deltas.
+keyed_map_snapshot_script_literal <- function(snapshot) {
+  paste0(
+    "list(\n",
+    "  default_hash = ",
+    script_literal(snapshot$default_hash),
+    ",\n",
+    "  overrides = ",
+    tibble_script_literal(snapshot$overrides),
+    "\n)"
+  )
+}
+
 reference_overrides_script_literal <- function(overrides, type) {
   if (nrow(overrides) == 0) {
     return("tibble::tibble(term = character(), source = character(), active = logical())")
@@ -1329,12 +1370,14 @@ append_optional_script_object <- function(lines, name, value) {
 #' @param starts_with Logical. Enables CompTox starts-with fallback search.
 #' @param harmonize Logical. Re-run harmonization during replay.
 #' @param media Optional dataset-wide media fallback.
-#' @param unit_map Optional effective unit harmonization map to embed when
-#'   `harmonize = TRUE`.
+#' @param unit_map Optional effective unit harmonization map. When
+#'   `harmonize = TRUE` it is snapshotted against package defaults so only user
+#'   deltas (plus a baseline hash) are embedded.
 #' @param corrections Optional effective numeric corrections table to embed when
 #'   `harmonize = TRUE`.
-#' @param media_map Optional effective media harmonization map to embed when
-#'   `harmonize = TRUE`.
+#' @param media_map Optional effective media harmonization map. When
+#'   `harmonize = TRUE` it is snapshotted against package defaults so only user
+#'   deltas (plus a baseline hash) are embedded.
 #' @param format ToxVal output format for harmonized headless runs.
 #' @param source_name Optional source name for ToxVal mapping.
 #' @param reference_lists Optional current cleaning reference lists to snapshot
@@ -1370,6 +1413,8 @@ generate_concert_script <- function(
 ) {
   has_review_overrides <- review_overrides_present(review_overrides)
   reference_list_snapshot <- build_reference_list_snapshot(reference_lists)
+  unit_map_snapshot <- if (isTRUE(harmonize)) build_unit_map_snapshot(unit_map) else NULL
+  media_map_snapshot <- if (isTRUE(harmonize)) build_media_map_snapshot(media_map) else NULL
   site_alias_map_for_replay <- build_site_alias_map(site_context_alias_source(site_alias_map, site_manifest))
   site_manifest_input <- if (nrow(site_alias_map_for_replay) > 0L) site_alias_map_for_replay else site_manifest
   site_manifest_for_replay <- build_site_manifest(site_manifest_input)
@@ -1425,9 +1470,21 @@ generate_concert_script <- function(
   }
 
   if (isTRUE(harmonize)) {
-    setup_lines <- append_optional_script_object(setup_lines, "unit_map", unit_map)
+    if (!is.null(unit_map_snapshot)) {
+      setup_lines <- c(
+        setup_lines,
+        "",
+        paste0("unit_map_snapshot <- ", keyed_map_snapshot_script_literal(unit_map_snapshot))
+      )
+    }
     setup_lines <- append_optional_script_object(setup_lines, "corrections", corrections)
-    setup_lines <- append_optional_script_object(setup_lines, "media_map", media_map)
+    if (!is.null(media_map_snapshot)) {
+      setup_lines <- c(
+        setup_lines,
+        "",
+        paste0("media_map_snapshot <- ", keyed_map_snapshot_script_literal(media_map_snapshot))
+      )
+    }
   }
 
   call_args <- list(
@@ -1470,14 +1527,14 @@ generate_concert_script <- function(
     if (!is.null(media)) {
       call_args$media <- script_literal(media)
     }
-    if (!is.null(unit_map)) {
-      call_args$unit_map <- "unit_map"
+    if (!is.null(unit_map_snapshot)) {
+      call_args$unit_map_snapshot <- "unit_map_snapshot"
     }
     if (!is.null(corrections)) {
       call_args$corrections <- "corrections"
     }
-    if (!is.null(media_map)) {
-      call_args$media_map <- "media_map"
+    if (!is.null(media_map_snapshot)) {
+      call_args$media_map_snapshot <- "media_map_snapshot"
     }
     if (!is.null(source_name)) {
       call_args$source_name <- script_literal(source_name)
