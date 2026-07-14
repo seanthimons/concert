@@ -352,6 +352,21 @@ curate_headless <- function(
         media = media,
         source_name = source_name %||% tools::file_path_sans_ext(basename(input_path))
       )
+      # Advance the replay baseline to the harmonized stage too, so an exported
+      # workbook diffs review edits against a like-staged baseline (see the
+      # matching logic in mod_harmonize).
+      if (!is.null(script_baseline_state) && nrow(script_baseline_state) == nrow(harmonization_runtime_result$data)) {
+        harmonized_baseline <- harmonization_runtime_result$data
+        for (col in intersect(review_override_columns(), names(harmonized_baseline))) {
+          harmonized_baseline[[col]] <- if (col %in% names(script_baseline_state)) {
+            script_baseline_state[[col]]
+          } else {
+            empty_review_override_column(col, nrow(harmonized_baseline))
+          }
+        }
+        script_baseline_state <- harmonized_baseline
+      }
+
       resolution_state <- harmonization_runtime_result$data
       toxval_tibble <- harmonization_runtime_result$toxval_output
       harmonize_audit_tibble <- harmonization_runtime_result$harmonize_audit
