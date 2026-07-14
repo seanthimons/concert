@@ -269,7 +269,9 @@ mod_harmonize_server <- function(id, data_store) {
 
       numeric_tags_vec <- unlist(data_store$numeric_tags, use.names = TRUE)
       result_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Result"]
-      numeric_measurement_cols <- names(numeric_tags_vec)[numeric_tags_vec %in% c("Numeric", "ReportingLimit", "Uncertainty")]
+      numeric_measurement_cols <- names(numeric_tags_vec)[
+        numeric_tags_vec %in% c("Numeric", "ReportingLimit", "Uncertainty")
+      ]
       unit_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Unit"]
       duration_cols <- names(numeric_tags_vec)[numeric_tags_vec == "Duration"]
       duration_unit_cols <- names(numeric_tags_vec)[numeric_tags_vec == "DurationUnit"]
@@ -415,7 +417,28 @@ mod_harmonize_server <- function(id, data_store) {
               data_store$toxval_output <- runtime_result$toxval_output
 
               if (!is.null(data_store$resolution_state)) {
+                # Refresh the replay baseline to the same (harmonized) pipeline
+                # stage as resolution_state so build_review_overrides diffs like
+                # against like. Harmonization preserves row order and count, so
+                # the automated review-column values carry over positionally;
+                # only those columns differ between baseline and edited state.
+                # ponytail: assumes review edits live in review columns, not in
+                # tagged measurement columns; a measurement-tag edit made before
+                # harmonization would not be captured. Re-harmonize the baseline
+                # if that case ever matters.
+                old_baseline <- data_store$script_baseline_state
                 data_store$resolution_state <- runtime_result$data
+                if (!is.null(old_baseline) && nrow(old_baseline) == nrow(runtime_result$data)) {
+                  new_baseline <- runtime_result$data
+                  for (col in intersect(review_override_columns(), names(new_baseline))) {
+                    new_baseline[[col]] <- if (col %in% names(old_baseline)) {
+                      old_baseline[[col]]
+                    } else {
+                      empty_review_override_column(col, nrow(new_baseline))
+                    }
+                  }
+                  data_store$script_baseline_state <- new_baseline
+                }
               } else if (!is.null(data_store$cleaned_data)) {
                 data_store$cleaned_data <- runtime_result$data
               }
@@ -477,11 +500,15 @@ mod_harmonize_server <- function(id, data_store) {
       run_harmonization_pipeline()
     })
 
-    observeEvent(data_store$harmonize_run_nonce, {
-      h_mask <- data_store$harmonize_step_mask
-      data_store$harmonize_step_mask <- NULL
-      run_harmonization_pipeline(h_mask)
-    }, ignoreInit = TRUE)
+    observeEvent(
+      data_store$harmonize_run_nonce,
+      {
+        h_mask <- data_store$harmonize_step_mask
+        data_store$harmonize_step_mask <- NULL
+        run_harmonization_pipeline(h_mask)
+      },
+      ignoreInit = TRUE
+    )
 
     # --- QC dashboard (UITG-05, D-17..D-20) -----------------------------------
 
@@ -1346,8 +1373,7 @@ mod_harmonize_server <- function(id, data_store) {
       }
 
       if (nrow(validation$valid) == 0L) {
-        data_store$numeric_correction_queue <- validation$invalid[
-          ,
+        data_store$numeric_correction_queue <- validation$invalid[,
           names(empty_numeric_correction_queue()),
           drop = FALSE
         ]
