@@ -17,6 +17,7 @@ curate_headless(
   harmonize = FALSE,
   format = "parquet",
   unit_map = NULL,
+  unit_map_snapshot = NULL,
   corrections = NULL,
   media = NULL,
   wqx_threshold = 0.85,
@@ -27,6 +28,7 @@ curate_headless(
   site_alias_map = NULL,
   multi_analyte_resolutions = NULL,
   media_map = NULL,
+  media_map_snapshot = NULL,
   write_files = TRUE,
   source_name = NULL
 )
@@ -79,6 +81,10 @@ harmonize=FALSE.}
 \item{unit_map}{Tibble with unit conversion mappings, or NULL (default) to
 load from package cache via load_unit_map().}
 
+\item{unit_map_snapshot}{Optional compact replay snapshot from
+\code{generate_concert_script()}; reconstructs the effective unit map from
+package defaults plus embedded deltas. Mutually exclusive with \code{unit_map}.}
+
 \item{corrections}{Tibble with pattern/replacement columns for one-off
 corrections, or NULL (default) to load from package cache.}
 
@@ -111,6 +117,10 @@ cleaning and before curation.}
 
 \item{media_map}{Optional media harmonization map passed to
 \code{harmonize_media()}.}
+
+\item{media_map_snapshot}{Optional compact replay snapshot from
+\code{generate_concert_script()}; reconstructs the effective media map from
+package defaults plus embedded deltas. Mutually exclusive with \code{media_map}.}
 
 \item{write_files}{Logical. If TRUE (default), writes XLSX and optional
 parquet/CSV outputs. If FALSE, runs fully in memory and returns the same
