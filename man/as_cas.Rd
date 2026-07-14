@@ -36,5 +36,5 @@ as_cas("50-00-1") # Invalid check digit
 as_cas("not-a-casrn")
 }
 \seealso{
-\code{\link[ComptoxR:is_cas]{is_cas()}} for the underlying validation logic.
+\code{\link[=is_cas]{is_cas()}} for the underlying validation logic.
 }

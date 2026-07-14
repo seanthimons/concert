@@ -46,6 +46,6 @@ extract_cas(text)
 # character(0)
 }
 \seealso{
-\code{\link[ComptoxR:as_cas]{as_cas()}} and \code{\link[ComptoxR:is_cas]{is_cas()}} for the underlying coercion and
+\code{\link[=as_cas]{as_cas()}} and \code{\link[=is_cas]{is_cas()}} for the underlying coercion and
 validation logic.
 }

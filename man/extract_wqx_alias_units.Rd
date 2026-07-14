@@ -7,14 +7,14 @@
 extract_wqx_alias_units(alias_path = NULL)
 }
 \arguments{
-\item{alias_path}{Path to \code{Characteristic Alias.csv}. Defaults to the bundled
+\item{alias_path}{Path to \verb{Characteristic Alias.csv}. Defaults to the bundled
 WQX reference-source CSV when available.}
 }
 \value{
 A tibble with candidate unit strings and evidence counts.
 }
 \description{
-Scans EPA's \code{Characteristic Alias.csv} for unit-bearing alias conventions.
+Scans EPA's \verb{Characteristic Alias.csv} for unit-bearing alias conventions.
 This is an inventory/gap-analysis helper only; WQX aliases are evidence for
 observed unit strings, not conversion authority.
 }
