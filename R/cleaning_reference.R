@@ -426,7 +426,10 @@ load_functional_categories <- function(cache_dir) {
     )
   }
 
-  normalize_reference_list_tbl(load_or_fetch_reference(cache_path, fetch_fn, "functional categories"), "functional_categories")
+  normalize_reference_list_tbl(
+    load_or_fetch_reference(cache_path, fetch_fn, "functional categories"),
+    "functional_categories"
+  )
 }
 
 #' Load strip terms list
@@ -573,13 +576,168 @@ reference_scalar_equal <- function(a, b) {
   isTRUE(a_na) && isTRUE(b_na)
 }
 
+# Behavior columns that make a reference-list row differ from a default. Term
+# identity, pattern, matching mode, and active state change how the row acts;
+# `source`/`notes` are provenance only. An imported row identical in behavior to
+# a default (differing solely in its source label) is not an override.
+reference_list_behavior_cols <- function() {
+  c("term", "pattern", "match_mode", "active")
+}
+
 reference_rows_equal <- function(a, b) {
-  cols <- reference_list_schema_cols()
   all(vapply(
-    cols,
+    reference_list_behavior_cols(),
     function(col) reference_scalar_equal(a[[col]], b[[col]]),
     logical(1)
   ))
+}
+
+# ---------------------------------------------------------------------------
+# Provenance-blind delta snapshots for keyed harmonization maps.
+#
+# Mirrors build_reference_list_snapshot() for unit_map and media_map so replay
+# scripts carry only the rows a user actually changed instead of the full
+# dictionary. The hash pins the package baseline's behavior; overrides carry
+# rows whose behavior differs (new keys or changed values). Provenance columns
+# (source, timestamps, derived assertion modes) never count as a difference, so
+# an imported map identical in behavior to the defaults yields empty overrides.
+# ---------------------------------------------------------------------------
+
+keyed_map_behavior_cols <- function(map, key_col, ignore_cols) {
+  setdiff(names(map), c(key_col, ignore_cols))
+}
+
+keyed_map_snapshot_hash <- function(default_map, key_col, ignore_cols) {
+  cols <- c(key_col, keyed_map_behavior_cols(default_map, key_col, ignore_cols))
+  ordered <- default_map[order(default_map[[key_col]]), cols, drop = FALSE]
+  digest::digest(tibble::as_tibble(ordered), algo = "sha256")
+}
+
+# Per-row behavior signature (key + behavior columns, NA-safe) for set-based
+# diffing. Vectorized so it stays cheap on multi-thousand-row unit maps, and
+# tolerant of the duplicate keys that the harmonizers' first-match lookup allows.
+keyed_map_signatures <- function(map, cols) {
+  parts <- lapply(cols, function(col) {
+    v <- as.character(map[[col]])
+    v[is.na(v)] <- " NA"
+    v
+  })
+  do.call(paste, c(parts, sep = "\r"))
+}
+
+keyed_map_overrides <- function(current_map, default_map, key_col, ignore_cols) {
+  if (nrow(current_map) == 0) {
+    return(current_map)
+  }
+  cols <- c(
+    key_col,
+    intersect(keyed_map_behavior_cols(current_map, key_col, ignore_cols), names(default_map))
+  )
+  current_sig <- keyed_map_signatures(current_map, cols)
+  default_sig <- keyed_map_signatures(default_map, cols)
+  current_map[!current_sig %in% default_sig, , drop = FALSE]
+}
+
+build_keyed_map_snapshot <- function(current_map, default_map, key_col, ignore_cols) {
+  if (is.null(current_map)) {
+    return(NULL)
+  }
+  list(
+    default_hash = keyed_map_snapshot_hash(default_map, key_col, ignore_cols),
+    overrides = keyed_map_overrides(current_map, default_map, key_col, ignore_cols)
+  )
+}
+
+reconstruct_keyed_map_snapshot <- function(snapshot, default_map, key_col, ignore_cols, label = key_col) {
+  if (is.null(snapshot)) {
+    return(NULL)
+  }
+  if (!is.list(snapshot) || is.null(snapshot$default_hash) || is.null(snapshot$overrides)) {
+    stop(sprintf("%s snapshot is malformed.", label), call. = FALSE)
+  }
+
+  current_hash <- keyed_map_snapshot_hash(default_map, key_col, ignore_cols)
+  if (!identical(as.character(snapshot$default_hash), current_hash)) {
+    warning(
+      sprintf(
+        "%s snapshot baseline hash mismatch; applying overrides over current package defaults.",
+        label
+      ),
+      call. = FALSE
+    )
+  }
+
+  overrides <- snapshot$overrides
+  if (is.null(overrides) || nrow(overrides) == 0) {
+    return(default_map)
+  }
+
+  keep_default <- !default_map[[key_col]] %in% overrides[[key_col]]
+  dplyr::bind_rows(overrides, default_map[keep_default, , drop = FALSE])
+}
+
+unit_map_snapshot_ignore_cols <- function() {
+  "source"
+}
+
+media_map_snapshot_ignore_cols <- function() {
+  c("source", "fetch_timestamp", "assertion_mode")
+}
+
+build_unit_map_snapshot <- function(unit_map, cache_dir = NULL) {
+  if (is.null(unit_map)) {
+    return(NULL)
+  }
+  default_map <- normalize_unit_map_schema(load_unit_map(cache_dir))
+  build_keyed_map_snapshot(
+    normalize_unit_map_schema(unit_map),
+    default_map,
+    "from_unit",
+    unit_map_snapshot_ignore_cols()
+  )
+}
+
+build_media_map_snapshot <- function(media_map, cache_dir = NULL) {
+  if (is.null(media_map)) {
+    return(NULL)
+  }
+  cache_dir <- resolve_reference_cache_dir(cache_dir)
+  default_map <- normalize_media_map_for_display(load_media_map(cache_dir))
+  build_keyed_map_snapshot(
+    normalize_media_map_for_display(media_map),
+    default_map,
+    "term",
+    media_map_snapshot_ignore_cols()
+  )
+}
+
+reconstruct_unit_map_snapshot <- function(snapshot, cache_dir = NULL) {
+  if (is.null(snapshot)) {
+    return(NULL)
+  }
+  default_map <- normalize_unit_map_schema(load_unit_map(cache_dir))
+  reconstruct_keyed_map_snapshot(
+    snapshot,
+    default_map,
+    "from_unit",
+    unit_map_snapshot_ignore_cols(),
+    label = "unit_map"
+  )
+}
+
+reconstruct_media_map_snapshot <- function(snapshot, cache_dir = NULL) {
+  if (is.null(snapshot)) {
+    return(NULL)
+  }
+  cache_dir <- resolve_reference_cache_dir(cache_dir)
+  default_map <- normalize_media_map_for_display(load_media_map(cache_dir))
+  reconstruct_keyed_map_snapshot(
+    snapshot,
+    default_map,
+    "term",
+    media_map_snapshot_ignore_cols(),
+    label = "media_map"
+  )
 }
 
 load_default_cleaning_reference_lists <- function(cache_dir = NULL) {
@@ -1037,9 +1195,12 @@ load_corrections <- function(cache_dir) {
       source = "comptox_pt"
     ) |>
     dplyr::filter(
-      !is.na(symbol), nzchar(symbol),
-      !is.na(mass), nzchar(mass),
-      !is.na(element_name), nzchar(element_name)
+      !is.na(symbol),
+      nzchar(symbol),
+      !is.na(mass),
+      nzchar(mass),
+      !is.na(element_name),
+      nzchar(element_name)
     ) |>
     dplyr::distinct(shortcode, .keep_all = TRUE) |>
     dplyr::select(symbol, mass, element_name, shortcode, canonical, dtxsid, source)
@@ -1265,21 +1426,54 @@ augment_radiological_unit_map <- function(unit_map) {
 
   activity_concentration_rows <- make_rows(
     from_unit = c(
-      "pCi/L", "pCi/l", "pCi per L", "pCi per liter", "pCi per litre",
-      "picocurie/L", "picocuries/L", "picocurie/liter", "picocuries/liter",
-      "picocurie per liter", "picocuries per liter",
-      "picocurie per litre", "picocuries per litre",
-      "nCi/L", "uCi/L", "\u00b5Ci/L", "mCi/L", "Ci/L",
-      "Bq/L", "Bq/l", "Bq per L", "Bq per liter", "Bq per litre",
-      "mBq/L", "mBq per L", "mBq per liter", "mBq per litre",
-      "uBq/L", "uBq per L", "uBq per liter", "uBq per litre",
-      "\u00b5Bq/L", "\u00b5Bq per L", "\u00b5Bq per liter", "\u00b5Bq per litre",
-      "kBq/L", "kBq per L", "kBq per liter", "kBq per litre"
+      "pCi/L",
+      "pCi/l",
+      "pCi per L",
+      "pCi per liter",
+      "pCi per litre",
+      "picocurie/L",
+      "picocuries/L",
+      "picocurie/liter",
+      "picocuries/liter",
+      "picocurie per liter",
+      "picocuries per liter",
+      "picocurie per litre",
+      "picocuries per litre",
+      "nCi/L",
+      "uCi/L",
+      "\u00b5Ci/L",
+      "mCi/L",
+      "Ci/L",
+      "Bq/L",
+      "Bq/l",
+      "Bq per L",
+      "Bq per liter",
+      "Bq per litre",
+      "mBq/L",
+      "mBq per L",
+      "mBq per liter",
+      "mBq per litre",
+      "uBq/L",
+      "uBq per L",
+      "uBq per liter",
+      "uBq per litre",
+      "\u00b5Bq/L",
+      "\u00b5Bq per L",
+      "\u00b5Bq per liter",
+      "\u00b5Bq per litre",
+      "kBq/L",
+      "kBq per L",
+      "kBq per liter",
+      "kBq per litre"
     ),
     to_unit = "pCi/L",
     multiplier = c(
       rep(1, 13),
-      1e3, 1e6, 1e6, 1e9, 1e12,
+      1e3,
+      1e6,
+      1e6,
+      1e9,
+      1e12,
       rep(27.027027027027, 5),
       rep(0.027027027027027, 4),
       rep(0.000027027027027, 4),
@@ -1291,16 +1485,35 @@ augment_radiological_unit_map <- function(unit_map) {
 
   activity_rows <- make_rows(
     from_unit = c(
-      "pCi", "picocurie", "picocuries",
-      "nCi", "uCi", "\u00b5Ci", "mCi", "Ci",
-      "Bq", "mBq", "uBq", "\u00b5Bq", "kBq"
+      "pCi",
+      "picocurie",
+      "picocuries",
+      "nCi",
+      "uCi",
+      "\u00b5Ci",
+      "mCi",
+      "Ci",
+      "Bq",
+      "mBq",
+      "uBq",
+      "\u00b5Bq",
+      "kBq"
     ),
     to_unit = "pCi",
     multiplier = c(
-      1, 1, 1,
-      1e3, 1e6, 1e6, 1e9, 1e12,
-      27.027027027027, 0.027027027027027,
-      0.000027027027027, 0.000027027027027, 27027.027027027
+      1,
+      1,
+      1,
+      1e3,
+      1e6,
+      1e6,
+      1e9,
+      1e12,
+      27.027027027027,
+      0.027027027027027,
+      0.000027027027027,
+      0.000027027027027,
+      27027.027027027
     ),
     category = "radioactivity"
   )
@@ -1316,21 +1529,35 @@ augment_radiological_unit_map <- function(unit_map) {
 }
 
 augment_environmental_unit_map <- function(unit_map) {
-  make_rows <- function(from_unit,
-                        to_unit,
-                        multiplier = 1,
-                        category = "dimensionless",
-                        confidence = "HIGH",
-                        source = "concert_environmental",
-                        offset = 0,
-                        conversion_type = NULL) {
+  make_rows <- function(
+    from_unit,
+    to_unit,
+    multiplier = 1,
+    category = "dimensionless",
+    confidence = "HIGH",
+    source = "concert_environmental",
+    offset = 0,
+    conversion_type = NULL
+  ) {
     n <- length(from_unit)
-    if (length(to_unit) == 1) to_unit <- rep(to_unit, n)
-    if (length(multiplier) == 1) multiplier <- rep(multiplier, n)
-    if (length(category) == 1) category <- rep(category, n)
-    if (length(confidence) == 1) confidence <- rep(confidence, n)
-    if (length(source) == 1) source <- rep(source, n)
-    if (length(offset) == 1) offset <- rep(offset, n)
+    if (length(to_unit) == 1) {
+      to_unit <- rep(to_unit, n)
+    }
+    if (length(multiplier) == 1) {
+      multiplier <- rep(multiplier, n)
+    }
+    if (length(category) == 1) {
+      category <- rep(category, n)
+    }
+    if (length(confidence) == 1) {
+      confidence <- rep(confidence, n)
+    }
+    if (length(source) == 1) {
+      source <- rep(source, n)
+    }
+    if (length(offset) == 1) {
+      offset <- rep(offset, n)
+    }
     if (is.null(conversion_type)) {
       conversion_type <- ifelse(offset == 0, "linear", "affine")
     } else if (length(conversion_type) == 1) {
@@ -1361,7 +1588,10 @@ augment_environmental_unit_map <- function(unit_map) {
     ),
     make_rows(
       from_unit = c(
-        "\u00b0C", "deg C", "degree Celsius", "degrees Celsius",
+        "\u00b0C",
+        "deg C",
+        "degree Celsius",
+        "degrees Celsius",
         "Degrees Celsius"
       ),
       to_unit = "deg C",
@@ -1369,7 +1599,11 @@ augment_environmental_unit_map <- function(unit_map) {
     ),
     make_rows(
       from_unit = c(
-        "\u00b0F", "F", "deg F", "degree Fahrenheit", "degrees Fahrenheit",
+        "\u00b0F",
+        "F",
+        "deg F",
+        "degree Fahrenheit",
+        "degrees Fahrenheit",
         "Degrees Fahrenheit"
       ),
       to_unit = "deg C",
@@ -1438,25 +1672,42 @@ augment_environmental_unit_map <- function(unit_map) {
     ),
     make_rows(
       from_unit = c(
-        "cells/ml", "cells/mL",
-        "count/ml", "count/mL",
-        "mpn", "MPN",
-        "MBN per 100 mL", "MBN/100 ml", "MBN/100 mL"
+        "cells/ml",
+        "cells/mL",
+        "count/ml",
+        "count/mL",
+        "mpn",
+        "MPN",
+        "MBN per 100 mL",
+        "MBN/100 ml",
+        "MBN/100 mL"
       ),
       to_unit = c(
-        "cells/mL", "cells/mL",
-        "count/mL", "count/mL",
-        "MPN", "MPN",
-        "MPN/100 mL", "MPN/100 mL", "MPN/100 mL"
+        "cells/mL",
+        "cells/mL",
+        "count/mL",
+        "count/mL",
+        "MPN",
+        "MPN",
+        "MPN/100 mL",
+        "MPN/100 mL",
+        "MPN/100 mL"
       ),
       category = "microbiology"
     ),
     make_rows(
       from_unit = c(
-        "micromhos", "micromhos/cm", "umhos", "umhos/cm",
-        "\u00b5mhos/cm", "\u03bcmhos/cm",
-        "uS/cm", "\u00b5S/cm", "\u03bcS/cm",
-        "microsiemens per centimeter", "microSiemens per centimeter"
+        "micromhos",
+        "micromhos/cm",
+        "umhos",
+        "umhos/cm",
+        "\u00b5mhos/cm",
+        "\u03bcmhos/cm",
+        "uS/cm",
+        "\u00b5S/cm",
+        "\u03bcS/cm",
+        "microsiemens per centimeter",
+        "microSiemens per centimeter"
       ),
       to_unit = "uS/cm",
       category = "conductance"
@@ -1498,9 +1749,14 @@ augment_environmental_unit_map <- function(unit_map) {
     ),
     make_rows(
       from_unit = c(
-        "NTU", "ntu", "nephelometric turbidity units",
-        "JTU", "jtu", "Jackson Turbidity Units",
-        "FTU", "formazin turbidity units"
+        "NTU",
+        "ntu",
+        "nephelometric turbidity units",
+        "JTU",
+        "jtu",
+        "Jackson Turbidity Units",
+        "FTU",
+        "formazin turbidity units"
       ),
       to_unit = "NTU",
       category = "turbidity"
