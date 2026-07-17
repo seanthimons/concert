@@ -677,6 +677,18 @@ mod_harmonize_server <- function(id, data_store) {
           )
         ),
         bslib::accordion_panel(
+          title = uiOutput(session$ns("unmatched_title")),
+          value = "unmatched_units",
+          icon = bsicons::bs_icon("question-circle"),
+          uiOutput(session$ns("unmatched_panel"))
+        ),
+        bslib::accordion_panel(
+          title = uiOutput(session$ns("numeric_issues_title")),
+          value = "numeric_parse_issues",
+          icon = bsicons::bs_icon("exclamation-triangle"),
+          uiOutput(session$ns("numeric_issues_panel"))
+        ),
+        bslib::accordion_panel(
           title = uiOutput(session$ns("corrections_editor_title")),
           value = "corrections_editor",
           icon = bsicons::bs_icon("pencil-square"),
@@ -687,18 +699,6 @@ mod_harmonize_server <- function(id, data_store) {
             class = "btn-outline-primary btn-sm mt-2",
             icon = icon("plus")
           )
-        ),
-        bslib::accordion_panel(
-          title = uiOutput(session$ns("numeric_issues_title")),
-          value = "numeric_parse_issues",
-          icon = bsicons::bs_icon("exclamation-triangle"),
-          uiOutput(session$ns("numeric_issues_panel"))
-        ),
-        bslib::accordion_panel(
-          title = uiOutput(session$ns("unmatched_title")),
-          value = "unmatched_units",
-          icon = bsicons::bs_icon("question-circle"),
-          uiOutput(session$ns("unmatched_panel"))
         ),
         bslib::accordion_panel(
           title = uiOutput(session$ns("media_editor_title")),
