@@ -1165,6 +1165,21 @@ test_that("high-confidence WQX-derived unit aliases are curated explicitly", {
   expect_equal(result$harmonized_value[6], 3.048)
 })
 
+test_that("legacy ECOTOX blank-target units either resolve or remain unmatched", {
+  unit_map <- load_unit_map()
+
+  result <- harmonize_units(
+    values = c(1, 2, 3, 7, 5, 6),
+    units = c("% vol", "g% w/v", "mg%", "pH", "AI", "org"),
+    unit_map = unit_map
+  )
+
+  expect_equal(result$harmonized_unit, c("% v/v", "mg/L", "mg/L", "pH", "AI", "org"))
+  expect_equal(result$harmonized_value, c(1, 20000, 30, 7, 5, 6))
+  expect_equal(result$unit_flag, c("", "", "", "", "unmatched", "unmatched"))
+  expect_false(any(is.na(result$harmonized_unit) | result$harmonized_unit == ""))
+})
+
 # ==============================================================================
 # SECTION 16: Duration category filter (D-12)
 # ==============================================================================
