@@ -586,6 +586,40 @@ test_that("load_unit_map applies environmental overrides and affine metadata", {
   expect_equal(fahrenheit_row$conversion_type, "affine")
 })
 
+test_that("environmental overrides resolve legacy blank-target ECOTOX units", {
+  legacy_units <- c(
+    "% vol", "% WSF", "% sat", "v/v", "% PRTL", "% m", "uMd", "AI",
+    "% mg", "% g", "g% w/v", "% v/w", "no/eu", "% m/v diet", "g%",
+    "pH", "eu", "org", "mg%"
+  )
+  legacy_map <- tibble::tibble(
+    from_unit = legacy_units,
+    to_unit = rep("", length(legacy_units)),
+    multiplier = rep(1, length(legacy_units)),
+    category = rep("other", length(legacy_units)),
+    confidence = rep("HIGH", length(legacy_units)),
+    source = rep("ECOTOX", length(legacy_units))
+  )
+
+  result <- augment_environmental_unit_map(legacy_map)
+
+  resolved <- result[result$from_unit %in% c(
+    "% vol", "% WSF", "% sat", "v/v", "g% w/v", "% v/w", "no/eu", "pH", "mg%"
+  ), ]
+  resolved_units <- c(
+    "% vol", "% WSF", "% sat", "v/v", "g% w/v", "% v/w", "no/eu", "pH", "mg%"
+  )
+  expect_equal(
+    resolved$to_unit[match(resolved_units, resolved$from_unit)],
+    c("% v/v", "% WSF", "% sat", "v/v", "mg/L", "% v/w", "count/eu", "pH", "mg/L")
+  )
+  expect_equal(resolved$multiplier[match(c("g% w/v", "mg%"), resolved$from_unit)], c(10000, 10))
+
+  unresolved <- c("% PRTL", "% m", "uMd", "AI", "% mg", "% g", "% m/v diet", "g%", "eu", "org")
+  expect_false(any(unresolved %in% result$from_unit))
+  expect_false(any(is.na(result$to_unit) | result$to_unit == ""))
+})
+
 test_that("load_all_reference_lists includes unit_map", {
   withr::with_tempdir({
     cache_dir <- "test_cache"
