@@ -1331,7 +1331,7 @@ test_that("SSWQS observed units harmonize through bundled references", {
   )
 
   expect_equal(result$harmonized_unit, c(
-    "mg/L", "mg/L", "pH units", "CFU/100 mL", "fibers/L", "uS/cm",
+    "mg/L", "mg/L", "pH units", "CFU/100 mL", "MFL", "uS/cm",
     "meters", "kg/yr", "pCi/L", "PCU", "mg/kg wet weight", "mg/kg",
     "mg/L", "[no units]"
   ))
@@ -1339,6 +1339,21 @@ test_that("SSWQS observed units harmonize through bundled references", {
   expect_equal(result$harmonized_value[2], 2e-9)
   expect_equal(result$harmonized_value[7], 0.3048)
   expect_equal(result$harmonized_value[8], 0.90718474)
+})
+
+test_that("fiber concentration units harmonize directly to MFL", {
+  unit_map <- load_unit_map()
+
+  result <- harmonize_units(
+    values = c(3, 3000000, 3000000),
+    units = c("million fibers/L", "fibers/L", "microfibers/L"),
+    unit_map = unit_map
+  )
+
+  expect_equal(result$harmonized_unit, rep("MFL", 3))
+  expect_equal(result$harmonized_value, c(3, 3, 3))
+  expect_equal(result$conversion_factor, c(1, 1e-6, 1e-6))
+  expect_equal(result$unit_flag, rep("", 3))
 })
 
 test_that("common environmental radiological activity concentration units harmonize to pCi/L", {
