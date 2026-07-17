@@ -667,8 +667,16 @@ test_that("numeric parse assistant queues corrections, appends them, and clears 
     )
     expect_equal(issues$original_value, c("6.90E+0.1", "b4d"))
 
-    session$setInputs(numeric_replacement_1 = "6.90E+01")
-    session$setInputs(numeric_replacement_2 = "3")
+    # Edit the Replacement cell (0-based display column index 4) for each issue
+    # row, then queue from the working editor table.
+    session$setInputs(
+      numeric_issues_table_cell_edit = list(row = 1L, col = 4L, value = "6.90E+01")
+    )
+    session$flushReact()
+    session$setInputs(
+      numeric_issues_table_cell_edit = list(row = 2L, col = 4L, value = "3")
+    )
+    session$flushReact()
     session$setInputs(queue_numeric_replacements = 1)
     session$flushReact()
 
@@ -694,4 +702,114 @@ test_that("numeric parse assistant queues corrections, appends them, and clears 
     expect_equal(nrow(resolved), 0L)
     expect_equal(data_store$harmonize_results$parsed$numeric_value, c(69, 2, 3))
   })
+})
+
+# --- Numeric parse issue editor table helpers ---
+
+test_that("build_numeric_issue_editor_rows prefills replacement/action from the queue", {
+  issues <- tibble::tibble(
+    measurement_column = c("result", "result", "reporting_limit"),
+    measurement_role = c("Result", "Result", "ReportingLimit"),
+    original_value = c("7 MFL", "4 mrem/yr", "junk"),
+    row_count = c(12L, 8L, 4L)
+  )
+  queue <- tibble::tibble(
+    measurement_column = c("result", "reporting_limit"),
+    original_value = c("7 MFL", "junk"),
+    pattern = build_exact_numeric_correction_pattern(c("7 MFL", "junk")),
+    replacement = c("7", ""),
+    action = c("replace", "exclude")
+  )
+
+  editor <- build_numeric_issue_editor_rows(issues, queue)
+
+  # Regression for the old `&&`-in-`which()` prefill: every matching queue row
+  # must resolve, not just the first.
+  expect_equal(editor$replacement, c("7", "", ""))
+  expect_equal(editor$action, c("replace", "replace", "exclude"))
+  expect_equal(editor$status, c("", "", "exclude"))
+  expect_equal(editor$row_count, c(12L, 8L, 4L))
+})
+
+test_that("build_numeric_issue_editor_rows returns typed empty editor for no issues", {
+  editor <- build_numeric_issue_editor_rows(
+    empty_numeric_parse_issues(),
+    empty_numeric_correction_queue()
+  )
+  expect_equal(nrow(editor), 0L)
+  expect_true(all(
+    c("replacement", "action", "status") %in% names(editor)
+  ))
+})
+
+test_that("numeric_issues_apply_to_selected sets replacement/action on selected rows only", {
+  editor <- build_numeric_issue_editor_rows(
+    tibble::tibble(
+      measurement_column = c("result", "result", "result"),
+      measurement_role = "Result",
+      original_value = c("a", "b", "c"),
+      row_count = c(1L, 1L, 1L)
+    ),
+    empty_numeric_correction_queue()
+  )
+
+  out <- numeric_issues_apply_to_selected(editor, c(1L, 3L), "7")
+
+  expect_equal(out$replacement, c("7", "", "7"))
+  expect_equal(out$action, c("replace", "replace", "replace"))
+})
+
+test_that("numeric_issues_exclude_selected marks rows excluded and blanks replacement", {
+  editor <- numeric_issues_apply_to_selected(
+    build_numeric_issue_editor_rows(
+      tibble::tibble(
+        measurement_column = "result",
+        measurement_role = "Result",
+        original_value = c("a", "b"),
+        row_count = c(1L, 1L)
+      ),
+      empty_numeric_correction_queue()
+    ),
+    c(1L, 2L),
+    "5"
+  )
+
+  out <- numeric_issues_exclude_selected(editor, 2L)
+
+  expect_equal(out$action, c("replace", "exclude"))
+  expect_equal(out$replacement, c("5", ""))
+  expect_equal(out$status, c("", "exclude"))
+})
+
+test_that("validate_numeric_correction_queue accepts exclude rows without a number", {
+  queue <- tibble::tibble(
+    measurement_column = c("result", "result"),
+    original_value = c("junk", "7 MFL"),
+    pattern = build_exact_numeric_correction_pattern(c("junk", "7 MFL")),
+    replacement = c("", "7"),
+    action = c("exclude", "replace")
+  )
+
+  validation <- validate_numeric_correction_queue(queue)
+
+  expect_equal(nrow(validation$invalid), 0L)
+  expect_setequal(validation$valid$action, c("exclude", "replace"))
+})
+
+test_that("append_numeric_corrections emits blank replacement for exclude entries", {
+  queue <- tibble::tibble(
+    measurement_column = "result",
+    original_value = "junk",
+    pattern = build_exact_numeric_correction_pattern("junk"),
+    replacement = "ignored",
+    action = "exclude"
+  )
+
+  result <- append_numeric_corrections(NULL, queue)
+
+  expect_equal(result$replacement, "")
+  # Blanking "junk" makes it re-parse as narrative (NA), dropping it from issues.
+  parsed <- parse_numeric_results("")
+  expect_equal(parsed$parse_flag, "narrative")
+  expect_true(is.na(parsed$numeric_value))
 })
