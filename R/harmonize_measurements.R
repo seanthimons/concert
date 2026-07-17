@@ -77,7 +77,8 @@ empty_numeric_correction_queue <- function() {
     measurement_column = character(),
     original_value = character(),
     pattern = character(),
-    replacement = character()
+    replacement = character(),
+    action = character()
   )
 }
 
@@ -96,13 +97,23 @@ normalize_numeric_correction_queue <- function(queue) {
   for (col in required) {
     queue[[col]] <- as.character(queue[[col]])
   }
+
+  # Default missing/blank action to "replace" (backward-compatible with rows
+  # queued before the exclude action existed).
+  blank_action <- is.na(queue$action) | !nzchar(queue$action)
+  queue$action[blank_action] <- "replace"
+  # Exclude entries carry no replacement value.
+  queue$replacement[queue$action == "exclude"] <- ""
   queue
 }
 
 extract_unparseable_numeric_issues <- function(harmonize_audit = NULL, harmonize_results = NULL) {
   source_tbl <- harmonize_audit
-  if ((is.null(source_tbl) || nrow(source_tbl) == 0L) &&
-    !is.null(harmonize_results) && !is.null(harmonize_results$parsed)) {
+  if (
+    (is.null(source_tbl) || nrow(source_tbl) == 0L) &&
+      !is.null(harmonize_results) &&
+      !is.null(harmonize_results$parsed)
+  ) {
     source_tbl <- harmonize_results$parsed
   }
 
@@ -196,6 +207,11 @@ validate_numeric_correction_queue <- function(queue) {
   }
 
   validation <- lapply(seq_len(nrow(queue)), function(i) {
+    # Exclude entries blank the value (-> narrative NA); no numeric check.
+    if (identical(queue$action[i], "exclude")) {
+      return(NA_character_)
+    }
+
     replacement <- trimws(queue$replacement[i])
     if (!nzchar(replacement)) {
       return("Replacement is required.")
@@ -246,6 +262,80 @@ append_numeric_corrections <- function(corrections_tbl, queue) {
   corrections_tbl <- corrections_tbl[!corrections_tbl$pattern %in% new_rows$pattern, , drop = FALSE]
 
   dplyr::bind_rows(corrections_tbl, new_rows)
+}
+
+# ---- Numeric parse-issue editor table helpers --------------------------------
+# The issues tibble is already aggregated to one row per unique
+# (measurement_column, measurement_role, original_value). These helpers add the
+# editable `replacement`/`action` columns and support bulk reassignment. All are
+# vectorized and bounds-checked (no per-row loops).
+
+sanitize_selected_editor_rows <- function(selected_rows, n) {
+  sel <- suppressWarnings(as.integer(selected_rows))
+  sel <- sel[!is.na(sel) & sel >= 1L & sel <= n]
+  unique(sel)
+}
+
+#' Build the editable numeric-issue table, prefilled from the correction queue.
+#'
+#' Left-joins the aggregated issues onto the queue by
+#' (measurement_column, original_value) via a single vectorized `match()`.
+#' Replaces the prior per-card `&&`-in-`which()` prefill.
+build_numeric_issue_editor_rows <- function(issues, queue) {
+  if (is.null(issues) || nrow(issues) == 0L) {
+    return(tibble::tibble(
+      measurement_column = character(),
+      measurement_role = character(),
+      original_value = character(),
+      row_count = integer(),
+      replacement = character(),
+      action = character(),
+      status = character()
+    ))
+  }
+
+  editor <- tibble::as_tibble(issues)
+  editor$replacement <- rep("", nrow(editor))
+  editor$action <- rep("replace", nrow(editor))
+
+  queue <- normalize_numeric_correction_queue(queue)
+  if (nrow(queue) > 0L) {
+    issue_key <- paste(editor$measurement_column, editor$original_value, sep = "\r")
+    queue_key <- paste(queue$measurement_column, queue$original_value, sep = "\r")
+    idx <- match(issue_key, queue_key)
+    hit <- !is.na(idx)
+    editor$replacement[hit] <- queue$replacement[idx[hit]]
+    editor$action[hit] <- queue$action[idx[hit]]
+  }
+
+  editor$status <- ifelse(editor$action == "exclude", "exclude", "")
+  editor
+}
+
+#' Bulk-write one replacement value to the selected editor rows.
+numeric_issues_apply_to_selected <- function(editor, selected_rows, replacement) {
+  editor <- tibble::as_tibble(editor)
+  sel <- sanitize_selected_editor_rows(selected_rows, nrow(editor))
+  if (length(sel) == 0L) {
+    return(editor)
+  }
+  editor$replacement[sel] <- as.character(replacement)
+  editor$action[sel] <- "replace"
+  editor$status[sel] <- ""
+  editor
+}
+
+#' Bulk-mark the selected editor rows as excluded (blank value -> narrative NA).
+numeric_issues_exclude_selected <- function(editor, selected_rows) {
+  editor <- tibble::as_tibble(editor)
+  sel <- sanitize_selected_editor_rows(selected_rows, nrow(editor))
+  if (length(sel) == 0L) {
+    return(editor)
+  }
+  editor$action[sel] <- "exclude"
+  editor$replacement[sel] <- ""
+  editor$status[sel] <- "exclude"
+  editor
 }
 
 harmonize_measurement_column <- function(
