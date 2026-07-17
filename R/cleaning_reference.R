@@ -1754,7 +1754,7 @@ augment_environmental_unit_map <- function(unit_map) {
       category = "fiber_concentration"
     ),
     make_rows(
-      from_unit = c("fibers/L", "fibers/l", "fiber/L", "fiber/l"),
+      from_unit = c("fibers/L", "fibers/l", "fiber/L", "fiber/l", "microfibers/L"),
       to_unit = "MFL",
       multiplier = 1e-6,
       category = "fiber_concentration"
