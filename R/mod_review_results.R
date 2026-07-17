@@ -1352,7 +1352,10 @@ mod_review_results_ui <- function(id) {
             maxItems: 1,
             allowEmptyOption: true,
             closeAfterSelect: true,
-            dropdownParent: 'body'
+            dropdownParent: 'body',
+            onChange: function() {
+              api.apply(select);
+            }
           });
         });
       };
