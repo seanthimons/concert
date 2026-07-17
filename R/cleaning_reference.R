@@ -1697,6 +1697,25 @@ augment_environmental_unit_map <- function(unit_map) {
     ),
     make_rows(
       from_unit = c(
+        "MFL",
+        "mfl",
+        "MF/L",
+        "million fibers/L",
+        "million fibers/l",
+        "million fibers per liter",
+        "million fibers per litre"
+      ),
+      to_unit = "MFL",
+      category = "fiber_concentration"
+    ),
+    make_rows(
+      from_unit = c("fibers/L", "fibers/l", "fiber/L", "fiber/l"),
+      to_unit = "MFL",
+      multiplier = 1e-6,
+      category = "fiber_concentration"
+    ),
+    make_rows(
+      from_unit = c(
         "micromhos",
         "micromhos/cm",
         "umhos",
