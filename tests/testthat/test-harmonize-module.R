@@ -813,3 +813,92 @@ test_that("append_numeric_corrections emits blank replacement for exclude entrie
   expect_equal(parsed$parse_flag, "narrative")
   expect_true(is.na(parsed$numeric_value))
 })
+
+# --- Embedded unit split (split_embedded_units) ---
+
+make_split_unit_map <- function() {
+  tibble::tibble(
+    from_unit = c("MFL", "mrem/yr", "mg/L", "ug/L"),
+    to_unit = c("MFL", "mrem/yr", "mg/L", "mg/L"),
+    multiplier = c(1, 1, 1, 0.001),
+    category = c("fiber_concentration", "radiation_dose_rate", "concentration", "concentration"),
+    confidence = "HIGH",
+    source = "test"
+  )
+}
+
+test_that("split_embedded_units extracts known units from numeric strings", {
+  um <- make_split_unit_map()
+  values <- c("7 MFL", "4 mrem/yr", "12.5", "QNS", "< 5 mg/L", "7 bogusunit")
+  units <- rep("", length(values))
+
+  res <- split_embedded_units(values, units, um)
+
+  expect_equal(res$values, c("7", "4", "12.5", "QNS", "< 5", "7 bogusunit"))
+  expect_equal(res$units, c("MFL", "mrem/yr", "", "", "mg/L", ""))
+  expect_equal(res$extracted, c(TRUE, TRUE, FALSE, FALSE, TRUE, FALSE))
+})
+
+test_that("split_embedded_units never overwrites an existing unit cell", {
+  um <- make_split_unit_map()
+  res <- split_embedded_units(c("7 MFL"), c("mg/L"), um)
+
+  expect_equal(res$values, "7 MFL")
+  expect_equal(res$units, "mg/L")
+  expect_false(res$extracted)
+})
+
+test_that("split_embedded_units rejects unknown units and unparseable numbers", {
+  um <- make_split_unit_map()
+  # "abc MFL": numeric head fails; "7 parsec": unit unknown.
+  res <- split_embedded_units(c("abc MFL", "7 parsec"), c("", ""), um)
+
+  expect_equal(res$extracted, c(FALSE, FALSE))
+  expect_equal(res$values, c("abc MFL", "7 parsec"))
+})
+
+test_that("harmonize_measurement_column extracts embedded units with no Unit column", {
+  um <- make_split_unit_map()
+  df <- tibble::tibble(result = c("7 MFL", "4 mrem/yr", "12.5", "QNS"))
+
+  out <- harmonize_measurement_column(
+    df,
+    "result",
+    "Result",
+    unit_col = NULL,
+    unit_map = um,
+    apply_units = TRUE
+  )
+
+  # Original string preserved for the audit; corrected value is the number.
+  expect_equal(out$parsed$original_value, c("7 MFL", "4 mrem/yr", "12.5", "QNS"))
+  expect_equal(out$parsed$corrected_value, c("7", "4", "12.5", "QNS"))
+  expect_equal(out$harmonized$harmonized_value, c(7, 4, 12.5, NA))
+  expect_equal(out$harmonized$harmonized_unit, c("MFL", "mrem/yr", NA, NA))
+  # Extracted rows flagged; genuinely unit-less rows stay clean (not "unmatched").
+  expect_equal(out$harmonized$unit_flag, c("unit_extracted", "unit_extracted", "", ""))
+})
+
+test_that("harmonize_measurement_column leaves populated unit cells to normal harmonization", {
+  um <- make_split_unit_map()
+  df <- tibble::tibble(
+    result = c("7 MFL", "10"),
+    unit = c("mg/L", "ug/L")
+  )
+
+  # "7 MFL" keeps its mg/L unit and stays unparseable (expected parse warning).
+  out <- suppressWarnings(harmonize_measurement_column(
+    df,
+    "result",
+    "Result",
+    unit_col = "unit",
+    unit_map = um,
+    apply_units = TRUE
+  ))
+
+  # Row 1 keeps its existing mg/L unit (no extraction); "7 MFL" stays unparseable.
+  expect_equal(out$parsed$corrected_value, c("7 MFL", "10"))
+  expect_equal(out$parsed$parse_flag, c("unparseable", ""))
+  expect_equal(out$harmonized$harmonized_unit, c("mg/L", "mg/L"))
+  expect_false(any(out$harmonized$unit_flag == "unit_extracted"))
+})
