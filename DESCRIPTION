@@ -1,6 +1,6 @@
 Package: concert
 Title: Chemical Ontology and Nomenclature Crosswalk Tools
-Version: 0.1.4
+Version: 0.2.0
 Authors@R: person("Sean", "Thimons",
     email = "thimons.sean@gmail.com",
     role = c("aut", "cre"))
