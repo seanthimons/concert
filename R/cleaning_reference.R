@@ -1579,12 +1579,57 @@ augment_environmental_unit_map <- function(unit_map) {
   lb_to_kg <- 0.45359237
   short_ton_to_kg <- 907.18474
   acre_foot_to_m3 <- 1233.48183754752
+  unresolved_legacy_units <- c(
+    "% PRTL",
+    "% m",
+    "uMd",
+    "AI",
+    "% mg",
+    "% g",
+    "% m/v diet",
+    "g%",
+    "eu",
+    "org"
+  )
 
   environmental_rows <- dplyr::bind_rows(
     make_rows(
       from_unit = c("%"),
       to_unit = "%",
       category = "dimensionless"
+    ),
+    make_rows(
+      from_unit = c("% vol"),
+      to_unit = "% v/v",
+      category = "dimensionless"
+    ),
+    make_rows(
+      from_unit = c("% WSF", "% sat", "pH"),
+      to_unit = c("% WSF", "% sat", "pH"),
+      category = "domain_unit"
+    ),
+    make_rows(
+      from_unit = c("v/v", "% v/w"),
+      to_unit = c("v/v", "% v/w"),
+      category = "dimensionless"
+    ),
+    make_rows(
+      from_unit = c("g% w/v"),
+      to_unit = "mg/L",
+      multiplier = 10000,
+      category = "concentration"
+    ),
+    make_rows(
+      from_unit = c("no/eu"),
+      to_unit = "count/eu",
+      category = "count"
+    ),
+    make_rows(
+      from_unit = c("mg%"),
+      to_unit = "mg/L",
+      multiplier = 10,
+      category = "concentration",
+      confidence = "MEDIUM"
     ),
     make_rows(
       from_unit = c(
@@ -1697,6 +1742,25 @@ augment_environmental_unit_map <- function(unit_map) {
     ),
     make_rows(
       from_unit = c(
+        "MFL",
+        "mfl",
+        "MF/L",
+        "million fibers/L",
+        "million fibers/l",
+        "million fibers per liter",
+        "million fibers per litre"
+      ),
+      to_unit = "MFL",
+      category = "fiber_concentration"
+    ),
+    make_rows(
+      from_unit = c("fibers/L", "fibers/l", "fiber/L", "fiber/l", "microfibers/L"),
+      to_unit = "MFL",
+      multiplier = 1e-6,
+      category = "fiber_concentration"
+    ),
+    make_rows(
+      from_unit = c(
         "micromhos",
         "micromhos/cm",
         "umhos",
@@ -1773,7 +1837,14 @@ augment_environmental_unit_map <- function(unit_map) {
     return(environmental_rows)
   }
 
-  unit_map <- unit_map[!tolower(unit_map$from_unit) %in% tolower(environmental_rows$from_unit), , drop = FALSE]
+  blank_target <- is.na(unit_map$to_unit) | unit_map$to_unit == ""
+  legacy_unresolved <- blank_target & tolower(unit_map$from_unit) %in% tolower(unresolved_legacy_units)
+  unit_map <- unit_map[
+    !tolower(unit_map$from_unit) %in% tolower(environmental_rows$from_unit) &
+      !legacy_unresolved,
+    ,
+    drop = FALSE
+  ]
   dplyr::bind_rows(environmental_rows, unit_map)
 }
 

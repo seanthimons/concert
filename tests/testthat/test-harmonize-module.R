@@ -667,8 +667,16 @@ test_that("numeric parse assistant queues corrections, appends them, and clears 
     )
     expect_equal(issues$original_value, c("6.90E+0.1", "b4d"))
 
-    session$setInputs(numeric_replacement_1 = "6.90E+01")
-    session$setInputs(numeric_replacement_2 = "3")
+    # Edit the Replacement cell (0-based display column index 4) for each issue
+    # row, then queue from the working editor table.
+    session$setInputs(
+      numeric_issues_table_cell_edit = list(row = 1L, col = 4L, value = "6.90E+01")
+    )
+    session$flushReact()
+    session$setInputs(
+      numeric_issues_table_cell_edit = list(row = 2L, col = 4L, value = "3")
+    )
+    session$flushReact()
     session$setInputs(queue_numeric_replacements = 1)
     session$flushReact()
 
@@ -694,4 +702,203 @@ test_that("numeric parse assistant queues corrections, appends them, and clears 
     expect_equal(nrow(resolved), 0L)
     expect_equal(data_store$harmonize_results$parsed$numeric_value, c(69, 2, 3))
   })
+})
+
+# --- Numeric parse issue editor table helpers ---
+
+test_that("build_numeric_issue_editor_rows prefills replacement/action from the queue", {
+  issues <- tibble::tibble(
+    measurement_column = c("result", "result", "reporting_limit"),
+    measurement_role = c("Result", "Result", "ReportingLimit"),
+    original_value = c("7 MFL", "4 mrem/yr", "junk"),
+    row_count = c(12L, 8L, 4L)
+  )
+  queue <- tibble::tibble(
+    measurement_column = c("result", "reporting_limit"),
+    original_value = c("7 MFL", "junk"),
+    pattern = build_exact_numeric_correction_pattern(c("7 MFL", "junk")),
+    replacement = c("7", ""),
+    action = c("replace", "exclude")
+  )
+
+  editor <- build_numeric_issue_editor_rows(issues, queue)
+
+  # Regression for the old `&&`-in-`which()` prefill: every matching queue row
+  # must resolve, not just the first.
+  expect_equal(editor$replacement, c("7", "", ""))
+  expect_equal(editor$action, c("replace", "replace", "exclude"))
+  expect_equal(editor$status, c("", "", "exclude"))
+  expect_equal(editor$row_count, c(12L, 8L, 4L))
+})
+
+test_that("build_numeric_issue_editor_rows returns typed empty editor for no issues", {
+  editor <- build_numeric_issue_editor_rows(
+    empty_numeric_parse_issues(),
+    empty_numeric_correction_queue()
+  )
+  expect_equal(nrow(editor), 0L)
+  expect_true(all(
+    c("replacement", "action", "status") %in% names(editor)
+  ))
+})
+
+test_that("numeric_issues_apply_to_selected sets replacement/action on selected rows only", {
+  editor <- build_numeric_issue_editor_rows(
+    tibble::tibble(
+      measurement_column = c("result", "result", "result"),
+      measurement_role = "Result",
+      original_value = c("a", "b", "c"),
+      row_count = c(1L, 1L, 1L)
+    ),
+    empty_numeric_correction_queue()
+  )
+
+  out <- numeric_issues_apply_to_selected(editor, c(1L, 3L), "7")
+
+  expect_equal(out$replacement, c("7", "", "7"))
+  expect_equal(out$action, c("replace", "replace", "replace"))
+})
+
+test_that("numeric_issues_exclude_selected marks rows excluded and blanks replacement", {
+  editor <- numeric_issues_apply_to_selected(
+    build_numeric_issue_editor_rows(
+      tibble::tibble(
+        measurement_column = "result",
+        measurement_role = "Result",
+        original_value = c("a", "b"),
+        row_count = c(1L, 1L)
+      ),
+      empty_numeric_correction_queue()
+    ),
+    c(1L, 2L),
+    "5"
+  )
+
+  out <- numeric_issues_exclude_selected(editor, 2L)
+
+  expect_equal(out$action, c("replace", "exclude"))
+  expect_equal(out$replacement, c("5", ""))
+  expect_equal(out$status, c("", "exclude"))
+})
+
+test_that("validate_numeric_correction_queue accepts exclude rows without a number", {
+  queue <- tibble::tibble(
+    measurement_column = c("result", "result"),
+    original_value = c("junk", "7 MFL"),
+    pattern = build_exact_numeric_correction_pattern(c("junk", "7 MFL")),
+    replacement = c("", "7"),
+    action = c("exclude", "replace")
+  )
+
+  validation <- validate_numeric_correction_queue(queue)
+
+  expect_equal(nrow(validation$invalid), 0L)
+  expect_setequal(validation$valid$action, c("exclude", "replace"))
+})
+
+test_that("append_numeric_corrections emits blank replacement for exclude entries", {
+  queue <- tibble::tibble(
+    measurement_column = "result",
+    original_value = "junk",
+    pattern = build_exact_numeric_correction_pattern("junk"),
+    replacement = "ignored",
+    action = "exclude"
+  )
+
+  result <- append_numeric_corrections(NULL, queue)
+
+  expect_equal(result$replacement, "")
+  # Blanking "junk" makes it re-parse as narrative (NA), dropping it from issues.
+  parsed <- parse_numeric_results("")
+  expect_equal(parsed$parse_flag, "narrative")
+  expect_true(is.na(parsed$numeric_value))
+})
+
+# --- Embedded unit split (split_embedded_units) ---
+
+make_split_unit_map <- function() {
+  tibble::tibble(
+    from_unit = c("MFL", "mrem/yr", "mg/L", "ug/L"),
+    to_unit = c("MFL", "mrem/yr", "mg/L", "mg/L"),
+    multiplier = c(1, 1, 1, 0.001),
+    category = c("fiber_concentration", "radiation_dose_rate", "concentration", "concentration"),
+    confidence = "HIGH",
+    source = "test"
+  )
+}
+
+test_that("split_embedded_units extracts known units from numeric strings", {
+  um <- make_split_unit_map()
+  values <- c("7 MFL", "4 mrem/yr", "12.5", "QNS", "< 5 mg/L", "7 bogusunit")
+  units <- rep("", length(values))
+
+  res <- split_embedded_units(values, units, um)
+
+  expect_equal(res$values, c("7", "4", "12.5", "QNS", "< 5", "7 bogusunit"))
+  expect_equal(res$units, c("MFL", "mrem/yr", "", "", "mg/L", ""))
+  expect_equal(res$extracted, c(TRUE, TRUE, FALSE, FALSE, TRUE, FALSE))
+})
+
+test_that("split_embedded_units never overwrites an existing unit cell", {
+  um <- make_split_unit_map()
+  res <- split_embedded_units(c("7 MFL"), c("mg/L"), um)
+
+  expect_equal(res$values, "7 MFL")
+  expect_equal(res$units, "mg/L")
+  expect_false(res$extracted)
+})
+
+test_that("split_embedded_units rejects unknown units and unparseable numbers", {
+  um <- make_split_unit_map()
+  # "abc MFL": numeric head fails; "7 parsec": unit unknown.
+  res <- split_embedded_units(c("abc MFL", "7 parsec"), c("", ""), um)
+
+  expect_equal(res$extracted, c(FALSE, FALSE))
+  expect_equal(res$values, c("abc MFL", "7 parsec"))
+})
+
+test_that("harmonize_measurement_column extracts embedded units with no Unit column", {
+  um <- make_split_unit_map()
+  df <- tibble::tibble(result = c("7 MFL", "4 mrem/yr", "12.5", "QNS"))
+
+  out <- harmonize_measurement_column(
+    df,
+    "result",
+    "Result",
+    unit_col = NULL,
+    unit_map = um,
+    apply_units = TRUE
+  )
+
+  # Original string preserved for the audit; corrected value is the number.
+  expect_equal(out$parsed$original_value, c("7 MFL", "4 mrem/yr", "12.5", "QNS"))
+  expect_equal(out$parsed$corrected_value, c("7", "4", "12.5", "QNS"))
+  expect_equal(out$harmonized$harmonized_value, c(7, 4, 12.5, NA))
+  expect_equal(out$harmonized$harmonized_unit, c("MFL", "mrem/yr", NA, NA))
+  # Extracted rows flagged; genuinely unit-less rows stay clean (not "unmatched").
+  expect_equal(out$harmonized$unit_flag, c("unit_extracted", "unit_extracted", "", ""))
+})
+
+test_that("harmonize_measurement_column leaves populated unit cells to normal harmonization", {
+  um <- make_split_unit_map()
+  df <- tibble::tibble(
+    result = c("7 MFL", "10"),
+    unit = c("mg/L", "ug/L")
+  )
+
+  # "7 MFL" keeps its mg/L unit and stays unparseable (expected parse warning).
+  out <- suppressWarnings(harmonize_measurement_column(
+    df,
+    "result",
+    "Result",
+    unit_col = "unit",
+    unit_map = um,
+    apply_units = TRUE
+  ))
+
+  # Row 1 keeps its existing mg/L unit (no extraction); "7 MFL" stays unparseable.
+  expect_equal(out$parsed$corrected_value, c("7 MFL", "10"))
+  expect_equal(out$parsed$parse_flag, c("unparseable", ""))
+  expect_equal(out$harmonized$harmonized_unit, c("mg/L", "mg/L"))
+  expect_false(any(out$harmonized$unit_flag == "unit_extracted"))
 })

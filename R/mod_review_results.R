@@ -1351,7 +1351,11 @@ mod_review_results_ui <- function(id) {
             create: false,
             maxItems: 1,
             allowEmptyOption: true,
-            closeAfterSelect: true
+            closeAfterSelect: true,
+            dropdownParent: 'body',
+            onChange: function() {
+              api.apply(select);
+            }
           });
         });
       };
@@ -1562,7 +1566,10 @@ mod_review_results_ui <- function(id) {
       " .review-column-dropdown .form-check, ",
       "#",
       ns("review_results_ui"),
-      " .review-column-dropdown .checkbox { margin-bottom: 0.25rem; }"
+      " .review-column-dropdown .checkbox { margin-bottom: 0.25rem; }",
+      # Filter selectize dropdowns are parented to <body> to escape the reactable
+      # cell overflow; keep them above the table and cards.
+      " .selectize-dropdown { z-index: 9999; }"
     ))),
     filter_persist_js,
     resolution_js,
