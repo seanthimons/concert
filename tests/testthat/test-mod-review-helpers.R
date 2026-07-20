@@ -421,6 +421,8 @@ test_that("review filter scripts initialize, restore, and clear native and searc
   ui_html <- as.character(mod_review_results_ui("review"))
 
   expect_match(ui_html, "create: false", fixed = TRUE)
+  expect_match(ui_html, "onChange: function", fixed = TRUE)
+  expect_match(ui_html, "api.apply(select)", fixed = TRUE)
   expect_match(ui_html, "select.selectize.setValue", fixed = TRUE)
   expect_match(ui_html, "api.restoreControls(filtersToRestore)", fixed = TRUE)
   expect_match(ui_html, "window.concertReviewFilters.clear()", fixed = TRUE)

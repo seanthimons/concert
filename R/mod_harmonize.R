@@ -677,6 +677,18 @@ mod_harmonize_server <- function(id, data_store) {
           )
         ),
         bslib::accordion_panel(
+          title = uiOutput(session$ns("unmatched_title")),
+          value = "unmatched_units",
+          icon = bsicons::bs_icon("question-circle"),
+          uiOutput(session$ns("unmatched_panel"))
+        ),
+        bslib::accordion_panel(
+          title = uiOutput(session$ns("numeric_issues_title")),
+          value = "numeric_parse_issues",
+          icon = bsicons::bs_icon("exclamation-triangle"),
+          uiOutput(session$ns("numeric_issues_panel"))
+        ),
+        bslib::accordion_panel(
           title = uiOutput(session$ns("corrections_editor_title")),
           value = "corrections_editor",
           icon = bsicons::bs_icon("pencil-square"),
@@ -687,18 +699,6 @@ mod_harmonize_server <- function(id, data_store) {
             class = "btn-outline-primary btn-sm mt-2",
             icon = icon("plus")
           )
-        ),
-        bslib::accordion_panel(
-          title = uiOutput(session$ns("numeric_issues_title")),
-          value = "numeric_parse_issues",
-          icon = bsicons::bs_icon("exclamation-triangle"),
-          uiOutput(session$ns("numeric_issues_panel"))
-        ),
-        bslib::accordion_panel(
-          title = uiOutput(session$ns("unmatched_title")),
-          value = "unmatched_units",
-          icon = bsicons::bs_icon("question-circle"),
-          uiOutput(session$ns("unmatched_panel"))
         ),
         bslib::accordion_panel(
           title = uiOutput(session$ns("media_editor_title")),
@@ -1178,9 +1178,85 @@ mod_harmonize_server <- function(id, data_store) {
     # Exact-value quick corrections for parse_flag == "unparseable" values.
     # Arbitrary regex editing stays in the Corrections Editor above.
 
+    # Editable numeric-issue table state. The DTOutput re-renders only when the
+    # issue set or queue changes (via a version bump); in-session cell/bulk edits
+    # go through replaceData() so sort/filter/paging/selection are preserved.
+    numeric_issues_working <- reactiveVal(
+      build_numeric_issue_editor_rows(
+        empty_numeric_parse_issues(),
+        empty_numeric_correction_queue()
+      )
+    )
+    numeric_issues_table_version <- reactiveVal(0L)
+    numeric_issues_proxy <- DT::dataTableProxy("numeric_issues_table", session = session)
+
+    numeric_issue_display_columns <- c(
+      "original_value",
+      "measurement_column",
+      "measurement_role",
+      "row_count",
+      "replacement",
+      "status"
+    )
+
+    numeric_issue_table_data <- function(editor) {
+      editor[, numeric_issue_display_columns, drop = FALSE]
+    }
+
+    numeric_issues_datatable <- function(editor) {
+      replacement_idx <- match("replacement", numeric_issue_display_columns) - 1L
+      disabled <- setdiff(seq_along(numeric_issue_display_columns) - 1L, replacement_idx)
+      DT::datatable(
+        numeric_issue_table_data(editor),
+        rownames = FALSE,
+        colnames = c("Original value", "Column", "Role", "Rows", "Replacement", "Status"),
+        editable = list(target = "cell", disable = list(columns = disabled)),
+        selection = list(mode = "multiple", target = "row"),
+        filter = "top",
+        options = list(
+          pageLength = 25,
+          lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "All")),
+          scrollX = TRUE,
+          dom = "ltip",
+          language = list(emptyTable = "No unparseable numeric values found.")
+        ),
+        class = "compact stripe hover"
+      )
+    }
+
+    set_numeric_issues_working <- function(editor, rerender = FALSE) {
+      numeric_issues_working(editor)
+      if (isTRUE(rerender)) {
+        numeric_issues_table_version(isolate(numeric_issues_table_version()) + 1L)
+      } else {
+        DT::replaceData(
+          numeric_issues_proxy,
+          numeric_issue_table_data(editor),
+          rownames = FALSE,
+          resetPaging = FALSE,
+          clearSelection = "none"
+        )
+      }
+      invisible(editor)
+    }
+
+    # Rebuild + re-render when the issue set or the correction queue changes.
+    observeEvent(
+      list(current_numeric_parse_issues(), data_store$numeric_correction_queue),
+      {
+        set_numeric_issues_working(
+          build_numeric_issue_editor_rows(
+            current_numeric_parse_issues(),
+            data_store$numeric_correction_queue
+          ),
+          rerender = TRUE
+        )
+      },
+      ignoreNULL = FALSE
+    )
+
     output$numeric_issues_panel <- renderUI({
       ns <- session$ns
-      queue <- normalize_numeric_correction_queue(data_store$numeric_correction_queue)
 
       if (is.null(data_store$harmonize_results) && is.null(data_store$harmonize_audit)) {
         return(p(
@@ -1189,82 +1265,35 @@ mod_harmonize_server <- function(id, data_store) {
         ))
       }
 
-      issues <- current_numeric_parse_issues()
-      if (nrow(issues) == 0L) {
-        return(div(
-          class = "alert alert-success py-2 mb-0",
-          bsicons::bs_icon("check-circle", class = "me-1"),
-          "No unparseable numeric values found."
-        ))
-      }
-
-      queued_replacement <- function(issue_row) {
-        idx <- which(
-          queue$measurement_column == issue_row$measurement_column &&
-            queue$original_value == issue_row$original_value
-        )
-        if (length(idx) == 0L) {
-          return("")
-        }
-        queue$replacement[idx[length(idx)]]
-      }
-
-      issue_controls <- lapply(seq_len(nrow(issues)), function(i) {
-        issue <- issues[i, ]
-        role_label <- if (!is.na(issue$measurement_role) && nzchar(issue$measurement_role)) {
-          issue$measurement_role
-        } else {
-          "Measurement"
-        }
-        column_label <- if (!is.na(issue$measurement_column) && nzchar(issue$measurement_column)) {
-          issue$measurement_column
-        } else {
-          "(unknown column)"
-        }
-
-        div(
-          class = "border rounded p-2 mb-2",
-          div(
-            class = "d-flex justify-content-between align-items-start gap-2 flex-wrap",
-            div(
-              tags$code(issue$original_value),
-              div(
-                class = "small text-muted",
-                sprintf("%s column: %s", role_label, column_label)
-              )
-            ),
-            span(
-              class = "badge bg-warning text-dark",
-              sprintf("%d rows", issue$row_count)
-            )
-          ),
-          textInput(
-            ns(paste0("numeric_replacement_", i)),
-            "Replacement",
-            value = queued_replacement(issue),
-            placeholder = "e.g., 6.90E+01"
-          )
-        )
-      })
-
-      queue_status <- if (nrow(queue) > 0L) {
-        div(
-          class = "alert alert-info py-2 mb-2",
-          bsicons::bs_icon("inbox", class = "me-1"),
-          sprintf("%d exact-value correction(s) queued.", nrow(queue))
-        )
-      }
-
-      div(
+      tagList(
         p(
           class = "text-muted small mb-2",
           paste(
-            "Enter replacement values for exact malformed strings, queue them,",
-            "then apply all queued corrections in one run."
+            "Edit a Replacement cell inline, or select rows and bulk-assign.",
+            "Queue your changes, then apply all queued corrections in one run."
           )
         ),
-        queue_status,
-        issue_controls,
+        div(
+          class = "d-flex gap-2 flex-wrap align-items-end mb-2",
+          textInput(
+            ns("numeric_bulk_value"),
+            "Replacement for selected",
+            placeholder = "e.g., 6.90E+01"
+          ),
+          actionButton(
+            ns("numeric_apply_selected"),
+            "Apply to selected",
+            class = "btn-outline-primary btn-sm mb-3",
+            icon = icon("arrow-down")
+          ),
+          actionButton(
+            ns("numeric_exclude_selected"),
+            "Exclude selected",
+            class = "btn-outline-warning btn-sm mb-3",
+            icon = icon("ban")
+          )
+        ),
+        DT::DTOutput(ns("numeric_issues_table")),
         div(
           class = "d-flex gap-2 flex-wrap mt-2",
           actionButton(
@@ -1273,29 +1302,100 @@ mod_harmonize_server <- function(id, data_store) {
             class = "btn-outline-primary btn-sm",
             icon = icon("plus")
           ),
-          if (nrow(queue) > 0L) {
-            actionButton(
-              ns("apply_numeric_corrections"),
-              "Apply & Re-run",
-              class = "btn-primary btn-sm",
-              icon = icon("play")
-            )
-          },
-          if (nrow(queue) > 0L) {
-            actionButton(
-              ns("clear_numeric_queue"),
-              "Clear Queue",
-              class = "btn-outline-secondary btn-sm",
-              icon = icon("trash")
-            )
-          }
+          actionButton(
+            ns("apply_numeric_corrections"),
+            "Apply & Re-run",
+            class = "btn-primary btn-sm",
+            icon = icon("play")
+          ),
+          actionButton(
+            ns("clear_numeric_queue"),
+            "Clear Queue",
+            class = "btn-outline-secondary btn-sm",
+            icon = icon("trash")
+          )
         )
       )
     })
 
+    output$numeric_issues_table <- DT::renderDT({
+      numeric_issues_table_version()
+      numeric_issues_datatable(isolate(numeric_issues_working()))
+    })
+
+    observeEvent(input$numeric_issues_table_cell_edit, {
+      info <- input$numeric_issues_table_cell_edit
+      editor <- numeric_issues_working()
+      if (nrow(editor) == 0L) {
+        return()
+      }
+
+      row <- suppressWarnings(as.integer(info$row))
+      col <- suppressWarnings(as.integer(info$col)) + 1L
+      if (is.na(row) || row < 1L || row > nrow(editor)) {
+        return()
+      }
+      if (is.na(col) || col < 1L || col > length(numeric_issue_display_columns)) {
+        return()
+      }
+      if (!identical(numeric_issue_display_columns[col], "replacement")) {
+        return()
+      }
+
+      editor$replacement[row] <- as.character(info$value)
+      editor$action[row] <- "replace"
+      editor$status[row] <- ""
+      set_numeric_issues_working(editor, rerender = FALSE)
+    })
+
+    observeEvent(input$numeric_apply_selected, {
+      selected_rows <- input$numeric_issues_table_rows_selected
+      if (length(selected_rows) == 0L) {
+        notify_user("Select at least one row, then apply.", type = "warning", duration = 4)
+        return()
+      }
+      value <- input$numeric_bulk_value
+      if (is.null(value) || !nzchar(trimws(value))) {
+        notify_user(
+          "Enter a replacement value before applying to selected.",
+          type = "warning",
+          duration = 4
+        )
+        return()
+      }
+
+      editor <- numeric_issues_apply_to_selected(
+        numeric_issues_working(),
+        selected_rows,
+        trimws(value)
+      )
+      set_numeric_issues_working(editor, rerender = FALSE)
+      showNotification(
+        sprintf("Set replacement on %d row(s).", length(unique(selected_rows))),
+        type = "message",
+        duration = 3
+      )
+    })
+
+    observeEvent(input$numeric_exclude_selected, {
+      selected_rows <- input$numeric_issues_table_rows_selected
+      if (length(selected_rows) == 0L) {
+        notify_user("Select at least one row, then exclude.", type = "warning", duration = 4)
+        return()
+      }
+
+      editor <- numeric_issues_exclude_selected(numeric_issues_working(), selected_rows)
+      set_numeric_issues_working(editor, rerender = FALSE)
+      showNotification(
+        sprintf("Marked %d row(s) to exclude.", length(unique(selected_rows))),
+        type = "message",
+        duration = 3
+      )
+    })
+
     observeEvent(input$queue_numeric_replacements, {
-      issues <- current_numeric_parse_issues()
-      if (nrow(issues) == 0L) {
+      editor <- numeric_issues_working()
+      if (nrow(editor) == 0L) {
         notify_user(
           "No numeric parse issues are available to queue.",
           type = "message",
@@ -1304,38 +1404,37 @@ mod_harmonize_server <- function(id, data_store) {
         return()
       }
 
-      entries <- lapply(seq_len(nrow(issues)), function(i) {
-        replacement <- input[[paste0("numeric_replacement_", i)]]
-        if (is.null(replacement) || !nzchar(trimws(replacement))) {
-          return(NULL)
-        }
-
-        tibble::tibble(
-          measurement_column = as.character(issues$measurement_column[i]),
-          original_value = as.character(issues$original_value[i]),
-          pattern = build_exact_numeric_correction_pattern(issues$original_value[i]),
-          replacement = trimws(replacement)
-        )
-      })
-      entries <- Filter(Negate(is.null), entries)
-
-      if (length(entries) == 0L) {
+      # Queue rows that are excluded or have a non-empty replacement.
+      keep <- editor$action == "exclude" | nzchar(trimws(editor$replacement))
+      if (!any(keep)) {
         notify_user(
-          "Enter at least one replacement before queueing corrections.",
+          "Enter or exclude at least one value before queueing corrections.",
           type = "warning",
           duration = 4
         )
         return()
       }
 
+      entries <- tibble::tibble(
+        measurement_column = as.character(editor$measurement_column[keep]),
+        original_value = as.character(editor$original_value[keep]),
+        pattern = build_exact_numeric_correction_pattern(editor$original_value[keep]),
+        replacement = ifelse(
+          editor$action[keep] == "exclude",
+          "",
+          trimws(editor$replacement[keep])
+        ),
+        action = editor$action[keep]
+      )
+
       queued <- upsert_numeric_correction_queue(
         data_store$numeric_correction_queue,
-        dplyr::bind_rows(entries)
+        entries
       )
       data_store$numeric_correction_queue <- queued
 
       showNotification(
-        sprintf("%d numeric correction(s) queued.", length(entries)),
+        sprintf("%d numeric correction(s) queued.", nrow(entries)),
         type = "message",
         duration = 3
       )
