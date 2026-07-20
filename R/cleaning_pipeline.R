@@ -689,15 +689,23 @@ normalize_cas_fields <- function(df, tag_map) {
     }
 
     max_count <- max(cas_counts, na.rm = TRUE)
-    df[[col_name]] <- vapply(seq_along(extracted), function(i) {
-      if (length(extracted[[i]]) >= 1) extracted[[i]][1] else as.character(df[[col_name]][i])
-    }, character(1))
+    df[[col_name]] <- vapply(
+      seq_along(extracted),
+      function(i) {
+        if (length(extracted[[i]]) >= 1) extracted[[i]][1] else as.character(df[[col_name]][i])
+      },
+      character(1)
+    )
 
     for (cas_idx in seq.int(2L, max_count)) {
       new_col_name <- paste0("cas_extract_", col_name, "_", cas_idx)
-      df[[new_col_name]] <- vapply(extracted, function(x) {
-        if (length(x) >= cas_idx) x[cas_idx] else NA_character_
-      }, character(1))
+      df[[new_col_name]] <- vapply(
+        extracted,
+        function(x) {
+          if (length(x) >= cas_idx) x[cas_idx] else NA_character_
+        },
+        character(1)
+      )
       new_tags[[new_col_name]] <- "CASRN"
     }
   }
@@ -1671,18 +1679,22 @@ detect_truncated_compound_names <- function(df, name_cols) {
   }
 
   append_flag <- function(existing, new_flag) {
-    vapply(existing, function(flag_value) {
-      if (is.na(flag_value) || flag_value == "") {
-        return(new_flag)
-      }
+    vapply(
+      existing,
+      function(flag_value) {
+        if (is.na(flag_value) || flag_value == "") {
+          return(new_flag)
+        }
 
-      flag_parts <- strsplit(flag_value, "\\s*;\\s*")[[1]]
-      if (new_flag %in% flag_parts) {
-        flag_value
-      } else {
-        paste0(flag_value, "; ", new_flag)
-      }
-    }, character(1))
+        flag_parts <- strsplit(flag_value, "\\s*;\\s*")[[1]]
+        if (new_flag %in% flag_parts) {
+          flag_value
+        } else {
+          paste0(flag_value, "; ", new_flag)
+        }
+      },
+      character(1)
+    )
   }
 
   row_ids <- if ("original_row_id" %in% names(df_result)) {
@@ -1779,22 +1791,133 @@ detect_truncated_compound_names <- function(df, name_cols) {
 
 bare_formula_regex <- function() {
   elements <- c(
-    "He", "Li", "Be", "Ne", "Na", "Mg", "Al", "Si", "Cl", "Ar", "Ca",
-    "Sc", "Ti", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn", "Ga", "Ge",
-    "As", "Se", "Br", "Kr", "Rb", "Sr", "Zr", "Nb", "Mo", "Tc", "Ru",
-    "Rh", "Pd", "Ag", "Cd", "In", "Sn", "Sb", "Te", "Xe", "Cs", "Ba",
-    "La", "Ce", "Pr", "Nd", "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho",
-    "Er", "Tm", "Yb", "Lu", "Hf", "Ta", "Re", "Os", "Ir", "Pt", "Au",
-    "Hg", "Tl", "Pb", "Bi", "Po", "At", "Rn", "Fr", "Ra", "Ac", "Th",
-    "Pa", "Np", "Pu", "Am", "Cm", "Bk", "Cf", "Es", "Fm", "Md", "No",
-    "Lr", "Rf", "Db", "Sg", "Bh", "Hs", "Mt", "Ds", "Rg", "Cn", "Nh",
-    "Fl", "Mc", "Lv", "Ts", "Og", "H", "B", "C", "N", "O", "F", "P",
-    "S", "K", "V", "I", "Y", "W", "U"
+    "He",
+    "Li",
+    "Be",
+    "Ne",
+    "Na",
+    "Mg",
+    "Al",
+    "Si",
+    "Cl",
+    "Ar",
+    "Ca",
+    "Sc",
+    "Ti",
+    "Cr",
+    "Mn",
+    "Fe",
+    "Co",
+    "Ni",
+    "Cu",
+    "Zn",
+    "Ga",
+    "Ge",
+    "As",
+    "Se",
+    "Br",
+    "Kr",
+    "Rb",
+    "Sr",
+    "Zr",
+    "Nb",
+    "Mo",
+    "Tc",
+    "Ru",
+    "Rh",
+    "Pd",
+    "Ag",
+    "Cd",
+    "In",
+    "Sn",
+    "Sb",
+    "Te",
+    "Xe",
+    "Cs",
+    "Ba",
+    "La",
+    "Ce",
+    "Pr",
+    "Nd",
+    "Pm",
+    "Sm",
+    "Eu",
+    "Gd",
+    "Tb",
+    "Dy",
+    "Ho",
+    "Er",
+    "Tm",
+    "Yb",
+    "Lu",
+    "Hf",
+    "Ta",
+    "Re",
+    "Os",
+    "Ir",
+    "Pt",
+    "Au",
+    "Hg",
+    "Tl",
+    "Pb",
+    "Bi",
+    "Po",
+    "At",
+    "Rn",
+    "Fr",
+    "Ra",
+    "Ac",
+    "Th",
+    "Pa",
+    "Np",
+    "Pu",
+    "Am",
+    "Cm",
+    "Bk",
+    "Cf",
+    "Es",
+    "Fm",
+    "Md",
+    "No",
+    "Lr",
+    "Rf",
+    "Db",
+    "Sg",
+    "Bh",
+    "Hs",
+    "Mt",
+    "Ds",
+    "Rg",
+    "Cn",
+    "Nh",
+    "Fl",
+    "Mc",
+    "Lv",
+    "Ts",
+    "Og",
+    "H",
+    "B",
+    "C",
+    "N",
+    "O",
+    "F",
+    "P",
+    "S",
+    "K",
+    "V",
+    "I",
+    "Y",
+    "W",
+    "U"
   )
   element_chunk <- paste0("(?:", paste(elements, collapse = "|"), ")\\d*")
   group_chunk <- paste0(
-    "(?:\\((?:", element_chunk, ")+\\)\\d*|",
-    "\\[(?:", element_chunk, ")+\\]\\d*)"
+    "(?:\\((?:",
+    element_chunk,
+    ")+\\)\\d*|",
+    "\\[(?:",
+    element_chunk,
+    ")+\\]\\d*)"
   )
   paste0("^(?:", element_chunk, "|", group_chunk, ")+(?:[+-]\\d*)?$")
 }
@@ -3355,11 +3478,12 @@ is_multi_analyte_review_row <- function(df) {
   }
 
   flag <- as.character(df$cleaning_flag)
-  !is.na(flag) & grepl(
-    paste0("(^|;\\s*)", gsub("([\\^$.|?*+(){}\\[\\]\\\\])", "\\\\\\1", multi_analyte_warning_label()), "($|\\s*;)"),
-    flag,
-    perl = TRUE
-  )
+  !is.na(flag) &
+    grepl(
+      paste0("(^|;\\s*)", gsub("([\\^$.|?*+(){}\\[\\]\\\\])", "\\\\\\1", multi_analyte_warning_label()), "($|\\s*;)"),
+      flag,
+      perl = TRUE
+    )
 }
 
 append_reviewed_multi_analyte_flag <- function(flag, status) {
@@ -3377,25 +3501,30 @@ append_reviewed_multi_analyte_flag <- function(flag, status) {
 carry_forward_isotope_element <- function(parts) {
   last_prefix <- NA_character_
 
-  vapply(parts, function(part) {
-    value <- trimws(part)
-    if (!nzchar(value)) {
-      return(value)
-    }
+  vapply(
+    parts,
+    function(part) {
+      value <- trimws(part)
+      if (!nzchar(value)) {
+        return(value)
+      }
 
-    if (grepl("^\\d{2,3}$", value) && !is.na(last_prefix)) {
-      return(paste0(last_prefix, "-", value))
-    }
+      if (grepl("^\\d{2,3}$", value) && !is.na(last_prefix)) {
+        return(paste0(last_prefix, "-", value))
+      }
 
-    match <- regexec("^([A-Za-z][A-Za-z ]*?)[ -]+(\\d{2,3})$", value, perl = TRUE)
-    pieces <- regmatches(value, match)[[1]]
-    if (length(pieces) == 3) {
-      last_prefix <<- trimws(pieces[2])
-      return(paste0(last_prefix, "-", pieces[3]))
-    }
+      match <- regexec("^([A-Za-z][A-Za-z ]*?)[ -]+(\\d{2,3})$", value, perl = TRUE)
+      pieces <- regmatches(value, match)[[1]]
+      if (length(pieces) == 3) {
+        last_prefix <<- trimws(pieces[2])
+        return(paste0(last_prefix, "-", pieces[3]))
+      }
 
-    value
-  }, character(1), USE.NAMES = FALSE)
+      value
+    },
+    character(1),
+    USE.NAMES = FALSE
+  )
 }
 
 #' Suggest split parts for a multi-analyte value
@@ -3433,10 +3562,14 @@ multi_analyte_field_for_row <- function(df, row_index, name_cols) {
     return(names(split_counts)[which(split_counts > 1L)[1]])
   }
 
-  non_blank <- vapply(row_values, function(value) {
-    value <- as.character(value[1])
-    !is.na(value) && nzchar(trimws(value))
-  }, logical(1))
+  non_blank <- vapply(
+    row_values,
+    function(value) {
+      value <- as.character(value[1])
+      !is.na(value) && nzchar(trimws(value))
+    },
+    logical(1)
+  )
   if (any(non_blank)) {
     return(names(non_blank)[which(non_blank)[1]])
   }
@@ -3495,7 +3628,200 @@ multi_analyte_row_id <- function(df, row_index) {
   as.integer(row_index)
 }
 
+#' CAS values present in a row across CASRN-tagged columns
+#'
+#' @param df Cleaned data frame.
+#' @param row_index One-based row position.
+#' @param cas_cols Character vector of CASRN-tagged column names.
+#' @return Character vector of non-blank CAS values (order follows `cas_cols`).
+#' @noRd
+row_cas_values <- function(df, row_index, cas_cols) {
+  cas_cols <- intersect(cas_cols, names(df))
+  if (length(cas_cols) == 0) {
+    return(character(0))
+  }
+  vals <- as.character(unlist(df[row_index, cas_cols, drop = TRUE], use.names = FALSE))
+  vals <- trimws(vals)
+  vals[!is.na(vals) & nzchar(vals)]
+}
+
+#' Resolve one flagged review row (multi-analyte and/or multi-CAS)
+#'
+#' Single coordinated engine behind [resolve_multi_analyte_row()]. Splits the
+#' selected Name value and, when `pairing = "position"`, assigns CAS values from
+#' `spec$cas_parts` across the resulting rows so a row flagged for both reasons
+#' cannot be split twice into garbage.
+#'
+#' @param df Cleaned data frame.
+#' @param name_cols Character vector of Name-tagged column names.
+#' @param row_index One-based row position in `df`.
+#' @param spec List describing the disposition:
+#'   * `name_action`: `"split"`, `"keep"`, or `"rename"`.
+#'   * `name_parts`: split parts or rename value (character or newline/`;` text).
+#'     For split, `NULL`/empty falls back to `suggest_multi_analyte_parts()`.
+#'   * `cas_parts`: CAS values to assign (character or newline/`;` text). Ignored
+#'     unless `pairing = "position"`.
+#'   * `pairing`: `"position"` pairs name/CAS parts one-to-one (counts must match,
+#'     or one side has length 1); `"broadcast"` (default) leaves CAS columns intact.
+#' @param cas_cols Character vector of CASRN-tagged column names.
+#' @return List with `cleaned_data` and `audit_trail`.
+#' @export
+resolve_review_row <- function(df, name_cols, row_index, spec, cas_cols = character(0)) {
+  df_result <- ensure_multi_analyte_resolution_columns(tibble::as_tibble(df))
+  row_index <- suppressWarnings(as.integer(row_index)[1])
+
+  if (is.na(row_index) || row_index < 1L || row_index > nrow(df_result)) {
+    stop("row_index must be a valid 1-based row position.", call. = FALSE)
+  }
+
+  name_action <- normalize_multi_analyte_action(spec$name_action %||% spec$action)
+  pairing <- tolower(trimws(as.character(spec$pairing %||% "broadcast")[1]))
+  if (!pairing %in% c("position", "broadcast")) {
+    pairing <- "broadcast"
+  }
+
+  field <- multi_analyte_field_for_row(df_result, row_index, name_cols)
+  original_value <- as.character(df_result[[field]][row_index])
+  if (length(original_value) == 0 || is.na(original_value)) {
+    original_value <- NA_character_
+  }
+  row_id <- multi_analyte_row_id(df_result, row_index)
+
+  # --- resolve the name axis into the name vector for the resulting rows ---
+  if (name_action == "keep") {
+    name_vec <- original_value
+    status <- "kept combined"
+    resolution <- "keep_combined"
+  } else if (name_action == "rename") {
+    renamed <- normalize_multi_analyte_values(spec$name_parts %||% spec$values)
+    if (length(renamed) != 1L) {
+      stop("rename requires exactly one non-empty value.", call. = FALSE)
+    }
+    name_vec <- renamed[1]
+    status <- "renamed"
+    resolution <- "rename"
+  } else {
+    name_vec <- normalize_multi_analyte_values(spec$name_parts %||% spec$values)
+    if (length(name_vec) == 0) {
+      name_vec <- suggest_multi_analyte_parts(original_value)
+    }
+    if (length(name_vec) < 2L) {
+      stop("split requires at least two non-empty values.", call. = FALSE)
+    }
+    status <- "split"
+    resolution <- "split"
+  }
+
+  # --- resolve the CAS axis and reconcile row counts via position pairing ---
+  cas_cols <- intersect(cas_cols, names(df_result))
+  cas_parts <- if (pairing == "position") normalize_multi_analyte_values(spec$cas_parts) else character(0)
+  assign_cas <- pairing == "position" && length(cas_parts) >= 1L && length(cas_cols) >= 1L
+  n_name <- length(name_vec)
+
+  if (assign_cas) {
+    n_cas <- length(cas_parts)
+    if (n_name == 1L && n_cas > 1L) {
+      name_vec <- rep(name_vec, n_cas)
+      cas_vec <- cas_parts
+    } else if (n_cas == 1L && n_name > 1L) {
+      cas_vec <- rep(cas_parts, n_name)
+    } else if (n_name == n_cas) {
+      cas_vec <- cas_parts
+    } else {
+      stop(
+        "position pairing requires equal name and CAS counts, or one name / one CAS.",
+        call. = FALSE
+      )
+    }
+  } else {
+    cas_vec <- NULL
+  }
+
+  part_count <- length(name_vec)
+  cas_split <- assign_cas && part_count > 1L
+
+  # --- expand into the resulting rows ---
+  expanded <- df_result[rep(row_index, part_count), , drop = FALSE]
+  expanded[[field]] <- name_vec
+  if (assign_cas) {
+    expanded[[cas_cols[1]]] <- cas_vec
+    for (extra_col in cas_cols[-1]) {
+      expanded[[extra_col]] <- NA_character_
+    }
+  }
+  expanded$cleaning_flag <- vapply(
+    expanded$cleaning_flag,
+    append_reviewed_multi_analyte_flag,
+    character(1),
+    status = status
+  )
+  expanded$multi_analyte_resolution <- resolution
+  expanded$multi_analyte_source_value <- original_value
+  expanded$multi_analyte_part_index <- seq_len(part_count)
+  expanded$multi_analyte_part_count <- part_count
+  # Resolving the row clears the multi-CAS review flag regardless of disposition.
+  if ("multi_cas" %in% names(expanded)) {
+    expanded$multi_cas <- FALSE
+  }
+  if ("multi_cas_count" %in% names(expanded) && assign_cas) {
+    expanded$multi_cas_count <- 1L
+  }
+
+  before <- if (row_index > 1L) df_result[seq_len(row_index - 1L), , drop = FALSE] else df_result[0, , drop = FALSE]
+  after <- if (row_index < nrow(df_result)) {
+    df_result[(row_index + 1L):nrow(df_result), , drop = FALSE]
+  } else {
+    df_result[0, , drop = FALSE]
+  }
+
+  # --- audit trail ---
+  if (part_count == 1L) {
+    audit_reason <- switch(
+      resolution,
+      keep_combined = "Kept as combined analyte",
+      rename = "Renamed multi-analyte value",
+      "Resolved review row"
+    )
+    audit_trail <- tibble::tibble(
+      row_id = row_id,
+      field = field,
+      step = "multi_analyte_resolution",
+      original_value = original_value,
+      new_value = name_vec[1],
+      reason = audit_reason
+    )
+  } else if (cas_split && n_name == 1L) {
+    # Name kept, CAS split into separate rows.
+    audit_trail <- tibble::tibble(
+      row_id = rep(row_id, part_count),
+      field = rep(cas_cols[1], part_count),
+      step = rep("multi_analyte_resolution", part_count),
+      original_value = rep(original_value, part_count),
+      new_value = cas_vec,
+      reason = sprintf("Split multi-CAS into part %d of %d", seq_len(part_count), part_count)
+    )
+  } else {
+    reason_stub <- if (cas_split) "multi-analyte + CAS" else "multi-analyte"
+    audit_trail <- tibble::tibble(
+      row_id = rep(row_id, part_count),
+      field = rep(field, part_count),
+      step = rep("multi_analyte_resolution", part_count),
+      original_value = rep(original_value, part_count),
+      new_value = name_vec,
+      reason = sprintf("Split %s into part %d of %d", reason_stub, seq_len(part_count), part_count)
+    )
+  }
+
+  list(
+    cleaned_data = dplyr::bind_rows(before, expanded, after),
+    audit_trail = audit_trail
+  )
+}
+
 #' Resolve one flagged multi-analyte row
+#'
+#' Thin wrapper over [resolve_review_row()] for name-only resolution. Retained
+#' for the headless path and existing callers.
 #'
 #' @param df Cleaned data frame.
 #' @param name_cols Character vector of Name-tagged column names.
@@ -3506,108 +3832,12 @@ multi_analyte_row_id <- function(df, row_index) {
 #' @return List with `cleaned_data` and `audit_trail`.
 #' @export
 resolve_multi_analyte_row <- function(df, name_cols, row_index, action, values = NULL) {
-  df_result <- ensure_multi_analyte_resolution_columns(tibble::as_tibble(df))
-  action <- normalize_multi_analyte_action(action)
-  row_index <- suppressWarnings(as.integer(row_index)[1])
-
-  if (is.na(row_index) || row_index < 1L || row_index > nrow(df_result)) {
-    stop("row_index must be a valid 1-based row position.", call. = FALSE)
-  }
-
-  field <- multi_analyte_field_for_row(df_result, row_index, name_cols)
-  original_value <- as.character(df_result[[field]][row_index])
-  if (is.na(original_value)) {
-    original_value <- NA_character_
-  }
-  row_id <- multi_analyte_row_id(df_result, row_index)
-
-  if (action == "keep") {
-    df_result$cleaning_flag[row_index] <- append_reviewed_multi_analyte_flag(
-      df_result$cleaning_flag[row_index],
-      "kept combined"
-    )
-    df_result$multi_analyte_resolution[row_index] <- "keep_combined"
-    df_result$multi_analyte_source_value[row_index] <- original_value
-    df_result$multi_analyte_part_index[row_index] <- 1L
-    df_result$multi_analyte_part_count[row_index] <- 1L
-
-    return(list(
-      cleaned_data = df_result,
-      audit_trail = tibble::tibble(
-        row_id = row_id,
-        field = field,
-        step = "multi_analyte_resolution",
-        original_value = original_value,
-        new_value = original_value,
-        reason = "Kept as combined analyte"
-      )
-    ))
-  }
-
-  normalized_values <- normalize_multi_analyte_values(values)
-  if (action == "rename") {
-    if (length(normalized_values) != 1L) {
-      stop("rename requires exactly one non-empty value.", call. = FALSE)
-    }
-
-    df_result[[field]][row_index] <- normalized_values[1]
-    df_result$cleaning_flag[row_index] <- append_reviewed_multi_analyte_flag(
-      df_result$cleaning_flag[row_index],
-      "renamed"
-    )
-    df_result$multi_analyte_resolution[row_index] <- "rename"
-    df_result$multi_analyte_source_value[row_index] <- original_value
-    df_result$multi_analyte_part_index[row_index] <- 1L
-    df_result$multi_analyte_part_count[row_index] <- 1L
-
-    return(list(
-      cleaned_data = df_result,
-      audit_trail = tibble::tibble(
-        row_id = row_id,
-        field = field,
-        step = "multi_analyte_resolution",
-        original_value = original_value,
-        new_value = normalized_values[1],
-        reason = "Renamed multi-analyte value"
-      )
-    ))
-  }
-
-  parts <- normalized_values
-  if (length(parts) == 0) {
-    parts <- suggest_multi_analyte_parts(original_value)
-  }
-  if (length(parts) < 2L) {
-    stop("split requires at least two non-empty values.", call. = FALSE)
-  }
-
-  part_count <- length(parts)
-  expanded <- df_result[rep(row_index, part_count), , drop = FALSE]
-  expanded[[field]] <- parts
-  expanded$cleaning_flag <- vapply(
-    expanded$cleaning_flag,
-    append_reviewed_multi_analyte_flag,
-    character(1),
-    status = "split"
-  )
-  expanded$multi_analyte_resolution <- "split"
-  expanded$multi_analyte_source_value <- original_value
-  expanded$multi_analyte_part_index <- seq_len(part_count)
-  expanded$multi_analyte_part_count <- part_count
-
-  before <- if (row_index > 1L) df_result[seq_len(row_index - 1L), , drop = FALSE] else df_result[0, , drop = FALSE]
-  after <- if (row_index < nrow(df_result)) df_result[(row_index + 1L):nrow(df_result), , drop = FALSE] else df_result[0, , drop = FALSE]
-
-  list(
-    cleaned_data = dplyr::bind_rows(before, expanded, after),
-    audit_trail = tibble::tibble(
-      row_id = rep(row_id, part_count),
-      field = rep(field, part_count),
-      step = rep("multi_analyte_resolution", part_count),
-      original_value = rep(original_value, part_count),
-      new_value = parts,
-      reason = sprintf("Split multi-analyte into part %d of %d", seq_len(part_count), part_count)
-    )
+  resolve_review_row(
+    df,
+    name_cols = name_cols,
+    row_index = row_index,
+    spec = list(name_action = action, name_parts = values, pairing = "broadcast"),
+    cas_cols = character(0)
   )
 }
 
@@ -3650,6 +3880,47 @@ apply_multi_analyte_resolutions <- function(df, name_cols, resolutions = NULL) {
       row_index = spec[[row_col]][[i]],
       action = spec$action[[i]],
       values = values
+    )
+    df_result <- resolved$cleaned_data
+    audit_parts[[length(audit_parts) + 1L]] <- resolved$audit_trail
+  }
+
+  list(
+    cleaned_data = df_result,
+    audit_trail = dplyr::bind_rows(audit_parts)
+  )
+}
+
+#' Apply staged review decisions in one batch
+#'
+#' Applies a set of [resolve_review_row()] specs keyed by row index. Decisions
+#' are applied in descending row-index order so each positional split leaves the
+#' earlier rows' positions intact.
+#'
+#' @param df Cleaned data frame.
+#' @param name_cols Character vector of Name-tagged column names.
+#' @param decisions Named list keyed by row index; each element is a `spec` list
+#'   accepted by [resolve_review_row()].
+#' @param cas_cols Character vector of CASRN-tagged column names.
+#' @return List with `cleaned_data` and `audit_trail`.
+#' @export
+apply_review_resolutions <- function(df, name_cols, decisions, cas_cols = character(0)) {
+  if (is.null(decisions) || length(decisions) == 0) {
+    return(list(cleaned_data = df, audit_trail = empty_cleaning_audit()))
+  }
+
+  row_indices <- suppressWarnings(as.integer(names(decisions)))
+  order_desc <- order(row_indices, decreasing = TRUE)
+
+  df_result <- df
+  audit_parts <- list()
+  for (i in order_desc) {
+    resolved <- resolve_review_row(
+      df_result,
+      name_cols = name_cols,
+      row_index = row_indices[i],
+      spec = decisions[[i]],
+      cas_cols = cas_cols
     )
     df_result <- resolved$cleaned_data
     audit_parts[[length(audit_parts) + 1L]] <- resolved$audit_trail

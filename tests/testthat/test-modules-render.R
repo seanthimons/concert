@@ -114,7 +114,7 @@ test_that("mod_clean_data_server renders reference editor accordion with rich ti
   })
 })
 
-test_that("mod_clean_data_server renders multi-CAS section with generated CAS column", {
+test_that("mod_clean_data_server renders review section with generated CAS column", {
   data_store <- create_test_store()
   data_store$column_tags <- list(
     cas_number = "CASRN",
@@ -137,7 +137,7 @@ test_that("mod_clean_data_server renders multi-CAS section with generated CAS co
     session$flushReact()
     section <- NULL
 
-    expect_error(section <- output$multi_cas_section, NA)
+    expect_error(section <- output$review_section, NA)
     expect_false(is.null(section))
   })
 })

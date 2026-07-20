@@ -83,7 +83,7 @@ mod_clean_data_ui <- function(id) {
 
       reactable::reactableOutput(ns("cleaned_table")),
 
-      uiOutput(ns("multi_analyte_section")),
+      uiOutput(ns("review_section")),
 
       uiOutput(ns("audit_section")),
 
@@ -94,9 +94,7 @@ mod_clean_data_ui <- function(id) {
         accept = ".csv"
       ),
 
-      uiOutput(ns("reference_editors_section")),
-
-      uiOutput(ns("multi_cas_section"))
+      uiOutput(ns("reference_editors_section"))
     ),
 
     # Empty state when no data loaded
@@ -1138,30 +1136,53 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       )
     })
 
-    filter_multi_analyte_rows <- function(cleaned_data) {
+    # Rows needing review: multi-analyte (name) and/or multi-CAS. One surface,
+    # one coordinated resolver -- see resolve_review_row().
+    filter_review_rows <- function(cleaned_data) {
       if (is.null(cleaned_data) || nrow(cleaned_data) == 0) {
         return(tibble::tibble())
       }
 
-      rows <- which(is_multi_analyte_review_row(cleaned_data))
+      ma <- is_multi_analyte_review_row(cleaned_data)
+      mc <- if ("multi_cas" %in% names(cleaned_data)) {
+        cleaned_data$multi_cas %in% TRUE
+      } else {
+        rep(FALSE, nrow(cleaned_data))
+      }
+
+      rows <- which(ma | mc)
       if (length(rows) == 0) {
         return(cleaned_data[0, , drop = FALSE])
       }
 
-      dplyr::mutate(cleaned_data[rows, , drop = FALSE], .row_index = rows, .before = 1)
+      reason <- ifelse(ma[rows] & mc[rows], "both", ifelse(ma[rows], "multi-analyte", "multi-CAS"))
+      dplyr::mutate(
+        cleaned_data[rows, , drop = FALSE],
+        .row_index = rows,
+        .reason = reason,
+        .before = 1
+      )
     }
 
-    output$multi_analyte_section <- renderUI({
+    review_name_cols <- function() {
+      tag_map <- data_store$column_tags %||% list()
+      names(tag_map)[tag_map == "Name"]
+    }
+
+    review_cas_cols <- function() {
+      tag_map <- data_store$column_tags %||% list()
+      names(tag_map)[tag_map == "CASRN"]
+    }
+
+    output$review_section <- renderUI({
       req(data_store$cleaned_data)
 
-      tag_map <- data_store$column_tags %||% list()
-      name_cols <- names(tag_map)[tag_map == "Name"]
-      if (length(name_cols) == 0) {
+      if (length(review_name_cols()) == 0) {
         return(NULL)
       }
 
-      multi_analyte_rows <- filter_multi_analyte_rows(data_store$cleaned_data)
-      if (nrow(multi_analyte_rows) == 0) {
+      review_rows <- filter_review_rows(data_store$cleaned_data)
+      if (nrow(review_rows) == 0) {
         return(NULL)
       }
 
@@ -1169,30 +1190,30 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         class = "card mt-4",
         div(
           class = "card-header bg-warning text-dark",
-          h5(class = "mb-0", "Multi-Analyte Review")
+          h5(class = "mb-0", "Rows Needing Review")
         ),
         div(
           class = "card-body",
-          reactable::reactableOutput(session$ns("multi_analyte_table")),
+          p(
+            "These rows are flagged as multi-analyte (name), multi-CAS, or both. ",
+            "Select a row, set how to split it, and stage the decision. ",
+            "Apply all staged decisions in one pass."
+          ),
+          reactable::reactableOutput(session$ns("review_table")),
+          uiOutput(session$ns("review_editor")),
           div(
-            class = "d-flex gap-2 align-items-end flex-wrap mt-3",
-            selectInput(
-              session$ns("multi_analyte_action"),
-              label = NULL,
-              choices = c("Split" = "split", "Keep combined" = "keep", "Rename" = "rename"),
-              width = "180px"
-            ),
-            textAreaInput(
-              session$ns("multi_analyte_values"),
-              label = NULL,
-              value = "",
-              rows = 3,
-              placeholder = "One split part per line, or one rename value",
-              width = "360px"
+            class = "d-flex gap-2 align-items-center flex-wrap mt-3 pt-3 border-top",
+            uiOutput(session$ns("review_staged"), inline = TRUE),
+            div(class = "flex-grow-1"),
+            actionButton(
+              session$ns("clear_review"),
+              "Clear staged",
+              icon = icon("trash"),
+              class = "btn-outline-secondary"
             ),
             actionButton(
-              session$ns("apply_multi_analyte_resolution"),
-              "Apply",
+              session$ns("apply_review"),
+              "Apply all",
               icon = icon("check"),
               class = "btn-warning"
             )
@@ -1201,14 +1222,30 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       )
     })
 
-    output$multi_analyte_table <- reactable::renderReactable({
+    output$review_table <- reactable::renderReactable({
       req(data_store$cleaned_data)
 
-      multi_analyte_rows <- filter_multi_analyte_rows(data_store$cleaned_data)
+      review_rows <- filter_review_rows(data_store$cleaned_data)
+      hidden <- intersect(
+        c(
+          "original_row_id",
+          "multi_cas",
+          "multi_cas_count",
+          "multi_analyte_source_value",
+          "multi_analyte_part_index",
+          "multi_analyte_part_count",
+          "multi_analyte_resolution"
+        ),
+        names(review_rows)
+      )
       col_defs <- list(.row_index = reactable::colDef(show = FALSE))
+      for (nm in hidden) {
+        col_defs[[nm]] <- reactable::colDef(show = FALSE)
+      }
+      col_defs$.reason <- reactable::colDef(name = "Reason", maxWidth = 130)
 
       reactable::reactable(
-        multi_analyte_rows,
+        review_rows,
         columns = col_defs,
         selection = "single",
         onClick = "select",
@@ -1220,61 +1257,173 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       )
     })
 
-    observe({
+    # Editor panel for the selected review row (prefilled from data or staged spec)
+    output$review_editor <- renderUI({
       req(data_store$cleaned_data)
-      selected <- reactable::getReactableState("multi_analyte_table", "selected")
+      selected <- reactable::getReactableState("review_table", "selected")
       if (is.null(selected) || length(selected) == 0) {
-        return()
+        return(div(class = "text-muted mt-2", "Select a row above to stage a decision."))
       }
 
-      multi_analyte_rows <- filter_multi_analyte_rows(data_store$cleaned_data)
-      if (nrow(multi_analyte_rows) == 0 || selected[1] > nrow(multi_analyte_rows)) {
-        return()
+      review_rows <- filter_review_rows(data_store$cleaned_data)
+      if (nrow(review_rows) == 0 || selected[1] > nrow(review_rows)) {
+        return(NULL)
       }
 
-      target_row <- multi_analyte_rows$.row_index[selected[1]]
-      if (identical(data_store$multi_analyte_selected_row, target_row)) {
-        return()
-      }
-      data_store$multi_analyte_selected_row <- target_row
+      row_index <- review_rows$.row_index[selected[1]]
+      reason <- review_rows$.reason[selected[1]]
+      name_cols <- review_name_cols()
+      cas_cols <- review_cas_cols()
 
-      tag_map <- data_store$column_tags %||% list()
-      name_cols <- names(tag_map)[tag_map == "Name"]
-      field <- multi_analyte_field_for_row(data_store$cleaned_data, target_row, name_cols)
-      suggestions <- suggest_multi_analyte_parts(data_store$cleaned_data[[field]][target_row])
-      updateTextAreaInput(session, "multi_analyte_values", value = paste(suggestions, collapse = "\n"))
+      field <- multi_analyte_field_for_row(data_store$cleaned_data, row_index, name_cols)
+      name_default <- paste(suggest_multi_analyte_parts(data_store$cleaned_data[[field]][row_index]), collapse = "\n")
+      cas_default <- paste(row_cas_values(data_store$cleaned_data, row_index, cas_cols), collapse = "\n")
+
+      staged <- (data_store$review_decisions %||% list())[[as.character(row_index)]]
+      action_value <- if (!is.null(staged)) {
+        staged$name_action
+      } else if (grepl("analyte", reason)) {
+        "split"
+      } else {
+        "keep"
+      }
+      pairing_value <- if (!is.null(staged)) {
+        staged$pairing
+      } else if (reason == "both") {
+        "position"
+      } else {
+        "broadcast"
+      }
+      name_value <- if (!is.null(staged) && !is.null(staged$name_parts)) {
+        paste(staged$name_parts, collapse = "\n")
+      } else {
+        name_default
+      }
+      cas_value <- if (!is.null(staged) && !is.null(staged$cas_parts)) {
+        paste(staged$cas_parts, collapse = "\n")
+      } else {
+        cas_default
+      }
+
+      div(
+        class = "mt-3 p-3 bg-light rounded",
+        div(
+          class = "mb-2",
+          tags$strong("Reason: "),
+          tags$span(class = "badge bg-secondary", reason)
+        ),
+        bslib::layout_columns(
+          col_widths = c(6, 6),
+          div(
+            radioButtons(
+              session$ns("review_name_action"),
+              "Name",
+              choices = c("Split" = "split", "Keep combined" = "keep", "Rename" = "rename"),
+              selected = action_value,
+              inline = TRUE
+            ),
+            textAreaInput(
+              session$ns("review_name_parts"),
+              label = "Name parts (one per line; single value for rename)",
+              value = name_value,
+              rows = 3,
+              width = "100%"
+            )
+          ),
+          div(
+            radioButtons(
+              session$ns("review_pairing"),
+              "CAS handling",
+              choices = c(
+                "Pair name ↔ CAS by position" = "position",
+                "Keep CAS together" = "broadcast"
+              ),
+              selected = pairing_value,
+              inline = FALSE
+            ),
+            textAreaInput(
+              session$ns("review_cas_parts"),
+              label = "CAS parts (one per line; used only when pairing by position)",
+              value = cas_value,
+              rows = 3,
+              width = "100%"
+            )
+          )
+        ),
+        actionButton(
+          session$ns("stage_review"),
+          "Stage decision",
+          icon = icon("plus"),
+          class = "btn-primary btn-sm"
+        )
+      )
     })
 
-    observeEvent(input$apply_multi_analyte_resolution, {
+    output$review_staged <- renderUI({
+      n <- length(data_store$review_decisions %||% list())
+      if (n == 0) {
+        tags$span(class = "text-muted", "No decisions staged.")
+      } else {
+        tags$span(class = "fw-semibold", sprintf("%d decision(s) staged.", n))
+      }
+    })
+
+    observeEvent(input$stage_review, {
       req(data_store$cleaned_data)
-
-      selected <- reactable::getReactableState("multi_analyte_table", "selected")
+      selected <- reactable::getReactableState("review_table", "selected")
       if (is.null(selected) || length(selected) == 0) {
-        notify_user("Select a multi-analyte row first.", type = "warning")
+        notify_user("Select a review row first.", type = "warning")
         return()
       }
 
-      multi_analyte_rows <- filter_multi_analyte_rows(data_store$cleaned_data)
-      if (nrow(multi_analyte_rows) == 0 || selected[1] > nrow(multi_analyte_rows)) {
-        notify_user("Selected multi-analyte row is no longer available.", type = "warning")
+      review_rows <- filter_review_rows(data_store$cleaned_data)
+      if (nrow(review_rows) == 0 || selected[1] > nrow(review_rows)) {
+        notify_user("Selected review row is no longer available.", type = "warning")
         return()
       }
 
-      tag_map <- data_store$column_tags %||% list()
-      name_cols <- names(tag_map)[tag_map == "Name"]
-      values <- input$multi_analyte_values
-      if (is.null(values) || !nzchar(trimws(values))) {
-        values <- NULL
+      row_index <- review_rows$.row_index[selected[1]]
+      spec <- list(
+        name_action = input$review_name_action,
+        name_parts = input$review_name_parts,
+        cas_parts = input$review_cas_parts,
+        pairing = input$review_pairing
+      )
+
+      decisions <- data_store$review_decisions %||% list()
+      decisions[[as.character(row_index)]] <- spec
+      data_store$review_decisions <- decisions
+
+      showNotification(
+        sprintf("Decision staged for row %d (%d total).", row_index, length(decisions)),
+        type = "message",
+        duration = 3
+      )
+    })
+
+    observeEvent(input$clear_review, {
+      data_store$review_decisions <- NULL
+      showNotification("Staged decisions cleared.", type = "message", duration = 3)
+    })
+
+    observeEvent(input$apply_review, {
+      req(data_store$cleaned_data)
+      decisions <- data_store$review_decisions %||% list()
+      if (length(decisions) == 0) {
+        notify_user("Stage at least one decision before applying.", type = "warning")
+        return()
       }
+
+      name_cols <- review_name_cols()
+      cas_cols <- review_cas_cols()
 
       tryCatch(
         {
-          result <- resolve_multi_analyte_row(
+          result <- apply_review_resolutions(
             data_store$cleaned_data,
             name_cols = name_cols,
-            row_index = multi_analyte_rows$.row_index[selected[1]],
-            action = input$multi_analyte_action,
-            values = values
+            decisions = decisions,
+            cas_cols = cas_cols
           )
 
           data_store$cleaned_data <- result$cleaned_data
@@ -1289,196 +1438,17 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
           data_store$resolved_data <- NULL
           data_store$review_visible_cols <- NULL
           data_store$curation_status <- NULL
-          data_store$multi_analyte_selected_row <- NULL
+          data_store$review_decisions <- NULL
 
-          showNotification("Multi-analyte resolution applied.", type = "message", duration = 4)
+          showNotification(
+            sprintf("Applied %d review decision(s).", length(decisions)),
+            type = "message",
+            duration = 4
+          )
         },
         error = function(e) {
-          notify_user(paste("Multi-analyte resolution failed:", e$message), type = "error", duration = NULL)
+          notify_user(paste("Review resolution failed:", e$message), type = "error", duration = NULL)
         }
-      )
-    })
-
-    filter_multi_cas_rows <- function(cleaned_data) {
-      if (!("multi_cas" %in% names(cleaned_data))) {
-        return(cleaned_data[0, , drop = FALSE])
-      }
-
-      cleaned_data[cleaned_data$multi_cas %in% TRUE, , drop = FALSE]
-    }
-
-    # Multi-CAS flagged rows section
-    output$multi_cas_section <- renderUI({
-      req(data_store$cleaned_data)
-
-      cleaned_data <- data_store$cleaned_data
-
-      multi_cas_rows <- filter_multi_cas_rows(cleaned_data)
-
-      if (nrow(multi_cas_rows) == 0) {
-        return(NULL)
-      }
-
-      # Show multi-CAS section
-      div(
-        class = "card mt-4",
-        div(
-          class = "card-header bg-warning text-dark",
-          h5(class = "mb-0", "Multi-CAS Flagged Rows")
-        ),
-        div(
-          class = "card-body",
-          p("These rows contain multiple CAS-RNs. Review them and split if they represent separate chemicals."),
-          reactable::reactableOutput(session$ns("multi_cas_table")),
-          actionButton(
-            session$ns("split_row"),
-            "Split Selected Row",
-            class = "btn-warning mt-2",
-            icon = icon("scissors")
-          )
-        )
-      )
-    })
-
-    # Multi-CAS table
-    output$multi_cas_table <- reactable::renderReactable({
-      req(data_store$cleaned_data)
-
-      cleaned_data <- data_store$cleaned_data
-      multi_cas_rows <- filter_multi_cas_rows(cleaned_data)
-
-      reactable::reactable(
-        multi_cas_rows,
-        selection = "single",
-        onClick = "select",
-        defaultPageSize = 10,
-        resizable = TRUE,
-        wrap = FALSE,
-        striped = TRUE,
-        compact = TRUE
-      )
-    })
-
-    # Split row button handler
-    observeEvent(input$split_row, {
-      req(data_store$cleaned_data)
-
-      # Get selected row from reactable
-      selected <- reactable::getReactableState("multi_cas_table", "selected")
-
-      if (is.null(selected) || length(selected) == 0) {
-        notify_user(
-          "Please select a row to split",
-          type = "warning",
-          duration = 3
-        )
-        return()
-      }
-
-      # Get multi-CAS rows
-      cleaned_data <- data_store$cleaned_data
-      multi_cas_rows <- filter_multi_cas_rows(cleaned_data)
-      row_to_split <- multi_cas_rows[selected, ]
-
-      # Get all CASRN columns
-      tag_map <- data_store$column_tags
-      cas_cols <- names(tag_map)[tag_map == "CASRN"]
-
-      # Extract non-NA CAS values
-      cas_values <- unlist(row_to_split[cas_cols])
-      cas_values <- cas_values[!is.na(cas_values)]
-
-      if (length(cas_values) <= 1) {
-        notify_user(
-          "This row does not have multiple CAS-RNs to split",
-          type = "warning",
-          duration = 3
-        )
-        return()
-      }
-
-      # Show confirmation modal
-      showModal(modalDialog(
-        title = "Confirm Row Split",
-        sprintf("This will split the selected row into %d separate rows, one for each CAS-RN:", length(cas_values)),
-        tags$ul(
-          lapply(cas_values, function(cas) tags$li(cas))
-        ),
-        footer = tagList(
-          modalButton("Cancel"),
-          actionButton(session$ns("confirm_split"), "Confirm Split", class = "btn-warning")
-        )
-      ))
-    })
-
-    # Confirm split handler
-    observeEvent(input$confirm_split, {
-      req(data_store$cleaned_data)
-
-      # Get selected row
-      selected <- reactable::getReactableState("multi_cas_table", "selected")
-      cleaned_data <- data_store$cleaned_data
-      multi_cas_rows <- filter_multi_cas_rows(cleaned_data)
-      row_to_split <- multi_cas_rows[selected, ]
-
-      # Get all CASRN columns
-      tag_map <- data_store$column_tags
-      cas_cols <- names(tag_map)[tag_map == "CASRN"]
-
-      # Extract non-NA CAS values
-      cas_values <- unlist(row_to_split[cas_cols])
-      cas_values <- cas_values[!is.na(cas_values)]
-
-      # Create new rows (one per CAS)
-      new_rows <- lapply(seq_along(cas_values), function(i) {
-        new_row <- row_to_split
-        # Set primary CAS column to this CAS value
-        new_row[[cas_cols[1]]] <- cas_values[i]
-        # Set all other CAS columns to NA
-        if (length(cas_cols) > 1) {
-          for (j in 2:length(cas_cols)) {
-            new_row[[cas_cols[j]]] <- NA_character_
-          }
-        }
-        # Update multi_cas flags
-        new_row$multi_cas <- FALSE
-        new_row$multi_cas_count <- 1L
-        return(new_row)
-      })
-
-      # Combine new rows
-      new_rows_df <- dplyr::bind_rows(new_rows)
-
-      # Remove original row from cleaned_data
-      original_row_id <- row_to_split$original_row_id
-      cleaned_data_updated <- cleaned_data[cleaned_data$original_row_id != original_row_id, ]
-
-      # Append new rows
-      cleaned_data_updated <- dplyr::bind_rows(cleaned_data_updated, new_rows_df)
-
-      # Update data_store
-      data_store$cleaned_data <- cleaned_data_updated
-
-      # Add audit entry
-      audit_entry <- tibble::tibble(
-        row_id = as.integer(original_row_id),
-        field = "multi_cas_split",
-        step = "manual_split",
-        original_value = paste(cas_values, collapse = "; "),
-        new_value = sprintf("Split into %d rows", length(cas_values)),
-        reason = "User-initiated multi-CAS row split"
-      )
-
-      data_store$cleaning_audit <- dplyr::bind_rows(data_store$cleaning_audit, audit_entry)
-
-      # Close modal
-      removeModal()
-
-      # Show success notification
-      showNotification(
-        sprintf("Row split into %d separate entries", length(cas_values)),
-        type = "message",
-        duration = 5
       )
     })
 
