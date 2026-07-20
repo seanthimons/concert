@@ -2,6 +2,57 @@
 
 # concert NEWS
 
+## v0.2.0 (2026-07-20)
+
+#### New features
+
+- split embedded units out of measurement values
+  ([532c0ce](https://github.com/seanthimons/concert/tree/532c0cee6a7f42b992d4a5694d5556af13ebde25))
+- rebuild numeric parse issues as editable bulk-reassign table
+  ([8369d2f](https://github.com/seanthimons/concert/tree/8369d2fec2b2350bbcc6b3e38b9e28a6593032f4))
+- add MFL fiber-concentration conversions to stable dictionary
+  ([e6b9956](https://github.com/seanthimons/concert/tree/e6b99567674c32990265f03c83337ae90e9eaca2))
+
+#### Bug fixes
+
+- harmonize microfiber units to MFL
+  ([84e6734](https://github.com/seanthimons/concert/tree/84e67346af7cf62ce2b2e0c7ab2ff4379df7405c))
+- resolve blank-target unit mappings
+  ([d215f96](https://github.com/seanthimons/concert/tree/d215f96988936bcbcbf56179e0a61060cbeb94af))
+- apply searchable review filters on selectize changes
+  ([300bd80](https://github.com/seanthimons/concert/tree/300bd80a654c1494a569b1d6b96a000518dab0ad))
+- keep filter dropdowns above table
+  ([e8edba9](https://github.com/seanthimons/concert/tree/e8edba9bfaa7495becab61672c5891a85e9a2468))
+
+#### Refactorings
+
+- reorder editor panels — unmatched under unit map, parse issues above
+  corrections
+  ([067ef89](https://github.com/seanthimons/concert/tree/067ef895b93a804e759eba098a155f77c87da640))
+
+#### Build
+
+- pin ComptoxR to v1.5.1
+  ([690eaf6](https://github.com/seanthimons/concert/tree/690eaf6e79770f188900789247bf19fbbe7dab72))
+
+#### CI
+
+- add workflow to track ComptoxR releases and open pin-bump PRs
+  ([28a5cf0](https://github.com/seanthimons/concert/tree/28a5cf018c149a7d981ce576de7c0e4ad8f7cd5e))
+
+#### Docs
+
+- mark internal editor/split helpers @noRd
+  ([700d324](https://github.com/seanthimons/concert/tree/700d324c4c9eb4c8fd3d1c146a97ce83120a920e))
+
+#### Other changes
+
+- bump version to 0.2.0 \[skip ci\]
+  ([f91ff3c](https://github.com/seanthimons/concert/tree/f91ff3cce240533dd67f55602e800791272475c3))
+
+Full set of changes:
+[`v0.1.4...v0.2.0`](https://github.com/seanthimons/concert/compare/v0.1.4...v0.2.0)
+
 ## v0.1.4 (2026-07-14)
 
 #### New features
@@ -30,6 +81,8 @@
 
 #### Docs
 
+- update NEWS.md for v0.1.4 \[skip ci\]
+  ([7dd3aba](https://github.com/seanthimons/concert/tree/7dd3aba08a6713763b805d1ddd539069c3083718))
 - track resume-replay bug analysis and id-keying follow-up
   ([437b325](https://github.com/seanthimons/concert/tree/437b325548e7c6e097df997ee48b7085489fbb30))
 
