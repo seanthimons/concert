@@ -1,0 +1,81 @@
+name: Track ComptoxR release
+
+# Keeps the ComptoxR pin in DESCRIPTION (Remotes: seanthimons/ComptoxR@<tag>)
+# aligned with ComptoxR's latest stable GitHub release. When a newer stable
+# release exists, this opens a PR bumping the pin so the change goes through
+# normal review + R-CMD-check rather than silently tracking @*release.
+#
+# Triggers:
+#   - schedule: weekly poll (adjust cadence as needed)
+#   - workflow_dispatch: run on demand
+#   - repository_dispatch (comptoxr-release): optional push trigger — have
+#     ComptoxR's release workflow POST /repos/seanthimons/concert/dispatches
+#     with {"event_type":"comptoxr-release"} for near-instant bumps.
+#
+# Note: the PR is opened with RELEASE_PAT so R-CMD-check runs on it. With only
+# GITHUB_TOKEN the PR is still created but its checks will not auto-trigger.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+  repository_dispatch:
+    types: [comptoxr-release]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  track-release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+      UPSTREAM: seanthimons/ComptoxR
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine latest stable release and current pin
+        id: check
+        run: |
+          set -euo pipefail
+          latest="$(gh api "repos/${UPSTREAM}/releases/latest" --jq .tag_name)"
+          current="$(sed -nE 's#.*seanthimons/ComptoxR@([^[:space:]]+).*#\1#p' DESCRIPTION)"
+          echo "latest=${latest}" >> "$GITHUB_OUTPUT"
+          echo "current=${current}" >> "$GITHUB_OUTPUT"
+          if [ -n "${latest}" ] && [ "${latest}" != "${current}" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "ComptoxR latest=${latest} current pin=${current}"
+
+      - name: Open bump PR
+        if: steps.check.outputs.changed == 'true'
+        env:
+          LATEST: ${{ steps.check.outputs.latest }}
+          CURRENT: ${{ steps.check.outputs.current }}
+        run: |
+          set -euo pipefail
+          branch="chore/comptoxr-${LATEST}"
+
+          # Skip if a PR for this bump is already open.
+          if [ -n "$(gh pr list --head "${branch}" --state open --json number --jq '.[].number')" ]; then
+            echo "PR for ${branch} already open; nothing to do."
+            exit 0
+          fi
+
+          sed -i -E "s#(seanthimons/ComptoxR@)[^[:space:]]+#\1${LATEST}#" DESCRIPTION
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "${branch}"
+          git add DESCRIPTION
+          git commit -m "build(deps): bump ComptoxR pin to ${LATEST}"
+          git push -f -u origin "${branch}"
+
+          body="$(printf 'Automated by `track-comptoxr-release`.\n\nComptoxR published stable release **%s** (current pin: `%s`).\nThis updates `Remotes: seanthimons/ComptoxR@%s` in DESCRIPTION.\n\nReview R-CMD-check, then merge to adopt. The `Imports` floor is left unchanged.' "${LATEST}" "${CURRENT}" "${LATEST}")"
+
+          gh pr create --base main --head "${branch}" \
+            --title "build(deps): bump ComptoxR pin to ${LATEST}" \
+            --body "${body}"
