@@ -182,7 +182,10 @@ run_harmonization_runtime <- function(
       unit_map = unit_map,
       corrections = corrections,
       media = media_for_harmonize,
-      apply_units = isTRUE(h_mask$units) && length(unit_cols) > 0L
+      # Enable unit harmonization whenever the units step is on. A tagged Unit
+      # column is not required: embedded units (e.g. "7 MFL") are extracted into
+      # empty unit cells even when no Unit column exists.
+      apply_units = isTRUE(h_mask$units)
     )
     harmonize_results <- measurement_result$harmonize_results
     harmonize_audit <- measurement_result$audit
