@@ -281,6 +281,7 @@ sanitize_selected_editor_rows <- function(selected_rows, n) {
 #' Left-joins the aggregated issues onto the queue by
 #' (measurement_column, original_value) via a single vectorized `match()`.
 #' Replaces the prior per-card `&&`-in-`which()` prefill.
+#' @noRd
 build_numeric_issue_editor_rows <- function(issues, queue) {
   if (is.null(issues) || nrow(issues) == 0L) {
     return(tibble::tibble(
@@ -313,6 +314,7 @@ build_numeric_issue_editor_rows <- function(issues, queue) {
 }
 
 #' Bulk-write one replacement value to the selected editor rows.
+#' @noRd
 numeric_issues_apply_to_selected <- function(editor, selected_rows, replacement) {
   editor <- tibble::as_tibble(editor)
   sel <- sanitize_selected_editor_rows(selected_rows, nrow(editor))
@@ -326,6 +328,7 @@ numeric_issues_apply_to_selected <- function(editor, selected_rows, replacement)
 }
 
 #' Bulk-mark the selected editor rows as excluded (blank value -> narrative NA).
+#' @noRd
 numeric_issues_exclude_selected <- function(editor, selected_rows) {
   editor <- tibble::as_tibble(editor)
   sel <- sanitize_selected_editor_rows(selected_rows, nrow(editor))
@@ -354,6 +357,7 @@ numeric_issues_exclude_selected <- function(editor, selected_rows) {
 #' @param unit_map Unit conversion tibble (for the known-unit test).
 #' @return list(values, units, extracted): modified vectors plus a logical mask
 #'   marking the rows where a unit was extracted.
+#' @noRd
 split_embedded_units <- function(values, units, unit_map) {
   values <- as.character(values)
   units <- as.character(units)
