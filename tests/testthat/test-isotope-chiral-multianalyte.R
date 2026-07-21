@@ -68,8 +68,10 @@ test_that("protect_chiral_designations does NOT flag acetone (no chiral marker)"
   result <- protect_chiral_designations(df, c("chemical_name"))
 
   expect_equal(result$cleaned_data$chemical_name[1], "acetone")
-  expect_true(is.na(result$cleaned_data$cleaning_flag[1]) ||
-    !grepl("WARNING: chiral", result$cleaned_data$cleaning_flag[1]))
+  expect_true(
+    is.na(result$cleaned_data$cleaning_flag[1]) ||
+      !grepl("WARNING: chiral", result$cleaned_data$cleaning_flag[1])
+  )
 })
 
 test_that("protect_chiral_designations handles NA values without error", {
@@ -147,9 +149,17 @@ test_that("expand_isotope_shortcodes normalizes separated isotope symbols", {
   )
   result <- expand_isotope_shortcodes(df, c("chemical_name"))
 
-  expect_equal(result$cleaned_data$chemical_name, c(
-    "Radium-226", "Radium-228", "Uranium-234", "Caesium-137", "Strontium-90", "Hydrogen-3"
-  ))
+  expect_equal(
+    result$cleaned_data$chemical_name,
+    c(
+      "Radium-226",
+      "Radium-228",
+      "Uranium-234",
+      "Caesium-137",
+      "Strontium-90",
+      "Hydrogen-3"
+    )
+  )
   expect_true(all(grepl("isotope_match", result$cleaned_data$cleaning_flag)))
 })
 
@@ -233,7 +243,11 @@ test_that("expand_isotope_shortcodes flags 'unat' as unresolvable WARNING", {
   expect_equal(result$cleaned_data$chemical_name[1], "unat")
   # Should be flagged
   expect_true(!is.na(result$cleaned_data$cleaning_flag[1]))
-  expect_true(grepl("WARNING.*unresolvable|unresolvable.*unat", result$cleaned_data$cleaning_flag[1], ignore.case = TRUE))
+  expect_true(grepl(
+    "WARNING.*unresolvable|unresolvable.*unat",
+    result$cleaned_data$cleaning_flag[1],
+    ignore.case = TRUE
+  ))
 })
 
 test_that("expand_isotope_shortcodes leaves 'tritium' unchanged (already a common name)", {
@@ -294,8 +308,10 @@ test_that("flag_multi_analyte flags 'nitrate + nitrite' with WARNING potential m
   expect_true(grepl("WARNING: potential multi-analyte", result$cleaned_data$cleaning_flag[1]))
   # acetone unchanged, no flag
   expect_equal(result$cleaned_data$chemical_name[2], "acetone")
-  expect_true(is.na(result$cleaned_data$cleaning_flag[2]) ||
-    !grepl("WARNING: potential multi-analyte", result$cleaned_data$cleaning_flag[2]))
+  expect_true(
+    is.na(result$cleaned_data$cleaning_flag[2]) ||
+      !grepl("WARNING: potential multi-analyte", result$cleaned_data$cleaning_flag[2])
+  )
 })
 
 test_that("flag_multi_analyte flags 'lead and arsenic'", {
@@ -327,8 +343,10 @@ test_that("flag_multi_analyte does NOT flag 'acetone' (no + or and)", {
   result <- flag_multi_analyte(df, c("chemical_name"))
 
   expect_equal(result$cleaned_data$chemical_name[1], "acetone")
-  expect_true(is.na(result$cleaned_data$cleaning_flag[1]) ||
-    !grepl("WARNING: potential multi-analyte", result$cleaned_data$cleaning_flag[1]))
+  expect_true(
+    is.na(result$cleaned_data$cleaning_flag[1]) ||
+      !grepl("WARNING: potential multi-analyte", result$cleaned_data$cleaning_flag[1])
+  )
 })
 
 test_that("flag_multi_analyte does NOT flag 'Sodium chloride' (no naked + or and)", {
@@ -336,8 +354,10 @@ test_that("flag_multi_analyte does NOT flag 'Sodium chloride' (no naked + or and
   result <- flag_multi_analyte(df, c("chemical_name"))
 
   expect_equal(result$cleaned_data$chemical_name[1], "Sodium chloride")
-  expect_true(is.na(result$cleaned_data$cleaning_flag[1]) ||
-    !grepl("WARNING: potential multi-analyte", result$cleaned_data$cleaning_flag[1]))
+  expect_true(
+    is.na(result$cleaned_data$cleaning_flag[1]) ||
+      !grepl("WARNING: potential multi-analyte", result$cleaned_data$cleaning_flag[1])
+  )
 })
 
 test_that("flag_multi_analyte does NOT flag '(+)-catechin' (the + is inside parentheses, not naked)", {
@@ -345,8 +365,38 @@ test_that("flag_multi_analyte does NOT flag '(+)-catechin' (the + is inside pare
   result <- flag_multi_analyte(df, c("chemical_name"))
 
   expect_equal(result$cleaned_data$chemical_name[1], "(+)-catechin")
-  expect_true(is.na(result$cleaned_data$cleaning_flag[1]) ||
-    !grepl("WARNING: potential multi-analyte", result$cleaned_data$cleaning_flag[1]))
+  expect_true(
+    is.na(result$cleaned_data$cleaning_flag[1]) ||
+      !grepl("WARNING: potential multi-analyte", result$cleaned_data$cleaning_flag[1])
+  )
+})
+
+test_that("flag_multi_analyte flags ' & ' and ' / ' separators", {
+  df <- tibble::tibble(chemical_name = c("acetone & ethanol", "toluene / benzene"))
+  result <- flag_multi_analyte(df, c("chemical_name"))
+
+  expect_true(grepl("WARNING: potential multi-analyte", result$cleaned_data$cleaning_flag[1]))
+  expect_true(grepl("WARNING: potential multi-analyte", result$cleaned_data$cleaning_flag[2]))
+})
+
+test_that("flag_multi_analyte does NOT flag ' & ' inside parentheses", {
+  df <- tibble::tibble(chemical_name = c("endosulfan (alpha & beta)"))
+  result <- flag_multi_analyte(df, c("chemical_name"))
+
+  expect_true(
+    is.na(result$cleaned_data$cleaning_flag[1]) ||
+      !grepl("WARNING: potential multi-analyte", result$cleaned_data$cleaning_flag[1])
+  )
+})
+
+test_that("flag_multi_analyte does NOT flag units or ratios (mg/L, w/w, 1.5/1)", {
+  df <- tibble::tibble(chemical_name = c("sodium (10 mg/L)", "mixture 3:1 w/w", "polymer (1.5/1)"))
+  result <- flag_multi_analyte(df, c("chemical_name"))
+
+  expect_true(all(
+    is.na(result$cleaned_data$cleaning_flag) |
+      !grepl("WARNING: potential multi-analyte", result$cleaned_data$cleaning_flag)
+  ))
 })
 
 test_that("flag_multi_analyte handles NA values without error", {

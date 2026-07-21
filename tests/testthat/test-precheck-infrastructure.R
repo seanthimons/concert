@@ -301,6 +301,22 @@ test_that("precheck_multi_analyte detects ' & ' and ' / ' separators", {
   expect_equal(result$est_changes, 2L)
 })
 
+# False-positive guards: units and ratios must NOT trigger. All lack the
+# flanking whitespace the separators require; ' & '/' / ' are also paren-guarded.
+test_that("precheck_multi_analyte does not trigger on units, ratios, or parenthetical groups", {
+  df <- tibble::tibble(
+    name = c(
+      "sodium (10 mg/L)", # unit, no spaces around /
+      "mixture 3:1 w/w", # ratio + unit, no spaces around /
+      "polymer (1.5/1)", # numeric ratio, no spaces around /
+      "endosulfan (alpha & beta)" # & is inside parentheses
+    )
+  )
+  result <- precheck_multi_analyte(df, "name")
+  expect_false(result$should_run)
+  expect_equal(result$est_changes, 0L)
+})
+
 # (c) SKIP-03 false-negative companion: "sand" contains "and" but NOT flanked by spaces
 test_that("SKIP-03: precheck_multi_analyte does not trigger on 'and' inside a word", {
   df <- tibble::tibble(name = c("sand", "mandarin", "standard"))
@@ -337,11 +353,13 @@ test_that("precheck_chiral_restore returns TRUE for chiral placeholder in values
 
 # Multiple placeholders counted correctly
 test_that("precheck_chiral_restore counts multiple placeholder rows correctly", {
-  df <- tibble::tibble(name = c(
-    "###CHIRAL_PLUS### methyl ester",
-    "###CHIRAL_MINUS### compound",
-    "plain"
-  ))
+  df <- tibble::tibble(
+    name = c(
+      "###CHIRAL_PLUS### methyl ester",
+      "###CHIRAL_MINUS### compound",
+      "plain"
+    )
+  )
   result <- precheck_chiral_restore(df, "name")
   expect_true(result$should_run)
   expect_equal(result$est_changes, 2L)

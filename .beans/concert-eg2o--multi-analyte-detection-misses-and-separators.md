@@ -1,14 +1,14 @@
 ---
 # concert-eg2o
 title: Multi-analyte detection misses ' & ' and ' / ' separators
-status: todo
+status: done
 type: bug
 priority: normal
 tags:
     - github:issue
     - github:54
 created_at: 2026-07-20T22:49:48Z
-updated_at: 2026-07-20T22:50:50Z
+updated_at: 2026-07-21T00:00:00Z
 ---
 
 ## Problem
