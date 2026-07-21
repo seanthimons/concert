@@ -1,8 +1,7 @@
 multi_analyte_fixture <- function(values) {
-  flagged <- !is.na(values) & (
-    grepl("(?<!\\()\\s\\+\\s(?!\\))", values, perl = TRUE) |
-      grepl("(?i)\\s+and\\s+", values, perl = TRUE)
-  )
+  flagged <- !is.na(values) &
+    (grepl("(?<!\\()\\s\\+\\s(?!\\))", values, perl = TRUE) |
+      grepl("(?i)\\s+and\\s+", values, perl = TRUE))
 
   tibble::tibble(
     original_row_id = seq_along(values),
@@ -17,6 +16,13 @@ test_that("suggest_multi_analyte_parts splits explicit separators and carries is
   expect_equal(suggest_multi_analyte_parts("(+)-catechin"), "(+)-catechin")
   expect_equal(suggest_multi_analyte_parts(NA_character_), character(0))
   expect_equal(suggest_multi_analyte_parts(""), character(0))
+})
+
+test_that("suggest_multi_analyte_parts splits ' & ' and ' / ' but leaves parenthetical groups intact", {
+  expect_equal(suggest_multi_analyte_parts("acetone & ethanol"), c("acetone", "ethanol"))
+  expect_equal(suggest_multi_analyte_parts("toluene / benzene"), c("toluene", "benzene"))
+  # ' & ' inside parentheses is not a separator -> value stays whole
+  expect_equal(suggest_multi_analyte_parts("endosulfan (alpha & beta)"), "endosulfan (alpha & beta)")
 })
 
 test_that("resolve_multi_analyte_row split creates rows with lineage and audit trail", {

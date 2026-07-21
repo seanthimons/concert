@@ -465,10 +465,26 @@ precheck_isotope_shortcodes <- function(df, name_cols, isotope_lookup) {
   list(should_run = est_changes > 0L, est_changes = est_changes)
 }
 
+#' Regex for whitespace-flanked multi-analyte separators
+#'
+#' Single source of truth shared by \code{precheck_multi_analyte()},
+#' \code{flag_multi_analyte()}, and \code{suggest_multi_analyte_parts()} so the
+#' three stay in lockstep. Matches naked \code{ + } (not in parens) and
+#' \code{ and } anywhere, plus \code{ & } and \code{ / } only when the separator
+#' is not inside a parenthetical group -- so "endosulfan (alpha & beta)" is left
+#' intact while "acetone & ethanol" and "toluene / benzene" split. All
+#' separators require flanking whitespace, which excludes units and ratios such
+#' as \code{mg/L}, \code{w/w}, and \code{1.5/1}.
+#' @return Single Perl-compatible regex string.
+#' @keywords internal
+multi_analyte_separator_pattern <- function() {
+  "(?<!\\()\\s\\+\\s(?!\\))|(?i)\\s+and\\s+|\\s&\\s(?![^()]*\\))|\\s/\\s(?![^()]*\\))"
+}
+
 #' Pre-check predicate for flag_multi_analyte step
 #'
 #' Checks for multi-analyte patterns: strings containing common separator
-#' tokens (\code{and}, \code{&}, \code{/}) flanked by whitespace.
+#' tokens (\code{and}, \code{+}, \code{&}, \code{/}) flanked by whitespace.
 #'
 #' @param df Dataframe to check.
 #' @param name_cols Character vector of name column names.
@@ -478,7 +494,7 @@ precheck_multi_analyte <- function(df, name_cols) {
   if (length(name_cols) == 0) {
     return(list(should_run = FALSE, est_changes = 0L))
   }
-  pattern <- "(?<!\\()\\s\\+\\s(?!\\))|(?i)\\s+and\\s+"
+  pattern <- multi_analyte_separator_pattern()
   est_changes <- as.integer(sum(vapply(
     name_cols,
     function(col) sum(stringr::str_detect(df[[col]], pattern), na.rm = TRUE),
@@ -3335,11 +3351,13 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
 
 #' Flag rows containing naked multi-analyte expressions
 #'
-#' Flags rows where name columns contain naked " + " or " and " between tokens
-#' as "WARNING: potential multi-analyte". Does NOT modify cell values (flag only per D-11).
+#' Flags rows where name columns contain naked " + ", " and ", " & ", or " / "
+#' between tokens as "WARNING: potential multi-analyte". Does NOT modify cell
+#' values (flag only per D-11). See [multi_analyte_separator_pattern()].
 #'
 #' A naked " + " means a plus sign surrounded by whitespace and NOT inside parentheses.
-#' "(+)-catechin" is NOT flagged - the + is inside parentheses.
+#' "(+)-catechin" is NOT flagged - the + is inside parentheses. " & " and " / "
+#' are likewise skipped inside a parenthetical group, e.g. "endosulfan (alpha & beta)".
 #'
 #' @param df Dataframe with name columns
 #' @param name_cols Character vector of Name-tagged column names
@@ -3357,13 +3375,8 @@ flag_multi_analyte <- function(df, name_cols) {
     df_result$cleaning_flag <- NA_character_
   }
 
-  # Pattern for naked " + ": whitespace + plus + whitespace
-  # NOT inside parentheses - we check this by requiring the + is not immediately
-  # preceded by "(" or followed by ")"
-  NAKED_PLUS_PATTERN <- "(?<!\\()\\s\\+\\s(?!\\))"
-
-  # Pattern for naked " and ": word boundary " and " word boundary (case-insensitive)
-  NAKED_AND_PATTERN <- "(?i)\\s+and\\s+"
+  # Shared separator pattern (naked " + "/" and " plus paren-guarded " & "/" / ")
+  sep_pattern <- multi_analyte_separator_pattern()
 
   # Pre-allocate audit vectors
   audit_row_ids <- integer()
@@ -3385,14 +3398,11 @@ flag_multi_analyte <- function(df, name_cols) {
     col_values <- df_result[[col_name]]
 
     # Vectorized pattern detection
-    has_naked_plus <- grepl(NAKED_PLUS_PATTERN, col_values, perl = TRUE)
-    has_naked_plus[is.na(has_naked_plus)] <- FALSE
+    has_sep <- grepl(sep_pattern, col_values, perl = TRUE)
+    has_sep[is.na(has_sep)] <- FALSE
 
-    has_naked_and <- grepl(NAKED_AND_PATTERN, col_values, perl = TRUE)
-    has_naked_and[is.na(has_naked_and)] <- FALSE
-
-    # Find rows to flag (non-NA values that match either pattern)
-    to_flag <- which(!is.na(col_values) & (has_naked_plus | has_naked_and))
+    # Find rows to flag (non-NA values that match any separator)
+    to_flag <- which(!is.na(col_values) & has_sep)
     if (length(to_flag) > 0) {
       already_reviewed <- rep(FALSE, length(col_values))
       if ("multi_analyte_resolution" %in% names(df_result)) {
@@ -3542,8 +3552,7 @@ suggest_multi_analyte_parts <- function(value) {
     return(character(0))
   }
 
-  normalized <- gsub("(?<!\\()\\s\\+\\s(?!\\))", "\n", value, perl = TRUE)
-  normalized <- gsub("(?i)\\s+and\\s+", "\n", normalized, perl = TRUE)
+  normalized <- gsub(multi_analyte_separator_pattern(), "\n", value, perl = TRUE)
   parts <- trimws(unlist(strsplit(normalized, "\n", fixed = TRUE)))
   parts <- parts[nzchar(parts)]
 
