@@ -16,6 +16,6 @@ list(should_run = logical, est_changes = integer).
 }
 \description{
 Checks for multi-analyte patterns: strings containing common separator
-tokens (\code{and}, \code{&}, \code{/}) flanked by whitespace.
+tokens (\code{and}, \code{+}, \code{&}, \code{/}) flanked by whitespace.
 }
 \keyword{internal}

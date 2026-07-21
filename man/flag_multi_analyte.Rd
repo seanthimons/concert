@@ -15,12 +15,14 @@ flag_multi_analyte(df, name_cols)
 List with cleaned_data (tibble) and audit_trail (tibble)
 }
 \description{
-Flags rows where name columns contain naked " + " or " and " between tokens
-as "WARNING: potential multi-analyte". Does NOT modify cell values (flag only per D-11).
+Flags rows where name columns contain naked " + ", " and ", " & ", or " / "
+between tokens as "WARNING: potential multi-analyte". Does NOT modify cell
+values (flag only per D-11). See \code{\link[=multi_analyte_separator_pattern]{multi_analyte_separator_pattern()}}.
 }
 \details{
 A naked " + " means a plus sign surrounded by whitespace and NOT inside parentheses.
-"(+)-catechin" is NOT flagged - the + is inside parentheses.
+"(+)-catechin" is NOT flagged - the + is inside parentheses. " & " and " / "
+are likewise skipped inside a parenthetical group, e.g. "endosulfan (alpha & beta)".
 }
 \examples{
 df <- tibble::tibble(chemical_name = c("nitrate + nitrite", "(+)-catechin", "acetone"))
