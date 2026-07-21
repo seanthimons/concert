@@ -1344,7 +1344,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
               session$ns("review_pairing"),
               "CAS handling",
               choices = c(
-                "Pair name ↔ CAS by position" = "position",
+                "Pair name to CAS by position" = "position",
                 "Keep CAS together" = "broadcast"
               ),
               selected = pairing_value,
