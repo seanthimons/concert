@@ -22,5 +22,6 @@ resolve_multi_analyte_row(df, name_cols, row_index, action, values = NULL)
 List with \code{cleaned_data} and \code{audit_trail}.
 }
 \description{
-Resolve one flagged multi-analyte row
+Thin wrapper over \code{\link[=resolve_review_row]{resolve_review_row()}} for name-only resolution. Retained
+for the headless path and existing callers.
 }
