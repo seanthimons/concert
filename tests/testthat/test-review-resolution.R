@@ -186,6 +186,47 @@ test_that("find_matching_review_rows returns siblings and excludes others", {
   expect_equal(matched, c(1L, 2L, 3L))
 })
 
+test_that("fanning is CAS-column-order independent (swapped columns match and resolve identically)", {
+  # Two GenX rows with the SAME CAS set stored in SWAPPED columns.
+  df <- tibble::tibble(
+    original_row_id = 1:2,
+    analyte = c("GenX", "GenX"),
+    casrn = c("13252-13-6", "62037-80-3"),
+    cas_extract_casrn_2 = c("62037-80-3", "13252-13-6"),
+    cleaning_flag = rep("WARNING: potential multi-analyte", 2),
+    multi_cas = c(TRUE, TRUE),
+    multi_cas_count = c(2L, 2L)
+  )
+  cas_cols <- c("casrn", "cas_extract_casrn_2")
+
+  # Swapped storage still matches (signature sorts the CAS set).
+  matched <- find_matching_review_rows(df, 1L, c(1L, 2L), "analyte", cas_cols)
+  expect_equal(matched, c(1L, 2L))
+
+  # The spec drives assignment, so both siblings resolve to the identical
+  # name<->CAS pairing regardless of their original column order.
+  spec <- list(
+    name_action = "split",
+    name_parts = c("GenX Acid", "GenX Ammonium Salt"),
+    cas_parts = c("13252-13-6", "62037-80-3"),
+    pairing = "position"
+  )
+  result <- apply_review_resolutions(
+    df,
+    name_cols = "analyte",
+    decisions = list("1" = spec, "2" = spec),
+    cas_cols = cas_cols
+  )
+  cleaned <- result$cleaned_data
+
+  expect_equal(nrow(cleaned), 4)
+  # Every "GenX Acid" row got 13252-13-6, every "Ammonium Salt" got 62037-80-3,
+  # for BOTH parents -- column order did not leak into the assignment.
+  expect_equal(unique(cleaned$casrn[cleaned$analyte == "GenX Acid"]), "13252-13-6")
+  expect_equal(unique(cleaned$casrn[cleaned$analyte == "GenX Ammonium Salt"]), "62037-80-3")
+  expect_false(any(cleaned$multi_cas))
+})
+
 test_that("fanning one spec to all siblings resolves each and preserves lineage", {
   df <- review_dup_fixture()
 

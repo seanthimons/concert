@@ -1407,10 +1407,10 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       )
 
       # Fan the same spec to every flagged row sharing this row's name + CAS
-      # signature. Siblings are byte-identical in name + CAS, so the edited parts
-      # apply verbatim.
-      # ponytail: assumes matched siblings share CAS column ordering; true for
-      # regulatory duplicate rows, where CAS columns are consistent per substance.
+      # signature. resolve_review_row() assigns from the spec verbatim (it never
+      # reads a target row's own CAS columns), so all siblings resolve to the
+      # identical name<->CAS pairing regardless of the column order they stored
+      # CAS in -- see the swapped-column test in test-review-resolution.R.
       targets <- if (isTRUE(input$review_apply_all_matching)) {
         find_matching_review_rows(
           data_store$cleaned_data,
