@@ -3645,6 +3645,59 @@ row_cas_values <- function(df, row_index, cas_cols) {
   vals[!is.na(vals) & nzchar(vals)]
 }
 
+#' Order-independent signature for a review row (Name values + CAS set)
+#'
+#' Two rows with the same signature are the "same substance" for the purpose of
+#' fanning one review decision to all matching flagged rows. CAS values are
+#' sorted so column order does not affect the key.
+#'
+#' @param df Cleaned data frame.
+#' @param row_index One-based row position.
+#' @param name_cols Character vector of Name-tagged column names.
+#' @param cas_cols Character vector of CASRN-tagged column names.
+#' @return Single string key.
+#' @noRd
+review_row_signature <- function(df, row_index, name_cols, cas_cols) {
+  name_cols <- intersect(name_cols, names(df))
+  name_vals <- if (length(name_cols) == 0) {
+    character(0)
+  } else {
+    v <- trimws(as.character(unlist(df[row_index, name_cols, drop = TRUE], use.names = FALSE)))
+    v[is.na(v)] <- ""
+    v
+  }
+  cas_set <- sort(unique(row_cas_values(df, row_index, cas_cols)))
+  # Prefixed groups + delimiters unlikely in chemical names/CAS avoid collisions.
+  paste0(
+    "name=",
+    paste(name_vals, collapse = " ~|~ "),
+    " cas=",
+    paste(cas_set, collapse = ", ")
+  )
+}
+
+#' Review rows sharing the target row's Name + CAS signature
+#'
+#' @param df Cleaned data frame.
+#' @param target_row_index One-based row position whose signature to match.
+#' @param candidate_row_indices Integer vector of review-row positions to test.
+#' @param name_cols Character vector of Name-tagged column names.
+#' @param cas_cols Character vector of CASRN-tagged column names.
+#' @return Subset of `candidate_row_indices` matching the target (target included).
+#' @noRd
+find_matching_review_rows <- function(df, target_row_index, candidate_row_indices, name_cols, cas_cols) {
+  if (length(candidate_row_indices) == 0) {
+    return(candidate_row_indices)
+  }
+  target <- review_row_signature(df, target_row_index, name_cols, cas_cols)
+  sigs <- vapply(
+    candidate_row_indices,
+    function(i) review_row_signature(df, i, name_cols, cas_cols),
+    character(1)
+  )
+  candidate_row_indices[sigs == target]
+}
+
 #' Resolve one flagged review row (multi-analyte and/or multi-CAS)
 #'
 #' Single coordinated engine behind [resolve_multi_analyte_row()]. Splits the

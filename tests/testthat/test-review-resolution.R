@@ -130,3 +130,87 @@ test_that("apply_review_resolutions applies staged decisions in descending row o
   expect_false(any(cleaned$multi_cas))
   expect_false(any(is_multi_analyte_review_row(cleaned)))
 })
+
+# --- Fan one decision to all rows sharing the same name + CAS (issue #55) -----
+
+review_dup_fixture <- function() {
+  # Three identical GenX rows (duplicate guidance values) + PFBS + a clean row.
+  tibble::tibble(
+    original_row_id = 1:5,
+    analyte = c("GenX", "GenX", "GenX", "PFBS", "acetone"),
+    casrn = c("13252-13-6", "13252-13-6", "13252-13-6", "375-73-5", "67-64-1"),
+    cas_extract_casrn_2 = c("62037-80-3", "62037-80-3", "62037-80-3", "45187-15-3", NA_character_),
+    cleaning_flag = c(
+      rep("WARNING: potential multi-analyte", 3),
+      NA_character_,
+      NA_character_
+    ),
+    multi_cas = c(TRUE, TRUE, TRUE, TRUE, FALSE),
+    multi_cas_count = c(2L, 2L, 2L, 2L, 1L)
+  )
+}
+
+test_that("review_row_signature matches duplicates and is CAS-order independent", {
+  df <- review_dup_fixture()
+  name_cols <- "analyte"
+  cas_cols <- c("casrn", "cas_extract_casrn_2")
+
+  sig <- function(i) review_row_signature(df, i, name_cols, cas_cols)
+
+  # The three GenX rows share one signature.
+  expect_equal(sig(1), sig(2))
+  expect_equal(sig(1), sig(3))
+  # Different substances differ.
+  expect_false(sig(1) == sig(4))
+  expect_false(sig(1) == sig(5))
+
+  # Swapping a row's two CAS columns must not change the signature.
+  df_swapped <- df
+  df_swapped$casrn[2] <- "62037-80-3"
+  df_swapped$cas_extract_casrn_2[2] <- "13252-13-6"
+  expect_equal(
+    review_row_signature(df_swapped, 2, name_cols, cas_cols),
+    sig(1)
+  )
+})
+
+test_that("find_matching_review_rows returns siblings and excludes others", {
+  df <- review_dup_fixture()
+  matched <- find_matching_review_rows(
+    df,
+    target_row_index = 1L,
+    candidate_row_indices = c(1L, 2L, 3L, 4L),
+    name_cols = "analyte",
+    cas_cols = c("casrn", "cas_extract_casrn_2")
+  )
+  expect_equal(matched, c(1L, 2L, 3L))
+})
+
+test_that("fanning one spec to all siblings resolves each and preserves lineage", {
+  df <- review_dup_fixture()
+
+  spec <- list(
+    name_action = "split",
+    name_parts = c("GenX Acid", "GenX Ammonium Salt"),
+    cas_parts = c("13252-13-6", "62037-80-3"),
+    pairing = "position"
+  )
+  # Simulate the fanned stage observer: same spec staged for each sibling.
+  decisions <- list("1" = spec, "2" = spec, "3" = spec)
+
+  result <- apply_review_resolutions(
+    df,
+    name_cols = "analyte",
+    decisions = decisions,
+    cas_cols = c("casrn", "cas_extract_casrn_2")
+  )
+  cleaned <- result$cleaned_data
+
+  # Each GenX parent (original_row_id 1/2/3) split into two rows -> 3 + 3 + PFBS + acetone.
+  expect_equal(nrow(cleaned), 8)
+  expect_false(any(is_multi_analyte_review_row(cleaned)))
+  expect_false(any(cleaned$multi_cas[cleaned$original_row_id %in% 1:3]))
+  # Lineage: every split child keeps its parent's original_row_id.
+  expect_equal(sort(cleaned$original_row_id[cleaned$analyte == "GenX Acid"]), c(1L, 2L, 3L))
+  expect_equal(sort(cleaned$original_row_id[cleaned$analyte == "GenX Ammonium Salt"]), c(1L, 2L, 3L))
+})

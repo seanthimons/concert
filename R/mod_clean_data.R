@@ -1305,6 +1305,15 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         cas_default
       }
 
+      match_idx <- find_matching_review_rows(
+        data_store$cleaned_data,
+        row_index,
+        review_rows$.row_index,
+        name_cols,
+        cas_cols
+      )
+      n_match <- length(match_idx)
+
       div(
         class = "mt-3 p-3 bg-light rounded",
         div(
@@ -1350,6 +1359,13 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
             )
           )
         ),
+        if (n_match > 1L) {
+          checkboxInput(
+            session$ns("review_apply_all_matching"),
+            sprintf("Apply to all %d rows with the same name + CAS", n_match),
+            value = TRUE
+          )
+        },
         actionButton(
           session$ns("stage_review"),
           "Stage decision",
@@ -1390,12 +1406,31 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         pairing = input$review_pairing
       )
 
+      # Fan the same spec to every flagged row sharing this row's name + CAS
+      # signature. Siblings are byte-identical in name + CAS, so the edited parts
+      # apply verbatim.
+      # ponytail: assumes matched siblings share CAS column ordering; true for
+      # regulatory duplicate rows, where CAS columns are consistent per substance.
+      targets <- if (isTRUE(input$review_apply_all_matching)) {
+        find_matching_review_rows(
+          data_store$cleaned_data,
+          row_index,
+          review_rows$.row_index,
+          review_name_cols(),
+          review_cas_cols()
+        )
+      } else {
+        row_index
+      }
+
       decisions <- data_store$review_decisions %||% list()
-      decisions[[as.character(row_index)]] <- spec
+      for (ri in targets) {
+        decisions[[as.character(ri)]] <- spec
+      }
       data_store$review_decisions <- decisions
 
       showNotification(
-        sprintf("Decision staged for row %d (%d total).", row_index, length(decisions)),
+        sprintf("Staged for %d matching row(s) (%d total).", length(targets), length(decisions)),
         type = "message",
         duration = 3
       )
