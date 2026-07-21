@@ -2,6 +2,21 @@
 
 # concert NEWS
 
+## v0.3.1 (2026-07-21)
+
+#### Bug fixes
+
+- detect ’ & ’ and ’ / ’ multi-analyte separators (#54)
+  ([2de8fd0](https://github.com/seanthimons/concert/tree/2de8fd0f050b163a9fb19407abc034f01ef2f98d))
+
+#### Other changes
+
+- bump version to 0.3.1
+  ([33ecc81](https://github.com/seanthimons/concert/tree/33ecc812019d3a89d81adb1ceb5233f6377b9e71))
+
+Full set of changes:
+[`v0.3.0...v0.3.1`](https://github.com/seanthimons/concert/compare/v0.3.0...v0.3.1)
+
 ## v0.3.0 (2026-07-21)
 
 #### New features
@@ -26,6 +41,8 @@
 
 #### Docs
 
+- update NEWS.md for v0.3.0 \[skip ci\]
+  ([c215756](https://github.com/seanthimons/concert/tree/c215756dff1ece1caea5aadc83c25221816335fb))
 - track review-resolution follow-up beans (#54, #55)
   ([347221b](https://github.com/seanthimons/concert/tree/347221b073fe431267b0ae2a076942ff91be200b))
 
