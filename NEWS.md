@@ -2,6 +2,41 @@
 
 # concert NEWS
 
+## v0.3.0 (2026-07-21)
+
+#### New features
+
+- fan one review decision to all rows sharing name + CAS
+  ([4d0535a](https://github.com/seanthimons/concert/tree/4d0535a263decf66e5a062476c6a7214b505d4d6))
+
+#### Bug fixes
+
+- use ASCII in review pairing label for R CMD check
+  ([1de0618](https://github.com/seanthimons/concert/tree/1de0618a9b30336743e0b206c479d8128b04c952))
+
+#### Refactorings
+
+- consolidate multi-analyte and multi-CAS review into one surface
+  ([0c8df57](https://github.com/seanthimons/concert/tree/0c8df577e47c71bd21b74dc18dce88e2b8ee4c19))
+
+#### Tests
+
+- prove review fan-out is CAS-column-order independent
+  ([5bb771e](https://github.com/seanthimons/concert/tree/5bb771e90687770cce7584ebb8a2dc26cfd4f3dc))
+
+#### Docs
+
+- track review-resolution follow-up beans (#54, #55)
+  ([347221b](https://github.com/seanthimons/concert/tree/347221b073fe431267b0ae2a076942ff91be200b))
+
+#### Other changes
+
+- bump version to 0.3.0 \[skip ci\]
+  ([5b1937a](https://github.com/seanthimons/concert/tree/5b1937a47c3ca5fc44c8cc4a26f2c731ee4e89b3))
+
+Full set of changes:
+[`v0.2.0...v0.3.0`](https://github.com/seanthimons/concert/compare/v0.2.0...v0.3.0)
+
 ## v0.2.0 (2026-07-20)
 
 #### New features
@@ -42,6 +77,8 @@
 
 #### Docs
 
+- update NEWS.md for v0.2.0 \[skip ci\]
+  ([c840d1f](https://github.com/seanthimons/concert/tree/c840d1fbc7a6f6ec6ab4296c8738dc80b0d7fdcc))
 - mark internal editor/split helpers @noRd
   ([700d324](https://github.com/seanthimons/concert/tree/700d324c4c9eb4c8fd3d1c146a97ce83120a920e))
 
