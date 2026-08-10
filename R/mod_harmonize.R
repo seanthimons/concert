@@ -311,7 +311,8 @@ mod_harmonize_server <- function(id, data_store) {
 
               # Find rows where orig_unit matches changed units OR was unmatched
               # (unmatched rows should be re-checked against new mappings)
-              affected_mask <- old_harmonize$orig_unit %in% pending_changes | old_harmonize$unit_flag == "unmatched"
+              affected_mask <- old_harmonize$orig_unit %in% pending_changes |
+                (!is.na(old_harmonize$unit_flag) & old_harmonize$unit_flag == "unmatched")
 
               incProgress(
                 0.3,
@@ -517,7 +518,7 @@ mod_harmonize_server <- function(id, data_store) {
       hr <- data_store$harmonize_results
 
       n_parsed <- nrow(hr$parsed)
-      n_harmonized <- sum(hr$harmonized$unit_flag != "unmatched", na.rm = TRUE)
+      n_harmonized <- sum(unit_harmonization_succeeded(hr$harmonized$unit_flag))
       n_dtxsid <- if ("consensus_dtxsid" %in% names(hr$input_data)) {
         sum(!is.na(hr$input_data$consensus_dtxsid))
       } else {
@@ -754,8 +755,10 @@ mod_harmonize_server <- function(id, data_store) {
         return("Unmatched Units")
       }
       harmonized <- data_store$harmonize_results$harmonized
+      unmatched_mask <- !is.na(harmonized$unit_flag) &
+        harmonized$unit_flag == "unmatched"
       n_unique <- length(unique(
-        harmonized$orig_unit[harmonized$unit_flag == "unmatched"]
+        harmonized$orig_unit[unmatched_mask]
       ))
       sprintf("Unmatched Units (%d)", n_unique)
     })
@@ -1783,8 +1786,9 @@ mod_harmonize_server <- function(id, data_store) {
     # --- Unmatched units batch panel (UNIT-06, D-12..D-16) --------------------
     # Three display states:
     #   1. Pre-run: "Run harmonization to see unmatched units."
-    #   2. Post-run, all matched: "All units matched successfully." (alert-success)
-    #   3. Post-run, unmatched: list with per-unit "Add Mapping" and batch action
+    #   2. Post-run, all successful: "All units matched successfully." (alert-success)
+    #   3. Post-run, review states only: warning with row count
+    #   4. Post-run, unmatched: list with per-unit "Add Mapping" and batch action
     # Per-unit unit-name values escaped in onclick to mitigate T-34-06 JS injection.
 
     output$unmatched_panel <- renderUI({
@@ -1805,9 +1809,19 @@ mod_harmonize_server <- function(id, data_store) {
       }
 
       harmonized <- data_store$harmonize_results$harmonized
-      unmatched <- harmonized[harmonized$unit_flag == "unmatched", ]
+      unmatched_mask <- !is.na(harmonized$unit_flag) &
+        harmonized$unit_flag == "unmatched"
+      unmatched <- harmonized[unmatched_mask, ]
 
       if (nrow(unmatched) == 0) {
+        n_review <- sum(!unit_harmonization_succeeded(harmonized$unit_flag))
+        if (n_review > 0) {
+          return(div(
+            class = "alert alert-warning",
+            bsicons::bs_icon("exclamation-triangle"),
+            sprintf(" No unmatched units, but %d row(s) need unit review.", n_review)
+          ))
+        }
         return(div(
           class = "alert alert-success",
           bsicons::bs_icon("check-circle"),
@@ -1857,8 +1871,10 @@ mod_harmonize_server <- function(id, data_store) {
       req(data_store$harmonize_results)
 
       harmonized <- data_store$harmonize_results$harmonized
+      unmatched_mask <- !is.na(harmonized$unit_flag) &
+        harmonized$unit_flag == "unmatched"
       unmatched_units <- unique(
-        harmonized$orig_unit[harmonized$unit_flag == "unmatched"]
+        harmonized$orig_unit[unmatched_mask]
       )
 
       if (length(unmatched_units) == 0) {
