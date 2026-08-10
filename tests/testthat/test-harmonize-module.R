@@ -141,13 +141,25 @@ test_that("QC metrics compute correctly from known pipeline output", {
     parse_flag = c("", "", "non_numeric", "", "non_numeric")
   )
 
+  unit_flags <- c(
+    "",
+    "case_fallback",
+    "unit_extracted",
+    "unmatched",
+    "needs_mw",
+    "ambiguous_unit",
+    "needs_context",
+    "mw_lookup_failed",
+    "absent",
+    NA_character_
+  )
   harmonized <- tibble::tibble(
-    orig_row_id = 1:5,
-    orig_unit = c("mg/L", "ug/L", "mg/L", "ppb", "NTU"),
-    harmonized_value = c(1.5, 0.002, NA, 0.0035, NA),
-    harmonized_unit = c("mg/L", "mg/L", "mg/L", "mg/L", "NTU"),
-    conversion_factor = c(1, 0.001, 1, 0.001, 1),
-    unit_flag = c("", "", "", "", "unmatched")
+    orig_row_id = seq_along(unit_flags),
+    orig_unit = rep("mg/L", length(unit_flags)),
+    harmonized_value = rep(1, length(unit_flags)),
+    harmonized_unit = rep("mg/L", length(unit_flags)),
+    conversion_factor = rep(1, length(unit_flags)),
+    unit_flag = unit_flags
   )
 
   input_data <- tibble::tibble(
@@ -158,12 +170,12 @@ test_that("QC metrics compute correctly from known pipeline output", {
   hr <- list(parsed = parsed, harmonized = harmonized, input_data = input_data)
 
   n_parsed <- nrow(hr$parsed)
-  n_harmonized <- sum(hr$harmonized$unit_flag != "unmatched", na.rm = TRUE)
+  n_harmonized <- sum(unit_harmonization_succeeded(hr$harmonized$unit_flag))
   n_dtxsid <- sum(!is.na(hr$input_data$consensus_dtxsid))
   n_na_numeric <- sum(is.na(hr$parsed$numeric_value))
 
   expect_equal(n_parsed, 5)
-  expect_equal(n_harmonized, 4)
+  expect_equal(n_harmonized, 3)
   expect_equal(n_dtxsid, 3)
   expect_equal(n_na_numeric, 2)
 })
@@ -489,6 +501,17 @@ rendered_ui_text <- function(ui) {
   paste(htmltools::renderTags(ui)$html, collapse = "\n")
 }
 
+make_flagged_harmonized <- function(unit_flags, orig_units = rep("mg/L", length(unit_flags))) {
+  tibble::tibble(
+    orig_row_id = seq_along(unit_flags),
+    orig_unit = orig_units,
+    harmonized_value = rep(1, length(unit_flags)),
+    harmonized_unit = orig_units,
+    conversion_factor = rep(1, length(unit_flags)),
+    unit_flag = unit_flags
+  )
+}
+
 test_that("harmonize_run_nonce dispatch populates media results and canonical row counts", {
   data_store <- make_dispatch_store()
 
@@ -530,6 +553,80 @@ test_that("harmonize_run_nonce dispatch populates unit results and leaves pre-ru
     expect_false(grepl("Run harmonization to see unmatched units", after, fixed = TRUE))
     expect_match(after, "All units matched successfully", fixed = TRUE)
     expect_null(data_store$harmonize_step_mask)
+  })
+})
+
+test_that("QC dashboard counts only successful unit provenance", {
+  data_store <- make_dispatch_store()
+  flags <- c(
+    "",
+    "case_fallback",
+    "unit_extracted",
+    "unmatched",
+    "needs_mw",
+    "ambiguous_unit",
+    "needs_context",
+    "mw_lookup_failed",
+    "absent",
+    NA_character_
+  )
+
+  shiny::testServer(mod_harmonize_server, args = list(data_store = data_store), {
+    data_store$harmonize_results <- list(
+      parsed = tibble::tibble(
+        orig_row_id = seq_along(flags),
+        numeric_value = rep(1, length(flags))
+      ),
+      harmonized = make_flagged_harmonized(flags),
+      input_data = tibble::tibble(result = rep("1", length(flags)))
+    )
+    session$flushReact()
+
+    qc <- rendered_ui_text(output$qc_dashboard)
+    expect_match(qc, '<p class="value-box-title">Rows Harmonized</p>', fixed = TRUE)
+    expect_match(qc, '<p class="value-box-value">3</p>', fixed = TRUE)
+  })
+})
+
+test_that("unmatched panel warns when review states remain without literal unmatched rows", {
+  data_store <- make_dispatch_store()
+  review_flags <- c(
+    "needs_mw",
+    "ambiguous_unit",
+    "needs_context",
+    "mw_lookup_failed",
+    "absent",
+    NA_character_,
+    "case_fallback"
+  )
+
+  shiny::testServer(mod_harmonize_server, args = list(data_store = data_store), {
+    data_store$harmonize_results <- list(
+      parsed = tibble::tibble(
+        orig_row_id = seq_along(review_flags),
+        numeric_value = rep(1, length(review_flags))
+      ),
+      harmonized = make_flagged_harmonized(review_flags),
+      input_data = tibble::tibble(result = rep("1", length(review_flags)))
+    )
+    session$flushReact()
+
+    warning_panel <- rendered_ui_text(output$unmatched_panel)
+    expect_match(warning_panel, "No unmatched units, but 6 row(s) need unit review.", fixed = TRUE)
+    expect_false(grepl("All units matched successfully", warning_panel, fixed = TRUE))
+    expect_false(grepl("Add All as Pass-through", warning_panel, fixed = TRUE))
+
+    literal_flags <- c("unmatched", "absent", "needs_mw")
+    data_store$harmonize_results <- list(
+      parsed = tibble::tibble(orig_row_id = 1:3, numeric_value = rep(1, 3)),
+      harmonized = make_flagged_harmonized(literal_flags, c("NTU", "", "mM")),
+      input_data = tibble::tibble(result = rep("1", 3))
+    )
+    session$flushReact()
+
+    unmatched_panel <- rendered_ui_text(output$unmatched_panel)
+    expect_match(unmatched_panel, "NTU (1 rows)", fixed = TRUE)
+    expect_false(grepl("mM (", unmatched_panel, fixed = TRUE))
   })
 })
 
@@ -857,6 +954,27 @@ test_that("split_embedded_units rejects unknown units and unparseable numbers", 
   expect_equal(res$values, c("abc MFL", "7 parsec"))
 })
 
+test_that("split_embedded_units extracts only successful harmonization states", {
+  unit_map <- tibble::tibble(
+    from_unit = c("mg/L", "ml", "ML"),
+    to_unit = c("mg/L", "mL", "L"),
+    multiplier = c(1, 1, 1e6),
+    category = "test",
+    confidence = "HIGH",
+    source = "test"
+  )
+
+  result <- split_embedded_units(
+    c("1 mg/L", "2 mM", "3 mL", "4 parsec"),
+    rep("", 4),
+    unit_map
+  )
+
+  expect_equal(result$values, c("1", "2 mM", "3 mL", "4 parsec"))
+  expect_equal(result$units, c("mg/L", "", "", ""))
+  expect_equal(result$extracted, c(TRUE, FALSE, FALSE, FALSE))
+})
+
 test_that("harmonize_measurement_column extracts embedded units with no Unit column", {
   um <- make_split_unit_map()
   df <- tibble::tibble(result = c("7 MFL", "4 mrem/yr", "12.5", "QNS"))
@@ -875,8 +993,8 @@ test_that("harmonize_measurement_column extracts embedded units with no Unit col
   expect_equal(out$parsed$corrected_value, c("7", "4", "12.5", "QNS"))
   expect_equal(out$harmonized$harmonized_value, c(7, 4, 12.5, NA))
   expect_equal(out$harmonized$harmonized_unit, c("MFL", "mrem/yr", NA, NA))
-  # Extracted rows flagged; genuinely unit-less rows stay clean (not "unmatched").
-  expect_equal(out$harmonized$unit_flag, c("unit_extracted", "unit_extracted", "", ""))
+  # Extracted rows keep provenance; remaining missing-like cells are absent.
+  expect_equal(out$harmonized$unit_flag, c("unit_extracted", "unit_extracted", "absent", "absent"))
 })
 
 test_that("harmonize_measurement_column leaves populated unit cells to normal harmonization", {
@@ -901,4 +1019,42 @@ test_that("harmonize_measurement_column leaves populated unit cells to normal ha
   expect_equal(out$parsed$parse_flag, c("unparseable", ""))
   expect_equal(out$harmonized$harmonized_unit, c("mg/L", "mg/L"))
   expect_false(any(out$harmonized$unit_flag == "unit_extracted"))
+})
+
+test_that("harmonize_measurement_column preserves absent units in tagged columns", {
+  df <- tibble::tibble(
+    result = c("1", "2", "3"),
+    unit = c("mg/L", NA_character_, "  ")
+  )
+
+  out <- harmonize_measurement_column(
+    df,
+    "result",
+    "Result",
+    unit_col = "unit",
+    unit_map = make_split_unit_map(),
+    apply_units = TRUE
+  )
+
+  expect_equal(out$harmonized$orig_unit, df$unit)
+  expect_equal(out$harmonized$harmonized_unit, c("mg/L", NA_character_, NA_character_))
+  expect_equal(out$harmonized$unit_flag, c("", "absent", "absent"))
+})
+
+test_that("tagged all-blank unit columns handle NA and whitespace safely", {
+  df <- tibble::tibble(
+    result = c("1", "2"),
+    unit = c(NA_character_, " \t")
+  )
+
+  out <- harmonize_measurement_column(
+    df,
+    "result",
+    "Result",
+    unit_col = "unit",
+    unit_map = make_split_unit_map(),
+    apply_units = TRUE
+  )
+
+  expect_equal(out$harmonized$unit_flag, c("absent", "absent"))
 })
