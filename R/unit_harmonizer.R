@@ -157,21 +157,25 @@ apply_synonyms <- function(unit_strings, synonyms) {
 
 #' Check if a unit is a molarity unit
 #'
-#' Case-sensitive for standalone "m"/"M": uppercase "M" is Molar; lowercase "m"
-#' is ambiguous (minutes) and handled by the synonym table.  All other molarity
-#' units (mm, um, nm, pm and their mol/L forms) are matched case-insensitively.
+#' Molarity symbols are case-sensitive so lowercase length symbols cannot be
+#' reinterpreted as scientific concentration units.
 #'
 #' @param unit Character vector of unit strings (normalized, pre-synonym)
 #' @return Logical vector
 #' @keywords internal
 is_molarity_unit <- function(unit) {
-  # Case-sensitive check for standalone M (Molar) vs m (minutes/ambiguous).
-  # !is.na() guard prevents NA propagation when unit contains NA strings -
-  # NA input should be FALSE (not molarity), consistent with %in% behavior.
-  standalone_M <- !is.na(unit) & unit == "M"
-  # Case-insensitive check for all other molarity units (%in% is already NA-safe)
-  other_molarity <- tolower(unit) %in% c("mm", "um", "nm", "pm", "mol/l", "mmol/l", "umol/l", "nmol/l", "pmol/l")
-  standalone_M | other_molarity
+  unit %in% c(
+    "M",
+    "mM",
+    "uM",
+    "nM",
+    "pM",
+    "mol/L",
+    "mmol/L",
+    "umol/L",
+    "nmol/L",
+    "pmol/L"
+  )
 }
 
 #' Get molarity scale factor for conversion to mg/L
@@ -183,56 +187,77 @@ is_molarity_unit <- function(unit) {
 #' @keywords internal
 get_molarity_scale <- function(unit) {
   scales <- c(
-    "m" = 1000,
-    "mol/l" = 1000, # M * MW * 1000 = mg/L
-    "mm" = 1,
-    "mmol/l" = 1, # mM * MW = mg/L
-    "um" = 0.001,
-    "umol/l" = 0.001, # uM * MW * 0.001 = mg/L
-    "nm" = 1e-6,
-    "nmol/l" = 1e-6,
-    "pm" = 1e-9,
-    "pmol/l" = 1e-9
+    "M" = 1000,
+    "mol/L" = 1000, # M * MW * 1000 = mg/L
+    "mM" = 1,
+    "mmol/L" = 1, # mM * MW = mg/L
+    "uM" = 0.001,
+    "umol/L" = 0.001, # uM * MW * 0.001 = mg/L
+    "nM" = 1e-6,
+    "nmol/L" = 1e-6,
+    "pM" = 1e-9,
+    "pmol/L" = 1e-9
   )
-  scales[tolower(unit)]
+  scales[unit]
+}
+
+molarity_casefold_keys <- function() {
+  tolower(c(
+    "M",
+    "mM",
+    "uM",
+    "nM",
+    "pM",
+    "mol/L",
+    "mmol/L",
+    "umol/L",
+    "nmol/L",
+    "pmol/L"
+  ))
 }
 
 #' Fetch molecular weight via ComptoxR API
 #'
 #' @param dtxsids Character vector of unique DTXSIDs
-#' @return Named numeric vector (names = dtxsid, values = MW)
+#' @return List containing named numeric `values` and named logical
+#'   `lookup_failed` vectors.
 #' @keywords internal
 fetch_molecular_weight <- function(dtxsids) {
+  empty_result <- function(lookup_failed = TRUE) {
+    values <- stats::setNames(rep(NA_real_, length(dtxsids)), dtxsids)
+    failures <- stats::setNames(rep(lookup_failed, length(dtxsids)), dtxsids)
+    list(values = values, lookup_failed = failures)
+  }
+
   if (!requireNamespace("ComptoxR", quietly = TRUE)) {
-    result <- rep(NA_real_, length(dtxsids))
-    names(result) <- dtxsids
-    return(result)
+    return(empty_result())
   }
 
   tryCatch(
     {
       raw <- suppressMessages(ComptoxR::ct_chemical_detail_search_bulk(dtxsids))
-      if (is.null(raw) || nrow(raw) == 0) {
-        result <- rep(NA_real_, length(dtxsids))
-        names(result) <- dtxsids
-        return(result)
+      if (!is.data.frame(raw) || nrow(raw) == 0) {
+        return(empty_result())
       }
-      # Find MW column - may be "mol_weight" or "molecular_weight"
-      mw_col <- intersect(c("mol_weight", "molecular_weight", "average_mass"), names(raw))
-      if (length(mw_col) == 0) {
-        result <- rep(NA_real_, length(dtxsids))
-        names(result) <- dtxsids
-        return(result)
+
+      mw_col <- intersect(
+        c("molecularWeight", "mol_weight", "molecular_weight", "average_mass"),
+        names(raw)
+      )
+      if (!("dtxsid" %in% names(raw)) || length(mw_col) == 0) {
+        return(empty_result())
       }
-      mw_values <- raw[[mw_col[1]]][match(dtxsids, raw$dtxsid)]
-      names(mw_values) <- dtxsids
-      mw_values
-    },
-    error = function(e) {
-      result <- rep(NA_real_, length(dtxsids))
-      names(result) <- dtxsids
+
+      response_rows <- match(dtxsids, raw$dtxsid)
+      returned <- !is.na(response_rows)
+      result <- empty_result()
+      result$lookup_failed[returned] <- FALSE
+      result$values[returned] <- suppressWarnings(
+        as.numeric(raw[[mw_col[1]]][response_rows[returned]])
+      )
       result
-    }
+    },
+    error = function(e) empty_result()
   )
 }
 
@@ -242,7 +267,8 @@ fetch_molecular_weight <- function(dtxsids) {
 #'
 #' @param unit Character - the unit string (should be ppb or ppm)
 #' @param media Character - "aqueous", "air", "solid", or NULL
-#' @return Character - target unit or NULL if media is unknown/not applicable
+#' @return Character target, `NA_character_` when air needs gas context, or NULL
+#'   when media is unknown/not applicable.
 #' @keywords internal
 get_media_target <- function(unit, media) {
   unit_lower <- tolower(unit)
@@ -259,7 +285,7 @@ get_media_target <- function(unit, media) {
   switch(
     media,
     "aqueous" = "mg/L",
-    "air" = "mg/m3",
+    "air" = NA_character_,
     "solid" = "mg/kg",
     NULL
   )
@@ -307,7 +333,55 @@ normalize_unit_map_schema <- function(unit_map) {
   unit_map
 }
 
-lookup_unit_mapping <- function(unit, unit_map) {
+build_case_fallback_metadata <- function(unit_map) {
+  if (is.null(unit_map) || nrow(unit_map) == 0) {
+    return(tibble::tibble(
+      key = character(0),
+      unambiguous = logical(0)
+    ))
+  }
+
+  keys <- tolower(unit_map$from_unit)
+  grouped_rows <- split(seq_len(nrow(unit_map)), keys)
+  unambiguous <- vapply(
+    grouped_rows,
+    function(rows) {
+      first <- rows[1]
+      same_tuple <- vapply(
+        rows,
+        function(row) {
+          identical(unit_map$to_unit[row], unit_map$to_unit[first]) &&
+            identical(unit_map$multiplier[row], unit_map$multiplier[first]) &&
+            identical(unit_map$offset[row], unit_map$offset[first])
+        },
+        logical(1)
+      )
+      all(same_tuple) && !(keys[first] %in% molarity_casefold_keys())
+    },
+    logical(1)
+  )
+
+  tibble::tibble(
+    key = names(grouped_rows),
+    unambiguous = unname(unambiguous)
+  )
+}
+
+resolve_case_fallback <- function(units, unit_map, case_fallback_metadata) {
+  keys <- tolower(units)
+  candidate <- match(keys, tolower(unit_map$from_unit))
+  metadata_idx <- match(keys, case_fallback_metadata$key)
+  safe <- !is.na(candidate) &
+    !is.na(metadata_idx) &
+    case_fallback_metadata$unambiguous[metadata_idx]
+
+  list(
+    map_index = ifelse(safe, candidate, NA_integer_),
+    ambiguous = !is.na(candidate) & !safe
+  )
+}
+
+lookup_unit_mapping <- function(unit, unit_map, case_fallback_metadata = NULL) {
   exact_idx <- match(unit, unit_map$from_unit)
   if (!is.na(exact_idx)) {
     return(list(
@@ -318,7 +392,14 @@ lookup_unit_mapping <- function(unit, unit_map) {
     ))
   }
 
-  ci_idx <- match(tolower(unit), tolower(unit_map$from_unit))
+  if (is.null(case_fallback_metadata)) {
+    case_fallback_metadata <- build_case_fallback_metadata(unit_map)
+  }
+  fallback <- resolve_case_fallback(unit, unit_map, case_fallback_metadata)
+  if (fallback$ambiguous) {
+    return(list(to_unit = unit, multiplier = 1, offset = 0, flag = "ambiguous_unit"))
+  }
+  ci_idx <- fallback$map_index
   if (!is.na(ci_idx)) {
     return(list(
       to_unit = unit_map$to_unit[ci_idx],
@@ -331,31 +412,75 @@ lookup_unit_mapping <- function(unit, unit_map) {
   list(to_unit = unit, multiplier = 1, offset = 0, flag = "unmatched")
 }
 
+validate_harmonize_vector_lengths <- function(values, units, media, dtxsid, molecular_weight) {
+  expected <- length(values)
+  actual_units <- length(units)
+  if (actual_units != expected) {
+    stop(
+      sprintf("`units` must have length %d; got length %d.", expected, actual_units),
+      call. = FALSE
+    )
+  }
+
+  optional <- list(
+    media = media,
+    dtxsid = dtxsid,
+    molecular_weight = molecular_weight
+  )
+  for (argument in names(optional)) {
+    value <- optional[[argument]]
+    actual <- length(value)
+    if (!is.null(value) && !(actual %in% c(1L, expected))) {
+      stop(
+        sprintf(
+          "`%s` must be NULL, length 1, or length %d; got length %d.",
+          argument,
+          expected,
+          actual
+        ),
+        call. = FALSE
+      )
+    }
+  }
+
+  invisible(NULL)
+}
+
 #' Harmonize unit values using a conversion table
 #'
 #' Takes numeric values and their unit strings, performs lookup against a unit
 #' conversion table, and returns harmonized values with audit trail.
 #'
 #' Lookup strategy:
-#' 1. Load synonyms internally via system.file() and apply normalization
-#' 2. Apply normalize_unit_string() (trim, micro symbols, spaces)
-#' 3. Check for molarity units - if detected and MW available, convert to mg/L
-#' 4. Check for ppb/ppm - route based on media context
-#' 5. Try case-sensitive exact match against unit_map$from_unit
-#' 6. If no match, try case-insensitive fallback (with unit_flag = "case_fallback")
-#' 7. If still no match, pass through unchanged (with unit_flag = "unmatched")
+#' 1. Validate vector lengths before normalization or external lookup.
+#' 2. Preserve missing-like units (`NA`, empty, or whitespace-only) as `absent`.
+#' 3. Load synonyms internally and normalize whitespace and micro symbols.
+#' 4. Recognize molarity only with exact scientific casing: `M`, `mM`, `uM`,
+#'    `nM`, `pM`, and the corresponding correctly cased `mol/L` forms.
+#' 5. Route aqueous and solid `ppb`/`ppm` by media. Air values pass through
+#'    with `needs_context` because gas conversion also needs MW, temperature,
+#'    and pressure.
+#' 6. Prefer case-sensitive exact matches against `unit_map$from_unit`.
+#' 7. Use case-insensitive fallback only when every complete-map match has the
+#'    same target, multiplier, and offset. Ambiguous fallback passes through.
+#' 8. Pass unmatched units through unchanged.
 #'
 #' Performance: Vectorized implementation (Plan 34-04) - O(n) hash lookups instead
 #' of O(n*m) per-row match() calls. Benchmarks: <1 sec for 128k rows vs 8+ sec prior.
 #'
-#' @param values Numeric vector of parsed numeric values
-#' @param units Character vector of unit strings (same length as values)
+#' @param values Numeric vector of parsed numeric values.
+#' @param units Character vector of unit strings. Must have exactly the same
+#'   length as `values`.
 #' @param unit_map Tibble from load_unit_map() with columns: from_unit, to_unit, multiplier
 #' @param media Optional character vector - media context for ppb/ppm routing.
-#'   Values: "aqueous", "air", "solid", or NULL. Unknown media falls back to
-#'   the unit map instead of assuming aqueous.
-#' @param dtxsid Optional character vector - DTXSIDs for MW lookup when molarity detected
-#' @param molecular_weight Optional numeric vector - MW override (skips API call)
+#'   Must be `NULL`, scalar, or the same length as `values`. Values are
+#'   "aqueous", "air", "solid", or `NULL`. Unknown media falls back to the unit
+#'   map instead of assuming aqueous. Air `ppb`/`ppm` is not converted.
+#' @param dtxsid Optional character vector of DTXSIDs for MW lookup when
+#'   molarity is detected. Must be `NULL`, scalar, or the same length as
+#'   `values`.
+#' @param molecular_weight Optional numeric MW override, which skips API lookup.
+#'   Must be `NULL`, scalar, or the same length as `values`.
 #' @param use_dedup Logical. When TRUE (default), applies unit-key dedup
 #'   optimization (Phase 37 D-07). Set to FALSE for benchmark baseline.
 #' @param category Character or NULL. When non-NULL, filters unit_map to rows
@@ -366,10 +491,16 @@ lookup_unit_mapping <- function(unit, unit_map) {
 #'   - orig_row_id: Integer linking back to input position
 #'   - orig_unit: Original unit string before normalization
 #'   - harmonized_value: Value after conversion (value * multiplier + offset)
-#'   - harmonized_unit: Target unit from table (or original if unmatched)
+#'   - harmonized_unit: Target unit from table, original unit for unsafe or
+#'     unresolved pass-through, or `NA` for absent units
 #'   - conversion_factor: Multiplier applied (1 for pass-through)
-#'   - unit_flag: Status - "" (exact match), "case_fallback", "unmatched",
-#'                "needs_mw" (molarity without MW), "media_inferred" (ppb/ppm default media)
+#'   - unit_flag: Status. `""` indicates an exact success; `case_fallback`
+#'     indicates an unambiguous case-insensitive success; `unmatched`,
+#'     `ambiguous_unit`, `absent`, `needs_context`, `needs_mw`, and
+#'     `mw_lookup_failed` identify pass-through states requiring no conversion
+#'     or further review. A successful MW lookup that returns a missing MW uses
+#'     `needs_mw`; package, API, response-schema, and requested-row failures use
+#'     `mw_lookup_failed`.
 #'
 #' @examples
 #' unit_map <- tibble::tibble(
@@ -398,7 +529,11 @@ harmonize_units <- function(
   use_dedup = TRUE,
   category = NULL
 ) {
+  n <- length(values)
+  validate_harmonize_vector_lengths(values, units, media, dtxsid, molecular_weight)
+
   unit_map <- normalize_unit_map_schema(unit_map)
+  case_fallback_metadata <- build_case_fallback_metadata(unit_map)
 
   # Category filter (D-12): isolate conversion table to a single category
   if (!is.null(category)) {
@@ -406,7 +541,6 @@ harmonize_units <- function(
   }
 
   # Step 0: Handle empty input
-  n <- length(values)
   if (n == 0) {
     return(tibble::tibble(
       orig_row_id = integer(0),
@@ -418,8 +552,9 @@ harmonize_units <- function(
     ))
   }
 
-  # Step 1: Capture orig_unit before any transformation
-  orig_unit <- units
+  # Step 1: Capture orig_unit and missing-like cells before any transformation.
+  orig_unit <- as.character(units)
+  absent_mask <- is.na(orig_unit) | !nzchar(trimws(orig_unit))
 
   # Step 2: Assign orig_row_id
   orig_row_id <- seq_len(n)
@@ -428,7 +563,8 @@ harmonize_units <- function(
   synonyms <- get_unit_synonyms()
 
   # Normalize unit strings (trim, micro symbols, spaces)
-  normalized <- normalize_unit_string(units)
+  normalized <- orig_unit
+  normalized[!absent_mask] <- normalize_unit_string(orig_unit[!absent_mask])
 
   # ---- Plan 34-04: Vectorized classification masks ----
   # Compute molarity mask BEFORE synonym application.  is_molarity_unit() is now
@@ -476,12 +612,13 @@ harmonize_units <- function(
   } else {
     mw_vec <- molecular_weight
   }
+  mw_lookup_failed <- rep(FALSE, n)
 
   # Pre-compute remaining classification masks (after synonym application)
   # molarity_mask already computed above (pre-synonym)
   ppx_units <- c("ppb", "ppm", "ppt", "ppq")
   ppx_mask <- tolower(normalized) %in% ppx_units
-  standard_mask <- !molarity_mask & !ppx_mask
+  standard_mask <- !absent_mask & !molarity_mask & !ppx_mask
 
   # Pre-fetch MW for rows that need it (molarity + dtxsid but no mw_override)
   # Must run before dedup key construction since mw_vec is used in molarity keys (D-07)
@@ -493,8 +630,9 @@ harmonize_units <- function(
     if (length(unique_dtxsids) > 0) {
       fetched_mw <- fetch_molecular_weight(unique_dtxsids)
       # Vectorized MW assignment via match
-      lookup_idx <- match(dtxsid_vec[needs_api_lookup], names(fetched_mw))
-      mw_vec[needs_api_lookup] <- fetched_mw[lookup_idx]
+      lookup_idx <- match(dtxsid_vec[needs_api_lookup], names(fetched_mw$values))
+      mw_vec[needs_api_lookup] <- fetched_mw$values[lookup_idx]
+      mw_lookup_failed[needs_api_lookup] <- fetched_mw$lookup_failed[lookup_idx]
     }
   }
 
@@ -510,7 +648,13 @@ harmonize_units <- function(
     dedup_keys <- character(n)
     dedup_keys[standard_mask] <- normalized[standard_mask]
     dedup_keys[ppx_mask] <- paste0(normalized[ppx_mask], "||", media_vec[ppx_mask])
-    dedup_keys[molarity_mask] <- paste0(normalized[molarity_mask], "||", mw_vec[molarity_mask])
+    dedup_keys[molarity_mask] <- paste0(
+      normalized[molarity_mask],
+      "||",
+      mw_vec[molarity_mask],
+      "||",
+      mw_lookup_failed[molarity_mask]
+    )
 
     unique_keys <- unique(dedup_keys)
     n_unique <- length(unique_keys)
@@ -528,6 +672,7 @@ harmonize_units <- function(
     unique_normalized_pre_synonym <- normalized_pre_synonym[first_idx]
     unique_media_vec <- media_vec[first_idx]
     unique_mw_vec <- mw_vec[first_idx]
+    unique_mw_lookup_failed <- mw_lookup_failed[first_idx]
     unique_values_dummy <- rep(1.0, n_unique) # dummy values; factors computed separately
 
     unique_molarity_mask <- molarity_mask[first_idx]
@@ -556,6 +701,7 @@ harmonize_units <- function(
     mol_no_mw_u <- unique_molarity_mask & (is.na(unique_mw_vec) | unique_mw_vec <= 0)
     if (any(mol_no_mw_u)) {
       u_unit_flag[mol_no_mw_u] <- "needs_mw"
+      u_unit_flag[mol_no_mw_u & unique_mw_lookup_failed] <- "mw_lookup_failed"
     }
 
     # ---- Unique-subset: ppb/ppm conversion ----
@@ -570,8 +716,17 @@ harmonize_units <- function(
       u_ppx_flags <- character(length(u_ppx_idx))
       for (i in seq_along(u_ppx_idx)) {
         media_target <- get_media_target(u_ppx_units[i], u_ppx_media[i])
-        if (is.null(media_target)) {
-          mapped <- lookup_unit_mapping(u_ppx_units[i], unit_map)
+        if (!is.null(media_target) && is.na(media_target)) {
+          u_ppx_targets[i] <- orig_unit[first_idx[u_ppx_idx[i]]]
+          u_ppx_factors[i] <- 1
+          u_ppx_offsets[i] <- 0
+          u_ppx_flags[i] <- "needs_context"
+        } else if (is.null(media_target)) {
+          mapped <- lookup_unit_mapping(
+            u_ppx_units[i],
+            unit_map,
+            case_fallback_metadata
+          )
           u_ppx_targets[i] <- mapped$to_unit
           u_ppx_factors[i] <- mapped$multiplier
           u_ppx_offsets[i] <- mapped$offset
@@ -593,10 +748,6 @@ harmonize_units <- function(
     # ---- Unique-subset: standard table lookup ----
     if (any(unique_standard_mask)) {
       u_lookup_hash <- stats::setNames(seq_len(nrow(unit_map)), unit_map$from_unit)
-      u_lookup_hash_ci <- stats::setNames(
-        seq_len(nrow(unit_map)),
-        tolower(unit_map$from_unit)
-      )
 
       u_std_units <- unique_normalized[unique_standard_mask]
       u_std_indices <- which(unique_standard_mask)
@@ -605,8 +756,14 @@ harmonize_units <- function(
 
       u_unmatched_local <- is.na(u_lookup_idx)
       if (any(u_unmatched_local)) {
-        u_ci_lookup <- u_lookup_hash_ci[tolower(u_std_units[u_unmatched_local])]
-        u_lookup_idx[u_unmatched_local] <- u_ci_lookup
+        u_fallback <- resolve_case_fallback(
+          u_std_units[u_unmatched_local],
+          unit_map,
+          case_fallback_metadata
+        )
+        u_unmatched_indices <- which(u_unmatched_local)
+        u_unit_flag[u_std_indices[u_unmatched_indices[u_fallback$ambiguous]]] <- "ambiguous_unit"
+        u_lookup_idx[u_unmatched_local] <- u_fallback$map_index
         u_case_fallback_local <- u_unmatched_local & !is.na(u_lookup_idx)
         u_unit_flag[u_std_indices[u_case_fallback_local]] <- "case_fallback"
       }
@@ -621,7 +778,8 @@ harmonize_units <- function(
 
       u_still_unmatched_local <- is.na(u_lookup_idx)
       u_still_unmatched_global <- u_std_indices[u_still_unmatched_local]
-      u_unit_flag[u_still_unmatched_global] <- "unmatched"
+      u_unresolved_flag <- u_unit_flag[u_still_unmatched_global]
+      u_unit_flag[u_still_unmatched_global[u_unresolved_flag == ""]] <- "unmatched"
     }
 
     # Broadcast unique results back to all rows
@@ -635,8 +793,9 @@ harmonize_units <- function(
     # Compute harmonized_value via vectorized affine conversion (O(n)).
     harmonized_value <- values * conversion_factor + conversion_offset
 
-    # needs_mw rows must preserve original value (no conversion applied)
-    harmonized_value[unit_flag == "needs_mw"] <- values[unit_flag == "needs_mw"]
+    # Missing or failed MW rows must preserve original value (no conversion applied)
+    mw_passthrough <- unit_flag %in% c("needs_mw", "mw_lookup_failed")
+    harmonized_value[mw_passthrough] <- values[mw_passthrough]
   } else {
     # Not enough duplication -- run existing logic directly
 
@@ -660,6 +819,7 @@ harmonize_units <- function(
     mol_no_mw <- molarity_mask & (is.na(mw_vec) | mw_vec <= 0)
     if (any(mol_no_mw)) {
       unit_flag[mol_no_mw] <- "needs_mw"
+      unit_flag[mol_no_mw & mw_lookup_failed] <- "mw_lookup_failed"
     }
 
     # ---- Handle ppb/ppm rows (vectorized) ----
@@ -676,8 +836,17 @@ harmonize_units <- function(
       ppx_flags <- character(length(ppx_idx))
       for (i in seq_along(ppx_idx)) {
         media_target <- get_media_target(ppx_units[i], ppx_media[i])
-        if (is.null(media_target)) {
-          mapped <- lookup_unit_mapping(ppx_units[i], unit_map)
+        if (!is.null(media_target) && is.na(media_target)) {
+          ppx_targets[i] <- orig_unit[ppx_idx[i]]
+          ppx_factors[i] <- 1
+          ppx_offsets[i] <- 0
+          ppx_flags[i] <- "needs_context"
+        } else if (is.null(media_target)) {
+          mapped <- lookup_unit_mapping(
+            ppx_units[i],
+            unit_map,
+            case_fallback_metadata
+          )
           ppx_targets[i] <- mapped$to_unit
           ppx_factors[i] <- mapped$multiplier
           ppx_offsets[i] <- mapped$offset
@@ -702,10 +871,6 @@ harmonize_units <- function(
     if (any(standard_mask)) {
       # Build hash maps once: from_unit -> row index (O(m), not O(n*m))
       lookup_hash <- stats::setNames(seq_len(nrow(unit_map)), unit_map$from_unit)
-      lookup_hash_ci <- stats::setNames(
-        seq_len(nrow(unit_map)),
-        tolower(unit_map$from_unit)
-      )
 
       # Extract units for standard rows
       std_units <- normalized[standard_mask]
@@ -717,8 +882,14 @@ harmonize_units <- function(
       # Case-insensitive fallback for unmatched
       unmatched_local <- is.na(lookup_idx)
       if (any(unmatched_local)) {
-        ci_lookup <- lookup_hash_ci[tolower(std_units[unmatched_local])]
-        lookup_idx[unmatched_local] <- ci_lookup
+        fallback <- resolve_case_fallback(
+          std_units[unmatched_local],
+          unit_map,
+          case_fallback_metadata
+        )
+        unmatched_indices <- which(unmatched_local)
+        unit_flag[std_indices[unmatched_indices[fallback$ambiguous]]] <- "ambiguous_unit"
+        lookup_idx[unmatched_local] <- fallback$map_index
         # Mark case fallbacks
         case_fallback_local <- unmatched_local & !is.na(lookup_idx)
         unit_flag[std_indices[case_fallback_local]] <- "case_fallback"
@@ -738,7 +909,8 @@ harmonize_units <- function(
       # Handle truly unmatched (pass through with flag)
       still_unmatched_local <- is.na(lookup_idx)
       still_unmatched_global <- std_indices[still_unmatched_local]
-      unit_flag[still_unmatched_global] <- "unmatched"
+      unresolved_flag <- unit_flag[still_unmatched_global]
+      unit_flag[still_unmatched_global[unresolved_flag == ""]] <- "unmatched"
     }
   } # end dedup if/else
 
@@ -750,6 +922,11 @@ harmonize_units <- function(
   if (any(ambiguous_mask)) {
     unit_flag[ambiguous_mask] <- "ambiguous_unit"
   }
+
+  harmonized_value[absent_mask] <- values[absent_mask]
+  harmonized_unit[absent_mask] <- NA_character_
+  conversion_factor[absent_mask] <- 1
+  unit_flag[absent_mask] <- "absent"
 
   # Build output tibble with columns in exact order (per D-07)
   tibble::tibble(

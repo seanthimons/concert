@@ -16,19 +16,24 @@ harmonize_units(
 )
 }
 \arguments{
-\item{values}{Numeric vector of parsed numeric values}
+\item{values}{Numeric vector of parsed numeric values.}
 
-\item{units}{Character vector of unit strings (same length as values)}
+\item{units}{Character vector of unit strings. Must have exactly the same
+length as \code{values}.}
 
 \item{unit_map}{Tibble from load_unit_map() with columns: from_unit, to_unit, multiplier}
 
 \item{media}{Optional character vector - media context for ppb/ppm routing.
-Values: "aqueous", "air", "solid", or NULL. Unknown media falls back to
-the unit map instead of assuming aqueous.}
+Must be \code{NULL}, scalar, or the same length as \code{values}. Values are
+"aqueous", "air", "solid", or \code{NULL}. Unknown media falls back to the unit
+map instead of assuming aqueous. Air \code{ppb}/\code{ppm} is not converted.}
 
-\item{dtxsid}{Optional character vector - DTXSIDs for MW lookup when molarity detected}
+\item{dtxsid}{Optional character vector of DTXSIDs for MW lookup when
+molarity is detected. Must be \code{NULL}, scalar, or the same length as
+\code{values}.}
 
-\item{molecular_weight}{Optional numeric vector - MW override (skips API call)}
+\item{molecular_weight}{Optional numeric MW override, which skips API lookup.
+Must be \code{NULL}, scalar, or the same length as \code{values}.}
 
 \item{use_dedup}{Logical. When TRUE (default), applies unit-key dedup
 optimization (Phase 37 D-07). Set to FALSE for benchmark baseline.}
@@ -43,10 +48,16 @@ A tibble with columns:
 \item orig_row_id: Integer linking back to input position
 \item orig_unit: Original unit string before normalization
 \item harmonized_value: Value after conversion (value * multiplier + offset)
-\item harmonized_unit: Target unit from table (or original if unmatched)
+\item harmonized_unit: Target unit from table, original unit for unsafe or
+unresolved pass-through, or \code{NA} for absent units
 \item conversion_factor: Multiplier applied (1 for pass-through)
-\item unit_flag: Status - "" (exact match), "case_fallback", "unmatched",
-"needs_mw" (molarity without MW), "media_inferred" (ppb/ppm default media)
+\item unit_flag: Status. \code{""} indicates an exact success; \code{case_fallback}
+indicates an unambiguous case-insensitive success; \code{unmatched},
+\code{ambiguous_unit}, \code{absent}, \code{needs_context}, \code{needs_mw}, and
+\code{mw_lookup_failed} identify pass-through states requiring no conversion
+or further review. A successful MW lookup that returns a missing MW uses
+\code{needs_mw}; package, API, response-schema, and requested-row failures use
+\code{mw_lookup_failed}.
 }
 }
 \description{
@@ -56,13 +67,18 @@ conversion table, and returns harmonized values with audit trail.
 \details{
 Lookup strategy:
 \enumerate{
-\item Load synonyms internally via system.file() and apply normalization
-\item Apply normalize_unit_string() (trim, micro symbols, spaces)
-\item Check for molarity units - if detected and MW available, convert to mg/L
-\item Check for ppb/ppm - route based on media context
-\item Try case-sensitive exact match against unit_map$from_unit
-\item If no match, try case-insensitive fallback (with unit_flag = "case_fallback")
-\item If still no match, pass through unchanged (with unit_flag = "unmatched")
+\item Validate vector lengths before normalization or external lookup.
+\item Preserve missing-like units (\code{NA}, empty, or whitespace-only) as \code{absent}.
+\item Load synonyms internally and normalize whitespace and micro symbols.
+\item Recognize molarity only with exact scientific casing: \code{M}, \code{mM}, \code{uM},
+\code{nM}, \code{pM}, and the corresponding correctly cased \code{mol/L} forms.
+\item Route aqueous and solid \code{ppb}/\code{ppm} by media. Air values pass through
+with \code{needs_context} because gas conversion also needs MW, temperature,
+and pressure.
+\item Prefer case-sensitive exact matches against \code{unit_map$from_unit}.
+\item Use case-insensitive fallback only when every complete-map match has the
+same target, multiplier, and offset. Ambiguous fallback passes through.
+\item Pass unmatched units through unchanged.
 }
 
 Performance: Vectorized implementation (Plan 34-04) - O(n) hash lookups instead
