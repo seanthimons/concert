@@ -3,6 +3,10 @@
 # These helpers keep primary Result harmonization and auxiliary Numeric
 # measurement harmonization on the same parse/unit-conversion path.
 
+unit_harmonization_succeeded <- function(unit_flag) {
+  !is.na(unit_flag) & unit_flag %in% c("", "case_fallback", "unit_extracted")
+}
+
 apply_measurement_corrections <- function(values, corrections_tbl) {
   if (is.null(corrections_tbl) || nrow(corrections_tbl) == 0) {
     return(values)
@@ -348,7 +352,7 @@ numeric_issues_exclude_selected <- function(editor, selected_rows) {
 #'   - the row's current unit cell is empty/NA (never overwrite an existing unit),
 #'   - the value matches `<optional qualifier><number> <token>`,
 #'   - the numeric head parses cleanly (not narrative/unparseable/range), and
-#'   - the trailing token is a KNOWN unit (harmonize_units flag != "unmatched").
+#'   - the trailing token resolves with a successful harmonization flag.
 #' Everything else passes through untouched. Vectorized; the known-unit check
 #' runs once over the candidate tokens only.
 #'
@@ -397,7 +401,7 @@ split_embedded_units <- function(values, units, unit_map) {
   known <- rep(FALSE, length(unit_cand))
   if (any(num_ok)) {
     hu <- harmonize_units(rep(1, sum(num_ok)), unit_cand[num_ok], unit_map = unit_map)
-    known[num_ok] <- hu$unit_flag != "unmatched"
+    known[num_ok] <- unit_harmonization_succeeded(hu$unit_flag)
   }
 
   accept <- num_ok & known
@@ -456,8 +460,9 @@ harmonize_measurement_column <- function(
     .before = 1
   )
 
-  unit_present <- isTRUE(apply_units) && any(nzchar(unit_values))
-  if (unit_present) {
+  unit_present <- any(!is.na(unit_values) & nzchar(trimws(unit_values)))
+  should_harmonize_units <- isTRUE(apply_units) && (has_unit_col || unit_present)
+  if (should_harmonize_units) {
     unit_values_expanded <- unit_values[parse_tibble$orig_row_id]
     media_expanded <- expand_measurement_context(
       media,
@@ -474,21 +479,12 @@ harmonize_measurement_column <- function(
     )
     harmonized_raw$orig_row_id <- parse_tibble$orig_row_id
 
-    # Genuinely unit-less rows: reset to identity so empty unit strings do not
-    # surface as spurious "unmatched" flags.
-    no_unit <- !nzchar(unit_values_expanded)
-    if (any(no_unit)) {
-      harmonized_raw$orig_unit[no_unit] <- NA_character_
-      harmonized_raw$harmonized_value[no_unit] <- parse_tibble$numeric_value[no_unit]
-      harmonized_raw$harmonized_unit[no_unit] <- NA_character_
-      harmonized_raw$conversion_factor[no_unit] <- 1
-      harmonized_raw$unit_flag[no_unit] <- ""
-    }
-
     # Provenance flag for values that had their unit extracted from the string.
     extracted_expanded <- extracted_mask[parse_tibble$orig_row_id]
-    if (any(extracted_expanded)) {
-      harmonized_raw$unit_flag[extracted_expanded] <- "unit_extracted"
+    successful_extraction <- extracted_expanded &
+      unit_harmonization_succeeded(harmonized_raw$unit_flag)
+    if (any(successful_extraction)) {
+      harmonized_raw$unit_flag[successful_extraction] <- "unit_extracted"
     }
   } else {
     harmonized_raw <- tibble::tibble(

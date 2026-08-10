@@ -184,6 +184,44 @@ test_that("case-fallback: 'UG/L' uppercase matches with conversion", {
   expect_true(result$unit_flag %in% c("", "case_fallback"))
 })
 
+test_that("case fallback rejects ambiguous output tuples without weakening exact lookup", {
+  unit_map <- tibble::tibble(
+    from_unit = c("ml", "ML", "mm", "mM", "um", "uM", "Foo", "FOO", "abc", "ABC", "ppb", "PPB"),
+    to_unit = c("mL", "L", "m", "mg/L", "m", "mg/L", "canonical", "canonical", "one", "two", "ug/L", "mg/L"),
+    multiplier = c(1, 1e6, 0.001, 1, 1e-6, 1, 2, 2, 1, 2, 1, 1),
+    category = c(rep("test", 8), "keep", "other", "test", "test"),
+    confidence = "HIGH",
+    source = "test"
+  )
+
+  exact <- harmonize_units(
+    rep(1, 6),
+    c("ml", "ML", "mm", "mM", "um", "uM"),
+    unit_map,
+    molecular_weight = 100,
+    use_dedup = FALSE
+  )
+  expect_equal(exact$harmonized_unit, c("mL", "L", "m", "mg/L", "m", "mg/L"))
+  expect_equal(exact$harmonized_value, c(1, 1e6, 0.001, 100, 1e-6, 0.1))
+  expect_equal(exact$unit_flag, rep("", 6))
+
+  inputs <- rep(c("mL", "MM", "UM", "foo"), 3)
+  direct <- harmonize_units(rep(1, length(inputs)), inputs, unit_map, use_dedup = FALSE)
+  deduplicated <- harmonize_units(rep(1, length(inputs)), inputs, unit_map, use_dedup = TRUE)
+  expect_equal(deduplicated, direct)
+  expect_equal(direct$harmonized_unit[1:4], c("mL", "MM", "UM", "canonical"))
+  expect_equal(direct$harmonized_value[1:4], c(1, 1, 1, 2))
+  expect_equal(direct$unit_flag[1:4], c("ambiguous_unit", "ambiguous_unit", "ambiguous_unit", "case_fallback"))
+
+  filtered <- harmonize_units(1, "Abc", unit_map, category = "keep")
+  expect_equal(filtered$harmonized_unit, "Abc")
+  expect_equal(filtered$unit_flag, "ambiguous_unit")
+
+  scalar_routed <- harmonize_units(1, "PpB", unit_map, media = NA_character_)
+  expect_equal(scalar_routed$harmonized_unit, "PpB")
+  expect_equal(scalar_routed$unit_flag, "ambiguous_unit")
+})
+
 # ==============================================================================
 # SECTION 4: Unmatched pass-through (D-01, D-05)
 # ==============================================================================
@@ -446,6 +484,36 @@ test_that("molarity detection: mg/L is NOT molarity", {
   expect_equal(result$unit_flag, "") # Not needs_mw
 })
 
+test_that("molarity detection requires exact scientific casing", {
+  unit_map <- tibble::tibble(
+    from_unit = c("mm", "um", "nM", "pM"),
+    to_unit = c("m", "m", "mg/L", "mg/L"),
+    multiplier = c(0.001, 0.000001, 1, 1),
+    category = "test",
+    confidence = "HIGH",
+    source = "test"
+  )
+
+  scientific <- harmonize_units(
+    rep(1, 10),
+    c("M", "mM", "uM", "nM", "pM", "mol/L", "mmol/L", "umol/L", "nmol/L", "pmol/L"),
+    unit_map
+  )
+  expect_equal(scientific$unit_flag, rep("needs_mw", 10))
+
+  lowercase <- harmonize_units(
+    rep(1, 5),
+    c("m", "mm", "um", "nm", "pm"),
+    unit_map,
+    molecular_weight = 100
+  )
+  expect_false(any(lowercase$unit_flag == "needs_mw"))
+  expect_equal(lowercase$harmonized_unit[2:3], c("m", "m"))
+  expect_equal(lowercase$harmonized_value[2:3], c(0.001, 0.000001))
+  expect_equal(lowercase$harmonized_unit[4:5], c("nm", "pm"))
+  expect_equal(lowercase$harmonized_value[4:5], c(1, 1))
+})
+
 # ==============================================================================
 # SECTION 10: Molarity conversion with MW (D-06)
 # ==============================================================================
@@ -524,6 +592,123 @@ test_that("molarity MW: vector of different MWs", {
   expect_equal(result$harmonized_value, c(100, 200, 300))
 })
 
+test_that("MW lookup recognizes ComptoxR molecularWeight responses", {
+  testthat::local_mocked_bindings(
+    ct_chemical_detail_search_bulk = function(query, ...) {
+      tibble::tibble(
+        dtxsid = query,
+        molecularWeight = c(100, 200)
+      )
+    },
+    .package = "ComptoxR"
+  )
+
+  result <- harmonize_units(
+    c(1, 1000),
+    c("mM", "uM"),
+    make_test_unit_map(),
+    dtxsid = c("DTXSID0000001", "DTXSID0000002")
+  )
+
+  expect_equal(result$harmonized_value, c(100, 200))
+  expect_equal(result$harmonized_unit, c("mg/L", "mg/L"))
+  expect_equal(result$unit_flag, c("", ""))
+})
+
+test_that("MW lookup distinguishes returned missing data from technical failure", {
+  testthat::local_mocked_bindings(
+    ct_chemical_detail_search_bulk = function(...) {
+      tibble::tibble(
+        dtxsid = "DTXSID0000001",
+        molecularWeight = NA_real_
+      )
+    },
+    .package = "ComptoxR"
+  )
+  missing_mw <- harmonize_units(
+    1,
+    "mM",
+    make_test_unit_map(),
+    dtxsid = "DTXSID0000001"
+  )
+  expect_equal(missing_mw$unit_flag, "needs_mw")
+
+  testthat::local_mocked_bindings(
+    ct_chemical_detail_search_bulk = function(...) stop("service unavailable"),
+    .package = "ComptoxR"
+  )
+  failed <- harmonize_units(
+    1,
+    "mM",
+    make_test_unit_map(),
+    dtxsid = "DTXSID0000001"
+  )
+  expect_equal(failed$harmonized_value, 1)
+  expect_equal(failed$harmonized_unit, "mM")
+  expect_equal(failed$conversion_factor, 1)
+  expect_equal(failed$unit_flag, "mw_lookup_failed")
+})
+
+test_that("empty and malformed MW responses are lookup failures", {
+  response <- NULL
+  testthat::local_mocked_bindings(
+    ct_chemical_detail_search_bulk = function(...) response,
+    .package = "ComptoxR"
+  )
+
+  responses <- list(
+    NULL,
+    tibble::tibble(),
+    tibble::tibble(dtxsid = "DTXSID0000001"),
+    tibble::tibble(molecularWeight = 100)
+  )
+  for (mock_response in responses) {
+    response <- mock_response
+    result <- harmonize_units(
+      1,
+      "mM",
+      make_test_unit_map(),
+      dtxsid = "DTXSID0000001"
+    )
+    expect_equal(result$unit_flag, "mw_lookup_failed")
+  }
+})
+
+test_that("partial MW responses preserve provenance in direct and deduplicated paths", {
+  testthat::local_mocked_bindings(
+    ct_chemical_detail_search_bulk = function(...) {
+      tibble::tibble(
+        dtxsid = "DTXSID0000001",
+        molecularWeight = NA_real_
+      )
+    },
+    .package = "ComptoxR"
+  )
+  values <- rep(1, 12)
+  units <- rep("mM", 12)
+  dtxsids <- rep(c("DTXSID0000001", "DTXSID0000002"), 6)
+
+  direct <- harmonize_units(
+    values,
+    units,
+    make_test_unit_map(),
+    dtxsid = dtxsids,
+    use_dedup = FALSE
+  )
+  deduplicated <- harmonize_units(
+    values,
+    units,
+    make_test_unit_map(),
+    dtxsid = dtxsids,
+    use_dedup = TRUE
+  )
+
+  expect_equal(deduplicated, direct)
+  expect_equal(direct$unit_flag, rep(c("needs_mw", "mw_lookup_failed"), 6))
+  expect_equal(direct$harmonized_value, values)
+  expect_equal(direct$harmonized_unit, units)
+})
+
 # ==============================================================================
 # SECTION 11: ppb/ppm media routing (D-08, D-09, D-10)
 # ==============================================================================
@@ -544,12 +729,13 @@ test_that("ppb media: solid -> mg/kg", {
   expect_equal(result$unit_flag, "")
 })
 
-test_that("ppb media: air -> mg/m3", {
+test_that("ppb media: air requires additional context", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(1000), c("ppb"), unit_map, media = "air")
-  expect_equal(result$harmonized_value, 1)
-  expect_equal(result$harmonized_unit, "mg/m3")
-  expect_equal(result$unit_flag, "")
+  expect_equal(result$harmonized_value, 1000)
+  expect_equal(result$harmonized_unit, "ppb")
+  expect_equal(result$conversion_factor, 1)
+  expect_equal(result$unit_flag, "needs_context")
 })
 
 test_that("ppm media: aqueous -> mg/L", {
@@ -566,11 +752,13 @@ test_that("ppm media: solid -> mg/kg", {
   expect_equal(result$harmonized_unit, "mg/kg")
 })
 
-test_that("ppm media: air -> mg/m3", {
+test_that("ppm media: air requires additional context", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(10), c("ppm"), unit_map, media = "air")
   expect_equal(result$harmonized_value, 10)
-  expect_equal(result$harmonized_unit, "mg/m3")
+  expect_equal(result$harmonized_unit, "ppm")
+  expect_equal(result$conversion_factor, 1)
+  expect_equal(result$unit_flag, "needs_context")
 })
 
 test_that("ppb media: NULL does not default to aqueous", {
@@ -615,7 +803,42 @@ test_that("ppb/ppm: vector of different media", {
     unit_map = unit_map,
     media = c("aqueous", "solid", "air")
   )
-  expect_equal(result$harmonized_unit, c("mg/L", "mg/kg", "mg/m3"))
+  expect_equal(result$harmonized_unit, c("mg/L", "mg/kg", "ppb"))
+  expect_equal(result$unit_flag, c("", "", "needs_context"))
+})
+
+test_that("air part-per values cannot be converted by table fallback", {
+  unit_map <- dplyr::bind_rows(
+    make_test_unit_map(),
+    tibble::tibble(
+      from_unit = c("ppb", "ppm"),
+      to_unit = c("mg/m3", "mg/m3"),
+      multiplier = c(0.001, 1),
+      category = "air",
+      confidence = "HIGH",
+      source = "test"
+    )
+  )
+  values <- rep(c(1000, 10), 6)
+  units <- rep(c("ppb", "ppm"), 6)
+
+  direct <- harmonize_units(values, units, unit_map, media = "air", use_dedup = FALSE)
+  deduplicated <- harmonize_units(values, units, unit_map, media = "air", use_dedup = TRUE)
+
+  expect_equal(deduplicated, direct)
+  expect_equal(direct$harmonized_value, values)
+  expect_equal(direct$harmonized_unit, units)
+  expect_equal(direct$conversion_factor, rep(1, length(values)))
+  expect_equal(direct$unit_flag, rep("needs_context", length(values)))
+})
+
+test_that("ppt and ppq remain unchanged for air media", {
+  result <- harmonize_units(c(7, 8), c("ppt", "ppq"), make_test_unit_map(), media = "air")
+
+  expect_equal(result$harmonized_value, c(7, 8))
+  expect_equal(result$harmonized_unit, c("ppt", "ppq"))
+  expect_equal(result$conversion_factor, c(1, 1))
+  expect_equal(result$unit_flag, c("unmatched", "unmatched"))
 })
 
 test_that("ppb: uppercase PPB works via case fallback", {
@@ -832,6 +1055,50 @@ test_that("edge: empty vector input", {
   )
 })
 
+test_that("vector inputs reject nonconformable lengths with argument-specific errors", {
+  unit_map <- make_test_unit_map()
+
+  expect_error(
+    harmonize_units(1:3, c("mg/L", "ug/L"), unit_map),
+    "`units` must have length 3; got length 2.",
+    fixed = TRUE
+  )
+  expect_error(
+    harmonize_units(1:3, rep("mg/L", 3), unit_map, media = c("air", "solid")),
+    "`media` must be NULL, length 1, or length 3; got length 2.",
+    fixed = TRUE
+  )
+  expect_error(
+    harmonize_units(1:3, rep("mM", 3), unit_map, dtxsid = character(0)),
+    "`dtxsid` must be NULL, length 1, or length 3; got length 0.",
+    fixed = TRUE
+  )
+  expect_error(
+    harmonize_units(1:3, rep("mM", 3), unit_map, molecular_weight = c(100, 200)),
+    "`molecular_weight` must be NULL, length 1, or length 3; got length 2.",
+    fixed = TRUE
+  )
+})
+
+test_that("scalar optional inputs broadcast harmlessly to empty input", {
+  unit_map <- make_test_unit_map()
+  result <- harmonize_units(
+    numeric(0),
+    character(0),
+    unit_map,
+    media = "air",
+    dtxsid = "DTXSID0000001",
+    molecular_weight = 100
+  )
+
+  expect_equal(nrow(result), 0)
+  expect_error(
+    harmonize_units(numeric(0), "mg/L", unit_map),
+    "`units` must have length 0; got length 1.",
+    fixed = TRUE
+  )
+})
+
 test_that("edge: single element vector", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(5), c("mg/L"), unit_map)
@@ -849,7 +1116,32 @@ test_that("edge: NA in units", {
   unit_map <- make_test_unit_map()
   result <- harmonize_units(c(10), c(NA_character_), unit_map)
   expect_equal(result$harmonized_value, 10)
-  expect_equal(result$unit_flag, "unmatched")
+  expect_equal(result$unit_flag, "absent")
+})
+
+test_that("absent units preserve the six-column identity projection", {
+  unit_map <- make_test_unit_map()
+  values <- as.numeric(seq_len(9))
+  units <- rep(c(NA_character_, "", "  \t"), 3)
+
+  direct <- harmonize_units(values, units, unit_map, use_dedup = FALSE)
+  deduplicated <- harmonize_units(values, units, unit_map, use_dedup = TRUE)
+
+  expect_equal(deduplicated, direct)
+  expect_named(direct, c(
+    "orig_row_id",
+    "orig_unit",
+    "harmonized_value",
+    "harmonized_unit",
+    "conversion_factor",
+    "unit_flag"
+  ))
+  expect_equal(direct$orig_row_id, seq_len(9))
+  expect_equal(direct$orig_unit, units)
+  expect_equal(direct$harmonized_value, values)
+  expect_equal(direct$harmonized_unit, rep(NA_character_, 9))
+  expect_equal(direct$conversion_factor, rep(1, 9))
+  expect_equal(direct$unit_flag, rep("absent", 9))
 })
 
 test_that("edge: very large values", {
