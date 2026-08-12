@@ -13,8 +13,7 @@ is_molarity_unit(unit)
 Logical vector
 }
 \description{
-Case-sensitive for standalone "m"/"M": uppercase "M" is Molar; lowercase "m"
-is ambiguous (minutes) and handled by the synonym table.  All other molarity
-units (mm, um, nm, pm and their mol/L forms) are matched case-insensitively.
+Molarity symbols are case-sensitive so lowercase length symbols cannot be
+reinterpreted as scientific concentration units.
 }
 \keyword{internal}

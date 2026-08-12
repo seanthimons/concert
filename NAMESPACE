@@ -149,89 +149,105 @@ export(validate_reference_list_patterns)
 export(validate_tag_pairing)
 export(write_curation_output)
 importFrom(arrow,write_parquet)
-importFrom(bslib,card)
-importFrom(bslib,card_body)
-importFrom(bslib,card_header)
-importFrom(bslib,layout_columns)
-importFrom(bslib,value_box)
-importFrom(cli,cli_alert_info)
-importFrom(cli,cli_alert_warning)
-importFrom(cli,cli_bullets)
+importFrom(bslib,
+  card,
+  card_body,
+  card_header,
+  layout_columns,
+  value_box
+)
+importFrom(cli,
+  cli_alert_info,
+  cli_alert_warning,
+  cli_bullets
+)
 importFrom(digest,digest)
-importFrom(dplyr,across)
-importFrom(dplyr,mutate)
-importFrom(dplyr,where)
+importFrom(dplyr,
+  across,
+  mutate,
+  where
+)
 importFrom(magrittr,"%>%")
-importFrom(shiny,HTML)
-importFrom(shiny,NS)
-importFrom(shiny,actionButton)
-importFrom(shiny,actionLink)
-importFrom(shiny,checkboxGroupInput)
-importFrom(shiny,checkboxInput)
-importFrom(shiny,conditionalPanel)
-importFrom(shiny,div)
-importFrom(shiny,downloadButton)
-importFrom(shiny,downloadHandler)
-importFrom(shiny,fileInput)
-importFrom(shiny,h4)
-importFrom(shiny,h5)
-importFrom(shiny,hr)
-importFrom(shiny,icon)
-importFrom(shiny,incProgress)
-importFrom(shiny,isolate)
-importFrom(shiny,modalButton)
-importFrom(shiny,modalDialog)
-importFrom(shiny,moduleServer)
-importFrom(shiny,numericInput)
-importFrom(shiny,observe)
-importFrom(shiny,observeEvent)
-importFrom(shiny,outputOptions)
-importFrom(shiny,p)
-importFrom(shiny,radioButtons)
-importFrom(shiny,reactive)
-importFrom(shiny,reactiveVal)
-importFrom(shiny,removeModal)
-importFrom(shiny,removeNotification)
-importFrom(shiny,renderTable)
-importFrom(shiny,renderText)
-importFrom(shiny,renderUI)
-importFrom(shiny,req)
-importFrom(shiny,selectInput)
-importFrom(shiny,selectizeInput)
-importFrom(shiny,showModal)
-importFrom(shiny,showNotification)
-importFrom(shiny,sliderInput)
-importFrom(shiny,span)
-importFrom(shiny,strong)
-importFrom(shiny,tagList)
-importFrom(shiny,tags)
-importFrom(shiny,textAreaInput)
-importFrom(shiny,textInput)
-importFrom(shiny,textOutput)
-importFrom(shiny,uiOutput)
-importFrom(shiny,updateActionButton)
-importFrom(shiny,updateCheckboxGroupInput)
-importFrom(shiny,updateNumericInput)
-importFrom(shiny,updateRadioButtons)
-importFrom(shiny,updateSelectInput)
-importFrom(shiny,updateSelectizeInput)
-importFrom(shiny,updateSliderInput)
-importFrom(shiny,updateTextAreaInput)
-importFrom(shiny,updateTextInput)
-importFrom(shiny,withProgress)
-importFrom(stats,na.omit)
-importFrom(stats,sd)
-importFrom(stringi,stri_escape_unicode)
-importFrom(stringi,stri_replace_all_fixed)
-importFrom(stringr,str_detect)
-importFrom(stringr,str_extract_all)
-importFrom(stringr,str_remove_all)
-importFrom(stringr,str_replace_all)
-importFrom(stringr,str_split_i)
-importFrom(stringr,str_squish)
-importFrom(stringr,str_sub)
+importFrom(shiny,
+  HTML,
+  NS,
+  actionButton,
+  actionLink,
+  checkboxGroupInput,
+  checkboxInput,
+  conditionalPanel,
+  div,
+  downloadButton,
+  downloadHandler,
+  fileInput,
+  h4,
+  h5,
+  hr,
+  icon,
+  incProgress,
+  isolate,
+  modalButton,
+  modalDialog,
+  moduleServer,
+  numericInput,
+  observe,
+  observeEvent,
+  outputOptions,
+  p,
+  radioButtons,
+  reactive,
+  reactiveVal,
+  removeModal,
+  removeNotification,
+  renderTable,
+  renderText,
+  renderUI,
+  req,
+  selectInput,
+  selectizeInput,
+  showModal,
+  showNotification,
+  sliderInput,
+  span,
+  strong,
+  tagList,
+  tags,
+  textAreaInput,
+  textInput,
+  textOutput,
+  uiOutput,
+  updateActionButton,
+  updateCheckboxGroupInput,
+  updateNumericInput,
+  updateRadioButtons,
+  updateSelectInput,
+  updateSelectizeInput,
+  updateSliderInput,
+  updateTextAreaInput,
+  updateTextInput,
+  withProgress
+)
+importFrom(stats,
+  na.omit,
+  sd
+)
+importFrom(stringi,
+  stri_escape_unicode,
+  stri_replace_all_fixed
+)
+importFrom(stringr,
+  str_detect,
+  str_extract_all,
+  str_remove_all,
+  str_replace_all,
+  str_split_i,
+  str_squish,
+  str_sub
+)
 importFrom(tibble,tibble)
 importFrom(tidyselect,all_of)
 importFrom(tools,file_ext)
-importFrom(utils,head)
-importFrom(utils,read.csv)
+importFrom(utils,
+  head,
+  read.csv
+)
