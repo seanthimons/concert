@@ -2780,15 +2780,11 @@ mod_review_results_server <- function(id, data_store) {
                 } else {
                   NULL
                 },
-                if (!evidence_only_candidate) {
-                  tags$button(
-                    class = "modal-select-btn btn btn-sm btn-outline-success",
-                    `data-column` = col,
-                    "Select"
-                  )
-                } else {
-                  tags$span(class = "text-muted small", "Review only")
-                }
+                tags$button(
+                  class = "modal-select-btn btn btn-sm btn-outline-success",
+                  `data-column` = col,
+                  "Select"
+                )
               )
             ),
             tags$hr(class = "my-2"),
@@ -2940,7 +2936,9 @@ mod_review_results_server <- function(id, data_store) {
       data_store$consensus_summary <- recalc_consensus_summary(updated_df)
 
       opt <- options[[chosen_column]]
-      notification_msg <- if (!is.na(opt$preferredName)) {
+      notification_msg <- if (isTRUE(opt$evidence_only)) {
+        sprintf("Resolved %d row(s) from WQX evidence: %s", length(group_rows), opt$preferredName)
+      } else if (!is.na(opt$preferredName)) {
         sprintf("Resolved %d row(s): %s - %s", length(group_rows), opt$dtxsid, opt$preferredName)
       } else {
         sprintf("Resolved %d row(s): %s", length(group_rows), opt$dtxsid)

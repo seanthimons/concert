@@ -640,7 +640,12 @@ resolve_row <- function(df, row_idx, chosen_column, dtxsid_cols) {
   }
 
   val <- df[[chosen_column]][row_idx]
-  if (is.na(val)) {
+  pref_col <- source_field_column(chosen_column, "preferredName")
+  tier_col <- source_field_column(chosen_column, "source_tier")
+  pref_name <- if (pref_col %in% names(df)) as.character(df[[pref_col]][row_idx]) else NA_character_
+  tier <- if (tier_col %in% names(df)) as.character(df[[tier_col]][row_idx]) else NA_character_
+  is_wqx_evidence <- is.na(val) && is_wqx_tier(tier) && !is.na(pref_name) && nzchar(trimws(pref_name))
+  if (is.na(val) && !is_wqx_evidence) {
     stop("Column '", chosen_column, "' has NA value for row ", row_idx)
   }
 
@@ -648,7 +653,11 @@ resolve_row <- function(df, row_idx, chosen_column, dtxsid_cols) {
   df <- init_resolution_state(df)
 
   # Set consensus
+  df$consensus_status[row_idx] <- if (is_wqx_evidence) "wqx" else df$consensus_status[row_idx]
   df$consensus_dtxsid[row_idx] <- val
+  if (is_wqx_evidence) {
+    df$consensus_name[row_idx] <- pref_name
+  }
   df$consensus_source[row_idx] <- sub("^dtxsid_", "", chosen_column)
   df$.pinned[row_idx] <- TRUE
   df$.resolution_method[row_idx] <- "manual"
