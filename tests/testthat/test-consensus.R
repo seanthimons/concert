@@ -514,6 +514,27 @@ test_that("resolve_row fills consensus for disagree row", {
   expect_true(result$.pinned[1])
 })
 
+test_that("resolve_row accepts a WQX evidence-only candidate", {
+  df <- data.frame(
+    dtxsid_Chemical = NA_character_,
+    preferredName_Chemical = "Benzo(a)anthracene-D12",
+    source_tier_Chemical = "wqx_fuzzy",
+    dtxsid_CASRN = "DTXSID001",
+    preferredName_CASRN = "Benz[a]anthracene",
+    source_tier_CASRN = "cas"
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CASRN")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  result <- resolve_row(df, 1, "dtxsid_Chemical", dtxsid_cols)
+
+  expect_equal(result$consensus_status, "wqx")
+  expect_true(is.na(result$consensus_dtxsid))
+  expect_equal(result$consensus_name, "Benzo(a)anthracene-D12")
+  expect_equal(result$consensus_source, "Chemical")
+  expect_true(result$.pinned)
+})
+
 test_that("resolve_row errors on non-disagree row", {
   df <- data.frame(
     dtxsid_Chemical = c("DTXSID7021360"),
