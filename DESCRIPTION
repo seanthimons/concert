@@ -57,5 +57,5 @@ Suggests:
     testthat (>= 3.0.0),
     withr
 Remotes:
-    seanthimons/ComptoxR@v1.5.1
+    seanthimons/ComptoxR@v1.7.1
 Config/roxygen2/version: 8.1.0
