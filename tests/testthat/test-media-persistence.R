@@ -186,7 +186,7 @@ test_that("harmonize_media with media_map = NULL still works (backward compat)",
   expect_s3_class(result, "tbl_df")
   expect_equal(nrow(result), 2L)
   expect_named(
-    result,
+    result[1:6],
     c(
       "orig_row_id",
       "raw_media",
@@ -248,9 +248,7 @@ test_that("harmonize_media returns media_unmatched for term not in custom media_
 # Section 5: harmonize_media — custom media_map with canonical column (display schema)
 # ==============================================================================
 
-test_that("harmonize_media translates 'canonical' column but requires a resolvable media_category", {
-  # Display schema: canonical not canonical_term. Without an inferable category,
-  # the mapping is not usable for ppb/ppm routing and must remain unmatched.
+test_that("harmonize_media accepts identity without a conversion route", {
   display_map <- tibble::tibble(
     term = c("display_medium"),
     canonical = c("Display Canonical"),
@@ -260,9 +258,9 @@ test_that("harmonize_media translates 'canonical' column but requires a resolvab
 
   result <- harmonize_media(c("display_medium"), media_map = display_map)
 
-  expect_true(is.na(result$canonical_media))
+  expect_equal(result$canonical_media, "Display Canonical")
   expect_true(is.na(result$media_category))
-  expect_equal(result$media_flag, "media_unmatched")
+  expect_equal(result$media_flag, "")
 })
 
 test_that("harmonize_media with display-schema map falls back gracefully for missing term", {

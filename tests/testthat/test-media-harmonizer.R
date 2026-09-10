@@ -22,11 +22,11 @@ make_test_media <- function() {
 # SECTION 1: Output schema (MEDIA-01)
 # ==============================================================================
 
-test_that("harmonize_media returns 6-column tibble with correct names", {
+test_that("harmonize_media retains the original six result columns", {
   result <- harmonize_media(c("water"))
 
   expect_s3_class(result, "tbl_df")
-  expect_named(result, c(
+  expect_named(result[1:6], c(
     "orig_row_id", "raw_media", "canonical_media",
     "envo_id", "media_category", "media_flag"
   ))
@@ -193,7 +193,7 @@ test_that("harmonize_media returns 0-row typed tibble for character(0) input", {
 
   expect_s3_class(result, "tbl_df")
   expect_equal(nrow(result), 0L)
-  expect_named(result, c(
+  expect_named(result[1:6], c(
     "orig_row_id", "raw_media", "canonical_media",
     "envo_id", "media_category", "media_flag"
   ))
