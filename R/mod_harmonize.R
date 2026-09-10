@@ -198,8 +198,8 @@ mod_harmonize_server <- function(id, data_store) {
           !is.null(data_store$reference_lists$media_map)
       ) {
         data_store$media_map_working <- data_store$reference_lists$media_map
-        if (!media_map_ready()) media_map_ready(TRUE)
       }
+      if (!is.null(data_store$media_map_working) && !media_map_ready()) media_map_ready(TRUE)
     })
 
     # --- Pipeline execution ---------------------------------------------------
@@ -1545,11 +1545,15 @@ mod_harmonize_server <- function(id, data_store) {
             is_unmatched ~ "(unmatched)",
             TRUE ~ tbl$canonical
           ),
-          category = tbl$media_category,
-          path = tbl$ontology_path,
+          category = ifelse(is.na(tbl$media_category),
+            ifelse(is_unmatched, "Unmatched", "Unavailable"), tbl$media_category),
+          ontology_id = tbl$ontology_node_id,
+          definition = tbl$definition,
+          physical_phase = tbl$physical_phase,
           source = dplyr::case_when(
             tbl$source == "user" ~ '<span class="badge bg-primary">user</span>',
             tbl$source == "concert" ~ '<span class="badge bg-success">concert</span>',
+            tbl$source == "amosharmonizer" ~ '<span class="badge bg-success">amosharmonizer v0.1.1</span>',
             tbl$source == "amos" ~ '<span class="badge bg-info text-dark">amos</span>',
             tbl$source == "uploaded" ~ '<span class="badge bg-warning text-dark">uploaded</span>',
             TRUE ~ '<span class="badge bg-secondary">other</span>'
@@ -1563,7 +1567,7 @@ mod_harmonize_server <- function(id, data_store) {
 
         DT::datatable(
           display_tbl,
-          escape = FALSE,
+          escape = setdiff(names(display_tbl), "source"),
           selection = "none",
           rownames = FALSE,
           options = list(
@@ -1609,16 +1613,6 @@ mod_harmonize_server <- function(id, data_store) {
         !is.na(row$canonical[1]) &&
         nzchar(as.character(row$canonical[1]))
 
-      # Bundled resolved entries are read-only; pending rows are assertion prompts.
-      if (nrow(row) > 0 && row$source[1] != "user" && row_mode != "pending" && row_has_canonical) {
-        showNotification(
-          "Bundled entries are read-only. Add a user mapping for this term to override.",
-          type = "message",
-          duration = 5
-        )
-        return()
-      }
-
       # Determine modal title: "Add" for unmatched, "Edit" for existing user row
       is_new <- nrow(row) == 0 ||
         row_mode == "pending" ||
@@ -1633,6 +1627,13 @@ mod_harmonize_server <- function(id, data_store) {
       showModal(modalDialog(
         title = modal_title,
         easyClose = FALSE,
+        if (nrow(row) > 0) tagList(
+          p(strong("Ontology: "), row$ontology_node_id[1]),
+          p(row$definition[1]),
+          p(strong("Physical phase: "), row$physical_phase[1]),
+          p(strong("Unit route: "), ifelse(is.na(row$media_category[1]), "Unavailable", row$media_category[1])),
+          p(strong("Source: "), row$source[1], " ", row$artifact_version[1])
+        ),
         textInput(session$ns("modal_media_term"), "Term", value = orig_term),
         textInput(
           session$ns("modal_media_canonical"),
@@ -1706,9 +1707,7 @@ mod_harmonize_server <- function(id, data_store) {
       )
 
       tbl <- data_store$media_map_working
-      inferred_new_row <- infer_media_categories(dplyr::bind_rows(new_row, tbl))[1, ]
-      new_row$envo_id <- inferred_new_row$envo_id
-      new_row$media_category <- inferred_new_row$media_category
+      new_row <- infer_media_categories(dplyr::bind_rows(new_row, tbl))[1, ]
 
       # Check for bundled conflict (D-13)
       tbl_mode <- if ("assertion_mode" %in% names(tbl)) tbl$assertion_mode else rep("auto", nrow(tbl))
@@ -1718,7 +1717,7 @@ mod_harmonize_server <- function(id, data_store) {
       orig_term <- input$modal_media_orig_term
       is_new_term <- is.null(orig_term) || orig_term == "" || orig_term != new_row$term
 
-      if (is_new_term && any(bundled_conflict)) {
+      if (any(bundled_conflict) && (is_new_term || !any(tbl$term == new_row$term & tbl$source == "user"))) {
         existing_canonical <- tbl$canonical[which(bundled_conflict)[1]]
         media_pending_save(new_row)
         showModal(modalDialog(
