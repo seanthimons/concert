@@ -208,7 +208,7 @@ map_to_toxval_schema <- function(curated_data, harmonized_data, source_name = NU
     exposure_route_original = pick_char("exposure_route_original", "exposure_route"),
     exposure_method_original = pick_char("exposure_method_original", "exposure_method"),
     exposure_form_original = pick_char("exposure_form_original", "exposure_form"),
-    media_original = pick_char("media_original", "media"),
+    media_original = pick_char("media_original"),
     toxicological_effect_original = pick_char("toxicological_effect_original", "toxicological_effect"),
     original_year = pick_num("original_year", "year")
   )
