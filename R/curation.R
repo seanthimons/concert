@@ -1071,15 +1071,21 @@ normalize_candidate_detail_cache <- function(cache) {
 #' Calls CompTox chemical detail search to retrieve CASRN, molecular formula,
 #' and molecular weight for each unique DTXSID.
 #' Supports incremental caching: pass existing_cache to skip already-fetched DTXSIDs.
+#' Uses the `chemicaldetailstandard` server-side projection by default to avoid
+#' the 73-column `chemicaldetailall` response while retaining `isMarkush` for
+#' review metadata.
 #'
 #' @param dtxsids Character vector of DTXSIDs to enrich
 #' @param existing_cache Optional tibble from a previous enrich_candidates() call.
 #'   DTXSIDs already present in the cache will not be re-fetched.
+#' @param projection CompTox server-side projection to request. Defaults to
+#'   `chemicaldetailstandard`, the narrowest tested projection that includes
+#'   identifiers, preferred name, formula, mass, and `isMarkush`.
 #' @return Named list with:
-#'   - cache: tibble(dtxsid, casrn, molecular_formula, molecular_weight)
+#'   - cache: normalized chemical details including `isMarkush`
 #'   - failed_dtxsids: character vector of DTXSIDs that could not be fetched
 #' @export
-enrich_candidates <- function(dtxsids, existing_cache = NULL) {
+enrich_candidates <- function(dtxsids, existing_cache = NULL, projection = "chemicaldetailstandard") {
   empty_cache <- empty_candidate_detail_cache()
   existing_cache <- normalize_candidate_detail_cache(existing_cache)
 
@@ -1112,7 +1118,10 @@ enrich_candidates <- function(dtxsids, existing_cache = NULL) {
 
   api_error <- NULL
   raw <- tryCatch(
-    suppressMessages(ComptoxR::ct_chemical_detail_search_bulk(dtxsids_to_fetch)),
+    suppressMessages(ComptoxR::ct_chemical_detail_search_bulk(
+      dtxsids_to_fetch,
+      projection = projection
+    )),
     error = function(e) {
       message(sprintf("[enrich] API call failed: %s", conditionMessage(e)))
       api_error <<- conditionMessage(e)

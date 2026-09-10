@@ -12,7 +12,11 @@ test_that("enrich_candidates returns structured cache tibble for valid DTXSIDs",
   )
 
   testthat::local_mocked_bindings(
-    ct_chemical_detail_search_bulk = function(...) mock_response,
+    ct_chemical_detail_search_bulk = function(query, projection) {
+      expect_identical(query, c("DTXSID7021360", "DTXSID9020584"))
+      expect_identical(projection, "chemicaldetailstandard")
+      mock_response
+    },
     .package = "ComptoxR"
   )
 
@@ -221,7 +225,10 @@ test_that("find_related_parent_candidates returns shared predecessor component p
 
   testthat::local_mocked_bindings(
     ct_related = function(query, ...) related_response,
-    ct_chemical_detail_search_bulk = function(dtxsids, ...) detail_response,
+    ct_chemical_detail_search_bulk = function(dtxsids, projection) {
+      expect_identical(projection, "chemicaldetailstandard")
+      detail_response
+    },
     .package = "ComptoxR"
   )
 
