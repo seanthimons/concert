@@ -21,12 +21,39 @@ The implementation session started the app at http://127.0.0.1:3876.
 
 ## Evidence
 
-- Automated shared-runtime and Shiny module parity checks cover the seven media,
-  editor rendering, save, override, rerun, original preservation and routing.
-- Workbook tests cover typed row records, empty versus missing originals,
-  canonical identities, compact overrides, replay, and rejected version/hash
-  mismatches.
+- 2026-09-10, R 4.5.1 on Windows: the media, Shiny, code generation, workbook,
+  ToxVal, unit and WQX regression group passed **1,400 assertions**, with no
+  failures or test warnings and two pre-existing memory-limit skips.
+- Additional consensus, Shiny, headless and generated replay checks passed
+  **427 assertions**. One existing consensus test emits a pinned-row warning.
+  These groups overlap; their counts are not additive.
+- Coverage includes the seven media, editor rendering/inspection/save/rerun,
+  shared-runtime parity, unit edits, typed workbook round trips, exact empty/NA/
+  whitespace originals, execution of a generated replay script, and rejected
+  schema/artifact/hash mismatches. The replay integration mocks chemical lookup;
+  it exercises the actual media pipeline without an external service.
+- Offline artifact import/rebuild: archive and table SHA-256 validation passed;
+  267 terms and all 33 original keys are present. Repeated builds have identical
+  bytes; baseline hashes also match across C and Windows English locales.
+- `R CMD check --no-manual` on a clean tracked-file archive: **0 errors,
+  0 warnings, 1 note**. The note lists existing global-variable bindings in
+  isotope helpers, baseline-cell export and WQX alias extraction. Package
+  installation, namespace, exported documentation/contracts and examples pass.
+  The repo intentionally excludes tests from its source package; the targeted
+  tests above were run separately. Local installed ComptoxR is 1.6.0.9000;
+  the branch retains main's v1.7.1 remote pin.
+- The first package check was interrupted by an inherited unsupported C.UTF-8
+  locale. Setting the check subprocess locale to Windows UTF-8 resolved it.
+  The devtools wrapper also emits an unrelated Quarto version-probe warning
+  after check completion; the package's own `00check.log` reports only the note.
 - Fresh Shiny startup: HTTP 200 at port 3876, 2026-09-10.
 - Manual browser acceptance: pending. The available browser automation tool
   reported no connected browser; automated module checks are not claimed as
   manual acceptance.
+
+To rerun the regressions interactively:
+
+```r
+source("scripts/validate_published_media.R")
+validate_published_media()
+```
