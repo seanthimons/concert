@@ -10,7 +10,8 @@ fetch_molecular_weight(dtxsids)
 \item{dtxsids}{Character vector of unique DTXSIDs}
 }
 \value{
-Named numeric vector (names = dtxsid, values = MW)
+List containing named numeric \code{values} and named logical
+\code{lookup_failed} vectors.
 }
 \description{
 Fetch molecular weight via ComptoxR API

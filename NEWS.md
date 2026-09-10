@@ -2,12 +2,32 @@
 
 # concert NEWS
 
+## v0.3.2 (2026-08-12)
+
+#### Bug fixes
+
+- correct harmonizer failure handling
+  ([3c57c9c](https://github.com/seanthimons/concert/tree/3c57c9c6cf7a09c381447b33bf85a1a20060f9eb))
+
+#### Other changes
+
+- bump version to 0.3.2 \[skip ci\]
+  ([58fb07a](https://github.com/seanthimons/concert/tree/58fb07a118ac58b883c332b6a7f391dddb1652eb))
+
+Full set of changes:
+[`v0.3.1...v0.3.2`](https://github.com/seanthimons/concert/compare/v0.3.1...v0.3.2)
+
 ## v0.3.1 (2026-07-21)
 
 #### Bug fixes
 
 - detect ’ & ’ and ’ / ’ multi-analyte separators (#54)
   ([2de8fd0](https://github.com/seanthimons/concert/tree/2de8fd0f050b163a9fb19407abc034f01ef2f98d))
+
+#### Docs
+
+- update NEWS.md for v0.3.1 \[skip ci\]
+  ([d2f976b](https://github.com/seanthimons/concert/tree/d2f976ba7676fe6155e2bb0549f111a103f42839))
 
 #### Other changes
 

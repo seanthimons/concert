@@ -12,7 +12,8 @@ get_media_target(unit, media)
 \item{media}{Character - "aqueous", "air", "solid", or NULL}
 }
 \value{
-Character - target unit or NULL if media is unknown/not applicable
+Character target, \code{NA_character_} when air needs gas context, or NULL
+when media is unknown/not applicable.
 }
 \description{
 Get target unit for ppb/ppm based on media context
