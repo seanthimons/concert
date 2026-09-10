@@ -702,13 +702,20 @@ build_media_map_snapshot <- function(media_map, cache_dir = NULL) {
     return(NULL)
   }
   cache_dir <- resolve_reference_cache_dir(cache_dir)
-  default_map <- normalize_media_map_for_display(load_media_map(cache_dir))
-  build_keyed_map_snapshot(
-    normalize_media_map_for_display(media_map),
+  default_map <- normalize_media_map_for_display(get_media_table())
+  current_map <- normalize_media_map_for_display(media_map)
+  current_map <- current_map[order(current_map$source != "user"), ]
+  current_map <- current_map[!duplicated(current_map$term), ]
+  snapshot <- build_keyed_map_snapshot(
+    current_map,
     default_map,
     "term",
     media_map_snapshot_ignore_cols()
   )
+  snapshot$snapshot_version <- "1"
+  snapshot$artifact_version <- media_artifact_version()
+  snapshot$artifact_sha256 <- "56da987c0fb72e08915df5b7ecf1d099fdb03c5828fa1cc85debcceefe61daca"
+  snapshot
 }
 
 reconstruct_unit_map_snapshot <- function(snapshot, cache_dir = NULL) {
@@ -730,7 +737,15 @@ reconstruct_media_map_snapshot <- function(snapshot, cache_dir = NULL) {
     return(NULL)
   }
   cache_dir <- resolve_reference_cache_dir(cache_dir)
-  default_map <- normalize_media_map_for_display(load_media_map(cache_dir))
+  default_map <- normalize_media_map_for_display(get_media_table())
+  expected <- build_media_map_snapshot(default_map)
+  for (field in c("snapshot_version", "artifact_version", "artifact_sha256", "default_hash")) {
+    if (!identical(snapshot[[field]], expected[[field]])) {
+      stop(sprintf(
+        "Incompatible media replay: %s mismatch or missing. Use the matching media artifacts and snapshot version; legacy exports require re-curation from original input.", field),
+        call. = FALSE)
+    }
+  }
   reconstruct_keyed_map_snapshot(
     snapshot,
     default_map,

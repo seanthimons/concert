@@ -71,6 +71,9 @@ parse_concert_export <- function(file_path) {
         site_manifest = read_export_sheet(file_path, sheets, "Site Manifest", NULL),
         site_alias_map = read_export_sheet(file_path, sheets, "Site Alias Map", NULL),
         harmonization_audit = read_export_sheet(file_path, sheets, "Harmonization Audit", NULL),
+        media_snapshot = read_export_sheet(file_path, sheets, "Media Snapshot", NULL),
+        media_overrides = read_export_sheet(file_path, sheets, "Media Overrides", NULL),
+        media_audit = read_export_sheet(file_path, sheets, "Media Audit", NULL),
         has_full_session_state = all(c("Raw Data", "Curated Data", "Session State") %in% sheets),
         sheet_names = sheets
       )
@@ -115,12 +118,34 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
     existing_reference_lists,
     parsed$reference_lists
   )
+  media_results <- NULL
+  if (!is.null(parsed$media_snapshot)) {
+    snapshot <- as.list(stats::setNames(parsed$media_snapshot$value, parsed$media_snapshot$key))
+    snapshot$overrides <- restore_media_json_rows(parsed$media_overrides)
+    reference_lists$media_map <- reconstruct_media_map_snapshot(snapshot)
+    media_results <- restore_media_json_rows(parsed$media_audit)
+  } else if (any(unlist(all_tags) == "Media")) {
+    stop("Incompatible media replay: snapshot metadata is missing. Re-curate this legacy export from original input.", call. = FALSE)
+  }
 
   restored <- restore_resolution_state(
     parsed$curated_data,
     parsed$session_state
   )
   resolution_state <- restored$resolution_state
+  if (!is.null(media_results) && nrow(media_results) > 0L) {
+    if (nrow(media_results) != nrow(resolution_state) ||
+        !identical(media_results$orig_row_id, seq_len(nrow(resolution_state)))) {
+      stop("Media audit rows do not match curated data; restore an intact export.", call. = FALSE)
+    }
+    resolution_state$media_original <- media_results$raw_media
+    resolution_state$media <- media_results$canonical_media
+    resolution_state$media_category <- media_results$media_category
+    for (col in c("envo_id", "media_flag", media_identity_fields(), "routing_status")) {
+      name <- if (col == "media_flag") col else paste0("media_", col)
+      resolution_state[[name]] <- media_results[[col]]
+    }
+  }
   warnings <- c(warnings, restored$warnings)
 
   dtxsid_cols <- if (!is.null(resolution_state)) {
@@ -193,6 +218,8 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
     site_context_status = if (nrow(site_alias_map) > 0L || nrow(site_manifest) > 0L) "curated" else NULL,
     harmonize_results = harmonize_results,
     harmonize_audit = harmonization_audit,
+    media_results = media_results,
+    media_map_working = reference_lists$media_map,
     toxval_output = toxval_output,
     numeric_correction_queue = empty_numeric_correction_queue(),
     harmonize_results_stale = FALSE,
@@ -200,6 +227,12 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
   )
 
   list(state = state, warnings = warnings)
+}
+
+restore_media_json_rows <- function(sheet) {
+  if (is.null(sheet) || nrow(sheet) == 0L) return(tibble::tibble())
+  if (!"row_json" %in% names(sheet)) stop("Malformed media workbook records; restore an intact export.", call. = FALSE)
+  dplyr::bind_rows(lapply(sheet$row_json, jsonlite::unserializeJSON))
 }
 
 read_export_sheet <- function(file_path, sheets, sheet_name, default) {

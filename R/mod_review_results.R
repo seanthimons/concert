@@ -3393,7 +3393,9 @@ mod_review_results_server <- function(id, data_store) {
           harmonize_audit = data_store$harmonize_audit,
           site_manifest = data_store$site_manifest,
           site_alias_map = data_store$site_alias_map,
-          script_baseline_state = data_store$script_baseline_state
+          script_baseline_state = data_store$script_baseline_state,
+          media_map = data_store$media_map_working,
+          media_results = data_store$media_results
         )
 
         # Write to Excel
