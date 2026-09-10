@@ -20,7 +20,9 @@ build_export_sheets(
   harmonize_audit = NULL,
   site_manifest = NULL,
   site_alias_map = NULL,
-  script_baseline_state = NULL
+  script_baseline_state = NULL,
+  media_map = NULL,
+  media_results = NULL
 )
 }
 \arguments{
@@ -69,6 +71,10 @@ Manifest is rebuilt from these mappings.}
 before Review Results edits. When provided, cells that differ from
 \code{resolution_state} are persisted as \code{baseline_cell} records in Session
 State so re-imported sessions can regenerate replay review overrides.}
+
+\item{media_map}{Effective media map, including user overrides.}
+
+\item{media_results}{Row-level media identity, routing and original-value audit.}
 }
 \value{
 Named list of data frames with sheet names as keys

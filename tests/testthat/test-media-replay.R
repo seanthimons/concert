@@ -20,6 +20,33 @@ test_that("media snapshots require matching schema, artifact and baseline", {
   dir <- withr::local_tempdir()
   saveRDS(user, file.path(dir, "user_media_map.rds"))
   expect_identical(concert:::build_media_map_snapshot(map, dir), snapshot)
+  expect_identical(withr::with_locale(c(LC_COLLATE = "C"), concert:::build_media_map_snapshot(map)), snapshot)
+  expect_error(concert:::reconstruct_media_map_snapshot("legacy"), "malformed snapshot")
+})
+
+test_that("generated media replay reproduces headless results offline", {
+  local_mocked_bindings(run_curation_pipeline = function(cleaned_data, ...) {
+    cleaned_data$consensus_status <- "unresolvable"
+    cleaned_data$consensus_dtxsid <- NA_character_
+    cleaned_data$consensus_source <- NA_character_
+    list(results = cleaned_data, consensus_summary = list())
+  })
+  file <- test_path("data", "media-curation-acceptance.csv")
+  map <- concert:::load_media_map(tempdir())
+  user <- concert:::normalize_media_map_for_display(tibble::tibble(
+    term = "unknown", canonical = "soil", source = "user", active = TRUE))
+  map <- concert:::infer_media_categories(dplyr::bind_rows(user, map))
+  tags <- list(chemical_name = "Name", casrn = "CASRN", result = "Result", unit = "Unit", media = "Media")
+  original <- curate_headless(file, NULL, tags, header_row = 1L, harmonize = TRUE,
+    media_map = map, write_files = FALSE, verbose = FALSE)
+  output <- file.path(withr::local_tempdir(), "replay.xlsx")
+  script <- generate_concert_script(file, output, tags, header_row = 1L,
+    harmonize = TRUE, media_map = map)
+  replay <- eval(parse(text = script), new.env())
+  expect_equal(replay$media_results, original$media_results)
+  expect_equal(replay$data$media, original$data$media)
+  expect_equal(replay$data$media_original, original$data$media_original)
+  expect_equal(nrow(replay$data), 7L)
 })
 
 test_that("workbooks restore media audit, compact overrides and rerunnable originals", {
@@ -42,6 +69,7 @@ test_that("workbooks restore media audit, compact overrides and rerunnable origi
   restored <- hydrate_session_state(parsed, refs)$state
   expect_identical(restored$media_results, first$media_results)
   expect_identical(restored$resolution_state$media_original, raw$media)
+  expect_identical(restored$toxval_output$media_original, raw$media)
   replay <- concert:::run_harmonization_runtime(restored$resolution_state, tags, refs$unit_map,
     media_map = restored$media_map_working)
   expect_identical(replay$media_results, first$media_results)

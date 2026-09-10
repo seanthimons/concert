@@ -2,6 +2,23 @@
 
 # concert NEWS
 
+## Development version
+
+- `media` in ToxVal exports now contains canonical labels (for example, drinking
+  water); conversion categories remain separate. `media_original` preserves the
+  tagged source value and is no longer fabricated from derived media.
+- Bundle the pinned envharmonizer v0.1.1 media compatibility vocabulary (267 terms),
+  matrix terms/edges, manifests and attribution. Recognized nonaqueous media can
+  have no conversion route. Conflicting fallback interpretations stay unresolved.
+- Extend `harmonize_media()` with ontology identity, definition, physical phase,
+  water-based status, provenance and routing availability; retain its arguments
+  and original result columns.
+- Show published media context in the editor, with inspectable user overrides.
+  Workbook exports retain media snapshots, compact overrides and row-level audits.
+- Breaking replay change: media snapshot schema, artifact version, archive hash
+  and baseline hash must match. Legacy snapshots without these fields require
+  re-curation from original input; they are not silently migrated.
+
 ## v0.3.2 (2026-08-12)
 
 #### Bug fixes
@@ -21,7 +38,7 @@ Full set of changes:
 
 #### Bug fixes
 
-- detect ’ & ’ and ’ / ’ multi-analyte separators (#54)
+- detect â€™ & â€™ and â€™ / â€™ multi-analyte separators (#54)
   ([2de8fd0](https://github.com/seanthimons/concert/tree/2de8fd0f050b163a9fb19407abc034f01ef2f98d))
 
 #### Docs
@@ -98,7 +115,7 @@ Full set of changes:
 
 #### Refactorings
 
-- reorder editor panels — unmatched under unit map, parse issues above
+- reorder editor panels â€” unmatched under unit map, parse issues above
   corrections
   ([067ef89](https://github.com/seanthimons/concert/tree/067ef895b93a804e759eba098a155f77c87da640))
 
@@ -313,7 +330,7 @@ Full set of changes:
   ([9a9098b](https://github.com/seanthimons/concert/tree/9a9098b1a9afb679b344759897e9063ec413c08f))
 - WR-02 add readxl guard to stopifnot block for standalone script safety
   ([3d7ee44](https://github.com/seanthimons/concert/tree/3d7ee44e7538ecefc1a3a9c36cf2830382526d5a))
-- WR-01 use correct media string ‘solid’ instead of ‘soil’ in
+- WR-01 use correct media string â€˜solidâ€™ instead of â€˜soilâ€™ in
   harmonization benchmark
   ([0b9ba06](https://github.com/seanthimons/concert/tree/0b9ba064fa49e8c5f571714c4ec6c841160473db))
 - WR-03 invalidate toxval_output in cascade observers on edit
@@ -406,9 +423,9 @@ Full set of changes:
   ([b55038a](https://github.com/seanthimons/concert/tree/b55038a08f2104e3a9d912173e400968d3580a9e))
 - address Codex performance findings
   ([90bc6b7](https://github.com/seanthimons/concert/tree/90bc6b7e748c27d14b3771d8aa77e6dcfa275267))
-- incremental harmonization + ppx O(k²) fix
+- incremental harmonization + ppx O(kÂ²) fix
   ([5479718](https://github.com/seanthimons/concert/tree/5479718d1ad97794ebe90cf019d8d48252ae3f14))
-- fix O(n²) list-growth in deduplicate_tagged_columns
+- fix O(nÂ²) list-growth in deduplicate_tagged_columns
   ([c489885](https://github.com/seanthimons/concert/tree/c4898856c3f24434c2539f82ecb4757217a2f44c))
 
 #### Tests
@@ -417,7 +434,7 @@ Full set of changes:
   ([ee19a16](https://github.com/seanthimons/concert/tree/ee19a16a4906d36ebbc405f42299fef7d79ea963))
 - record pending human verification
   ([aeb3b54](https://github.com/seanthimons/concert/tree/aeb3b54c53662c11d173ac1b0736a572c668bedd))
-- record UAT findings — 2 issues (duplicate confidence column, broken
+- record UAT findings â€” 2 issues (duplicate confidence column, broken
   search)
   ([bd72021](https://github.com/seanthimons/concert/tree/bd720217fa325cdb276383446ff4d5e30f1f5f24))
 - persist human verification items as UAT
@@ -426,11 +443,11 @@ Full set of changes:
   ([5e62a0d](https://github.com/seanthimons/concert/tree/5e62a0d0ceff433e00bc9ebac776b54aad0cc987))
 - persist human verification items as UAT
   ([3e59bb5](https://github.com/seanthimons/concert/tree/3e59bb560dca740aa75cfa1cabae57561fd43518))
-- phase verification — 4/4 must-haves pass, human UAT pending
+- phase verification â€” 4/4 must-haves pass, human UAT pending
   ([d07ef24](https://github.com/seanthimons/concert/tree/d07ef24ec63a9f328e859ae254544d9f3e8c7ef2))
-- update HUMAN-UAT after gap closure — 5 items pending re-verification
+- update HUMAN-UAT after gap closure â€” 5 items pending re-verification
   ([a2856f6](https://github.com/seanthimons/concert/tree/a2856f6d27d65296300a8bde398323cae9533a90))
-- persist UAT findings — 6 gaps diagnosed
+- persist UAT findings â€” 6 gaps diagnosed
   ([e9150e4](https://github.com/seanthimons/concert/tree/e9150e4bc5ada61c39b3a052e0ea17d7ee5fd7b8))
 - complete UAT - 7 passed, 0 issues
   ([35a59f4](https://github.com/seanthimons/concert/tree/35a59f40bdb2224117e814d211ec47e99b6ca7cc))
@@ -438,7 +455,7 @@ Full set of changes:
   ([9203475](https://github.com/seanthimons/concert/tree/92034753ee8d6edced0da071386d3e5cb4bdf42d))
 - persist human verification items as UAT
   ([1f3680c](https://github.com/seanthimons/concert/tree/1f3680c568e16f2de0316b056399e6749002aa7e))
-- mark HUMAN-UAT complete — benchmark verified with real data
+- mark HUMAN-UAT complete â€” benchmark verified with real data
   ([ca6171e](https://github.com/seanthimons/concert/tree/ca6171e2baaecb1e0820d86eb2cfc9f6defccd15))
 - update human verification items after toggle wiring
   ([66e3439](https://github.com/seanthimons/concert/tree/66e3439607dbded4e9da56899092a8e4073a9dc4))
@@ -528,7 +545,7 @@ Full set of changes:
   ([dceca9a](https://github.com/seanthimons/concert/tree/dceca9abc9574de8748d15136742359a49bebda7))
 - create UAT gap closure plan for duplicate column + broken search
   ([57505b0](https://github.com/seanthimons/concert/tree/57505b0602b3a9e99b85d1b0d4a19cff2c46a7f4))
-- re-verification — all 5 must-haves verified, human testing needed
+- re-verification â€” all 5 must-haves verified, human testing needed
   ([1423b8e](https://github.com/seanthimons/concert/tree/1423b8ebf1a9d45cabfbb61c57352d7fe4258b82))
 - add code review report
   ([8f8c135](https://github.com/seanthimons/concert/tree/8f8c135b4805e502c3a5cb33ef38ff201a42de32))
@@ -536,13 +553,13 @@ Full set of changes:
   ([98b0c0d](https://github.com/seanthimons/concert/tree/98b0c0dccec93a559c2581cd92ed8c779ab8fdd8))
 - create gap closure plan 04 for CR-01, WR-02, WR-01, IN-02 fixes
   ([802ad09](https://github.com/seanthimons/concert/tree/802ad09afaef9b590c58e226f2c706872e95834e))
-- re-verification — gaps found from code review findings
+- re-verification â€” gaps found from code review findings
   ([7f49594](https://github.com/seanthimons/concert/tree/7f49594dedee138c76bc24633957dbbfc7a160b1))
 - add code review report
   ([7dbf523](https://github.com/seanthimons/concert/tree/7dbf523f7b8ea92526eccd25f9fb95e85a4b77cd))
 - create gap closure plan for wqx_confidence propagation
   ([f541eac](https://github.com/seanthimons/concert/tree/f541eacc979acdd26b5e62e7cc059c0831bb1eae))
-- add verification report — gaps found
+- add verification report â€” gaps found
   ([221a16e](https://github.com/seanthimons/concert/tree/221a16ed450e26aff9c675be77983736beb2cc3c))
 - add code review report
   ([7dca181](https://github.com/seanthimons/concert/tree/7dca181844adad281fa5fc22a87a2a6a1c6350fb))
@@ -602,7 +619,7 @@ Full set of changes:
   ([ac1a101](https://github.com/seanthimons/concert/tree/ac1a101f6207f09e3ed650f5f5117aca997a70fb))
 - plan matching engine prototype phase
   ([e722592](https://github.com/seanthimons/concert/tree/e7225928747078e674581760863f1ea88f125fa7))
-- create phase plan — 2 plans, 2 waves
+- create phase plan â€” 2 plans, 2 waves
   ([18ecdf1](https://github.com/seanthimons/concert/tree/18ecdf1e8b7316fa77a9a96a2356b1b5ae41c52c))
 - record phase 44 context session
   ([4c069dd](https://github.com/seanthimons/concert/tree/4c069dde50556e4184bf112c450199eb7ab86579))
@@ -630,7 +647,7 @@ Full set of changes:
   ([3a5a496](https://github.com/seanthimons/concert/tree/3a5a496c42353e8e40643ed82675e7d5eb2a3037))
 - add research, patterns, and validation artifacts
   ([53297aa](https://github.com/seanthimons/concert/tree/53297aa4c22a96657ff4720b834d7f6475aab610))
-- create phase plan — pre-flight modal + media editor
+- create phase plan â€” pre-flight modal + media editor
   ([ebf6bb7](https://github.com/seanthimons/concert/tree/ebf6bb772fc454113b89eae2fd35335845d675ca))
 - UI design contract
   ([bb10be3](https://github.com/seanthimons/concert/tree/bb10be33181ad843abb3338d1a58408cc4facfb3))
@@ -656,11 +673,11 @@ Full set of changes:
   ([ba1d52d](https://github.com/seanthimons/concert/tree/ba1d52db3d8cc2eb8577afba881348785ce98806))
 - add code review report
   ([e6e9092](https://github.com/seanthimons/concert/tree/e6e9092c2409ec3ace047ad9fa16e8178e5a15aa))
-- create phase plan — date parser
+- create phase plan â€” date parser
   ([f66b1a2](https://github.com/seanthimons/concert/tree/f66b1a27acc30c85e3edcc54b0f21355ba86a7d7))
 - add validation strategy
   ([4c5e289](https://github.com/seanthimons/concert/tree/4c5e2899628495ce678d1f2fc564018864a977bf))
-- research phase domain — lubridate date parsing
+- research phase domain â€” lubridate date parsing
   ([69e823d](https://github.com/seanthimons/concert/tree/69e823d663c9d3ee4ca357ae84882d66d8118da1))
 - fix typography contract to declare exactly 2 weights
   ([c556930](https://github.com/seanthimons/concert/tree/c5569300173e33c68d162f926fd8b312cf18d2bb))
@@ -688,13 +705,13 @@ Full set of changes:
   ([1890ce5](https://github.com/seanthimons/concert/tree/1890ce56a89cf7d7c6abe15a3da21532b4871d2c))
 - add code review report
   ([dbfbfe5](https://github.com/seanthimons/concert/tree/dbfbfe534b0de68cc52b198ec2cbe0ae0aebbdec))
-- update state after replan — 1 plan, ready to execute
+- update state after replan â€” 1 plan, ready to execute
   ([6734a28](https://github.com/seanthimons/concert/tree/6734a28042e638f8710a00eda5b6f830822fcb4e))
-- replan phase – 1 plan to wire use_dedup toggle bypass
+- replan phase â€“ 1 plan to wire use_dedup toggle bypass
   ([b1c6a65](https://github.com/seanthimons/concert/tree/b1c6a65d23ff4316ef9eb8f8be761c312b7b3908))
 - add code review fix report
   ([91df9a0](https://github.com/seanthimons/concert/tree/91df9a05f0614136398cd2153fcdd763f3f42beb))
-- create phase plan – 2 plans in 2 waves
+- create phase plan â€“ 2 plans in 2 waves
   ([812f4e6](https://github.com/seanthimons/concert/tree/812f4e6c82367e61011817efe2a25902f1f85bfd))
 - record phase 38 context session
   ([81997a1](https://github.com/seanthimons/concert/tree/81997a1e12396282b787f0af2ade65e287fd9292))
@@ -702,7 +719,7 @@ Full set of changes:
   ([1db06e0](https://github.com/seanthimons/concert/tree/1db06e0794157ac3a22e47599da8f8eff9ac8c44))
 - add pattern map and update state to planned
   ([917d7ed](https://github.com/seanthimons/concert/tree/917d7eda3f6829931d3d244183d7b790614776f1))
-- create phase plan — 4 plans in 3 waves
+- create phase plan â€” 4 plans in 3 waves
   ([11031b6](https://github.com/seanthimons/concert/tree/11031b6bb793dead8655336a5decefd50ce993a0))
 - record phase 37 context session
   ([edb9822](https://github.com/seanthimons/concert/tree/edb98227f19bb26f17ca032ffe7af595b063ebdc))
@@ -712,7 +729,7 @@ Full set of changes:
   ([7ff9c61](https://github.com/seanthimons/concert/tree/7ff9c6194a46b2669482ab863f90abb5b46899d5))
 - define milestone v2.0 requirements
   ([2b6f244](https://github.com/seanthimons/concert/tree/2b6f2447371f5f596a07e56ae522fece09bcbcca))
-- v2.0 research — stack, features, architecture, pitfalls, summary
+- v2.0 research â€” stack, features, architecture, pitfalls, summary
   ([86e1a25](https://github.com/seanthimons/concert/tree/86e1a258c90114bc8891a0f927118148e62b2ade))
 - start milestone v2.0 Pipeline Performance & Date/Media Harmonization
   ([9c1f0a0](https://github.com/seanthimons/concert/tree/9c1f0a0a3009ca7805c31749dabb0042c4b3ecb9))
@@ -720,15 +737,15 @@ Full set of changes:
   ([7956ee8](https://github.com/seanthimons/concert/tree/7956ee8e27a6df0f74be491aee7f576f9724f360))
 - add code review report
   ([aad3c8a](https://github.com/seanthimons/concert/tree/aad3c8aad9ffc48f67dc8120836ba9ff88c4c003))
-- plan phase — wire ToxVal schema in Shiny path
+- plan phase â€” wire ToxVal schema in Shiny path
   ([4c2c23c](https://github.com/seanthimons/concert/tree/4c2c23c537927e229381f31db267f12429e17234))
-- create phase plan — wire ToxVal schema in Shiny path
+- create phase plan â€” wire ToxVal schema in Shiny path
   ([4a43847](https://github.com/seanthimons/concert/tree/4a438472f06ca7692ecc7ceb7172ff822d619597))
 - record phase 36 context session
   ([78c62d4](https://github.com/seanthimons/concert/tree/78c62d445ab739a0e9e9b696e3d0f3a87799a6a2))
 - capture phase context
   ([b53660a](https://github.com/seanthimons/concert/tree/b53660acc50edda5d4f5524b9f55eb688b4ca7ce))
-- add gap closure Phase 36 — Wire ToxVal Schema in Shiny Path
+- add gap closure Phase 36 â€” Wire ToxVal Schema in Shiny Path
   ([54fe8d5](https://github.com/seanthimons/concert/tree/54fe8d5aa0e22b76d51128eb1e23bee0ceab6da2))
 - record phase 35 completion
   ([cfcb1b6](https://github.com/seanthimons/concert/tree/cfcb1b6823e5a8a2d923e44a27cb8cc084a500ed))
@@ -824,9 +841,9 @@ Full set of changes:
   ([07ad905](https://github.com/seanthimons/concert/tree/07ad9058cc75003bf7f7e2d9f07b892acf52fe12))
 - start milestone v1.8 R Package Migration
   ([b2df1da](https://github.com/seanthimons/concert/tree/b2df1dacdafdd48fe31dc17b074f6eb11953c5ab))
-- v1.7 milestone audit — tech_debt status, 8/8 requirements satisfied
+- v1.7 milestone audit â€” tech_debt status, 8/8 requirements satisfied
   ([8719db9](https://github.com/seanthimons/concert/tree/8719db9775ec94e07efd7527ec973f12a9fd3323))
-- create phase plan — 2 plans for isotope cleaning, chiral protection,
+- create phase plan â€” 2 plans for isotope cleaning, chiral protection,
   multi-analyte flagging
   ([d9c4035](https://github.com/seanthimons/concert/tree/d9c4035370e7ef18b91f6c8159d0a31a4a78dbf9))
 - create phase plan
@@ -965,7 +982,7 @@ Full set of changes:
   ([2299190](https://github.com/seanthimons/concert/tree/22991908114a051af3c5ac868df27a3ea7b51028))
 - start milestone v1.3 Data Cleaning Pipeline
   ([4351e9c](https://github.com/seanthimons/concert/tree/4351e9c11d12850710ec8ec4c9a2b6f32e4dcca4))
-- complete UAT — all 10 tests passed
+- complete UAT â€” all 10 tests passed
   ([ca076a2](https://github.com/seanthimons/concert/tree/ca076a24c375cd3a2b3c0c0633d0761c55e72e5c))
 - complete phase research and planning
   ([e16336e](https://github.com/seanthimons/concert/tree/e16336ed23cf0cc0bb36427d7b49dce0b78ef8ca))
@@ -981,7 +998,7 @@ Full set of changes:
   ([999cecd](https://github.com/seanthimons/concert/tree/999cecde935b73d34622e582ad0923dd61df74ab))
 - capture phase context
   ([cda5e6a](https://github.com/seanthimons/concert/tree/cda5e6a48ae646fd2a4f005e7113f80a96067fec))
-- complete Phase 6 → Phase 7 transition
+- complete Phase 6 â†’ Phase 7 transition
   ([8ca03b9](https://github.com/seanthimons/concert/tree/8ca03b96b79769a05461251f498c39455eb02bf4))
 - create phase plan
   ([3a8c401](https://github.com/seanthimons/concert/tree/3a8c40118f13688c63b8f5a3778cb87e83c792e2))
@@ -1087,13 +1104,13 @@ Full set of changes:
   ([d531bcd](https://github.com/seanthimons/concert/tree/d531bcd785e8fcbd0146f6cfeaa8a758d52be56f))
 - archive v1.7 phase directories to milestones/v1.7-phases/
   ([0f999b4](https://github.com/seanthimons/concert/tree/0f999b4c0671b906edcc4c0efb8adf5d8711b1dc))
-- archive v1.7 milestone — UI Polish & Isotope Cleaning
+- archive v1.7 milestone â€” UI Polish & Isotope Cleaning
   ([8525b72](https://github.com/seanthimons/concert/tree/8525b72dc4443efe342f1f2e8b2c1c5c4432d023))
 - complete v1.6 milestone
   ([cca3b71](https://github.com/seanthimons/concert/tree/cca3b7188d99ecbe51dd6a6e6d74ee936c1f4ef6))
-- complete v1.5 milestone — archive and cleanup
+- complete v1.5 milestone â€” archive and cleanup
   ([be7e3d2](https://github.com/seanthimons/concert/tree/be7e3d28999b9dd222967ff2a088bf2b2c29baf8))
-- complete v1.4 milestone — archive and cleanup
+- complete v1.4 milestone â€” archive and cleanup
   ([0db15ad](https://github.com/seanthimons/concert/tree/0db15ada6bcdf9be4992cc9a9e946731a83cb09b))
 - archive v1.3 phase directories to milestones/
   ([abfb745](https://github.com/seanthimons/concert/tree/abfb745c5de451ecd6a47d75db1bbd5fdf64bb8d))
@@ -1101,7 +1118,7 @@ Full set of changes:
   ([c45765e](https://github.com/seanthimons/concert/tree/c45765ed15be147d822eba92e8f2e13d8f10c0dc))
 - complete v1.2 milestone
   ([a1bbc28](https://github.com/seanthimons/concert/tree/a1bbc28e0d4fdfa32dece4303752dcc1b287fedd))
-- complete v1.1 milestone — archive and retrospective
+- complete v1.1 milestone â€” archive and retrospective
   ([fcde8a2](https://github.com/seanthimons/concert/tree/fcde8a206a75ae9c7dc9ca9250a944ef70e0bc7b))
 - complete v1.0 milestone
   ([6d2cbba](https://github.com/seanthimons/concert/tree/6d2cbbac10c01e482b411c0f5769275f8dd2eee8))

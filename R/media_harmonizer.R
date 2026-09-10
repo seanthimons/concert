@@ -1,7 +1,6 @@
 # media_harmonizer.R
-# Environmental media harmonization engine: string normalization, exact/parent-walk
-# lookup against the generated CONCERT media cache, canonical resolution with
-# category routing.
+# Environmental media identity lookup against the pinned published vocabulary.
+# Conversion routing is a separate, nullable annotation.
 #
 # Public API: harmonize_media()
 # Internal: get_media_table(), walk_parent()
@@ -353,9 +352,10 @@ validate_media_canonical_ontology <- function(canonical, ontology) {
 
 #' Load reviewable media vocabulary source tables
 #'
-#' @param source_dir Optional directory containing media_canonical.csv and
-#'   media_aliases.csv.
-#' @return List with canonical and aliases tibbles.
+#' @param source_dir Optional reference source directory. Published v0.1.1
+#'   tables are the default; explicit legacy source directories remain readable.
+#' @return List with published compatibility map, matrix terms and matrix edges.
+#'   Explicit legacy directories return canonical, aliases and ontology nodes.
 #' @keywords internal
 load_media_source_tables <- function(source_dir = NULL) {
   if (is.null(source_dir) || dir.exists(file.path(source_dir, "envharmonizer-0.1.1"))) {
@@ -448,7 +448,7 @@ empty_media_runtime_map <- function() {
 #' Build the generated runtime media map from reviewable source tables
 #'
 #' @param source_tables List returned by load_media_source_tables().
-#' @param fetch_timestamp Timestamp string to stamp into the generated cache.
+#' @param fetch_timestamp Timestamp for legacy sources; ignored for pinned artifacts.
 #' @return Tibble compatible with legacy amos_media.rds consumers.
 #' @keywords internal
 build_media_runtime_map <- function(source_tables = load_media_source_tables(),
@@ -460,7 +460,7 @@ build_media_runtime_map <- function(source_tables = load_media_source_tables(),
     tbl$artifact_version <- media_artifact_version()
     tbl$parent <- NA_character_
     tbl$fetch_timestamp <- NA_character_
-    return(tbl[order(tbl$term), ])
+    return(tbl[order(tbl$term, method = "radix"), ])
   }
   canonical_tbl <- source_tables$canonical
   aliases_tbl <- source_tables$aliases
@@ -700,7 +700,7 @@ normalize_media_map_for_display <- function(media_map) {
 
 #' Build rows for the Media Classification editor
 #'
-#' Combines active CONCERT/user mappings, unresolved AMOS aliases, and unique
+#' Combines published defaults, user mappings, unresolved AMOS aliases, and unique
 #' raw unmatched uploaded terms produced by harmonize_media().
 #'
 #' @param media_map Media map tibble from load_media_map().
@@ -861,9 +861,10 @@ infer_media_categories <- function(media_tbl) {
   # Only user aliases inherit context, from unambiguous active targets.
   donors <- which(media_tbl$active & media_tbl$assertion_mode != "pending" &
     media_value_present(media_tbl$canonical_term))
+  donors_by_key <- split(donors, normalize_media_lookup_key(media_tbl$canonical_term[donors]))
   for (i in which(media_tbl$source == "user" & media_value_present(media_tbl$canonical_term))) {
     key <- normalize_media_lookup_key(media_tbl$canonical_term[i])
-    candidates <- setdiff(donors[normalize_media_lookup_key(media_tbl$canonical_term[donors]) == key], i)
+    candidates <- setdiff(donors_by_key[[key]], i)
     if (!length(candidates)) next
     context <- c("envo_id", "media_category", setdiff(media_identity_fields(),
       c("source", "assertion_mode", "confidence", "confidence_tier")))
@@ -875,14 +876,14 @@ infer_media_categories <- function(media_tbl) {
   media_tbl
 }
 
-#' Walk the parent hierarchy for a normalized media string
+#' Resolve an unambiguous phrase fallback for a normalized media string
 #'
 #' Given a normalized (trimws + tolower) input string that did not produce a
-#' resolved exact match, attempts to find the best ancestor by checking whether
+#' resolved exact match, checks whether
 #' a table term appears as a full token/phrase in the input.  Embedded
 #' substrings such as \code{"water"} in \code{"wastewater"} are intentionally
-#' ignored.  When a candidate is found, walks up the \code{parent} column until
-#' an entry with both a canonical term and media category is reached.
+#' ignored. Longer matching phrases subsume their own tokens. Conflicting
+#' identities or routes remain unresolved. Published graph edges are not walked.
 #'
 #' Returns the integer row index of the resolved entry, or \code{NA_integer_}.
 #'
@@ -913,7 +914,7 @@ walk_parent <- function(norm_term, media_tbl) {
 #' Maps a character vector of raw environmental media strings against the
 #' generated CONCERT media vocabulary cache (\code{amos_media.rds}). Resolution
 #' order: (1) user assertions; (2) active bundled auto assertions; (3)
-#' parent-walk for partial/compound matches; (4) \code{media_unmatched} flag
+#' unambiguous phrase fallback for partial matches; (4) \code{media_unmatched} flag
 #' for everything else. Pending source-table aliases are not auto-resolved.
 #'
 #' @param raw_media Character vector of media strings to harmonize.
@@ -927,7 +928,7 @@ walk_parent <- function(norm_term, media_tbl) {
 #'   (MEDIT-03, D-14). If the tibble uses \code{canonical} instead of
 #'   \code{canonical_term} (display schema), the column is translated
 #'   internally before lookup.
-#' @return A tibble with 6 columns:
+#' @return A row-preserving tibble retaining these original columns:
 #'   \describe{
 #'     \item{orig_row_id}{Integer row position for join-by-position merge.}
 #'     \item{raw_media}{Original input string, preserved for audit.}
@@ -940,6 +941,15 @@ walk_parent <- function(norm_term, media_tbl) {
 #'     \item{media_flag}{One of: \code{""} (exact match), \code{"parent_walk"},
 #'       \code{"media_unmatched"}.}
 #'   }
+#'   Additional fields retain published \code{term_id}, \code{parent_id},
+#'   \code{preferred_label}, \code{rank}, \code{definition},
+#'   \code{physical_phase}, \code{physical_state}, \code{is_water_based},
+#'   \code{concert_unit_route}, \code{ontology_node_id}, \code{ontology_path},
+#'   \code{source}, \code{assertion_mode}, \code{confidence},
+#'   \code{confidence_tier}, and \code{artifact_version}.
+#'   CURIE capitalization is preserved. \code{routing_status} is
+#'   \code{available}, \code{unavailable} for a known identity without a route,
+#'   or \code{unmatched}. A successful identity match does not require a route.
 #' @importFrom tibble tibble
 #' @export
 harmonize_media <- function(raw_media, orig_row_id = seq_along(raw_media), media_map = NULL) {
@@ -951,11 +961,12 @@ harmonize_media <- function(raw_media, orig_row_id = seq_along(raw_media), media
   media_tbl <- normalize_media_map_for_display(media_tbl)
   normalized <- normalize_media_lookup_key(raw_media)
   idx <- match(normalized, media_tbl$term)
+  idx[is.na(normalized) | !nzchar(normalized)] <- NA_integer_
   flag <- rep("media_unmatched", length(raw_media))
   exact <- !is.na(idx) & is_resolved_media_row(media_tbl, idx)
   flag[exact] <- ""
   # Resolve distinct fallbacks once; exact inactive/pending keys stay blocked.
-  for (term in unique(normalized[is.na(idx) & !is.na(normalized)])) {
+  for (term in unique(normalized[is.na(idx) & !is.na(normalized) & nzchar(normalized)])) {
     resolved <- walk_parent(term, media_tbl)
     if (!is.na(resolved)) {
       rows <- which(normalized == term)
@@ -970,7 +981,7 @@ harmonize_media <- function(raw_media, orig_row_id = seq_along(raw_media), media
     media_category = media_tbl$media_category[idx], media_flag = flag
   )
   for (col in media_identity_fields()) result[[col]] <- media_tbl[[col]][idx]
-  result$routing_status <- ifelse(is.na(result$canonical_media), "unmatched",
-    ifelse(is.na(result$media_category), "unavailable", "available"))
+  result$routing_status <- as.character(ifelse(is.na(result$canonical_media), "unmatched",
+    ifelse(is.na(result$media_category), "unavailable", "available")))
   result
 }

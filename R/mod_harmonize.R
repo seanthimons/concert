@@ -296,7 +296,7 @@ mod_harmonize_server <- function(id, data_store) {
       # - Have a Unit column tagged
       can_incremental <- length(pending_changes) > 0 &&
         !is.null(data_store$harmonize_results) &&
-        length(unit_cols) > 0
+        length(unit_cols) > 0 && !has_media_tag()
 
       shinyjs::disable("run_harmonization")
 

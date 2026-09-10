@@ -2,7 +2,7 @@
 % Please edit documentation in R/media_harmonizer.R
 \name{walk_parent}
 \alias{walk_parent}
-\title{Walk the parent hierarchy for a normalized media string}
+\title{Resolve an unambiguous phrase fallback for a normalized media string}
 \usage{
 walk_parent(norm_term, media_tbl)
 }
@@ -16,11 +16,11 @@ Integer row index or NA_integer_.
 }
 \description{
 Given a normalized (trimws + tolower) input string that did not produce a
-resolved exact match, attempts to find the best ancestor by checking whether
+resolved exact match, checks whether
 a table term appears as a full token/phrase in the input.  Embedded
 substrings such as \code{"water"} in \code{"wastewater"} are intentionally
-ignored.  When a candidate is found, walks up the \code{parent} column until
-an entry with both a canonical term and media category is reached.
+ignored. Longer matching phrases subsume their own tokens. Conflicting
+identities or routes remain unresolved. Published graph edges are not walked.
 }
 \details{
 Returns the integer row index of the resolved entry, or \code{NA_integer_}.

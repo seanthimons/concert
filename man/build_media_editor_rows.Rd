@@ -15,7 +15,7 @@ build_media_editor_rows(media_map, media_results)
 Tibble for DT rendering and tests.
 }
 \description{
-Combines active CONCERT/user mappings, unresolved AMOS aliases, and unique
+Combines published defaults, user mappings, unresolved AMOS aliases, and unique
 raw unmatched uploaded terms produced by harmonize_media().
 }
 \keyword{internal}

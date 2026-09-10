@@ -29,6 +29,8 @@ test_that("user precedence, inactive keys and conflicting fallbacks are determin
   expect_equal(harmonize_media("drinking water sample")$canonical_media, "drinking water")
   expect_error(harmonize_media("water", integer()), "equal lengths")
   expect_equal(harmonize_media("water", media_map = map[0, ])$media_flag, "media_unmatched")
+  invalid <- tibble::tibble(term = c(NA_character_, ""), canonical_term = "water", active = TRUE)
+  expect_equal(harmonize_media(c(NA, ""), media_map = invalid)$media_flag, rep("media_unmatched", 2))
 })
 
 test_that("runtime preserves originals, canonical labels and row counts on rerun", {
