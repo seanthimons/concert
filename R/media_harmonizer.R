@@ -709,6 +709,8 @@ normalize_media_map_for_display <- function(media_map) {
 #' @keywords internal
 build_media_editor_rows <- function(media_map, media_results) {
   map_rows <- normalize_media_map_for_display(media_map)
+  map_rows <- map_rows[order(map_rows$source != "user"), ]
+  map_rows <- map_rows[!duplicated(map_rows$term), ]
   unresolved_map <- is.na(map_rows$canonical) | !nzchar(map_rows$canonical)
   keep_map <- (map_rows$source %in% c("concert", "amosharmonizer") & map_rows$active) |
     map_rows$source == "user" |
