@@ -358,6 +358,9 @@ validate_media_canonical_ontology <- function(canonical, ontology) {
 #' @return List with canonical and aliases tibbles.
 #' @keywords internal
 load_media_source_tables <- function(source_dir = NULL) {
+  if (is.null(source_dir) || dir.exists(file.path(source_dir, "envharmonizer-0.1.1"))) {
+    return(load_published_media_tables(resolve_media_source_dir(source_dir)))
+  }
   source_dir <- resolve_media_source_dir(source_dir)
   if (!nzchar(source_dir)) {
     stop("Media source table directory not found.", call. = FALSE)
@@ -446,6 +449,13 @@ empty_media_runtime_map <- function() {
 #' @keywords internal
 build_media_runtime_map <- function(source_tables = load_media_source_tables(),
                                     fetch_timestamp = format(Sys.time(), "%Y-%m-%dT%H:%M:%S")) {
+  if (!is.null(source_tables$concert_media_map)) {
+    tbl <- source_tables$concert_media_map
+    tbl$canonical <- tbl$canonical_term
+    tbl$ontology_node_id <- tbl$term_id
+    tbl$artifact_version <- media_artifact_version()
+    return(tbl[order(tbl$term), ])
+  }
   canonical_tbl <- source_tables$canonical
   aliases_tbl <- source_tables$aliases
 
