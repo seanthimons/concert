@@ -6,6 +6,7 @@ test_that("published media artifacts retain types, keys and deterministic bytes"
   expect_type(map$active, "logical")
   expect_type(map$term_id, "character")
   expect_identical(map, concert:::build_media_runtime_map(tables))
+  expect_identical(map, concert:::get_media_table())
   expect_equal(nrow(tables$matrix_terms), 1201L)
   expect_equal(nrow(tables$matrix_edges), 1425L)
   expect_gt(sum(duplicated(tables$matrix_edges$child_id)), 0L)

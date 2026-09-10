@@ -12,7 +12,7 @@ build_media_runtime_map(
 \arguments{
 \item{source_tables}{List returned by load_media_source_tables().}
 
-\item{fetch_timestamp}{Timestamp string to stamp into the generated cache.}
+\item{fetch_timestamp}{Timestamp for legacy sources; ignored for pinned artifacts.}
 }
 \value{
 Tibble compatible with legacy amos_media.rds consumers.

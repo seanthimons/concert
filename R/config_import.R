@@ -141,6 +141,10 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
     resolution_state$media_original <- media_results$raw_media
     resolution_state$media <- media_results$canonical_media
     resolution_state$media_category <- media_results$media_category
+    if (!is.null(toxval_output) && nrow(toxval_output) == nrow(media_results)) {
+      toxval_output$media <- media_results$canonical_media
+      toxval_output$media_original <- media_results$raw_media
+    }
     for (col in c("envo_id", "media_flag", media_identity_fields(), "routing_status")) {
       name <- if (col == "media_flag") col else paste0("media_", col)
       resolution_state[[name]] <- media_results[[col]]
@@ -232,7 +236,11 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
 restore_media_json_rows <- function(sheet) {
   if (is.null(sheet) || nrow(sheet) == 0L) return(tibble::tibble())
   if (!"row_json" %in% names(sheet)) stop("Malformed media workbook records; restore an intact export.", call. = FALSE)
-  dplyr::bind_rows(lapply(sheet$row_json, jsonlite::unserializeJSON))
+  rows <- lapply(sheet$row_json, jsonlite::unserializeJSON)
+  if (!all(vapply(rows, function(row) is.data.frame(row) && nrow(row) == 1L, logical(1)))) {
+    stop("Malformed media workbook records; expected one typed row per record.", call. = FALSE)
+  }
+  dplyr::bind_rows(rows)
 }
 
 read_export_sheet <- function(file_path, sheets, sheet_name, default) {

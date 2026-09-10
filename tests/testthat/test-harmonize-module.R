@@ -545,6 +545,11 @@ test_that("published media editor inspects, saves and reruns user overrides", {
     expect_equal(data_store$toxval_output, expected$toxval_output)
     expect_equal(data_store$toxval_output$media_original, fixture$media)
     expect_equal(data_store$toxval_output$media[7], "soil")
+    # A unit edit still takes the shared media-aware path on a media dataset.
+    data_store$changed_units <- "ppb"
+    data_store$harmonize_run_nonce <- 3L
+    session$flushReact()
+    expect_equal(data_store$toxval_output, expected$toxval_output)
   })
 })
 

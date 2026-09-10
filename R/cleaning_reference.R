@@ -609,7 +609,8 @@ keyed_map_behavior_cols <- function(map, key_col, ignore_cols) {
 
 keyed_map_snapshot_hash <- function(default_map, key_col, ignore_cols) {
   cols <- c(key_col, keyed_map_behavior_cols(default_map, key_col, ignore_cols))
-  ordered <- default_map[order(default_map[[key_col]]), cols, drop = FALSE]
+  ordering <- if (key_col == "term") order(default_map[[key_col]], method = "radix") else order(default_map[[key_col]])
+  ordered <- default_map[ordering, cols, drop = FALSE]
   digest::digest(tibble::as_tibble(ordered), algo = "sha256")
 }
 
@@ -735,6 +736,12 @@ reconstruct_unit_map_snapshot <- function(snapshot, cache_dir = NULL) {
 reconstruct_media_map_snapshot <- function(snapshot, cache_dir = NULL) {
   if (is.null(snapshot)) {
     return(NULL)
+  }
+  if (!is.list(snapshot) || !is.data.frame(snapshot$overrides) ||
+      (nrow(snapshot$overrides) > 0L &&
+        (!"term" %in% names(snapshot$overrides) || anyNA(snapshot$overrides$term) ||
+          anyDuplicated(snapshot$overrides$term)))) {
+    stop("Incompatible media replay: malformed snapshot overrides. Restore an intact snapshot.", call. = FALSE)
   }
   cache_dir <- resolve_reference_cache_dir(cache_dir)
   default_map <- normalize_media_map_for_display(get_media_table())
