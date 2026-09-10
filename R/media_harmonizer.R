@@ -423,7 +423,7 @@ load_media_source_tables <- function(source_dir = NULL) {
 }
 
 empty_media_runtime_map <- function() {
-  tibble::tibble(
+  tbl <- tibble::tibble(
     term = character(),
     canonical = character(),
     canonical_term = character(),
@@ -439,6 +439,10 @@ empty_media_runtime_map <- function() {
     confidence = character(),
     active = logical()
   )
+  for (col in media_identity_fields()) {
+    if (!col %in% names(tbl)) tbl[[col]] <- if (col == "is_water_based") logical() else character()
+  }
+  tbl
 }
 
 #' Build the generated runtime media map from reviewable source tables
@@ -454,6 +458,8 @@ build_media_runtime_map <- function(source_tables = load_media_source_tables(),
     tbl$canonical <- tbl$canonical_term
     tbl$ontology_node_id <- tbl$term_id
     tbl$artifact_version <- media_artifact_version()
+    tbl$parent <- NA_character_
+    tbl$fetch_timestamp <- NA_character_
     return(tbl[order(tbl$term), ])
   }
   canonical_tbl <- source_tables$canonical
@@ -540,8 +546,7 @@ is_resolved_media_row <- function(media_tbl, idx) {
   out <- rep(FALSE, length(idx))
   if (any(valid_idx)) {
     rows <- idx[valid_idx]
-    out[valid_idx] <- media_value_present(media_tbl$canonical_term[rows]) &
-      media_value_present(media_tbl$media_category[rows])
+    out[valid_idx] <- media_value_present(media_tbl$canonical_term[rows])
   }
   out
 }
@@ -550,6 +555,11 @@ prepare_media_table <- function(media_tbl) {
   if (is.null(media_tbl) || nrow(media_tbl) == 0L) {
     return(media_tbl)
   }
+  media_tbl <- normalize_media_map_for_display(media_tbl)
+  media_tbl$term <- normalize_media_lookup_key(media_tbl$term)
+  user_priority <- ifelse(media_tbl$source == "user" | media_tbl$assertion_mode == "user", 0L, 1L)
+  media_tbl <- media_tbl[order(user_priority), , drop = FALSE]
+  media_tbl <- media_tbl[!duplicated(media_tbl$term), , drop = FALSE]
 
   if (!"canonical_term" %in% names(media_tbl) && "canonical" %in% names(media_tbl)) {
     media_tbl$canonical_term <- media_tbl$canonical
@@ -588,7 +598,7 @@ prepare_media_table <- function(media_tbl) {
   media_tbl$canonical_term <- trimws(as.character(media_tbl$canonical_term))
   media_tbl$parent <- trimws(tolower(as.character(media_tbl$parent)))
   media_tbl$parent[!media_value_present(media_tbl$parent)] <- NA_character_
-  media_tbl$ontology_node_id <- normalize_media_lower_character(media_tbl$ontology_node_id)
+  media_tbl$ontology_node_id <- normalize_media_character(media_tbl$ontology_node_id)
   media_tbl$ontology_path <- normalize_media_character(media_tbl$ontology_path)
   media_tbl$physical_state <- normalize_media_lower_character(media_tbl$physical_state)
   media_tbl$source <- trimws(tolower(as.character(media_tbl$source)))
@@ -596,7 +606,8 @@ prepare_media_table <- function(media_tbl) {
 
   auto_flag <- media_tbl$assertion_mode %in% c("auto", "user")
   auto_flag[is.na(auto_flag)] <- FALSE
-  media_tbl <- media_tbl[active_flag & auto_flag, , drop = FALSE]
+  # Retain blocked keys so exact inactive/pending overrides cannot fall back.
+  media_tbl$canonical_term[!(active_flag & auto_flag)] <- NA_character_
   if (nrow(media_tbl) == 0L) {
     return(media_tbl)
   }
@@ -657,14 +668,14 @@ normalize_media_map_for_display <- function(media_map) {
     tbl$active <- TRUE
   }
 
-  tbl <- tibble::tibble(
+  tbl <- dplyr::mutate(tbl,
     term = trimws(tolower(as.character(tbl$term))),
     canonical = normalize_media_character(tbl$canonical),
     canonical_term = normalize_media_character(tbl$canonical_term),
     envo_id = normalize_media_character(tbl$envo_id),
     parent = normalize_media_character(tbl$parent),
     media_category = normalize_media_character(tbl$media_category),
-    ontology_node_id = normalize_media_lower_character(tbl$ontology_node_id),
+    ontology_node_id = normalize_media_character(tbl$ontology_node_id),
     ontology_path = normalize_media_character(tbl$ontology_path),
     physical_state = normalize_media_lower_character(tbl$physical_state),
     source = trimws(tolower(as.character(tbl$source))),
@@ -673,6 +684,11 @@ normalize_media_map_for_display <- function(media_map) {
     confidence = normalize_media_character(tbl$confidence),
     active = as.logical(tbl$active)
   )
+  for (col in media_identity_fields()) {
+    if (!col %in% names(tbl)) tbl[[col]] <- if (col == "is_water_based") NA else NA_character_
+  }
+  tbl$ontology_node_id <- dplyr::coalesce(tbl$ontology_node_id, tbl$term_id)
+  tbl$is_water_based <- as.logical(tbl$is_water_based)
   tbl$active[is.na(tbl$active)] <- FALSE
   tbl$assertion_mode[is.na(tbl$assertion_mode) | !nzchar(tbl$assertion_mode)] <- ifelse(
     tbl$source[is.na(tbl$assertion_mode) | !nzchar(tbl$assertion_mode)] == "user",
@@ -694,7 +710,8 @@ normalize_media_map_for_display <- function(media_map) {
 build_media_editor_rows <- function(media_map, media_results) {
   map_rows <- normalize_media_map_for_display(media_map)
   unresolved_map <- is.na(map_rows$canonical) | !nzchar(map_rows$canonical)
-  keep_map <- (map_rows$source %in% c("concert", "user") & map_rows$active) |
+  keep_map <- (map_rows$source %in% c("concert", "amosharmonizer") & map_rows$active) |
+    map_rows$source == "user" |
     (
       map_rows$source == "amos" &
       (unresolved_map | map_rows$assertion_mode == "pending") &
@@ -829,59 +846,30 @@ build_media_editor_rows <- function(media_map, media_results) {
   ]
 }
 
+media_identity_fields <- function() {
+  c("term_id", "parent_id", "preferred_label", "rank", "definition", "physical_phase",
+    "physical_state", "is_water_based", "concert_unit_route", "ontology_node_id",
+    "ontology_path", "source", "assertion_mode", "confidence", "confidence_tier",
+    "artifact_version")
+}
+
 infer_media_categories <- function(media_tbl) {
-  if (is.null(media_tbl) || nrow(media_tbl) == 0L || !"media_category" %in% names(media_tbl)) {
-    return(media_tbl)
-  }
-
-  source_idx <- which(
-    media_value_present(media_tbl$canonical_term) &
-      media_value_present(media_tbl$media_category)
-  )
-  if (length(source_idx) == 0L) {
-    return(media_tbl)
-  }
-
-  unique_donor <- function(key, key_vec) {
-    candidates <- source_idx[key_vec[source_idx] == key]
-    if (length(candidates) == 0L) {
-      return(NA_integer_)
-    }
-    categories <- unique(media_tbl$media_category[candidates])
-    categories <- categories[media_value_present(categories)]
-    if (length(categories) != 1L) {
-      return(NA_integer_)
-    }
-    candidates[1]
-  }
-
-  term_keys <- media_tbl$term
-  canonical_keys <- trimws(tolower(media_tbl$canonical_term))
-
-  missing_category <- which(
-    media_value_present(media_tbl$canonical_term) &
-      !media_value_present(media_tbl$media_category)
-  )
-  for (i in missing_category) {
-    key <- trimws(tolower(media_tbl$canonical_term[i]))
-    donor <- unique_donor(key, term_keys)
-    if (is.na(donor)) {
-      donor <- unique_donor(key, canonical_keys)
-    }
-    if (!is.na(donor)) {
-      media_tbl$media_category[i] <- media_tbl$media_category[donor]
-      for (col in c("envo_id", "ontology_node_id", "ontology_path", "physical_state")) {
-        if (
-          col %in% names(media_tbl) &&
-            !media_value_present(media_tbl[[col]][i]) &&
-            media_value_present(media_tbl[[col]][donor])
-        ) {
-          media_tbl[[col]][i] <- media_tbl[[col]][donor]
-        }
-      }
+  if (is.null(media_tbl) || nrow(media_tbl) == 0L) return(media_tbl)
+  media_tbl <- normalize_media_map_for_display(media_tbl)
+  # Only user aliases inherit context, from unambiguous active targets.
+  donors <- which(media_tbl$active & media_tbl$assertion_mode != "pending" &
+    media_value_present(media_tbl$canonical_term))
+  for (i in which(media_tbl$source == "user" & media_value_present(media_tbl$canonical_term))) {
+    key <- normalize_media_lookup_key(media_tbl$canonical_term[i])
+    candidates <- setdiff(donors[normalize_media_lookup_key(media_tbl$canonical_term[donors]) == key], i)
+    if (!length(candidates)) next
+    context <- c("envo_id", "media_category", setdiff(media_identity_fields(),
+      c("source", "assertion_mode", "confidence", "confidence_tier")))
+    for (col in context) {
+      values <- unique(media_tbl[[col]][candidates])
+      if (length(values) == 1L && is.na(media_tbl[[col]][i])) media_tbl[[col]][i] <- values
     }
   }
-
   media_tbl
 }
 
@@ -901,50 +889,21 @@ infer_media_categories <- function(media_tbl) {
 #' @return Integer row index or NA_integer_.
 #' @keywords internal
 walk_parent <- function(norm_term, media_tbl) {
-  if (is.na(norm_term) || !nzchar(norm_term)) {
-    return(NA_integer_)
-  }
-
-  tbl_terms <- media_tbl$term
-  is_candidate <- vapply(tbl_terms, media_term_in_text, logical(1L), text = norm_term)
-
-  candidate_idx <- which(is_candidate)
-  if (length(candidate_idx) == 0L) {
-    return(NA_integer_)
-  }
-
-  cand_lens <- nchar(tbl_terms[candidate_idx])
-  candidate_idx <- candidate_idx[order(cand_lens, decreasing = TRUE)]
-
-  for (best_cand in candidate_idx) {
-    visited <- integer(0)
-    current <- best_cand
-
-    repeat {
-      if (current %in% visited) {
-        break
-      }
-      visited <- c(visited, current)
-
-      if (is_resolved_media_row(media_tbl, current)) {
-        return(current)
-      }
-
-      parent_term <- media_tbl$parent[current]
-      if (is.na(parent_term)) {
-        break
-      }
-
-      parent_idx <- match(parent_term, tbl_terms)
-      if (is.na(parent_idx)) {
-        break
-      }
-
-      current <- parent_idx
-    }
-  }
-
-  NA_integer_
+  if (is.na(norm_term) || !nzchar(norm_term)) return(NA_integer_)
+  candidates <- which(vapply(media_tbl$term, media_term_in_text, logical(1), text = norm_term))
+  if (!length(candidates)) return(NA_integer_)
+  # Longer phrases subsume their own tokens; separate interpretations conflict.
+  candidates <- candidates[!vapply(candidates, function(i) {
+    any(vapply(setdiff(candidates, i), function(j) {
+      nchar(media_tbl$term[j]) > nchar(media_tbl$term[i]) &&
+        media_term_in_text(media_tbl$term[i], media_tbl$term[j])
+    }, logical(1)))
+  }, logical(1))]
+  if (!all(is_resolved_media_row(media_tbl, candidates))) return(NA_integer_)
+  identities <- unique(media_tbl$canonical_term[candidates])
+  routes <- unique(media_tbl$media_category[candidates])
+  if (length(identities) != 1L || length(routes) != 1L) return(NA_integer_)
+  candidates[1]
 }
 
 #' Harmonize environmental media strings to canonical CONCERT media terms
@@ -982,97 +941,34 @@ walk_parent <- function(norm_term, media_tbl) {
 #' @importFrom tibble tibble
 #' @export
 harmonize_media <- function(raw_media, orig_row_id = seq_along(raw_media), media_map = NULL) {
-  # Empty-input guard: return typed 0-row tibble (T-41-02 DoS mitigation)
-  n <- length(raw_media)
-  if (n == 0L) {
-    return(tibble::tibble(
-      orig_row_id = integer(0),
-      raw_media = character(0),
-      canonical_media = character(0),
-      envo_id = character(0),
-      media_category = character(0),
-      media_flag = character(0)
-    ))
+  if (length(raw_media) != length(orig_row_id)) {
+    stop("raw_media and orig_row_id must have equal lengths.", call. = FALSE)
   }
-
-  # Use passed-in map or fall back to bundled AMOS table (D-14 priority order)
-  media_tbl <- if (!is.null(media_map) && nrow(media_map) > 0) {
-    # Validate required column: term must be present
-    if (!"term" %in% names(media_map)) {
-      get_media_table()
-    } else {
-      media_map
-    }
-  } else {
-    get_media_table()
-  }
-
-  media_tbl <- prepare_media_table(media_tbl)
-  media_tbl <- infer_media_categories(media_tbl)
-
-  if (is.null(media_tbl) || nrow(media_tbl) == 0L) {
-    return(tibble::tibble(
-      orig_row_id = as.integer(orig_row_id),
-      raw_media = as.character(raw_media),
-      canonical_media = NA_character_,
-      envo_id = NA_character_,
-      media_category = NA_character_,
-      media_flag = rep("media_unmatched", n)
-    ))
-  }
-
-  # Normalize input: trim whitespace and lower-case (vectorized)
+  media_tbl <- if (is.null(media_map) || !"term" %in% names(media_map)) get_media_table() else media_map
+  media_tbl <- prepare_media_table(infer_media_categories(media_tbl))
+  media_tbl <- normalize_media_map_for_display(media_tbl)
   normalized <- normalize_media_lookup_key(raw_media)
-
-  # Build O(1) hash map: normalized term -> row index
-  lookup_hash <- stats::setNames(seq_len(nrow(media_tbl)), media_tbl$term)
-
-  # Exact match (vectorized, NA-safe)
-  non_na_mask <- !is.na(normalized)
-  match_idx <- rep(NA_integer_, n)
-  match_idx[non_na_mask] <- lookup_hash[normalized[non_na_mask]]
-
-  # Pre-allocate output vectors
-  canonical_out <- rep(NA_character_, n)
-  envo_out <- rep(NA_character_, n)
-  category_out <- rep(NA_character_, n)
-  media_flag <- rep("media_unmatched", n)
-
-  # Fill resolved exact matches (vectorized where possible). Exact rows without
-  # a usable routing category stay unmatched so ppb/ppm never default silently.
-  exact_mask <- !is.na(match_idx) & is_resolved_media_row(media_tbl, match_idx)
-  if (any(exact_mask)) {
-    idx_vec <- match_idx[exact_mask]
-    canonical_out[exact_mask] <- media_tbl$canonical_term[idx_vec]
-    envo_out[exact_mask] <- media_tbl$envo_id[idx_vec]
-    category_out[exact_mask] <- media_tbl$media_category[idx_vec]
-    media_flag[exact_mask] <- ""
-  }
-
-  # Parent-walk for remaining unmatched rows. Media columns are often highly
-  # duplicated, so resolve each distinct normalized term once.
-  unmatched_positions <- which(!exact_mask)
-  unmatched_terms <- unique(normalized[unmatched_positions])
-  unmatched_terms <- unmatched_terms[!is.na(unmatched_terms) & nzchar(unmatched_terms)]
-
-  for (term in unmatched_terms) {
+  idx <- match(normalized, media_tbl$term)
+  flag <- rep("media_unmatched", length(raw_media))
+  exact <- !is.na(idx) & is_resolved_media_row(media_tbl, idx)
+  flag[exact] <- ""
+  # Resolve distinct fallbacks once; exact inactive/pending keys stay blocked.
+  for (term in unique(normalized[is.na(idx) & !is.na(normalized)])) {
     resolved <- walk_parent(term, media_tbl)
     if (!is.na(resolved)) {
-      term_positions <- unmatched_positions[normalized[unmatched_positions] == term]
-      canonical_out[term_positions] <- media_tbl$canonical_term[resolved]
-      envo_out[term_positions] <- media_tbl$envo_id[resolved]
-      category_out[term_positions] <- media_tbl$media_category[resolved]
-      media_flag[term_positions] <- "parent_walk"
+      rows <- which(normalized == term)
+      idx[rows] <- resolved
+      flag[rows] <- "parent_walk"
     }
-    # else: stays "media_unmatched" / NA (already initialized)
   }
-
-  tibble::tibble(
-    orig_row_id = as.integer(orig_row_id),
-    raw_media = as.character(raw_media),
-    canonical_media = canonical_out,
-    envo_id = envo_out,
-    media_category = category_out,
-    media_flag = media_flag
+  idx[flag == "media_unmatched"] <- NA_integer_
+  result <- tibble::tibble(
+    orig_row_id = as.integer(orig_row_id), raw_media = as.character(raw_media),
+    canonical_media = media_tbl$canonical_term[idx], envo_id = media_tbl$envo_id[idx],
+    media_category = media_tbl$media_category[idx], media_flag = flag
   )
+  for (col in media_identity_fields()) result[[col]] <- media_tbl[[col]][idx]
+  result$routing_status <- ifelse(is.na(result$canonical_media), "unmatched",
+    ifelse(is.na(result$media_category), "unavailable", "available"))
+  result
 }
