@@ -179,43 +179,6 @@ derive_match_type <- function(df) {
   result
 }
 
-derive_row_flag_html <- function(flag) {
-  flag <- as.character(flag)
-  flag[is.na(flag)] <- ""
-
-  colors <- c(
-    "BAD" = "#DC3545",
-    "FOLLOW-UP" = "#FFC107",
-    "VERIFIED" = "#198754"
-  )
-  text_colors <- c(
-    "BAD" = "#fff",
-    "FOLLOW-UP" = "#212529",
-    "VERIFIED" = "#fff"
-  )
-
-  unname(vapply(
-    flag,
-    function(value) {
-      if (value == "") {
-        return("")
-      }
-      bg <- unname(colors[value]) %||% "#6c757d"
-      fg <- unname(text_colors[value]) %||% "#fff"
-      paste0(
-        '<span class="badge row-flag-chip" style="background:',
-        bg,
-        ";color:",
-        fg,
-        ';font-size:0.8em;">',
-        htmltools::htmlEscape(value),
-        "</span>"
-      )
-    },
-    character(1)
-  ))
-}
-
 row_flag_filter_choices <- function(flags) {
   tagged_flags <- intersect(valid_row_flags(), unique(as.character(stats::na.omit(flags))))
   c("Untagged" = "__untagged__", stats::setNames(tagged_flags, tagged_flags))
@@ -284,7 +247,7 @@ review_filter_token <- function(type, value = NULL) {
   as.character(jsonlite::toJSON(token, auto_unbox = TRUE, digits = NA, na = "null"))
 }
 
-build_review_filter_choices <- function(values, column_name, native_limit = 50L) {
+build_review_filter_choices <- function(values, column_name, native_limit = 50L, query = "", limit = Inf) {
   blank <- review_filter_blank(values)
   if (all(blank)) {
     return(NULL)
@@ -308,6 +271,11 @@ build_review_filter_choices <- function(values, column_name, native_limit = 50L)
     populated <- c(domain_values, remaining)
   }
 
+  populated_count <- length(populated)
+  if (nzchar(query)) {
+    populated <- populated[grepl(tolower(query), tolower(as.character(populated)), fixed = TRUE)]
+  }
+  populated <- head(populated, limit)
   token_values <- switch(
     type,
     date = format(populated, "%Y-%m-%d"),
@@ -342,8 +310,8 @@ build_review_filter_choices <- function(values, column_name, native_limit = 50L)
 
   list(
     choices = choices,
-    populated_count = as.integer(length(populated)),
-    searchable = length(populated) > as.integer(native_limit)
+    populated_count = as.integer(populated_count),
+    searchable = populated_count > as.integer(native_limit)
   )
 }
 
@@ -407,6 +375,7 @@ make_review_filter_input <- function(config, table_id, column_name) {
     htmltools::tags$select(
       class = paste(classes, collapse = " "),
       `data-filter-column` = column_name,
+      `data-filter-url` = config$url,
       `aria-label` = paste("Filter", column_name),
       onchange = "window.concertReviewFilters.apply(this)",
       style = "width:100%;font-size:0.85em;padding:2px;",
@@ -421,11 +390,21 @@ make_review_filter_input <- function(config, table_id, column_name) {
   }
 }
 
-apply_review_filter_definitions <- function(df, col_defs, table_id) {
+review_filter_response <- function(data, req) {
+  query <- shiny::parseQueryString(req$QUERY_STRING)$query %||% ""
+  config <- build_review_filter_choices(data$values, data$column_name, query = query, limit = 100L)
+  list(
+    status = 200L,
+    headers = list("Content-Type" = "application/json"),
+    body = as.character(jsonlite::toJSON(config$choices, dataframe = "rows", auto_unbox = TRUE))
+  )
+}
+
+apply_review_filter_definitions <- function(df, col_defs, table_id, session = NULL) {
   for (column_name in names(df)) {
     definition <- col_defs[[column_name]] %||% reactable::colDef()
-    config <- if (!identical(column_name, "Resolution")) {
-      build_review_filter_choices(df[[column_name]], column_name)
+    config <- if (!column_name %in% c("Resolution", ".review_row")) {
+      build_review_filter_choices(df[[column_name]], column_name, limit = if (is.null(session)) Inf else 100L)
     } else {
       NULL
     }
@@ -435,6 +414,13 @@ apply_review_filter_definitions <- function(df, col_defs, table_id) {
       definition$filterInput <- NULL
       definition$filterMethod <- NULL
     } else {
+      if (config$searchable && !is.null(session)) {
+        config$url <- session$registerDataObj(
+          paste0("review-filter-", digest::digest(column_name)),
+          list(values = df[[column_name]], column_name = column_name),
+          review_filter_response
+        )
+      }
       definition$filterable <- TRUE
       definition$filterMethod <- review_exact_filter_method()
       definition$filterInput <- make_review_filter_input(config, table_id, column_name)
@@ -754,26 +740,103 @@ build_group_reverse_map <- function(dedup_group_map) {
   if (is.null(dedup_group_map)) {
     return(NULL)
   }
-  reverse <- integer()
-  for (i in seq_along(dedup_group_map)) {
-    for (idx in dedup_group_map[[i]]) {
-      reverse[idx] <- i
-    }
-  }
+  indices <- unlist(dedup_group_map, use.names = FALSE)
+  reverse <- rep(NA_integer_, max(c(0L, indices)))
+  reverse[indices] <- rep.int(seq_along(dedup_group_map), lengths(dedup_group_map))
   reverse
 }
 
 # Look up all original row indices belonging to the same dedup group as `original_idx`
 get_group_rows <- function(original_idx, dedup_group_map) {
+  if (length(original_idx) == 0L) {
+    return(integer())
+  }
   if (is.null(dedup_group_map)) {
     return(original_idx)
   }
   reverse <- build_group_reverse_map(dedup_group_map)
+  original_idx <- unique(original_idx)
   grp_idx <- reverse[original_idx]
-  if (is.na(grp_idx)) {
-    return(original_idx)
+  unique(unlist(
+    lapply(seq_along(original_idx), function(i) {
+      if (is.na(grp_idx[i])) original_idx[i] else dedup_group_map[[grp_idx[i]]]
+    }),
+    use.names = FALSE
+  ))
+}
+
+review_empty_columns <- function(df) {
+  if (nrow(df) == 0L) {
+    return(character())
   }
-  dedup_group_map[[grp_idx]]
+  empty <- names(df)[vapply(df, function(values) all(review_filter_blank(values)), logical(1))]
+  required <- c("Resolution", ".review_row")
+  if (any(df$consensus_status %in% c("error", "unresolvable"))) {
+    required <- c(required, "consensus_dtxsid")
+  }
+  setdiff(empty, required)
+}
+
+build_review_results_table <- function(df, hidden_cols, session) {
+  col_defs <- list(
+    n_rows = reactable::colDef(name = "Rows", minWidth = 60),
+    Resolution = reactable::colDef(html = TRUE, minWidth = 250),
+    .review_row = reactable::colDef(show = FALSE, filterable = FALSE)
+  )
+  if ("row_flag" %in% names(df)) {
+    col_defs$row_flag <- reactable::colDef(name = "Flag", minWidth = 100)
+  }
+  for (col in grep("^wqx_confidence|^similarity_score$", names(df), value = TRUE)) {
+    col_defs[[col]] <- reactable::colDef(
+      name = if (col == "similarity_score") "Sim. Score" else "WQX Conf.",
+      minWidth = 80,
+      align = "right",
+      format = reactable::colFormat(digits = 2)
+    )
+  }
+  if ("consensus_dtxsid" %in% names(df)) {
+    col_defs$consensus_dtxsid <- reactable::colDef(
+      cell = htmlwidgets::JS(
+        "function(cell) {
+        if (['error', 'unresolvable'].indexOf(cell.row.consensus_status) < 0) return cell.value || '';
+        return React.createElement('input', {
+          key: cell.row['.review_row'] + ':' + (cell.value || ''),
+          type: 'text', className: 'form-control form-control-sm dtxsid-edit',
+          defaultValue: cell.value || '', 'data-row': cell.row['.review_row'],
+          'aria-label': 'DTXSID for row ' + cell.row['.review_row'],
+          placeholder: 'DTXSID...', style: {width: '140px', fontSize: '0.85em'},
+          onClick: function(event) { event.stopPropagation(); }
+        });
+      }"
+      )
+    )
+  }
+  for (col in intersect(hidden_cols, names(df))) {
+    definition <- col_defs[[col]] %||% reactable::colDef()
+    definition$show <- FALSE
+    col_defs[[col]] <- definition
+  }
+  col_defs <- apply_review_filter_definitions(df, col_defs, session$ns("curation_table"), session)
+  col_defs$.review_row$filterable <- FALSE
+  col_defs$.review_row$filterInput <- NULL
+  col_defs$.review_row$filterMethod <- NULL
+  reactable::reactable(
+    df,
+    columns = col_defs,
+    server = TRUE,
+    filterable = TRUE,
+    selection = "multiple",
+    onClick = "select",
+    defaultPageSize = 25,
+    showPageSizeOptions = TRUE,
+    pageSizeOptions = c(10, 25, 50, 100),
+    language = reactable::reactableLang(selectAllRowsLabel = "Select rows on this page"),
+    resizable = TRUE,
+    wrap = TRUE,
+    compact = TRUE,
+    bordered = TRUE,
+    highlight = TRUE
+  )
 }
 
 normalize_review_override_type <- function(override_type) {
@@ -1245,6 +1308,7 @@ review_internal_hidden_cols <- function(df_names, dtxsid_cols = character(0)) {
     grep("^searchName_", df_names, value = TRUE),
     grep("^rank_", df_names, value = TRUE),
     grep("^source_tier_", df_names, value = TRUE),
+    ".review_row",
     ".pinned",
     ".manual_entry",
     "manual_preferredName"
@@ -1335,6 +1399,8 @@ mod_review_results_ui <- function(id) {
     (function() {
       var tableId = '%s';
       var savedFilters = [];
+      var savedPageSize = 25;
+      var unsubscribeSelection;
       var api = window.concertReviewFilters || {};
 
       api.tableId = tableId;
@@ -1353,6 +1419,15 @@ mod_review_results_ui <- function(id) {
             allowEmptyOption: true,
             closeAfterSelect: true,
             dropdownParent: 'body',
+            maxOptions: 100,
+            placeholder: 'Search all values',
+            loadThrottle: 150,
+            valueField: 'token', labelField: 'label', searchField: ['label'],
+            load: function(query, callback) {
+              var url = select.getAttribute('data-filter-url');
+              if (!url) return callback();
+              jQuery.getJSON(url, {query: query}).done(callback).fail(function() { callback(); });
+            },
             onChange: function() {
               api.apply(select);
             }
@@ -1361,6 +1436,12 @@ mod_review_results_ui <- function(id) {
       };
       api.setControlValue = function(select, value) {
         if (select.selectize) {
+          if (value && !select.selectize.options[value]) {
+            try {
+              var token = JSON.parse(value);
+              select.selectize.addOption({token: value, label: token.type === 'blank' ? '(Blank)' : String(token.value)});
+            } catch (e) {}
+          }
           select.selectize.setValue(value || '', true);
         } else {
           select.value = value || '';
@@ -1386,12 +1467,17 @@ mod_review_results_ui <- function(id) {
         api.restoreControls([]);
       };
       window.concertReviewFilters = api;
+      Shiny.addCustomMessageHandler('review-columns', function(message) {
+        Reactable.setHiddenColumns(message.id, message.columns);
+        api.initialize(document.getElementById(message.id));
+      });
 
       // Before Shiny recalculates the output, save current filters
       $(document).on('shiny:recalculating', function(event) {
         if (event.target && event.target.id === tableId) {
           try {
             var state = Reactable.getState(tableId);
+            savedPageSize = state.pageSize || 25;
             savedFilters = (state && state.filters) ? state.filters.slice() : [];
           } catch(e) {
             savedFilters = [];
@@ -1407,6 +1493,17 @@ mod_review_results_ui <- function(id) {
           setTimeout(function() {
             var container = document.getElementById(tableId);
             if (container) api.initialize(container);
+            if (unsubscribeSelection) unsubscribeSelection();
+            Shiny.setInputValue(tableId + '_selected_rows', []);
+            unsubscribeSelection = Reactable.onStateChange(tableId, function(state) {
+              // The experimental server backend reports only visible selected rows.
+              // Row IDs retain selections on other pages and use original table indices.
+              var rows = Object.keys(state.selectedRowIds).filter(function(id) {
+                return state.selectedRowIds[id];
+              }).map(function(id) { return Number(id) + 1; });
+              Shiny.setInputValue(tableId + '_selected_rows', rows);
+            });
+            Reactable.setPageSize(tableId, savedPageSize);
             filtersToRestore.forEach(function(filter) {
               try {
                 Reactable.setFilter(tableId, filter.id, filter.value);
@@ -1737,17 +1834,6 @@ mod_review_results_ui <- function(id) {
           div(
             class = "review-column-select",
             uiOutput(ns("col_visibility_dropdown"))
-          ),
-          div(
-            class = "d-flex align-items-center gap-2",
-            tags$label("Rows:", `for` = ns("page_size"), class = "mb-0 small text-muted"),
-            selectInput(
-              ns("page_size"),
-              label = NULL,
-              width = "80px",
-              choices = c(10, 25, 50, 100),
-              selected = 25
-            )
           )
         ),
 
@@ -2024,7 +2110,10 @@ mod_review_results_server <- function(id, data_store) {
 
       df_names <- derive_review_display_column_names(names(data_store$resolution_state), data_store$qc_results)
       upload_col_names <- names(data_store$clean)
-      internal_hidden <- review_internal_hidden_cols(df_names, data_store$dtxsid_cols %||% character(0))
+      internal_hidden <- c(
+        review_internal_hidden_cols(df_names, data_store$dtxsid_cols %||% character(0)),
+        review_empty_columns(data_store$resolution_state)
+      )
       choices <- derive_review_column_choices(upload_col_names, df_names, internal_hidden)
 
       if (length(choices) == 0) {
@@ -2070,7 +2159,10 @@ mod_review_results_server <- function(id, data_store) {
 
       df_names <- derive_review_display_column_names(names(data_store$resolution_state), data_store$qc_results)
       upload_col_names <- names(data_store$clean)
-      internal_hidden <- review_internal_hidden_cols(df_names, data_store$dtxsid_cols %||% character(0))
+      internal_hidden <- c(
+        review_internal_hidden_cols(df_names, data_store$dtxsid_cols %||% character(0)),
+        review_empty_columns(data_store$resolution_state)
+      )
       selected_source <- if (!is.null(input$visible_cols)) input$visible_cols else data_store$review_visible_cols
       visible_cols <- reconcile_visible_review_columns(
         selected_source,
@@ -2090,9 +2182,26 @@ mod_review_results_server <- function(id, data_store) {
 
         df_names <- derive_review_display_column_names(names(data_store$resolution_state), data_store$qc_results)
         upload_col_names <- names(data_store$clean)
-        internal_hidden <- review_internal_hidden_cols(df_names, data_store$dtxsid_cols %||% character(0))
+        internal_hidden <- c(
+          review_internal_hidden_cols(df_names, data_store$dtxsid_cols %||% character(0)),
+          review_empty_columns(data_store$resolution_state)
+        )
         choices <- derive_review_column_choices(upload_col_names, df_names, internal_hidden)
         data_store$review_visible_cols <- intersect(clean_column_names(input$visible_cols), choices)
+        hidden <- derive_hidden_review_columns(
+          input$visible_cols,
+          upload_col_names,
+          data_store$column_tags,
+          df_names,
+          internal_hidden
+        )
+        session$sendCustomMessage(
+          "review-columns",
+          list(
+            id = session$ns("curation_table"),
+            columns = unique(c(hidden, internal_hidden))
+          )
+        )
       },
       ignoreNULL = TRUE
     )
@@ -2119,12 +2228,10 @@ mod_review_results_server <- function(id, data_store) {
     )
 
     # Curation results table (vectorized + deduplicated)
-    output$curation_table <- reactable::renderReactable({
+    review_table_data <- reactive({
       req(data_store$resolution_state, data_store$dtxsid_cols)
 
       df <- init_resolution_state(data_store$resolution_state)
-      data_store$resolution_state <- df
-      dtxsid_cols <- data_store$dtxsid_cols
       df$consensus_status <- as.character(df$consensus_status)
 
       # Vectorized match_type (replaces O(n*m) sapply)
@@ -2164,10 +2271,20 @@ mod_review_results_server <- function(id, data_store) {
       # Vectorized Resolution column
       df_display$Resolution <- derive_resolution_html(df_display, rep_indices)
 
+      df_display$.review_row <- rep_indices
+      df_display
+    })
+
+    output$curation_table <- reactable::renderReactable({
+      df_display <- review_table_data()
+      dtxsid_cols <- data_store$dtxsid_cols
       # --- Column visibility ---
       upload_col_names <- names(data_store$clean)
-      internal_hidden <- review_internal_hidden_cols(names(df_display), dtxsid_cols)
-      visible_extra <- if (!is.null(input$visible_cols)) input$visible_cols else data_store$review_visible_cols
+      internal_hidden <- c(
+        review_internal_hidden_cols(names(df_display), dtxsid_cols),
+        review_empty_columns(df_display)
+      )
+      visible_extra <- isolate(if (!is.null(input$visible_cols)) input$visible_cols else data_store$review_visible_cols)
       hidden_by_visibility <- derive_hidden_review_columns(
         visible_extra,
         upload_col_names,
@@ -2180,213 +2297,9 @@ mod_review_results_server <- function(id, data_store) {
         review_required_visible_cols(names(df_display))
       )
 
-      col_defs <- list()
-
-      # Count badge column
-      col_defs[["n_rows"]] <- reactable::colDef(
-        name = "Rows",
-        minWidth = 60,
-        cell = function(value, index) {
-          if (value == 1L) {
-            htmltools::span(as.character(value))
-          } else {
-            htmltools::span(
-              class = "badge bg-secondary",
-              style = "font-size:0.85em;",
-              paste0("\u00D7", value)
-            )
-          }
-        }
-      )
-
-      # WQX confidence column (fuzzy similarity score; NA for exact/alias rows)
-      # In multi-tag mode, grep finds wqx_confidence_Chemical AND wqx_confidence_CASRN.
-      # Only show columns that have at least one non-NA value (WQX only matches Name-tagged columns).
-      wqx_conf_cols <- grep("^wqx_confidence", names(df_display), value = TRUE)
-      wqx_conf_visible <- Filter(function(col) !all(is.na(df_display[[col]])), wqx_conf_cols)
-      # Hide all-NA wqx_confidence columns (e.g., wqx_confidence_CASRN in multi-tag mode)
-      wqx_conf_hidden <- setdiff(wqx_conf_cols, wqx_conf_visible)
-      for (whc in wqx_conf_hidden) {
-        col_defs[[whc]] <- reactable::colDef(show = FALSE)
-      }
-      for (wcc in wqx_conf_visible) {
-        col_defs[[wcc]] <- reactable::colDef(
-          name = "WQX Conf.",
-          minWidth = 80,
-          align = "right",
-          cell = function(value, index) {
-            if (is.na(value)) {
-              return("")
-            }
-            formatC(value, digits = 2, format = "f")
-          }
-        )
-      }
-
-      # Similarity score column (per D-05: 2-decimal right-aligned, blank for non-disagree)
-      if ("similarity_score" %in% names(df_display)) {
-        col_defs[["similarity_score"]] <- reactable::colDef(
-          name = "Sim. Score",
-          minWidth = 80,
-          align = "right",
-          cell = function(value, index) {
-            if (is.na(value)) {
-              return("")
-            }
-            formatC(value, digits = 2, format = "f")
-          }
-        )
-      }
-
-      table_id <- session$ns("curation_table")
-
-      # Badge: match_type
-      if ("match_type" %in% names(df_display)) {
-        match_colors <- c(
-          "Exact Match" = "#28a745",
-          "CAS Lookup" = "#007bff",
-          "Starts-With" = "#ffc107",
-          "WQX Exact" = "#20c997",
-          "WQX Alias" = "#17a2b8",
-          "WQX Fuzzy" = "#6f42c1",
-          "Isotope Match" = "#6610f2",
-          "No Match" = "#dc3545"
-        )
-        match_text_colors <- c("Starts-With" = "#212529")
-
-        col_defs[["match_type"]] <- reactable::colDef(
-          cell = function(value, index) {
-            val <- as.character(value)
-            bg <- unname(match_colors[val]) %||% "#6c757d"
-            fg <- unname(match_text_colors[val]) %||% "#fff"
-            htmltools::span(
-              style = sprintf(
-                "background:%s;color:%s;padding:2px 8px;border-radius:4px;font-weight:600;font-size:0.85em;display:inline-block;",
-                bg,
-                fg
-              ),
-              val
-            )
-          }
-        )
-      }
-
-      # Badge: consensus_status
-      if ("consensus_status" %in% names(df_display)) {
-        status_colors <- c(
-          "agree" = "#28a745",
-          "agree_caveat" = "#17a2b8",
-          "single" = "#6c757d",
-          "wqx" = "#20c997",
-          "disagree" = "#fd7e14",
-          "error" = "#343a40",
-          "manual" = "#6f42c1",
-          "unresolvable" = "#721c24",
-          "auto_resolved" = "#0D6EFD",
-          "suggested" = "#0DCAF0"
-        )
-
-        col_defs[["consensus_status"]] <- reactable::colDef(
-          cell = function(value, index) {
-            val <- as.character(value)
-            bg <- unname(status_colors[val]) %||% "#6c757d"
-            htmltools::span(
-              style = sprintf(
-                "background:%s;color:#fff;padding:2px 8px;border-radius:4px;font-weight:600;font-size:0.85em;display:inline-block;",
-                bg
-              ),
-              val
-            )
-          }
-        )
-      }
-
-      # Badge: row_flag
-      if ("row_flag" %in% names(df_display)) {
-        col_defs[["row_flag"]] <- reactable::colDef(
-          name = "Flag",
-          html = TRUE,
-          minWidth = 100,
-          cell = function(value, index) {
-            derive_row_flag_html(value)
-          }
-        )
-      }
-
-      # Resolution: HTML content
-      col_defs[["Resolution"]] <- reactable::colDef(html = TRUE, minWidth = 250)
-
-      # consensus_dtxsid: inline editable for error/unresolvable rows
-      if ("consensus_dtxsid" %in% names(df_display)) {
-        col_defs[["consensus_dtxsid"]] <- reactable::colDef(
-          cell = function(value, index) {
-            status <- as.character(df_display$consensus_status[index])
-            original_idx <- rep_indices[index]
-            if (status %in% c("error", "unresolvable")) {
-              htmltools::tags$input(
-                type = "text",
-                class = "form-control form-control-sm dtxsid-edit",
-                value = if (!is.na(value)) value else "",
-                `data-row` = original_idx,
-                placeholder = "DTXSID...",
-                style = "width:140px;font-size:0.85em;"
-              )
-            } else {
-              if (!is.na(value)) as.character(value) else ""
-            }
-          }
-        )
-      }
-
-      # Row style
-      has_qc_flag <- "qc_flag" %in% names(df_display)
-      row_bg_colors <- c(
-        "agree" = "rgba(40, 167, 69, 0.08)",
-        "agree_caveat" = "rgba(40, 167, 69, 0.05)",
-        "disagree" = "rgba(220, 53, 69, 0.08)",
-        "single" = "rgba(108, 117, 125, 0.05)",
-        "wqx" = "rgba(32, 201, 151, 0.08)",
-        "error" = "rgba(220, 53, 69, 0.12)",
-        "manual" = "rgba(111, 66, 193, 0.08)",
-        "unresolvable" = "rgba(114, 28, 36, 0.12)",
-        "auto_resolved" = "rgba(13, 110, 253, 0.08)",
-        "suggested" = "rgba(13, 202, 240, 0.08)"
-      )
-
-      row_style_fn <- function(index) {
-        if (has_qc_flag) {
-          qc_val <- df_display$qc_flag[index]
-          if (!is.na(qc_val) && qc_val == "WARN: non-ASCII") {
-            return(list(backgroundColor = "#fff3cd"))
-          }
-        }
-        status <- as.character(df_display$consensus_status[index])
-        bg <- unname(row_bg_colors[status])
-        if (!is.null(bg) && !is.na(bg)) list(backgroundColor = bg) else NULL
-      }
-
-      page_size <- as.integer(input$page_size %||% 25)
-
-      for (hidden_col in intersect(hidden_cols, names(df_display))) {
-        col_defs[[hidden_col]] <- reactable::colDef(show = FALSE)
-      }
-
-      col_defs <- apply_review_filter_definitions(df_display, col_defs, table_id)
-
-      reactable::reactable(
-        df_display,
-        columns = col_defs,
-        filterable = TRUE,
-        selection = "multiple",
-        onClick = "select",
-        rowStyle = row_style_fn,
-        defaultPageSize = page_size,
-        resizable = TRUE,
-        wrap = TRUE,
-        compact = TRUE,
-        bordered = TRUE,
-        highlight = TRUE
-      )
+      # Keep full data in resolution_state for downloads and review actions.
+      df_display <- df_display[setdiff(names(df_display), setdiff(internal_hidden, ".review_row"))]
+      build_review_results_table(df_display, hidden_cols, session)
     })
 
     # Priority Controls UI
@@ -3445,14 +3358,18 @@ mod_review_results_server <- function(id, data_store) {
       shinyjs::hide("retag_selected")
     })
 
+    selected_review_rows <- reactive({
+      selected <- suppressWarnings(as.integer(input$curation_table_selected_rows))
+      row_map <- data_store$display_row_map
+      selected <- selected[!is.na(selected) & selected > 0L & selected <= length(row_map)]
+      get_group_rows(row_map[selected], data_store$dedup_group_map)
+    })
+
     # Track selected rows and show/hide retag button
     observe({
-      selected <- reactable::getReactableState("curation_table", "selected")
-      if (!is.null(selected) && length(selected) > 0 && isTRUE(data_store$error_filter_active)) {
-        rep_rows <- data_store$display_row_map[selected]
-        grp_map <- data_store$dedup_group_map
-        all_rows <- unique(unlist(lapply(rep_rows, get_group_rows, dedup_group_map = grp_map)))
-        data_store$selected_error_rows <- all_rows
+      selected <- selected_review_rows()
+      if (length(selected) > 0 && isTRUE(data_store$error_filter_active)) {
+        data_store$selected_error_rows <- selected
         shinyjs::show("retag_selected")
       } else {
         data_store$selected_error_rows <- NULL
@@ -3461,15 +3378,8 @@ mod_review_results_server <- function(id, data_store) {
     })
 
     observe({
-      selected <- reactable::getReactableState("curation_table", "selected")
-      if (!is.null(selected) && length(selected) > 0) {
-        rep_rows <- data_store$display_row_map[selected]
-        grp_map <- data_store$dedup_group_map
-        all_rows <- unique(unlist(lapply(rep_rows, get_group_rows, dedup_group_map = grp_map)))
-        data_store$selected_visible_rows <- all_rows
-      } else {
-        data_store$selected_visible_rows <- NULL
-      }
+      selected <- selected_review_rows()
+      data_store$selected_visible_rows <- if (length(selected)) selected else NULL
     })
 
     observeEvent(input$apply_batch_row_flag, {
