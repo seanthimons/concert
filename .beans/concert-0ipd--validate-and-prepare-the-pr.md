@@ -1,14 +1,14 @@
 ---
 # concert-0ipd
 title: Validate and prepare the PR
-status: in-progress
+status: completed
 type: task
 priority: normal
 created_at: 2026-09-10T21:17:29Z
-updated_at: 2026-09-10T21:41:27Z
+updated_at: 2026-09-11T15:57:59Z
 parent: concert-psba
 blocked_by:
     - concert-nfzm
 ---
 
-Dependency: concert-nfzm. Automated verification: 1400 targeted assertions pass, zero failures/warnings, two pre-existing memory-limit skips; additional overlapping consensus/headless group passes 427 assertions with one existing pinned-row warning. Clean-archive R CMD check --no-manual: zero errors/warnings, one existing global-variable NOTE. Fresh Shiny startup returns HTTP 200. Breaking contracts and reproducible commands documented in docs/PUBLISHED_MEDIA_ACCEPTANCE.md. Manual browser acceptance remains pending: browser automation reports no connected browser; user was asked to run the supplied fixture workflow. Keep task open until that evidence is recorded and PR is ready.
+Dependency: concert-nfzm. Verification: 1400 targeted assertions pass, zero failures/warnings, two existing memory-limit skips; overlapping consensus/headless group passes 427 assertions with one existing pinned-row warning. R CMD check --no-manual: zero errors/warnings, one existing NOTE. User acceptance on 2026-09-11: app runs and harmonizes, new media types available; user exercised unknown-to-soil override and inspected ontology/phase/routing, then authorized pushing the work. Manual export/reopen/replay not explicitly confirmed; automated coverage passes. Acceptance evidence is in docs/PUBLISHED_MEDIA_ACCEPTANCE.md. PR #61 is approved for promotion from draft; do not merge.

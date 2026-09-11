@@ -47,9 +47,13 @@ The implementation session started the app at http://127.0.0.1:3876.
   The devtools wrapper also emits an unrelated Quarto version-probe warning
   after check completion; the package's own `00check.log` reports only the note.
 - Fresh Shiny startup: HTTP 200 at port 3876, 2026-09-10.
-- Manual browser acceptance: pending. The available browser automation tool
-  reported no connected browser; automated module checks are not claimed as
-  manual acceptance.
+- User acceptance, 2026-09-11: the user confirmed that the app runs and
+  harmonizes and that the new media types are available, then authorized pushing
+  the work. The user also exercised the unknown-to-soil override and inspected
+  acetone phase/routing and published ontology entries. This acceptance clears
+  the draft gate. A complete manual export/reopen/replay walkthrough was not
+  explicitly confirmed; those paths have automated coverage recorded above.
+- The acceptance-only unknown-to-soil mapping remains local and is not committed.
 
 To rerun the regressions interactively:
 
