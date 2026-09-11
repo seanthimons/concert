@@ -319,6 +319,40 @@ test_that("activate_all_reference_terms turns on only reference-list active flag
   expect_false(refs$stop_words$active)
 })
 
+test_that("bundled reference settings replay without legacy override rows", {
+  cache_dir <- system.file("extdata", "reference_cache", package = "concert")
+  defaults <- load_default_cleaning_reference_lists(cache_dir)
+  effective <- load_all_reference_lists(cache_dir)
+  snapshot <- build_reference_list_snapshot(effective, cache_dir)
+
+  expect_equal(
+    vapply(snapshot, function(entry) nrow(entry$overrides), integer(1)),
+    stats::setNames(rep(0L, 4), cleaning_reference_list_names())
+  )
+  expect_false(defaults$stop_words$active[match("additive", defaults$stop_words$term)])
+  expect_true(defaults$stop_words$active[match("not provided", defaults$stop_words$term)])
+  expect_false(defaults$block_patterns$active[match("acrylic polymer", defaults$block_patterns$term)])
+  expect_false(defaults$strip_terms$active[match("modified", defaults$strip_terms$term)])
+
+  literal <- reference_snapshot_script_literal(snapshot)
+  expect_no_match(literal, "legacy_review|legacy_seed")
+  expect_lt(nchar(literal), 1000L)
+  restored <- reconstruct_reference_list_snapshot(eval(parse(text = literal)), reference_lists = defaults)
+  for (type in cleaning_reference_list_names()) {
+    expect_equal(
+      normalize_reference_snapshot_tbl(restored[[type]], type),
+      normalize_reference_snapshot_tbl(effective[[type]], type)
+    )
+  }
+
+  # An edit to a bundled legacy term must still be captured and portable.
+  effective$stop_words$active[match("additive", effective$stop_words$term)] <- TRUE
+  edited <- build_reference_list_snapshot(effective, cache_dir)
+  expect_equal(edited$stop_words$overrides$term, "additive")
+  restored <- reconstruct_reference_list_snapshot(edited, reference_lists = defaults)
+  expect_true(restored$stop_words$active[match("additive", restored$stop_words$term)])
+})
+
 test_that("reference list snapshots include only added and changed rows", {
   withr::with_tempdir({
     cache_dir <- "test_cache"

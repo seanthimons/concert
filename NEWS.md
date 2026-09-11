@@ -4,6 +4,10 @@
 
 ## Development version
 
+- Treat bundled legacy cleaning references as package defaults, so replay
+  snapshots contain only user changes instead of repeating 81 bundled rows.
+  Cleaning settings are unchanged; regenerate older replay scripts to use the
+  updated default hashes.
 - `media` in ToxVal exports now contains canonical labels (for example, drinking
   water); conversion categories remain separate. `media_original` preserves the
   tagged source value and is no longer fabricated from derived media.
