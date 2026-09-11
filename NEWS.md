@@ -2,6 +2,37 @@
 
 # concert NEWS
 
+## v0.4.1 (2026-09-11)
+
+#### Bug fixes
+
+- integrate Unicode cleanup with review performance
+  ([d67ac97](https://github.com/seanthimons/concert/tree/d67ac973016c5ab174e7fea4b64439449ce48cd1))
+- protect primed locants from synonym splitting
+  ([d0f6eed](https://github.com/seanthimons/concert/tree/d0f6eed516e086477e164a95fee1affc55edec42))
+- distinguish unmapped Unicode in QC
+  ([eb4976e](https://github.com/seanthimons/concert/tree/eb4976efdf90e25dbf3a0c8488452ab475b757f4))
+- normalize hyphen and zero-width space
+  ([d8cdd15](https://github.com/seanthimons/concert/tree/d8cdd15a28010516aa4b1a909f5f38089569ced1))
+
+#### Performance
+
+- paginate review results and lock project dependencies
+  ([48595c8](https://github.com/seanthimons/concert/tree/48595c8407672e1906b2e5bea36992e822c43993))
+
+#### Build
+
+- pin renv lock to dated PPM snapshot for binary restore
+  ([d680202](https://github.com/seanthimons/concert/tree/d68020270e532c9a130df33091f9785c96f443ee))
+
+#### Other changes
+
+- bump version to 0.4.1 \[skip ci\]
+  ([05ffa91](https://github.com/seanthimons/concert/tree/05ffa918d7591fbce124a2da7d746d8d60b5b64d))
+
+Full set of changes:
+[`v0.4.0...v0.4.1`](https://github.com/seanthimons/concert/compare/v0.4.0...v0.4.1)
+
 ## v0.4.0 (2026-09-11)
 
 #### Breaking changes
@@ -40,6 +71,8 @@
 
 #### Docs
 
+- update NEWS.md for v0.4.0 \[skip ci\]
+  ([8ae9a4e](https://github.com/seanthimons/concert/tree/8ae9a4eb3b9a8b39cac8a113d3b79b386acc8099))
 - record user acceptance for review
   ([f27227b](https://github.com/seanthimons/concert/tree/f27227b0909af9e943dfb7b85fda7b1fc6b5466e))
 - link integration epic to review PR
