@@ -358,6 +358,15 @@ test_that("split_synonyms protects multi-locant IUPAC patterns (3+ locants)", {
   expect_equal(row5$chemical_name[2], "toluene")
 })
 
+test_that("split_synonyms protects primed IUPAC locants", {
+  chemical_name <- "2,2',3,4,4',5'-Hexabromodiphenyl Ether"
+  df <- tibble::tibble(original_row_id = 1L, chemical_name = chemical_name)
+
+  result <- split_synonyms(df, "chemical_name", list(chemical_name = "Name"))
+
+  expect_equal(result$cleaned_data$chemical_name, chemical_name)
+})
+
 # ==============================================================================
 # NAME-04: strip_quality_adjectives
 # ==============================================================================
