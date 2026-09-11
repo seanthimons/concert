@@ -17,24 +17,22 @@ test_that("perform_unicode_qc on clean data returns zero issues", {
   expect_equal(length(result$unhandled_chars), 0)
 })
 
-test_that("perform_unicode_qc detects Greek letters", {
-  # Data with Greek alpha
+test_that("perform_unicode_qc only reports unmapped characters as unhandled", {
   test_df <- tibble::tibble(
-    chemical_name = c("acetone", "\u03B1-tocopherol", "ethanol"),
-    cas_number = c("67-64-1", "58-08-2", "64-17-5")
+    chemical_name = c("acetone", "\u03B1-tocopherol", "snowman \u2603"),
+    cas_number = c("67-64-1", "58-08-2", NA)
   )
 
   result <- perform_unicode_qc(test_df)
 
-  expect_equal(result$rows_with_non_ascii, 1)
-  expect_equal(result$row_indices, 2)
+  expect_equal(result$rows_with_non_ascii, 2)
+  expect_equal(result$row_indices, c(2, 3))
   expect_equal(length(result$unhandled_chars), 1)
 
-  # Check specific codepoint
-  expect_true("U+03B1" %in% names(result$unhandled_chars))
-  expect_equal(result$unhandled_chars[["U+03B1"]]$char, "\u03B1")
-  expect_equal(result$unhandled_chars[["U+03B1"]]$codepoint, "U+03B1")
-  expect_equal(result$unhandled_chars[["U+03B1"]]$count, 1)
+  expect_true("U+2603" %in% names(result$unhandled_chars))
+  expect_equal(result$unhandled_chars[["U+2603"]]$char, "\u2603")
+  expect_equal(result$unhandled_chars[["U+2603"]]$codepoint, "U+2603")
+  expect_equal(result$unhandled_chars[["U+2603"]]$count, 1)
 })
 
 test_that("perform_unicode_qc does NOT modify input dataframe", {
@@ -96,9 +94,9 @@ test_that("perform_unicode_qc handles empty dataframe", {
 test_that("perform_unicode_qc reports correct codepoints and counts", {
   # Multiple occurrences of same character
   test_df <- tibble::tibble(
-    name = c("\u03B1-tocopherol", "\u03B1-lipoic acid", "acetone"),
+    name = c("\u2603-tocopherol", "\u2603-lipoic acid", "acetone"),
     formula = c("C29H50O2", "C8H14O2S2", "C3H6O"),
-    description = c("\u03B1 form", "\u03B1 isomer", "\u03B2-ketone")
+    description = c("\u2603 form", "\u2603 isomer", "\u2602-ketone")
   )
 
   result <- perform_unicode_qc(test_df)
@@ -106,17 +104,16 @@ test_that("perform_unicode_qc reports correct codepoints and counts", {
   expect_equal(result$rows_with_non_ascii, 3)  # Rows 1, 2, 3
   expect_equal(sort(result$row_indices), c(1, 2, 3))
 
-  # Alpha appears 4 times, beta once
-  expect_true("U+03B1" %in% names(result$unhandled_chars))
-  expect_true("U+03B2" %in% names(result$unhandled_chars))
-  expect_equal(result$unhandled_chars[["U+03B1"]]$count, 4)
-  expect_equal(result$unhandled_chars[["U+03B2"]]$count, 1)
+  expect_true("U+2603" %in% names(result$unhandled_chars))
+  expect_true("U+2602" %in% names(result$unhandled_chars))
+  expect_equal(result$unhandled_chars[["U+2603"]]$count, 4)
+  expect_equal(result$unhandled_chars[["U+2602"]]$count, 1)
 })
 
 test_that("perform_unicode_qc reports mixed ASCII and non-ASCII correctly", {
   # Mix of clean and dirty rows
   test_df <- tibble::tibble(
-    chemical_name = c("acetone", "\u03B1-tocopherol", "ethanol", "\u03B2-carotene", "benzene"),
+    chemical_name = c("acetone", "\u2603-tocopherol", "ethanol", "\u2602-carotene", "benzene"),
     cas_number = c("67-64-1", "58-08-2", "64-17-5", "7235-40-7", "71-43-2")
   )
 
@@ -124,5 +121,5 @@ test_that("perform_unicode_qc reports mixed ASCII and non-ASCII correctly", {
 
   expect_equal(result$rows_with_non_ascii, 2)  # Rows 2 and 4
   expect_equal(sort(result$row_indices), c(2, 4))
-  expect_equal(length(result$unhandled_chars), 2)  # Alpha and beta
+  expect_equal(length(result$unhandled_chars), 2)
 })
