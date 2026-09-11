@@ -39,6 +39,10 @@ test_that("clean_unicode maps chemistry unicode and is NOT a silent no-op", {
   expect_equal(clean_unicode("17\u03b2-Estradiol"), "17beta-Estradiol")
   expect_equal(clean_unicode("\u03b1-tocopherol"), "alpha-tocopherol")
   expect_equal(clean_unicode("Concentration \u2265 10 \u00b5g/L"), "Concentration >= 10 ug/L")
+  expect_equal(
+    clean_unicode(c("\u2010", "\u200b", "\u2032", "\u03b2", "\u00b1", "\u03b1", "\u2192", "\u00a0", "\u0394", "\u2019")),
+    c("-", "", "'", "beta", "+/-", "alpha", "->", " ", "delta", "'")
+  )
   expect_true(is.na(clean_unicode(NA_character_)))
   # data.frame method cleans all character columns, preserves shape
   df <- data.frame(a = "\u03b2-carotene", b = 1L, stringsAsFactors = FALSE)
