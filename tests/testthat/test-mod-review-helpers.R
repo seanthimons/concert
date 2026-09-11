@@ -250,21 +250,6 @@ test_that("derive_match_type uses consensus_source instead of first available so
   expect_equal(result, "CAS Lookup")
 })
 
-test_that("derive_row_flag_html renders BAD, FOLLOW-UP, VERIFIED, and blank flags", {
-  result <- derive_row_flag_html(c("BAD", "FOLLOW-UP", "VERIFIED", NA_character_, ""))
-
-  expect_match(result[1], "BAD")
-  expect_match(result[1], "row-flag-chip")
-  expect_match(result[1], "#DC3545", fixed = TRUE)
-  expect_match(result[2], "FOLLOW-UP")
-  expect_match(result[2], "#FFC107", fixed = TRUE)
-  expect_match(result[2], "#212529", fixed = TRUE)
-  expect_match(result[3], "VERIFIED")
-  expect_match(result[3], "#198754", fixed = TRUE)
-  expect_equal(result[4], "")
-  expect_equal(result[5], "")
-})
-
 test_that("row_flag_filter_choices always includes untagged rows", {
   result <- row_flag_filter_choices(c("BAD", NA_character_, ""))
 

@@ -33,7 +33,7 @@ Imports:
     lubridate,
     magrittr,
     purrr,
-    reactable,
+    reactable (>= 0.4.5.9000),
     reactable.extras,
     readr,
     readxl,
@@ -49,13 +49,16 @@ Imports:
     tidyselect,
     tools,
     units (>= 0.8-0),
+    V8,
     vctrs,
     writexl
 Suggests:
     autonewsmd,
     bench,
+    devtools,
     testthat (>= 3.0.0),
     withr
 Remotes:
+    glin/reactable@7839a5b7b86b454c393a7613d56ff4d96fbdb885,
     seanthimons/ComptoxR@v1.7.1
 Config/roxygen2/version: 8.1.0
