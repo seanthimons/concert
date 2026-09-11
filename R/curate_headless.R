@@ -400,7 +400,9 @@ curate_headless <- function(
         harmonize_audit = harmonize_audit_tibble,
         site_manifest = site_manifest_for_export,
         site_alias_map = site_alias_map_for_export,
-        script_baseline_state = script_baseline_state
+        script_baseline_state = script_baseline_state,
+        media_map = if (harmonize) harmonization_refs$media_map else NULL,
+        media_results = harmonization_runtime_result$media_results
       )
 
       fs::dir_create(dirname(output_path), recurse = TRUE)

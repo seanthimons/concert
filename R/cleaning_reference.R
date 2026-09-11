@@ -609,7 +609,8 @@ keyed_map_behavior_cols <- function(map, key_col, ignore_cols) {
 
 keyed_map_snapshot_hash <- function(default_map, key_col, ignore_cols) {
   cols <- c(key_col, keyed_map_behavior_cols(default_map, key_col, ignore_cols))
-  ordered <- default_map[order(default_map[[key_col]]), cols, drop = FALSE]
+  ordering <- if (key_col == "term") order(default_map[[key_col]], method = "radix") else order(default_map[[key_col]])
+  ordered <- default_map[ordering, cols, drop = FALSE]
   digest::digest(tibble::as_tibble(ordered), algo = "sha256")
 }
 
@@ -702,13 +703,50 @@ build_media_map_snapshot <- function(media_map, cache_dir = NULL) {
     return(NULL)
   }
   cache_dir <- resolve_reference_cache_dir(cache_dir)
-  default_map <- normalize_media_map_for_display(load_media_map(cache_dir))
-  build_keyed_map_snapshot(
-    normalize_media_map_for_display(media_map),
+  default_map <- normalize_media_map_for_display(get_media_table())
+  current_map <- normalize_media_map_for_display(media_map)
+  current_map <- current_map[order(current_map$source != "user"), ]
+  current_map <- current_map[!duplicated(current_map$term), ]
+  snapshot <- build_keyed_map_snapshot(
+    current_map,
     default_map,
     "term",
     media_map_snapshot_ignore_cols()
   )
+  snapshot$overrides <- compact_media_snapshot_overrides(snapshot$overrides, default_map)
+  snapshot$snapshot_version <- "2"
+  snapshot$artifact_version <- media_artifact_version()
+  snapshot$artifact_sha256 <- "56da987c0fb72e08915df5b7ecf1d099fdb03c5828fa1cc85debcceefe61daca"
+  snapshot
+}
+
+restore_media_snapshot_overrides <- function(overrides, default_map) {
+  if (nrow(overrides) == 0L) return(default_map[0, ])
+  normalized <- normalize_media_map_for_display(overrides)
+  queries <- normalized
+  # Only the pinned vocabulary supplies inherited context, never another edit.
+  queries$active <- FALSE
+  restored <- infer_media_categories(dplyr::bind_rows(queries, default_map))[seq_len(nrow(queries)), ]
+  restored$active <- normalized$active
+  # Explicit values, including NA and custom metadata, always win.
+  for (col in names(overrides)) restored[[col]] <- overrides[[col]]
+  restored[, union(names(default_map), names(restored))]
+}
+
+compact_media_snapshot_overrides <- function(overrides, default_map) {
+  core <- intersect(c("term", "canonical", "source"), names(overrides))
+  derived <- restore_media_snapshot_overrides(overrides[, core], default_map)
+  keep <- vapply(names(overrides), function(col) {
+    col %in% core || !identical(overrides[[col]], derived[[col]])
+  }, logical(1))
+  compact <- overrides[, keep]
+  restored <- restore_media_snapshot_overrides(compact, default_map)
+  # Conflicting canonical fields can change inference; retain the full row set
+  # unless every omitted column can be reconstructed exactly.
+  if (!all(vapply(names(overrides), function(col) {
+    identical(overrides[[col]], restored[[col]])
+  }, logical(1)))) return(overrides)
+  compact
 }
 
 reconstruct_unit_map_snapshot <- function(snapshot, cache_dir = NULL) {
@@ -729,8 +767,28 @@ reconstruct_media_map_snapshot <- function(snapshot, cache_dir = NULL) {
   if (is.null(snapshot)) {
     return(NULL)
   }
+  if (!is.list(snapshot) || !is.data.frame(snapshot$overrides) ||
+      (nrow(snapshot$overrides) > 0L &&
+        (!"term" %in% names(snapshot$overrides) || anyNA(snapshot$overrides$term) ||
+          anyDuplicated(snapshot$overrides$term)))) {
+    stop("Incompatible media replay: malformed snapshot overrides. Restore an intact snapshot.", call. = FALSE)
+  }
   cache_dir <- resolve_reference_cache_dir(cache_dir)
-  default_map <- normalize_media_map_for_display(load_media_map(cache_dir))
+  default_map <- normalize_media_map_for_display(get_media_table())
+  expected <- build_media_map_snapshot(default_map)
+  if (!identical(snapshot$snapshot_version, "1") && !identical(snapshot$snapshot_version, "2")) {
+    stop("Incompatible media replay: snapshot_version mismatch or missing.", call. = FALSE)
+  }
+  for (field in c("artifact_version", "artifact_sha256", "default_hash")) {
+    if (!identical(snapshot[[field]], expected[[field]])) {
+      stop(sprintf(
+        "Incompatible media replay: %s mismatch or missing. Use the matching media artifacts and snapshot version; legacy exports require re-curation from original input.", field),
+        call. = FALSE)
+    }
+  }
+  if (identical(snapshot$snapshot_version, "2")) {
+    snapshot$overrides <- restore_media_snapshot_overrides(snapshot$overrides, default_map)
+  }
   reconstruct_keyed_map_snapshot(
     snapshot,
     default_map,

@@ -1,0 +1,317 @@
+{
+  "version": "0.1.0",
+  "build_timestamp": "2026-09-03T17:42:01Z",
+  "amos": {
+    "source_environment": "development",
+    "source_base_url": "https://cim-dev.sciencedataexperts.com/api",
+    "source_endpoint": "amos/method_keyset_pagination/",
+    "pagination_strategy": "cursor_keyset",
+    "comptoxr_version": "1.6.0.9000",
+    "fetched_at": "2026-08-20T16:45:43Z",
+    "record_count": 7474,
+    "snapshot_sha256": "abaa08d752fc5c31dc9a79a25a592f8b11584b21db2fd008092b6c3dab44d87f",
+    "schema_sha256": "e939fbe1acdb60f526a5c8e1b7811a0a11b35230db99eac2c5edae30d8deb801"
+  },
+  "ontologies": {
+    "envo": {
+      "source_ontology": "ENVO",
+      "release_id": "releases/2026-06-26",
+      "source_sha256": "7f5a6580d1b59166da07a54f9aa907a76f86079b7082e089192f04df91fd7d5b",
+      "source_file": "envo.obo"
+    },
+    "chmo": {
+      "source_ontology": "CHMO",
+      "release_id": "releases/2026-05-28",
+      "source_sha256": "cee0451963b775f2056f083a9fda09c8d458b08b6b138b1cff6fdd870087c1ef",
+      "source_file": "chmo.obo"
+    },
+    "foodon": {
+      "source_ontology": "FOODON",
+      "release_id": {},
+      "source_sha256": "1e11fc50283c6498697a7aca9606c9d914f1cda71cc5510e006d949c32df7db0",
+      "source_file": "foodon.owl"
+    }
+  },
+  "extraction_rule_version": "1.0.0",
+  "mapping_decision_sha256": {
+    "analytical-aliases.csv": "0137421e261f80fe1f09d6f34989268fca91f71d91157d4026d41bbb8bc6e9a6",
+    "analytical-review-decisions.csv": "fad2c862ad18398c1ef339864514e8620e4c6130b8d18be018326bf49b41c5bc",
+    "concert-legacy-media.csv": "118f5e4579428356c9403b9af8870d19ed97bd08b7f75ba07af8226dc41f2e46",
+    "document-types.csv": "18f164534abb6dd5c1b51254d34d0ab44e826d8c564db62ec2c31265c63e942e",
+    "matrix-aliases.csv": "4137cc0c48d6aa4f7ef74bb1eb98dc2a53fad5c046f15acd86a534f9ab876084",
+    "matrix-parent-edges.csv": "64adfb1fde0c8e5e84f2a7c52cc168c82c27bcdb58eb75cb04865ac4cebbd98c",
+    "matrix-review-decisions.csv": "67fccc9b49e709bcd0122246e296054251c29a976842fdb34a904796168cebe7",
+    "validation-set.csv": "1e32f928a866950447071a20fe3dd44e07278e62be498a8b856d101cb08cc2bf"
+  },
+  "repository_commit": "24f7d84692feb0ca87ceda39d9e178e3fbeb1e6e",
+  "table_content_sha256": {
+    "methods": "d88216190bc965d5253c1c6028c843b6f620596e6c39130f38a7a03630ddf16c",
+    "method_methodologies_raw": "c1acb43b2f9c51f167d3df0bb7e390995f6dffc0c922c7d8eea6ab5a3ecac3a6",
+    "method_functional_classes_raw": "50ef43380f4d70c4b329b27152ef784304e1b6989eca226bc854d053442e3dc4",
+    "method_matrices": "042cc9bace93535c64ea7fb8d6c4cd09d63ab0485feaf80f0091b7276706cbfc",
+    "matrix_terms": "ebbadf812d2946adf1ec9e54fc95929210543a6b145d0888ff5ada17bc021816",
+    "matrix_edges": "9d4e1d5f2893f7be5aa23ac727baae119de8f7873638330fd6b84d63a6839fe2",
+    "matrix_synonyms": "f7a5b276929a1e75b46e111642160b8afc3c1c66992d320a1901e695cd8b44a1",
+    "method_analytical_assertions": "e5915715e4202ec4418094f25b4e4c6bbfcb687b4a3d47b8e4d8a356f9c08962",
+    "analytical_terms": "f9ba64a0388d3a5ec3a5fcb2fb8bbbad0af5f758dbbd62a02de463d8df614eb9",
+    "analytical_edges": "56ca5becedbc5e57df1baf3843ec7e1c9e2807325187d31d4595590b6d95b25c",
+    "analytical_synonyms": "2c60fda96d08bbd78a09ca2ff84a6efe61740533f7371a199255520cf2c5df59",
+    "instrument_mentions": "574921f61f7f5abdd37e38df45234a7de35a1b9cc466f80eafbc26846addb4cf",
+    "concert_media_map": "dcc9bf93dc04d1c98a328e417c75ad1f7ac931578db22c1e07f268e6b1321e97"
+  },
+  "artifact_sha256": {
+    "analytical-review-queue.csv": "de05c2821bd757858a805dfade693263695984bf6699cfb9c302e095f1329059",
+    "analytical_edges.csv": "df961feb23e7dcd8555d5cd06f1d82694bc736b4429e919559619f9e325d48b9",
+    "analytical_edges.parquet": "0a97eae61bfd325a08f373dda2e1df582fc7471df6b3edb54d5ae9dd1b47c9fe",
+    "analytical_synonyms.csv": "15dd4b7fee292a1c32b9cd208bd6084dc2741a126de376af65e974bd471fcf0a",
+    "analytical_synonyms.parquet": "ed9b99f5859eaf96a817f4eb77948318d3e09399c0af19fab07d00a2b86c8aa0",
+    "analytical_terms.csv": "25b3dac2599c22e41fb1467ad18575b13b77bf502ab2c5001acf2974d6514749",
+    "analytical_terms.parquet": "4ca1782ee14b2fdd905a93a1d8438e176b591d64ac954386398e92655562ebf5",
+    "concert_media_map.csv": "b1d43b2f8ef3f3f27331cc6da69779107b31fea1753fcf773844891e0b94baf7",
+    "concert_media_map.parquet": "4706a64bb66e60c0289aab5878819173147958da6d38c23ab2b080a090946d03",
+    "instrument_mentions.csv": "820fe7984f1f1f32f760d0c43ecb479eae89545e96d242bc4250e5dd38936423",
+    "instrument_mentions.parquet": "1bb0ce765822cb2ce9727fdee8db806d29ab6dbc4096addf1c4ad6e45d4afc7f",
+    "matrix-review-queue.csv": "a764831b8d3c899a225a08c720cd0ac3faab585cdc51052dd564ad4b5b7b0cbf",
+    "matrix_edges.csv": "f6e57735157f87280f5bf2024f819424d50234a2f7720e2d5b7a0a98e78b145b",
+    "matrix_edges.parquet": "1fb4935f4e0e132f78637b0e88d089564e9aa3397de3d28baf79f68c5a0e62a8",
+    "matrix_synonyms.csv": "495bcf858740583e2c78ce57ec0d976a7e78f5be113f2ea9feacc402c498dac7",
+    "matrix_synonyms.parquet": "e420e978f6667d26e817262863b66134c3ddf36ef8265cf738bd22056ba0f4ad",
+    "matrix_terms.csv": "987ebb9d4e69470a984b226c4aff55cd848c643c7a4655e47ecd034212f84b74",
+    "matrix_terms.parquet": "265faecefa1b108c0e20d47f200f675857d0ec2c457a25f76bf52c30d42cee74",
+    "method_analytical_assertions.csv": "a9c8dd53faba7e810263a6adf372d5d15408a1b84e187257105ea2ec7820628f",
+    "method_analytical_assertions.parquet": "769f1a29bd092747e2ad36f8ee4d0ab2a49c3cd1acfb69acf23c8de3f229bb74",
+    "method_functional_classes_raw.csv": "110678092ac180a7f371983f87bd1c759500609b8802e95c286b8664931d560c",
+    "method_functional_classes_raw.parquet": "c6bf37b443cf8439e29435b3323542c63671386355060816438deab9e2482986",
+    "method_matrices.csv": "29cb2ded32579d854106cc3c9d0cee3c764383078999d30162c62a77b737177c",
+    "method_matrices.parquet": "7ef3386447eef901aff42a1fdaf862b1963e4ad350e503816f7c0aad6a0b708a",
+    "method_methodologies_raw.csv": "c622d310c976fa6fca745a17dfb8fe19dbe3ab9150d8257b07a12766068d122c",
+    "method_methodologies_raw.parquet": "96151a1ce1e93639f05e75989a559e5b67472cbf308b9981ec4b47e0988cee71",
+    "methods.csv": "b998f6f44211d98e2274643c4e1513a94b8b94f8304b1cb4967f05a31632aeec",
+    "methods.parquet": "5b0dd4c76344e1935caa0d50d9f30371846ad803c45d6f04c0bdd04bbedff356"
+  },
+  "coverage": {
+    "methods": 7474,
+    "methods_with_reported_matrix": 7400,
+    "matrix_assertions": 7701,
+    "analytical_assertions": 10249,
+    "instrument_mentions": 0,
+    "matrix_review_candidates": 1995,
+    "matrix_non_matrix": 448,
+    "unresolved_matrix_candidates": 63,
+    "unresolved_analytical_candidates": 243
+  },
+  "validation_gate": {
+    "status": "passed",
+    "scope": "concert_v0.1",
+    "checks": {
+      "schema_and_ontology": true,
+      "concert_media_map": true,
+      "legacy_fixture": true,
+      "executable_assertions": true,
+      "safe_nullable_routing": true
+    }
+  },
+  "broad_validation": {
+    "status": "not_required_for_concert_v0.1",
+    "precision": {},
+    "recall": {}
+  },
+  "ecotox": {
+    "package": "envharmonizer",
+    "package_version": "0.1.0",
+    "artifact_version": "ecotox-v0.1.0",
+    "schema_version": "1.0.0",
+    "table_schema": {
+      "lifestage_dictionary": {
+        "org_lifestage": "character",
+        "source_ontology": "character",
+        "source_term_id": "character",
+        "source_term_label": "character",
+        "source_term_definition": "character",
+        "source_provider": "character",
+        "source_match_method": "character",
+        "source_match_status": "character",
+        "source_release": "character",
+        "ecotox_release": "character",
+        "harmonized_life_stage": "character",
+        "reproductive_stage": "logical",
+        "derivation_source": "character"
+      },
+      "lifestage_review": {
+        "org_lifestage": "character",
+        "candidate_source_ontology": "character",
+        "candidate_source_term_id": "character",
+        "candidate_source_term_label": "character",
+        "candidate_score": "double",
+        "candidate_reason": "character",
+        "source_provider": "character",
+        "ecotox_release": "character",
+        "review_status": "character"
+      },
+      "lifestage_seed": {
+        "org_lifestage": "character",
+        "source_provider": "character",
+        "source_ontology": "character",
+        "source_term_id": "character",
+        "source_term_label": "character",
+        "source_term_definition": "character",
+        "source_release": "character",
+        "source_match_method": "character",
+        "source_match_status": "character",
+        "candidate_rank": "integer",
+        "candidate_score": "double",
+        "candidate_reason": "character",
+        "ecotox_release": "character",
+        "harmonized_life_stage": "character",
+        "reproductive_stage": "logical",
+        "derivation_source": "character"
+      }
+    },
+    "rule_version": "legacy-516dfd4",
+    "ecotox_release": "ecotox_ascii_06_11_2026.zip",
+    "review_status": "not_independently_reviewed",
+    "statement": "Experimental mappings; not independently reviewed. Users must assess suitability for their analysis.",
+    "source_commit": "516dfd4f466f6d1f264eb12bb050253ae3ae94d2",
+    "source_sha256": {
+      "dev/lifestage/build_semantic_adjudication.R": "48e72e1721155ee65ec2e2296877ff518d5593bfb1a72e29bd805219f343a8ec",
+      "dev/lifestage/build_taxon_router.R": "49bd0f280b67070eb7ce40997273109683199375af124fdd78831f74081db67d",
+      "dev/lifestage/curation/lifestage_curation_queue.csv": "dfc8f16d478019124f5a41475f6587845af108c234bcd9b244b50c4fbf236ebe",
+      "dev/lifestage/lifestage_curation_priority_counts.csv": "582f2906fe7ad63c1db2b15180a55287fa2474a812ccf27e4c04e4f3c3fa1499",
+      "dev/lifestage/probe_agrovoc.R": "df0adec6befbd048946587ff868ebd0321ada7994fdff24192d52cac9137f298",
+      "dev/lifestage/probe_bioportal.R": "a869473a6f3be27ac134285f5821e92fdc53ff92d0535e048559484922c5e9a9",
+      "dev/lifestage/probe_ols4.R": "c64ea54c65e4d4775b5e538c60a3871c9765faadfb24e8e8a6134afde8e494a1",
+      "dev/lifestage/probe_wikidata.R": "378d47c16e56377eb6a5a28f31cae57757057bb3cadda0f90785d9b3b90e070d",
+      "dev/lifestage/provenance/lifestage_curated_exceptions.csv": "d99dd77a381d76b4389fe17b103793907067977d1ccc4263f11f8cbc0934d3d0",
+      "dev/lifestage/provenance/lifestage_semantic_adjudication.csv": "91edba150479356a96b66c44163bb047fee4cf50c022e12e99a82ae7fee14a31",
+      "dev/lifestage/provenance/lifestage_taxon_intersections.csv": "1f1bd6740cd948b7f2b1a8f1c591039e9a263c5fcaa8d11945768fd5739d2695",
+      "dev/lifestage/rank_lifestage_priorities.R": "5b58f56984712ba3de16f5f83182a42b41eb7153a9fd0e1dd6fd7107029b29f8",
+      "dev/lifestage/rebuild_lifestage_patch_seed.R": "32e046560336f0f165e8ae8309a3cf738fa3eb8d22174d4d8b78dca4814c1a15",
+      "dev/lifestage/refresh_baseline.R": "60c2667c3c6858acd0b612b27c7c54fad89360ef4632ff86678ce9165cb9539d",
+      "dev/lifestage/refresh_subset.R": "22decab2da5ea136ddde92cb8cafa8d619b395b9be68fc1b6a3ee58477f949e4",
+      "dev/lifestage/semantic_derivation_action_report.csv": "52a4a3b4d6f68b374938289b285d91b674ff33f06c74736c700ec12c1130dc1e",
+      "dev/lifestage/source/lifestage_aliases.csv": "6b42e2f799cb0c82b1094c64c6a9a04a6096db48b89def83f8de179fefad358e",
+      "dev/lifestage/source/lifestage_audit.csv": "38421f327bdddfeb625240be31a33e1949adc9830c8b3ff62987cadb5266de12",
+      "dev/lifestage/source/lifestage_baseline.csv": "d47b71c700b6fe3a08220718c8a1398f1f39390dc1f775603b7bb80b20245894",
+      "dev/lifestage/source/lifestage_curated_candidates.csv": "98dc2f6e4cad0a2c89fb4ff816a6cce9f8f81afae8d43eaaeb6903e180cc9e96",
+      "dev/lifestage/source/lifestage_derivation.csv": "a3de3ecc9ae4fe28cbbafa74c19b256dc8df0099fdee40840c3b15fe3ebec34c",
+      "dev/lifestage/source/lifestage_domain_patterns.csv": "8d88c38f638e9694e54a9f18db03ecedf7886e7fb3c3f33fa9c2bd8cae7c80d8",
+      "dev/lifestage/source/lifestage_forced_unresolved.csv": "e396f6a0596439e46dc2b13c27fa6f66ce45397ff8136a232e815a26c06ae04a",
+      "dev/lifestage/source/lifestage_route_ontology_priorities.csv": "ded70658dacf601de27aa7d2c037f408160e9886874421b74e821a41fa9df00d",
+      "dev/lifestage/source/lifestage_taxon_route_families.csv": "4aa3ef798376d551c08cd7a22ff5b39812f988edd228159cbf5cc43eb112c197",
+      "R/eco_lifestage_patch.R": "50434b867fb70299f497332607905a56f22b5b761512bee3394454926c5f8bd3",
+      "inst/extdata/ecotox/lifestage_patch_seed.csv": "c0d3e8a6fd4977180ebad9e77877d24909b2d9e4e800c82d89d04104dbb1fd30"
+    },
+    "table_content_sha256": {
+      "lifestage_dictionary": "950c82dbfcada9a9ae7e588c57d6cfb611cc019a9fc8576a585d898363c4c857",
+      "lifestage_review": "f68bf7efd08f5e5c00f1d6c649ad00be139b1e9d2e8267a0345093fd76ef6bcc",
+      "lifestage_seed": "3d6a5aad87c2e1b4f3e1a7261a61e8034727d32630304fbaa942e97bb9181fda"
+    },
+    "artifact_sha256": {
+      "lifestage_dictionary.csv": "b683d9ea2de94a19f9241978450ee2164a1762b786f74ca079b8c580f7dfdc8b",
+      "lifestage_dictionary.parquet": "022fdfa98210ce337c010da29f24be50c1d5f8a3a6ed792302ee19d4c6949378",
+      "lifestage_dictionary.rds": "b6ac7b7b63cd037d6ce357aa392e03a2cdfa07fb989f7c35a36a6444038be050",
+      "lifestage_review.csv": "16945dff9c3b17825073beaaefb996edd7c07a02d1f566fdd7b373aaec81f7e3",
+      "lifestage_review.parquet": "92b783e248ef6abb4fa4dd5122ebc0353f370499a18894909b679c111c4dd0ab",
+      "lifestage_review.rds": "4979cebc1f63cdc18097b26e0075a49812a195584799a17133c95e1a6582e765",
+      "lifestage_seed.csv": "ed31a2f7a3b35f05775605fcefa988593c155dbdf8803c9385c9c19d1c44dee1",
+      "lifestage_seed.parquet": "1f3963e09471c8659b32b67c860739cf9a65457be39ac81c03c34dd1f4fed0fb",
+      "lifestage_seed.rds": "60bdcd3cdb2f4e0abb8425ee700ca7779405ccc82d245e069960be5859e4cb84",
+      "ATTRIBUTION.md": "2245e63a2dc180fde365f1a65bb1b456190f931839ed0d7189e530a58511a4f4",
+      "REVIEW.md": "7622510f47127c73b681b6e5ec1fb40cc761ce027f9259a72267378fb1484143",
+      "lifestage-evidence.tar.gz": "f2c61cc60f85bd5335616d57f284a98a699eaad58571a064f6b52e659d8e4050"
+    },
+    "coverage": {
+      "terms": 139,
+      "mapped": 103,
+      "review": 36
+    },
+    "reviewer": null,
+    "review_date": null,
+    "independent_review": "not performed",
+    "additional_releases": {
+      "ecotox_ascii_09_15_2026.zip": {
+        "package": "envharmonizer",
+        "package_version": "0.1.1",
+        "artifact_version": "ecotox-v0.1.1",
+        "schema_version": "1.1.0",
+        "ecotox_release": "ecotox_ascii_09_15_2026.zip",
+        "mapping_evidence_release": "ecotox_ascii_06_11_2026.zip",
+        "rule_version": "legacy-516dfd4",
+        "review_status": "not_independently_reviewed",
+        "statement": "Experimental mappings; not independently reviewed. Users must assess suitability for their analysis.",
+        "applicability_basis": "Exact native code-description file equality; no new or removed descriptions. Mapping decisions carried forward unchanged.",
+        "dictionary_table": "lifestage_dictionary_09_15_2026",
+        "review_table": "lifestage_review_09_15_2026",
+        "source_comparison": {
+          "input_sha256": {
+            "database": "2664e63ab9b6d37fbd8206d1747d7e8f77084897de80f2320c660873ef04c5db",
+            "june_archive": "4530571d32309c496fcb83c83be8951052868090b02729b6e2d5558c13221393",
+            "september_archive": "6aba4def7d6e405e8f9f44173e4fe132013f3657bb4b5491f1fcc660fd1454b1",
+            "appendix": "474891a9ff0f890329e1b75218e17b13a24c99a4cbf048e2859d3d703b58ff7d"
+          },
+          "native_code_sha256": "31eaeb745dd1ffa41f7c70691a2092a1e6efaccc00f2db113c823cd0f5e2ba98",
+          "native_pairs_identical": true,
+          "dictionary_descriptions_identical": true,
+          "code_rows": 139,
+          "mapping_evidence_release": "ecotox_ascii_06_11_2026.zip",
+          "target_release": "ecotox_ascii_09_15_2026.zip",
+          "source_url": "https://gaftp.epa.gov/ecotox/ecotox_ascii_09_15_2026.zip"
+        },
+        "table_schema": {
+          "lifestage_dictionary_09_15_2026": {
+            "org_lifestage": "character",
+            "source_ontology": "character",
+            "source_term_id": "character",
+            "source_term_label": "character",
+            "source_term_definition": "character",
+            "source_provider": "character",
+            "source_match_method": "character",
+            "source_match_status": "character",
+            "source_release": "character",
+            "ecotox_release": "character",
+            "harmonized_life_stage": "character",
+            "reproductive_stage": "logical",
+            "derivation_source": "character",
+            "mapping_evidence_release": "character"
+          },
+          "lifestage_review_09_15_2026": {
+            "org_lifestage": "character",
+            "candidate_source_ontology": "character",
+            "candidate_source_term_id": "character",
+            "candidate_source_term_label": "character",
+            "candidate_score": "double",
+            "candidate_reason": "character",
+            "source_provider": "character",
+            "ecotox_release": "character",
+            "review_status": "character",
+            "mapping_evidence_release": "character"
+          }
+        },
+        "table_content_sha256": {
+          "lifestage_dictionary_09_15_2026": "9cf072f9998d257f5faa647752f5a5ec60391d898e567012deb8baeadc586b7a",
+          "lifestage_review_09_15_2026": "59280799f02a29d3ed6c1f10ae2e0edab288aba7ee46744793cf700f28955a99"
+        },
+        "artifact_sha256": {
+          "lifestage_dictionary_09_15_2026.csv": "25808c69fb895513dad633ffb25071f09bce4a108db613a9c0ce5aea71c14051",
+          "lifestage_dictionary_09_15_2026.parquet": "40d48f4466017fcc43d5a101167ac3de04ac5dbaa4f3087556ad2b54dd3052e5",
+          "lifestage_dictionary_09_15_2026.rds": "d74d49bfce5cd0a68feae69b38d4aee2bb3981e2132ac11881e06f8b573a3ee6",
+          "lifestage_review_09_15_2026.csv": "503cd3392f9514d4911fc01753d2cd264a19c03e457e4f4494a91d7cde69b79b",
+          "lifestage_review_09_15_2026.parquet": "5ee07ccacdc62ea63fe27b6b0ce091226f6eac42283a4df429d215b0a3cdee66",
+          "lifestage_review_09_15_2026.rds": "608b7164eed4d0c916fb81671dd336f44d25f9394aca364fbc935b02447846c9",
+          "ATTRIBUTION.md": "dba6e8c5a133f6d78fbbd96d5118514fef01800e848fcee0fcdcb8e83e0fb4e1",
+          "REVIEW.md": "1ca2d9ec97215f192761b637b7f47cfa5040fb7e7ca6dc53d7e0124250ecbfdb",
+          "comparison.json": "209bbf3d52e8d9ad76dd55f92c5c0125278d0f127068694aaa85018673dfc8e9",
+          "lifestage-evidence.tar.gz": "42b700c32faab94f8d2fd3a87c65c8892742ba48d89ece2d2a78d137b76f8e55"
+        },
+        "coverage": {
+          "terms": 139,
+          "mapped": 103,
+          "review": 36
+        },
+        "independent_review": "not performed",
+        "reviewer": null,
+        "review_date": null
+      }
+    }
+  }
+}

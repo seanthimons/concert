@@ -38,6 +38,8 @@
 #'   before Review Results edits. When provided, cells that differ from
 #'   `resolution_state` are persisted as `baseline_cell` records in Session
 #'   State so re-imported sessions can regenerate replay review overrides.
+#' @param media_map Effective media map, including user overrides.
+#' @param media_results Row-level media identity, routing and original-value audit.
 #'
 #' @return Named list of data frames with sheet names as keys
 #' @export
@@ -57,7 +59,9 @@ build_export_sheets <- function(
   harmonize_audit = NULL,
   site_manifest = NULL,
   site_alias_map = NULL,
-  script_baseline_state = NULL
+  script_baseline_state = NULL,
+  media_map = NULL,
+  media_results = NULL
 ) {
   # Sheet 1: Raw Data (detected table with user-facing column names)
   raw_data_sheet <- detected_data %||% raw
@@ -258,6 +262,26 @@ build_export_sheets <- function(
 
   if (!is.null(harmonize_audit)) {
     sheets[["Harmonization Audit"]] <- harmonize_audit
+  }
+
+  media_map <- media_map %||% reference_lists$media_map
+  if (!is.null(media_map)) {
+    snapshot <- build_media_map_snapshot(media_map)
+    fields <- setdiff(names(snapshot), "overrides")
+    sheets[["Media Snapshot"]] <- tibble::tibble(key = fields, value = unlist(snapshot[fields], use.names = FALSE))
+    sheets[["Media Overrides"]] <- tibble::tibble(
+      term = snapshot$overrides$term,
+      row_json = vapply(seq_len(nrow(snapshot$overrides)), function(i) {
+        jsonlite::serializeJSON(snapshot$overrides[i, ], digits = NA)
+      }, character(1))
+    )
+  }
+  if (!is.null(media_results)) {
+    sheets[["Media Audit"]] <- media_results
+    # Typed records preserve empty strings, missing values and original whitespace.
+    sheets[["Media Audit"]]$row_json <- vapply(seq_len(nrow(media_results)), function(i) {
+      jsonlite::serializeJSON(media_results[i, ], digits = NA)
+    }, character(1))
   }
 
   sheets

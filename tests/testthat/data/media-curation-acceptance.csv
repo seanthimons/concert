@@ -1,0 +1,8 @@
+chemical_name,casrn,result,unit,media
+Acetone,67-64-1,1000,ppb,Drinking WATER
+Acetone,67-64-1,1000,ppb,soil
+Acetone,67-64-1,1000,ppb,air
+Acetone,67-64-1,1000,ppb,acetone
+Acetone,67-64-1,1000,ppb,lake
+Acetone,67-64-1,1000,ppb,runoff
+Acetone,67-64-1,1000,ppb,unknown

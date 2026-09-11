@@ -159,20 +159,26 @@ run_harmonization_runtime <- function(
   media_for_harmonize <- NULL
 
   if (isTRUE(h_mask$media) && length(media_cols) > 0L) {
+    if (!"media_original" %in% names(updated_data)) {
+      updated_data$media_original <- as.character(updated_data[[media_cols[1]]])
+    }
     media_results <- harmonize_media(
-      raw_media = as.character(updated_data[[media_cols[1]]]),
+      raw_media = as.character(updated_data$media_original),
       orig_row_id = seq_len(nrow(updated_data)),
       media_map = media_map
     )
-    updated_data$media <- media_results$media_category[
-      match(seq_len(nrow(updated_data)), media_results$orig_row_id)
-    ]
+    updated_data$media <- media_results$canonical_media
+    updated_data$media_category <- media_results$media_category
+    for (col in c("envo_id", "media_flag", media_identity_fields(), "routing_status")) {
+      name <- if (col == "media_flag") col else paste0("media_", col)
+      updated_data[[name]] <- media_results[[col]]
+    }
     media_for_harmonize <- media_results$media_category
-  } else if ("media" %in% names(updated_data)) {
-    media_for_harmonize <- updated_data$media
+  } else if ("media_category" %in% names(updated_data)) {
+    media_for_harmonize <- updated_data$media_category
   } else if (!is.null(media)) {
     media_for_harmonize <- expand_row_context_value(media, nrow(updated_data))
-    updated_data$media <- media_for_harmonize
+    updated_data$media_category <- media_for_harmonize
   }
 
   if (has_measurement) {
