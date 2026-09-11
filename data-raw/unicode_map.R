@@ -131,6 +131,7 @@ math_symbols <- c(
   "\u2215" = "/",
   "\u00f7" = "/",
   "\u2212" = "-", # Minus sign
+  "\u2010" = "-", # Hyphen
   "\u2013" = "-", # En dash
   "\u2014" = "-", # Em dash
   "\u2219" = "*",
@@ -182,6 +183,7 @@ misc_map <- c(
   "\u2018" = "'",
   "\u2019" = "'", # Smart single quotes
   "\u00a0" = " ", # Non-breaking space
+  "\u200b" = "", # Zero-width space
   "\u33c0" = "KO",
   "\u33c1" = "MO", # Square units
   "\u2192" = "->", # Right arrow

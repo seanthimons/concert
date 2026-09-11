@@ -10,9 +10,30 @@ and export reviewable ToxVal-compatible outputs.
 
 ## Installation
 
+From a checkout, start R in the repository root and restore the locked environment
+(R 4.5.1). The first session bootstraps renv automatically.
+
 ```r
+renv::restore()
 devtools::install()
 library(concert)
+```
+
+The lockfile includes development/test dependencies. After deliberately changing
+dependencies, run `renv::snapshot()` and commit `renv.lock`; `renv::status()` checks
+for drift. `DESCRIPTION` pins the experimental reactable server-paging revision
+and declares its V8 dependency. Review filters preload 100 choices and search the
+full server-held column; empty columns stay in exports but are omitted from the
+review table. Page size and column visibility update without rebuilding the table.
+The header checkbox selects the current page; selections are retained across pages
+for batch actions. Data edits refresh the server's table snapshot.
+
+To measure the 8,216-row review case or run it interactively:
+
+```r
+source("scripts/benchmark_review_results.R")
+benchmark_review_results()
+run_review_benchmark_app()
 ```
 
 ## Launch the App
