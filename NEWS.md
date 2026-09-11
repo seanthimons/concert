@@ -4,6 +4,9 @@
 
 ## Development version
 
+- Compact media replay snapshots by reconstructing unchanged ontology context
+  from the pinned vocabulary. Custom fields and explicit missing values remain
+  intact. New snapshots use version 2; version-1 snapshots still load.
 - Treat bundled legacy cleaning references as package defaults, so replay
   snapshots contain only user changes instead of repeating 81 bundled rows.
   Cleaning settings are unchanged; regenerate older replay scripts to use the

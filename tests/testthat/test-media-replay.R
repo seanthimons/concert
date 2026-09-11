@@ -24,6 +24,50 @@ test_that("media snapshots require matching schema, artifact and baseline", {
   expect_error(concert:::reconstruct_media_map_snapshot("legacy"), "malformed snapshot")
 })
 
+test_that("media snapshots omit only exactly reconstructible vocabulary fields", {
+  defaults <- concert:::normalize_media_map_for_display(concert:::get_media_table())
+  aliases <- tibble::tibble(
+    term = c("custom soil", "custom water"),
+    canonical = c("soil", "drinking water"),
+    source = "user", confidence = "user", active = c(TRUE, FALSE)
+  )
+  map <- concert:::infer_media_categories(dplyr::bind_rows(
+    concert:::normalize_media_map_for_display(aliases), defaults))
+  snapshot <- concert:::build_media_map_snapshot(map)
+  expect_identical(snapshot$snapshot_version, "2")
+  expect_setequal(names(snapshot$overrides), c("term", "canonical", "source", "confidence", "active"))
+  restored <- concert:::reconstruct_media_map_snapshot(snapshot)
+  expect_equal(restored[seq_len(2), names(map)], map[seq_len(2), ])
+  expect_equal(harmonize_media(aliases$term, media_map = restored), harmonize_media(aliases$term, media_map = map))
+
+  full <- snapshot
+  full$snapshot_version <- "1"
+  full$overrides <- map[seq_len(2), ]
+  legacy <- concert:::reconstruct_media_map_snapshot(full)
+  expect_equal(legacy[seq_len(2), names(map)], map[seq_len(2), ])
+  expect_lt(nchar(concert:::keyed_map_snapshot_script_literal(snapshot)),
+    nchar(concert:::keyed_map_snapshot_script_literal(full)) / 2)
+
+  # Keep explicit exceptions, missing values, and fields unknown to the package.
+  map$definition[1] <- "Local description"
+  map$term_id[2] <- NA_character_
+  map$media_category[1] <- "air"
+  map$local_note <- NA_character_
+  map$local_note[1] <- "retain this"
+  custom <- concert:::build_media_map_snapshot(map)
+  restored <- concert:::reconstruct_media_map_snapshot(custom)
+  expect_equal(restored[seq_len(2), names(map)], map[seq_len(2), ])
+  expect_identical(custom$overrides$definition[1], "Local description")
+  expect_true(is.na(custom$overrides$term_id[2]))
+  expect_identical(custom$overrides$media_category[1], "air")
+
+  # Custom targets without vocabulary context remain explicit too.
+  map$canonical[1] <- map$canonical_term[1] <- "local medium"
+  custom <- concert:::build_media_map_snapshot(map)
+  restored <- concert:::reconstruct_media_map_snapshot(custom)
+  expect_equal(restored[seq_len(2), names(map)], map[seq_len(2), ])
+})
+
 test_that("generated media replay reproduces headless results offline", {
   local_mocked_bindings(run_curation_pipeline = function(cleaned_data, ...) {
     cleaned_data$consensus_status <- "unresolvable"
