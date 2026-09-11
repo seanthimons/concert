@@ -2,29 +2,64 @@
 
 # concert NEWS
 
-## Development version
+## v0.4.0 (2026-09-11)
 
-- Compact media replay snapshots by reconstructing unchanged ontology context
-  from the pinned vocabulary. Custom fields and explicit missing values remain
-  intact. New snapshots use version 2; version-1 snapshots still load.
-- Treat bundled legacy cleaning references as package defaults, so replay
-  snapshots contain only user changes instead of repeating 81 bundled rows.
-  Cleaning settings are unchanged; regenerate older replay scripts to use the
-  updated default hashes.
-- `media` in ToxVal exports now contains canonical labels (for example, drinking
-  water); conversion categories remain separate. `media_original` preserves the
-  tagged source value and is no longer fabricated from derived media.
-- Bundle the pinned envharmonizer v0.1.1 media compatibility vocabulary (267 terms),
-  matrix terms/edges, manifests and attribution. Recognized nonaqueous media can
-  have no conversion route. Conflicting fallback interpretations stay unresolved.
-- Extend `harmonize_media()` with ontology identity, definition, physical phase,
-  water-based status, provenance and routing availability; retain its arguments
-  and original result columns.
-- Show published media context in the editor, with inspectable user overrides.
-  Workbook exports retain media snapshots, compact overrides and row-level audits.
-- Breaking replay change: media snapshot schema, artifact version, archive hash
-  and baseline hash must match. Legacy snapshots without these fields require
-  re-curation from original input; they are not silently migrated.
+#### Breaking changes
+
+- integrate published media curation and compact replays (#61)
+  ([6bf0d50](https://github.com/seanthimons/concert/tree/6bf0d50d2dedfc1319b3dd38cb588660816cdb31))
+- pin workbook and script replay to media artifacts
+  ([dfa8c34](https://github.com/seanthimons/concert/tree/dfa8c340b94981b2fa3e5d0ebf9463cb3830d294))
+- export canonical labels and preserve original input
+  ([b4ce2a3](https://github.com/seanthimons/concert/tree/b4ce2a3a3b089ce8512acb301e2a87d235e398c4))
+
+#### New features
+
+- expose published ontology context in the editor
+  ([d9ad908](https://github.com/seanthimons/concert/tree/d9ad90810cb1ed1c7cd468764a5b1498329ce6f9))
+- separate published identities from conversion routes
+  ([675e15e](https://github.com/seanthimons/concert/tree/675e15e14ce9ea115b978a6473fddf155fdd8848))
+- import pinned published media artifacts
+  ([a3650bf](https://github.com/seanthimons/concert/tree/a3650bf18254bbb71ddfdabfa81a5883a5020089))
+
+#### Bug fixes
+
+- omit reconstructible metadata from media replay snapshots
+  ([4b506a7](https://github.com/seanthimons/concert/tree/4b506a70c739d9773fca83496c36ad99320ac945))
+- exclude bundled reference settings from replay overrides
+  ([0512510](https://github.com/seanthimons/concert/tree/0512510b725b10aa857ccb7934c0b60a89b899e4))
+- make replay deterministic across locales and unit edits
+  ([4c7f818](https://github.com/seanthimons/concert/tree/4c7f8181da31586f8b6fabb29e55f184dd67a89e))
+- allow selecting WQX evidence candidates
+  ([003f958](https://github.com/seanthimons/concert/tree/003f958a89a54eec88388ea41a069dd1a8b47827))
+
+#### Build
+
+- bump ComptoxR pin to v1.7.1
+  ([b8b39aa](https://github.com/seanthimons/concert/tree/b8b39aa4ed2b8900b0b01ded122e3b2080522e78))
+
+#### Docs
+
+- record user acceptance for review
+  ([f27227b](https://github.com/seanthimons/concert/tree/f27227b0909af9e943dfb7b85fda7b1fc6b5466e))
+- link integration epic to review PR
+  ([065c76e](https://github.com/seanthimons/concert/tree/065c76e74d0fb28f2d452cafb0041d891bcaece8))
+- record validation and remaining manual acceptance
+  ([bceb7c4](https://github.com/seanthimons/concert/tree/bceb7c46d7b286a90b2311986b76c78a5dfb7a8b))
+- assess environmental harmonization integration
+  ([4f99f09](https://github.com/seanthimons/concert/tree/4f99f09c081cf3a241beca7a3ef51080f2bf859a))
+
+#### Other changes
+
+- bump version to 0.4.0 \[skip ci\]
+  ([fcf21d4](https://github.com/seanthimons/concert/tree/fcf21d40e890eb26b745326bbc2f8873fe1790cd))
+- track published media integration and follow-ups
+  ([7249615](https://github.com/seanthimons/concert/tree/7249615b75cf3d5d20b635751a734a1682b74438))
+- integrate current main
+  ([3d5febb](https://github.com/seanthimons/concert/tree/3d5febb011c6ac4a738d3ac99cc043d0209f49f1))
+
+Full set of changes:
+[`v0.3.2...v0.4.0`](https://github.com/seanthimons/concert/compare/v0.3.2...v0.4.0)
 
 ## v0.3.2 (2026-08-12)
 
@@ -32,6 +67,11 @@
 
 - correct harmonizer failure handling
   ([3c57c9c](https://github.com/seanthimons/concert/tree/3c57c9c6cf7a09c381447b33bf85a1a20060f9eb))
+
+#### Docs
+
+- update NEWS.md for v0.3.2 \[skip ci\]
+  ([e52a94e](https://github.com/seanthimons/concert/tree/e52a94e7f1ea56d56a296d855581c2b6b18c8f48))
 
 #### Other changes
 
