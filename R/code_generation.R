@@ -216,6 +216,8 @@ keyed_map_snapshot_script_literal <- function(snapshot) {
     "  default_hash = ",
     script_literal(snapshot$default_hash),
     ",\n",
+    paste(vapply(intersect(c("snapshot_version", "artifact_version", "artifact_sha256"), names(snapshot)),
+      function(name) paste0("  ", name, " = ", script_literal(snapshot[[name]]), ",\n"), character(1)), collapse = ""),
     "  overrides = ",
     tibble_script_literal(snapshot$overrides),
     "\n)"
@@ -1414,7 +1416,12 @@ generate_concert_script <- function(
   has_review_overrides <- review_overrides_present(review_overrides)
   reference_list_snapshot <- build_reference_list_snapshot(reference_lists)
   unit_map_snapshot <- if (isTRUE(harmonize)) build_unit_map_snapshot(unit_map) else NULL
-  media_map_snapshot <- if (isTRUE(harmonize)) build_media_map_snapshot(media_map) else NULL
+  media_map_snapshot <- if (isTRUE(harmonize)) {
+    if (is.null(media_map) && any(unlist(tag_map) == "Media")) {
+      media_map <- reference_lists$media_map %||% get_media_table()
+    }
+    build_media_map_snapshot(media_map)
+  } else NULL
   site_alias_map_for_replay <- build_site_alias_map(site_context_alias_source(site_alias_map, site_manifest))
   site_manifest_input <- if (nrow(site_alias_map_for_replay) > 0L) site_alias_map_for_replay else site_manifest
   site_manifest_for_replay <- build_site_manifest(site_manifest_input)

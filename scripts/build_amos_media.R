@@ -1,73 +1,25 @@
-# build_amos_media.R
-# Deterministically generates the runtime media cache from reviewable source
-# tables in inst/extdata/reference_sources.
-#
-# Source of truth:
-#   - inst/extdata/reference_sources/media_canonical.csv
-#   - inst/extdata/reference_sources/media_aliases.csv
-#
-# Output:
-#   - inst/extdata/reference_cache/amos_media.rds
-#
-# AMOS remains provenance for selected aliases in media_aliases.csv, but this
-# script does not fetch AMOS at runtime or rebuild opaque inferred rows.
-
-CONCERT_ROOT <- here::here()
-
-stopifnot(
-  "readr package is required" = requireNamespace("readr", quietly = TRUE),
-  "dplyr package is required" = requireNamespace("dplyr", quietly = TRUE),
-  "tibble package is required" = requireNamespace("tibble", quietly = TRUE),
-  "fs package is required" = requireNamespace("fs", quietly = TRUE)
-)
-
-source(file.path(CONCERT_ROOT, "R", "media_harmonizer.R"))
-
-build_amos_media_cache <- function(root = CONCERT_ROOT) {
-  source_dir <- file.path(root, "inst", "extdata", "reference_sources")
-  cache_path <- file.path(root, "inst", "extdata", "reference_cache", "amos_media.rds")
-
-  source_tables <- load_media_source_tables(source_dir)
-  runtime_map <- build_media_runtime_map(source_tables)
-
-  fs::dir_create(dirname(cache_path), recurse = TRUE)
-  saveRDS(runtime_map, cache_path, compress = FALSE)
-
-  message(sprintf(
-    "Media cache written: %s (%d terms, %d pending)",
-    cache_path,
-    nrow(runtime_map),
-    sum(runtime_map$assertion_mode == "pending", na.rm = TRUE)
-  ))
-
+# source('scripts/build_amos_media.R'); build_amos_media_cache()
+# Supply archive to import the pinned release; subsequent rebuilds work offline.
+build_amos_media_cache <- function(root = getwd(), archive = NULL) {
+  source(file.path(root, 'R', 'media_harmonizer.R'), local = TRUE)
+  source(file.path(root, 'R', 'media_artifacts.R'), local = TRUE)
+  source_dir <- file.path(root, 'inst', 'extdata', 'reference_sources')
+  if (!is.null(archive)) {
+    verify_media_file(archive, '56da987c0fb72e08915df5b7ecf1d099fdb03c5828fa1cc85debcceefe61daca')
+    files <- c('concert_media_map.csv', 'matrix_terms.csv', 'matrix_edges.csv',
+      'table-manifest.json', 'release-manifest.json', 'SHA256SUMS', 'README.md',
+      'DATA_LICENSE.md', 'AMOS-ATTRIBUTION.md', 'ECOTOX-ATTRIBUTION.md', 'ECOTOX-REVIEW.md')
+    dest <- file.path(source_dir, 'envharmonizer-0.1.1')
+    dir.create(dest, recursive = TRUE, showWarnings = FALSE)
+    extracted <- tempfile('media-import-')
+    dir.create(extracted)
+    utils::untar(archive, files = paste0('envharmonizer-tables-0.1.1/', files), exdir = extracted)
+    stopifnot(all(file.copy(file.path(extracted, 'envharmonizer-tables-0.1.1', files), dest, overwrite = TRUE)))
+  }
+  tables <- load_published_media_tables(source_dir)
+  runtime_map <- build_media_runtime_map(tables)
+  saveRDS(runtime_map, file.path(root, 'inst', 'extdata', 'reference_cache', 'amos_media.rds'), compress = FALSE, version = 3)
   invisible(runtime_map)
 }
 
-runtime_map <- build_amos_media_cache()
-
-former_unresolved <- c(
-  "solid",
-  "aqueous",
-  "marine",
-  "atmospheric",
-  "lake",
-  "runoff",
-  "leachate"
-)
-represented <- runtime_map[runtime_map$term %in% former_unresolved, ]
-message("Former unresolved AMOS terms:")
-message(paste(sprintf("  - %s: %s", represented$term, represented$assertion_mode), collapse = "\n"))
-
-#' Refresh the generated AMOS media cache
-#'
-#' Rebuilds inst/extdata/reference_cache/amos_media.rds from the reviewable
-#' source tables. Arguments are kept for backward compatibility with older
-#' callers that expected refresh_amos_cache(force, max_age_days).
-#'
-#' @param force Ignored. Present for backward compatibility.
-#' @param max_age_days Ignored. Present for backward compatibility.
-#' @return Invisibly returns the rebuilt runtime map.
-#' @export
-refresh_amos_cache <- function(force = TRUE, max_age_days = Inf) {
-  build_amos_media_cache()
-}
+refresh_amos_cache <- function(force = TRUE, max_age_days = Inf) build_amos_media_cache()

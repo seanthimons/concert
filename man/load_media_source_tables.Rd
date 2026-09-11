@@ -7,11 +7,12 @@
 load_media_source_tables(source_dir = NULL)
 }
 \arguments{
-\item{source_dir}{Optional directory containing media_canonical.csv and
-media_aliases.csv.}
+\item{source_dir}{Optional reference source directory. Published v0.1.1
+tables are the default; explicit legacy source directories remain readable.}
 }
 \value{
-List with canonical and aliases tibbles.
+List with published compatibility map, matrix terms and matrix edges.
+Explicit legacy directories return canonical, aliases and ontology nodes.
 }
 \description{
 Load reviewable media vocabulary source tables

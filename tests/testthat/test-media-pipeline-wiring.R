@@ -317,8 +317,8 @@ test_that("harmonize_media does not infer category from ambiguous canonical dono
 
   result <- harmonize_media("user mapped medium", media_map = media_map)
 
-  expect_equal(result$media_flag, "media_unmatched")
-  expect_true(is.na(result$canonical_media))
+  expect_equal(result$media_flag, "")
+  expect_equal(result$canonical_media, "shared canonical")
   expect_true(is.na(result$media_category))
 })
 

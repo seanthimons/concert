@@ -1,0 +1,294 @@
+{
+  "package_version": "0.1.1",
+  "csv_na": "__ENVHARMONIZER_MISSING__",
+  "column_types": {
+    "c": "character",
+    "l": "logical",
+    "i": "integer",
+    "d": "double"
+  },
+  "tables": {
+    "analytical_edges": {
+      "rows": 2817,
+      "columns": {
+        "child_id": "c",
+        "parent_id": "c",
+        "relation": "c"
+      },
+      "csv_sha256": "df961feb23e7dcd8555d5cd06f1d82694bc736b4429e919559619f9e325d48b9",
+      "parquet_sha256": "0a97eae61bfd325a08f373dda2e1df582fc7471df6b3edb54d5ae9dd1b47c9fe"
+    },
+    "analytical_synonyms": {
+      "rows": 9138,
+      "columns": {
+        "term_id": "c",
+        "label": "c",
+        "normalized_label": "c",
+        "synonym_type": "c",
+        "source": "c",
+        "active": "l",
+        "analytical_role": "c",
+        "component_order": "i",
+        "assertion_mode": "c",
+        "confidence_tier": "c"
+      },
+      "csv_sha256": "4b2e6eb3e67fc59cef075a014b84eabf836a8a496a55aecc7bc4c17ea5b5af7e",
+      "parquet_sha256": "ed9b99f5859eaf96a817f4eb77948318d3e09399c0af19fab07d00a2b86c8aa0"
+    },
+    "analytical_terms": {
+      "rows": 2923,
+      "columns": {
+        "term_id": "c",
+        "preferred_label": "c",
+        "definition": "c",
+        "source_ontology": "c",
+        "analytical_role": "c"
+      },
+      "csv_sha256": "3d2f29fa060a34f69232b8ed644974ac62d6270c95c7d1e8fc4bb176353d393a",
+      "parquet_sha256": "4ca1782ee14b2fdd905a93a1d8438e176b591d64ac954386398e92655562ebf5"
+    },
+    "concert_media_map": {
+      "rows": 267,
+      "columns": {
+        "term": "c",
+        "canonical_media": "c",
+        "canonical_term": "c",
+        "term_id": "c",
+        "parent_id": "c",
+        "preferred_label": "c",
+        "rank": "c",
+        "definition": "c",
+        "envo_id": "c",
+        "physical_phase": "c",
+        "physical_state": "c",
+        "is_water_based": "l",
+        "concert_unit_route": "c",
+        "media_category": "c",
+        "source": "c",
+        "assertion_mode": "c",
+        "confidence_tier": "c",
+        "confidence": "c",
+        "active": "l"
+      },
+      "csv_sha256": "a9f4858a07bf66b10cf38e6bc2519d4a4b2fea8e9b36d92a57f1921d54cdfc43",
+      "parquet_sha256": "4706a64bb66e60c0289aab5878819173147958da6d38c23ab2b080a090946d03"
+    },
+    "instrument_mentions": {
+      "rows": 0,
+      "columns": {
+        "amos_method_id": "c",
+        "raw_mention": "c",
+        "manufacturer_raw": "c",
+        "model_raw": "c",
+        "page": "i",
+        "section": "c",
+        "document_checksum": "c"
+      },
+      "csv_sha256": "820fe7984f1f1f32f760d0c43ecb479eae89545e96d242bc4250e5dd38936423",
+      "parquet_sha256": "1bb0ce765822cb2ce9727fdee8db806d29ab6dbc4096addf1c4ad6e45d4afc7f"
+    },
+    "lifestage_dictionary": {
+      "rows": 103,
+      "columns": {
+        "org_lifestage": "c",
+        "source_ontology": "c",
+        "source_term_id": "c",
+        "source_term_label": "c",
+        "source_term_definition": "c",
+        "source_provider": "c",
+        "source_match_method": "c",
+        "source_match_status": "c",
+        "source_release": "c",
+        "ecotox_release": "c",
+        "harmonized_life_stage": "c",
+        "reproductive_stage": "l",
+        "derivation_source": "c"
+      },
+      "csv_sha256": "c4fa08cab530cab32d1d75dfc5d8322f9deb8e4a26441a70bc656ea6894fc802",
+      "parquet_sha256": "022fdfa98210ce337c010da29f24be50c1d5f8a3a6ed792302ee19d4c6949378"
+    },
+    "lifestage_dictionary_09_15_2026": {
+      "rows": 103,
+      "columns": {
+        "org_lifestage": "c",
+        "source_ontology": "c",
+        "source_term_id": "c",
+        "source_term_label": "c",
+        "source_term_definition": "c",
+        "source_provider": "c",
+        "source_match_method": "c",
+        "source_match_status": "c",
+        "source_release": "c",
+        "ecotox_release": "c",
+        "harmonized_life_stage": "c",
+        "reproductive_stage": "l",
+        "derivation_source": "c",
+        "mapping_evidence_release": "c"
+      },
+      "csv_sha256": "2a162d541e9d3615192f26e4a8d10026c35043fe14e0c4971b425c9c4aded2bd",
+      "parquet_sha256": "40d48f4466017fcc43d5a101167ac3de04ac5dbaa4f3087556ad2b54dd3052e5"
+    },
+    "lifestage_review": {
+      "rows": 36,
+      "columns": {
+        "org_lifestage": "c",
+        "candidate_source_ontology": "c",
+        "candidate_source_term_id": "c",
+        "candidate_source_term_label": "c",
+        "candidate_score": "d",
+        "candidate_reason": "c",
+        "source_provider": "c",
+        "ecotox_release": "c",
+        "review_status": "c"
+      },
+      "csv_sha256": "ce5673e9ed4d4819ab93cca4bc8f610dc638ee6548cfa4cf311c66952ae4604c",
+      "parquet_sha256": "92b783e248ef6abb4fa4dd5122ebc0353f370499a18894909b679c111c4dd0ab"
+    },
+    "lifestage_review_09_15_2026": {
+      "rows": 36,
+      "columns": {
+        "org_lifestage": "c",
+        "candidate_source_ontology": "c",
+        "candidate_source_term_id": "c",
+        "candidate_source_term_label": "c",
+        "candidate_score": "d",
+        "candidate_reason": "c",
+        "source_provider": "c",
+        "ecotox_release": "c",
+        "review_status": "c",
+        "mapping_evidence_release": "c"
+      },
+      "csv_sha256": "f80ba0b4ec87c67d15267805156f147e7f33fc5470f57644c8bd843252b05899",
+      "parquet_sha256": "5ee07ccacdc62ea63fe27b6b0ce091226f6eac42283a4df429d215b0a3cdee66"
+    },
+    "matrix_edges": {
+      "rows": 1425,
+      "columns": {
+        "child_id": "c",
+        "parent_id": "c",
+        "relation": "c",
+        "source": "c",
+        "assertion_mode": "c",
+        "reviewed_by": "c",
+        "reviewed_at": "c",
+        "notes": "c"
+      },
+      "csv_sha256": "c201b1692954e6ff194c59adde81d86a123fc0297e3eca603974a92fc9547108",
+      "parquet_sha256": "1fb4935f4e0e132f78637b0e88d089564e9aa3397de3d28baf79f68c5a0e62a8"
+    },
+    "matrix_synonyms": {
+      "rows": 559,
+      "columns": {
+        "term_id": "c",
+        "label": "c",
+        "normalized_label": "c",
+        "synonym_type": "c",
+        "source": "c",
+        "active": "l"
+      },
+      "csv_sha256": "495bcf858740583e2c78ce57ec0d976a7e78f5be113f2ea9feacc402c498dac7",
+      "parquet_sha256": "e420e978f6667d26e817262863b66134c3ddf36ef8265cf738bd22056ba0f4ad"
+    },
+    "matrix_terms": {
+      "rows": 1201,
+      "columns": {
+        "term_id": "c",
+        "preferred_label": "c",
+        "definition": "c",
+        "source_ontology": "c",
+        "dominant_physical_phase": "c",
+        "is_water_based": "l",
+        "concert_unit_route": "c",
+        "review_status": "c"
+      },
+      "csv_sha256": "1cc7655535815859bbc9ebaf01d0c4210e263f69160f013a480832e9036b9d28",
+      "parquet_sha256": "265faecefa1b108c0e20d47f200f675857d0ec2c457a25f76bf52c30d42cee74"
+    },
+    "method_analytical_assertions": {
+      "rows": 10249,
+      "columns": {
+        "amos_method_id": "c",
+        "raw_index": "i",
+        "raw_value": "c",
+        "term_id": "c",
+        "analytical_role": "c",
+        "component_order": "i",
+        "match_type": "c",
+        "assertion_mode": "c",
+        "confidence_tier": "c",
+        "status": "c"
+      },
+      "csv_sha256": "a9c8dd53faba7e810263a6adf372d5d15408a1b84e187257105ea2ec7820628f",
+      "parquet_sha256": "769f1a29bd092747e2ad36f8ee4d0ab2a49c3cd1acfb69acf23c8de3f229bb74"
+    },
+    "method_functional_classes_raw": {
+      "rows": 118736,
+      "columns": {
+        "amos_method_id": "c",
+        "raw_index": "i",
+        "raw_value": "c",
+        "raw_container_type": "c",
+        "raw_container": "c"
+      },
+      "csv_sha256": "bfd31aa24be36c1659f59f224faa6669a0735b76d8e3724ad544b68d86b92107",
+      "parquet_sha256": "c6bf37b443cf8439e29435b3323542c63671386355060816438deab9e2482986"
+    },
+    "method_matrices": {
+      "rows": 7701,
+      "columns": {
+        "amos_method_id": "c",
+        "assertion_index": "i",
+        "term_id": "c",
+        "matrix_raw": "c",
+        "candidate_phrase": "c",
+        "qualifier": "c",
+        "evidence_source": "c",
+        "rule_id": "c",
+        "assertion_mode": "c",
+        "confidence_tier": "c",
+        "match_type": "c",
+        "status": "c",
+        "page": "i",
+        "section": "c",
+        "document_checksum": "c"
+      },
+      "csv_sha256": "a155979858eb9ace468c1f1bea926f01a169c4f72af03416965a3eb4794858b4",
+      "parquet_sha256": "7ef3386447eef901aff42a1fdaf862b1963e4ad350e503816f7c0aad6a0b708a"
+    },
+    "method_methodologies_raw": {
+      "rows": 7895,
+      "columns": {
+        "amos_method_id": "c",
+        "raw_index": "i",
+        "raw_value": "c",
+        "raw_container_type": "c",
+        "raw_container": "c"
+      },
+      "csv_sha256": "767120408ff3b38ef4fb6dd98d48e4f0ad18f428b820ca26c2ffaceeaca6ee51",
+      "parquet_sha256": "96151a1ce1e93639f05e75989a559e5b67472cbf308b9981ec4b47e0988cee71"
+    },
+    "methods": {
+      "rows": 7474,
+      "columns": {
+        "amos_method_id": "c",
+        "method_number": "c",
+        "method_title": "c",
+        "description": "c",
+        "analyte_raw": "c",
+        "author_raw": "c",
+        "publisher_raw": "c",
+        "source_raw": "c",
+        "document_type_code": "c",
+        "date_published_raw": "c",
+        "year_published": "i",
+        "lod_raw": "c",
+        "loq_raw": "c",
+        "matrix_raw": "c",
+        "source_link": "c",
+        "substance_count": "i"
+      },
+      "csv_sha256": "53f5cdfec4c6d595b1ce0852235c75a97653acedf5c62d75ed14c2085518dd95",
+      "parquet_sha256": "5b0dd4c76344e1935caa0d50d9f30371846ad803c45d6f04c0bdd04bbedff356"
+    }
+  }
+}

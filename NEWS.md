@@ -2,6 +2,30 @@
 
 # concert NEWS
 
+## Development version
+
+- Compact media replay snapshots by reconstructing unchanged ontology context
+  from the pinned vocabulary. Custom fields and explicit missing values remain
+  intact. New snapshots use version 2; version-1 snapshots still load.
+- Treat bundled legacy cleaning references as package defaults, so replay
+  snapshots contain only user changes instead of repeating 81 bundled rows.
+  Cleaning settings are unchanged; regenerate older replay scripts to use the
+  updated default hashes.
+- `media` in ToxVal exports now contains canonical labels (for example, drinking
+  water); conversion categories remain separate. `media_original` preserves the
+  tagged source value and is no longer fabricated from derived media.
+- Bundle the pinned envharmonizer v0.1.1 media compatibility vocabulary (267 terms),
+  matrix terms/edges, manifests and attribution. Recognized nonaqueous media can
+  have no conversion route. Conflicting fallback interpretations stay unresolved.
+- Extend `harmonize_media()` with ontology identity, definition, physical phase,
+  water-based status, provenance and routing availability; retain its arguments
+  and original result columns.
+- Show published media context in the editor, with inspectable user overrides.
+  Workbook exports retain media snapshots, compact overrides and row-level audits.
+- Breaking replay change: media snapshot schema, artifact version, archive hash
+  and baseline hash must match. Legacy snapshots without these fields require
+  re-curation from original input; they are not silently migrated.
+
 ## v0.3.2 (2026-08-12)
 
 #### Bug fixes

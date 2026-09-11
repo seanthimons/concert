@@ -26,7 +26,7 @@ Pass a merged map from load_media_map() to enable user-defined mappings
 internally before lookup.}
 }
 \value{
-A tibble with 6 columns:
+A row-preserving tibble retaining these original columns:
 \describe{
 \item{orig_row_id}{Integer row position for join-by-position merge.}
 \item{raw_media}{Original input string, preserved for audit.}
@@ -39,11 +39,20 @@ A tibble with 6 columns:
 \item{media_flag}{One of: \code{""} (exact match), \code{"parent_walk"},
 \code{"media_unmatched"}.}
 }
+Additional fields retain published \code{term_id}, \code{parent_id},
+\code{preferred_label}, \code{rank}, \code{definition},
+\code{physical_phase}, \code{physical_state}, \code{is_water_based},
+\code{concert_unit_route}, \code{ontology_node_id}, \code{ontology_path},
+\code{source}, \code{assertion_mode}, \code{confidence},
+\code{confidence_tier}, and \code{artifact_version}.
+CURIE capitalization is preserved. \code{routing_status} is
+\code{available}, \code{unavailable} for a known identity without a route,
+or \code{unmatched}. A successful identity match does not require a route.
 }
 \description{
 Maps a character vector of raw environmental media strings against the
 generated CONCERT media vocabulary cache (\code{amos_media.rds}). Resolution
 order: (1) user assertions; (2) active bundled auto assertions; (3)
-parent-walk for partial/compound matches; (4) \code{media_unmatched} flag
+unambiguous phrase fallback for partial matches; (4) \code{media_unmatched} flag
 for everything else. Pending source-table aliases are not auto-resolved.
 }

@@ -501,6 +501,58 @@ rendered_ui_text <- function(ui) {
   paste(htmltools::renderTags(ui)$html, collapse = "\n")
 }
 
+test_that("published media editor inspects, saves and reruns user overrides", {
+  data_store <- make_dispatch_store()
+  fixture <- tibble::tibble(media = c("Drinking WATER", "soil", "air", "acetone", "lake", "runoff", "unknown"),
+    result = "1000", unit = "ppb")
+  refs <- concert:::load_all_reference_lists(concert:::resolve_reference_cache_dir())
+  shiny::isolate({
+    data_store$clean <- fixture
+    data_store$cleaned_data <- fixture
+    data_store$resolution_state <- fixture
+    data_store$reference_lists <- refs
+    data_store$media_map_working <- refs$media_map
+    data_store$unit_map_working <- refs$unit_map
+  })
+  saved <- NULL
+  save_rds <- base::saveRDS
+  local_mocked_bindings(saveRDS = function(object, file, ...) {
+    if (basename(file) == "user_media_map.rds") saved <<- object else save_rds(object, file, ...)
+  }, .package = "base")
+  shiny::testServer(mod_harmonize_server, args = list(data_store = data_store), {
+    session$flushReact()
+    expect_true(media_map_ready())
+    rendered <- output$media_table
+    expect_match(as.character(rendered), "amosharmonizer", fixed = TRUE)
+    expect_match(as.character(rendered), "Unavailable", fixed = TRUE)
+    expect_match(as.character(rendered), "ontology_id", fixed = TRUE)
+    data_store$harmonize_run_nonce <- 1L
+    session$flushReact()
+    expect_equal(data_store$media_results$media_flag[7], "media_unmatched")
+    session$setInputs(open_media_edit_modal = list(term = "acetone"))
+    session$setInputs(modal_media_term = "unknown", modal_media_canonical = "soil",
+      modal_media_orig_term = "unknown", modal_media_active = TRUE, save_media_mapping = 1L)
+    session$flushReact()
+    expect_equal(saved$term, "unknown")
+    expect_equal(saved$media_category, "solid")
+    expect_equal(saved$term_id, harmonize_media("soil")$term_id)
+    data_store$harmonize_run_nonce <- 2L
+    session$flushReact()
+    expected <- concert:::run_harmonization_runtime(fixture,
+      list(media = "Media", result = "Result", unit = "Unit"), refs$unit_map,
+      media_map = data_store$media_map_working, source_name = "dispatch.csv")
+    expect_equal(data_store$media_results, expected$media_results)
+    expect_equal(data_store$toxval_output, expected$toxval_output)
+    expect_equal(data_store$toxval_output$media_original, fixture$media)
+    expect_equal(data_store$toxval_output$media[7], "soil")
+    # A unit edit still takes the shared media-aware path on a media dataset.
+    data_store$changed_units <- "ppb"
+    data_store$harmonize_run_nonce <- 3L
+    session$flushReact()
+    expect_equal(data_store$toxval_output, expected$toxval_output)
+  })
+})
+
 make_flagged_harmonized <- function(unit_flags, orig_units = rep("mg/L", length(unit_flags))) {
   tibble::tibble(
     orig_row_id = seq_along(unit_flags),
