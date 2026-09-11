@@ -1506,7 +1506,7 @@ split_synonyms <- function(df, name_cols, tag_map) {
       prev <- protected
       protected <- stringr::str_replace_all(protected, "([A-Za-z]),([A-Za-z])", "\\1@@@\\2")
       protected <- stringr::str_replace_all(protected, "([A-Za-z]),(\\d)", "\\1@@@\\2")
-      protected <- stringr::str_replace_all(protected, "(\\d+),(\\d+)", "\\1@@@\\2")
+      protected <- stringr::str_replace_all(protected, "(\\d+['\u2032\u2019\u2033]*),(\\d+)", "\\1@@@\\2")
       if (identical(prev, protected)) break
     }
 
