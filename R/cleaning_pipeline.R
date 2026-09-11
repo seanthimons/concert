@@ -2468,6 +2468,11 @@ perform_unicode_qc <- function(df) {
     }
   }
 
+  all_non_ascii_chars <- Filter(
+    function(info) !info$char %in% names(unicode_map),
+    all_non_ascii_chars
+  )
+
   # Return result
   list(
     rows_with_non_ascii = length(rows_with_issues),
