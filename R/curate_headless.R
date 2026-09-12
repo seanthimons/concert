@@ -136,29 +136,9 @@ curate_headless <- function(
   # skip_flags reserved for future use; isotope_match skip is handled internally by run_curation_pipeline()
 
   pipeline <- function() {
-    # ------------------------------------------------------------------
-    # Step 1: Validate input (fail fast)
-    # ------------------------------------------------------------------
-    if (!file.exists(input_path)) {
-      stop(sprintf("curate_headless: file not found: %s", input_path))
-    }
-
-    file_ext <- tolower(tools::file_ext(input_path))
-
-    if (!file_ext %in% c("csv", "xlsx", "xls")) {
-      stop(sprintf(
-        "curate_headless: unsupported file type '%s'. Use csv, xlsx, or xls.",
-        file_ext
-      ))
-    }
-
     if (write_files && (is.null(output_path) || !nzchar(output_path))) {
       stop("curate_headless: output_path is required when write_files = TRUE.")
     }
-
-    # ------------------------------------------------------------------
-    # Step 1b: Validate format parameter
-    # ------------------------------------------------------------------
     if (!format %in% c("parquet", "csv", "both")) {
       stop(sprintf(
         "curate_headless: invalid format '%s'. Use 'parquet', 'csv', or 'both'.",
@@ -166,288 +146,36 @@ curate_headless <- function(
       ))
     }
 
-    # ------------------------------------------------------------------
-    # Step 2: Load reference lists
-    # ------------------------------------------------------------------
-    if (!is.null(reference_lists) && !is.null(reference_list_snapshot)) {
-      stop(
-        "curate_headless: provide either reference_lists or reference_list_snapshot, not both.",
-        call. = FALSE
-      )
-    }
-
-    if (!is.null(reference_list_snapshot)) {
-      cache_dir <- resolve_reference_cache_dir()
-      reference_lists <- reconstruct_reference_list_snapshot(
-        reference_list_snapshot,
-        cache_dir = cache_dir
-      )
-    } else if (is.null(reference_lists)) {
-      cache_dir <- resolve_reference_cache_dir()
-      reference_lists <- load_all_reference_lists(cache_dir)
-    } else {
-      expected <- c("stop_words", "functional_categories", "block_patterns", "strip_terms", "isotope_lookup")
-      missing_keys <- setdiff(expected, names(reference_lists))
-      if (length(missing_keys) > 0) {
-        stop(sprintf(
-          "curate_headless: reference_lists is missing required keys: %s",
-          paste(missing_keys, collapse = ", ")
-        ))
-      }
-    }
-    if (isTRUE(activate_all_references)) {
-      reference_lists <- activate_all_reference_terms(reference_lists)
-    }
-
-    # ------------------------------------------------------------------
-    # Step 3: Read file
-    # ------------------------------------------------------------------
-    message(sprintf("[headless] Reading file: %s", basename(input_path)))
-    raw_df <- safely_read_file(input_path, file_ext)
-
-    # ------------------------------------------------------------------
-    # Step 4: Detect frontmatter
-    # ------------------------------------------------------------------
-    if (!is.null(header_row)) {
-      detection <- detect_data_start(raw_df, mode = "manual", manual_row = header_row)
-    } else {
-      detection <- detect_data_start(raw_df, mode = "auto")
-    }
-
-    message(sprintf(
-      "[headless] Detection: method=%s, confidence=%.2f, header_row=%d",
-      detection$method,
-      detection$confidence,
-      detection$header_row
-    ))
-
-    # ------------------------------------------------------------------
-    # Step 5: Extract and post-process
-    # ------------------------------------------------------------------
-    clean_data <- extract_clean_data(raw_df, detection)
-    clean_data <- handle_merged_cells(clean_data)
-    clean_data <- janitor::clean_names(clean_data)
-    clean_data <- janitor::remove_empty(clean_data, which = c("rows", "cols"))
-    assert_no_source_result_flag(clean_data, "curate_headless input")
-    site_alias_map_for_export <- build_site_alias_map(site_context_alias_source(site_alias_map, site_manifest))
-    site_manifest_input <- if (nrow(site_alias_map_for_export) > 0L) site_alias_map_for_export else site_manifest
-    site_manifest_for_export <- build_site_manifest(site_manifest_input)
-
-    # ------------------------------------------------------------------
-    # Step 6: Validate tag_map against cleaned column names
-    # ------------------------------------------------------------------
-    missing_cols <- setdiff(names(tag_map), names(clean_data))
-    if (length(missing_cols) > 0) {
-      stop(sprintf(
-        "curate_headless: tag_map column names not found after normalization: %s\nActual columns: %s",
-        paste(missing_cols, collapse = ", "),
-        paste(names(clean_data), collapse = ", ")
-      ))
-    }
-
-    tag_groups <- classify_tags(tag_map)
-    chemical_tag_map <- tag_groups$chemical_tags
-
-    # ------------------------------------------------------------------
-    # Step 7: Run cleaning pipeline
-    # ------------------------------------------------------------------
-    message("[headless] Running cleaning pipeline...")
-    cleaning_result <- run_cleaning_pipeline(clean_data, chemical_tag_map, reference_lists)
-    merged_chemical_tags <- combine_tag_maps(chemical_tag_map, cleaning_result$new_tags)
-    merged_tags <- combine_tag_maps(tag_map, cleaning_result$new_tags)
-
-    if (!is.null(multi_analyte_resolutions) && length(multi_analyte_resolutions) > 0) {
-      message("[headless] Applying multi-analyte resolutions...")
-      name_cols <- names(merged_chemical_tags)[merged_chemical_tags == "Name"]
-      multi_result <- apply_multi_analyte_resolutions(
-        cleaning_result$cleaned_data,
-        name_cols,
-        multi_analyte_resolutions
-      )
-      cleaning_result$cleaned_data <- multi_result$cleaned_data
-      cleaning_result$audit_trail <- dplyr::bind_rows(
-        cleaning_result$audit_trail,
-        multi_result$audit_trail
-      )
-    }
-
-    # ------------------------------------------------------------------
-    # Step 8: Run curation pipeline (CompTox API search)
-    # ------------------------------------------------------------------
-    message("[headless] Running curation pipeline (CompTox API search)...")
-    pipeline_result <- run_curation_pipeline(
-      cleaning_result$cleaned_data,
-      merged_chemical_tags,
+    state <- stage_ingest(
+      input_path = input_path,
+      tag_map = tag_map,
+      header_row = header_row,
+      reference_lists = reference_lists,
+      reference_list_snapshot = reference_list_snapshot,
+      activate_all_references = activate_all_references,
+      site_manifest = site_manifest,
+      site_alias_map = site_alias_map
+    )
+    state <- stage_clean(state, multi_analyte_resolutions = multi_analyte_resolutions)
+    state <- stage_curate(
+      state,
       wqx_threshold = wqx_threshold,
-      starts_with = starts_with
+      starts_with = starts_with,
+      postprocess_candidates = postprocess_candidates
     )
-    resolution_state <- pipeline_result$results
-    consensus_summary <- pipeline_result$consensus_summary
-    enrichment_cache <- NULL
-    enrichment_failed <- character(0)
-
-    if (isTRUE(postprocess_candidates)) {
-      message("[headless] Running post-curation candidate enrichment...")
-      postprocess_result <- postprocess_curation_candidates(
-        resolution_state = resolution_state,
-        column_tags = merged_chemical_tags,
-        dtxsid_cols = find_dtxsid_cols(resolution_state),
-        enrichment_cache = enrichment_cache
-      )
-      resolution_state <- postprocess_result$resolution_state
-      consensus_summary <- postprocess_result$consensus_summary
-      enrichment_cache <- postprocess_result$enrichment_cache
-      enrichment_failed <- postprocess_result$enrichment_failed
-      message(sprintf(
-        "[headless] Candidate postprocessing: %d auto-resolved, %d suggested",
-        postprocess_result$n_auto,
-        postprocess_result$n_suggested
-      ))
-    }
-
-    script_baseline_state <- resolution_state
-    if (review_overrides_present(review_overrides)) {
-      message("[headless] Applying review overrides...")
-      resolution_state <- apply_review_overrides(resolution_state, review_overrides)
-      consensus_summary <- recalc_consensus_summary(resolution_state)
-    }
-
-    # ------------------------------------------------------------------
-    # Step 8b: Run harmonization pipeline (when harmonize = TRUE)
-    # ------------------------------------------------------------------
-    harmonization_runtime_result <- NULL
-    toxval_tibble <- NULL
-    harmonize_audit_tibble <- NULL
-    detection_tibble <- NULL
-
-    if (harmonize) {
-      message("[headless] Running harmonization pipeline...")
-
-      if (!is.null(unit_map_snapshot)) {
-        if (!is.null(unit_map)) {
-          stop("curate_headless: provide either unit_map or unit_map_snapshot, not both.", call. = FALSE)
-        }
-        unit_map <- reconstruct_unit_map_snapshot(unit_map_snapshot)
-      }
-      if (!is.null(media_map_snapshot)) {
-        if (!is.null(media_map)) {
-          stop("curate_headless: provide either media_map or media_map_snapshot, not both.", call. = FALSE)
-        }
-        media_map <- reconstruct_media_map_snapshot(media_map_snapshot)
-      }
-
-      harmonization_refs <- resolve_harmonization_references(
-        unit_map = unit_map,
-        corrections = corrections,
-        media_map = media_map,
-        reference_lists = reference_lists
-      )
-
-      harmonization_runtime_result <- run_harmonization_runtime(
-        input_data = resolution_state,
-        tag_map = merged_tags,
-        unit_map = harmonization_refs$unit_map,
-        corrections = harmonization_refs$corrections,
-        media_map = harmonization_refs$media_map,
-        media = media,
-        source_name = source_name %||% tools::file_path_sans_ext(basename(input_path))
-      )
-      # Advance the replay baseline to the harmonized stage too, so an exported
-      # workbook diffs review edits against a like-staged baseline (see the
-      # matching logic in mod_harmonize).
-      if (!is.null(script_baseline_state) && nrow(script_baseline_state) == nrow(harmonization_runtime_result$data)) {
-        harmonized_baseline <- harmonization_runtime_result$data
-        for (col in intersect(review_override_columns(), names(harmonized_baseline))) {
-          harmonized_baseline[[col]] <- if (col %in% names(script_baseline_state)) {
-            script_baseline_state[[col]]
-          } else {
-            empty_review_override_column(col, nrow(harmonized_baseline))
-          }
-        }
-        script_baseline_state <- harmonized_baseline
-      }
-
-      resolution_state <- harmonization_runtime_result$data
-      toxval_tibble <- harmonization_runtime_result$toxval_output
-      harmonize_audit_tibble <- harmonization_runtime_result$harmonize_audit
-      detection_tibble <- harmonization_runtime_result$detection_results
-
-      message(sprintf("[headless] ToxVal schema: %d rows x %d columns", nrow(toxval_tibble), ncol(toxval_tibble)))
-    }
-
-    # ------------------------------------------------------------------
-    # Step 9: Build export sheets and write XLSX
-    # ------------------------------------------------------------------
-    file_info <- list(
-      name = basename(input_path),
-      size = file.info(input_path)$size
+    state <- stage_review(state, review_overrides = review_overrides)
+    state <- stage_harmonize(
+      state,
+      harmonize = harmonize,
+      unit_map = unit_map,
+      unit_map_snapshot = unit_map_snapshot,
+      corrections = corrections,
+      media_map = media_map,
+      media_map_snapshot = media_map_snapshot,
+      media = media,
+      source_name = source_name
     )
-
-    if (write_files) {
-      sheets <- build_export_sheets(
-        raw = raw_df,
-        resolution_state = resolution_state,
-        consensus_summary = consensus_summary,
-        cleaning_audit = cleaning_result$audit_trail,
-        reference_lists = reference_lists,
-        column_tags = merged_tags,
-        detection = detection,
-        file_info = file_info,
-        enrichment_cache = enrichment_cache,
-        detected_data = clean_data,
-        cleaned_data = cleaning_result$cleaned_data,
-        toxval_output = toxval_tibble,
-        harmonize_audit = harmonize_audit_tibble,
-        site_manifest = site_manifest_for_export,
-        site_alias_map = site_alias_map_for_export,
-        script_baseline_state = script_baseline_state,
-        media_map = if (harmonize) harmonization_refs$media_map else NULL,
-        media_results = harmonization_runtime_result$media_results
-      )
-
-      fs::dir_create(dirname(output_path), recurse = TRUE)
-      write_curation_output(output_path, "xlsx", sheets = sheets)
-
-      message(sprintf("[headless] Output written to: %s", output_path))
-    }
-
-    # ------------------------------------------------------------------
-    # Step 9b: Write parquet/CSV (when harmonize = TRUE, per D-07)
-    # ------------------------------------------------------------------
-    if (harmonize && write_files) {
-      toxval_base <- sub("\\.xlsx$", "", output_path, ignore.case = TRUE)
-
-      if (format %in% c("parquet", "both")) {
-        parquet_path <- paste0(toxval_base, "_toxval.parquet")
-        write_curation_output(parquet_path, "parquet", toxval_tibble = toxval_tibble)
-        message(sprintf("[headless] Parquet written: %s", basename(parquet_path)))
-      }
-      if (format %in% c("csv", "both")) {
-        csv_path <- paste0(toxval_base, "_toxval.csv")
-        write_curation_output(csv_path, "csv", toxval_tibble = toxval_tibble)
-        message(sprintf("[headless] CSV written: %s", basename(csv_path)))
-      }
-    }
-
-    # ------------------------------------------------------------------
-    # Step 10: Return invisibly (per D-05, D-06)
-    # ------------------------------------------------------------------
-    if (harmonize) {
-      invisible(list(
-        data = toxval_tibble,
-        audit_trail = cleaning_result$audit_trail,
-        harmonize_audit = harmonize_audit_tibble,
-        harmonize_results = harmonization_runtime_result$harmonize_results,
-        media_results = harmonization_runtime_result$media_results,
-        duration_results = harmonization_runtime_result$duration_results,
-        date_results = harmonization_runtime_result$date_results,
-        detection = detection_tibble,
-        detection_results = detection_tibble,
-        row_data = resolution_state
-      ))
-    } else {
-      invisible(list(data = resolution_state, audit_trail = cleaning_result$audit_trail))
-    }
+    stage_export(state, output_path = output_path, format = format, write_files = write_files)
   }
 
   # Dispatch based on verbose flag
