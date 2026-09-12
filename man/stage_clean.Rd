@@ -4,7 +4,12 @@
 \alias{stage_clean}
 \title{Stage 2: run the cleaning pipeline}
 \usage{
-stage_clean(state, multi_analyte_resolutions = NULL)
+stage_clean(
+  state,
+  multi_analyte_resolutions = NULL,
+  value_corrections = NULL,
+  cleaning_steps = NULL
+)
 }
 \arguments{
 \item{state}{State list from \code{\link[=stage_ingest]{stage_ingest()}}.}
@@ -12,6 +17,15 @@ stage_clean(state, multi_analyte_resolutions = NULL)
 \item{multi_analyte_resolutions}{Optional data frame/list with \code{row_index}
 (or \code{row}), \code{action}, and optional \code{value}/\code{values} columns. Applied after
 cleaning and before curation.}
+
+\item{value_corrections}{Optional data frame with \code{column}, \code{pattern},
+\code{replacement}, and optional \code{match_mode} columns. Applied to the detected
+data before cleaning. See \code{\link[=apply_value_corrections]{apply_value_corrections()}}.}
+
+\item{cleaning_steps}{Optional named list of logicals switching cleaning
+steps on or off: \code{unicode}, \code{whitespace}, \code{cas}, \code{names}, \code{isotopes},
+\code{multi}, \code{chiral}, \code{truncated}, \code{bare_formula}, \code{reference_flags}.
+Omitted names keep their defaults.}
 }
 \value{
 The state with \code{cleaning_result}, \code{merged_tags}, and

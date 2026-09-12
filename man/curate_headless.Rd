@@ -27,6 +27,8 @@ curate_headless(
   site_manifest = NULL,
   site_alias_map = NULL,
   multi_analyte_resolutions = NULL,
+  value_corrections = NULL,
+  cleaning_steps = NULL,
   media_map = NULL,
   media_map_snapshot = NULL,
   write_files = TRUE,
@@ -114,6 +116,15 @@ in the workbook export.}
 \item{multi_analyte_resolutions}{Optional data frame/list with \code{row_index}
 (or \code{row}), \code{action}, and optional \code{value}/\code{values} columns. Applied after
 cleaning and before curation.}
+
+\item{value_corrections}{Optional data frame with \code{column}, \code{pattern},
+\code{replacement}, and optional \code{match_mode} columns. Applied to the detected
+data before cleaning. See \code{\link[=apply_value_corrections]{apply_value_corrections()}}.}
+
+\item{cleaning_steps}{Optional named list of logicals switching cleaning
+steps on or off: \code{unicode}, \code{whitespace}, \code{cas}, \code{names}, \code{isotopes},
+\code{multi}, \code{chiral}, \code{truncated}, \code{bare_formula}, \code{reference_flags}.
+Omitted names keep their defaults.}
 
 \item{media_map}{Optional media harmonization map passed to
 \code{harmonize_media()}.}

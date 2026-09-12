@@ -124,12 +124,27 @@ stage_ingest <- function(
 #' @return The state with `cleaning_result`, `merged_tags`, and
 #'   `merged_chemical_tags` added.
 #' @export
-stage_clean <- function(state, multi_analyte_resolutions = NULL) {
+stage_clean <- function(state, multi_analyte_resolutions = NULL, value_corrections = NULL, cleaning_steps = NULL) {
   tag_groups <- classify_tags(state$tag_map)
   chemical_tag_map <- tag_groups$chemical_tags
 
+  input_data <- state$clean_data
+  correction_audit <- empty_cleaning_audit()
+  if (!is.null(value_corrections) && nrow(value_corrections) > 0) {
+    message(sprintf("[headless] Applying %d value corrections...", nrow(value_corrections)))
+    correction_result <- apply_value_corrections(input_data, value_corrections)
+    input_data <- correction_result$cleaned_data
+    correction_audit <- correction_result$audit_trail
+  }
+
   message("[headless] Running cleaning pipeline...")
-  cleaning_result <- run_cleaning_pipeline(state$clean_data, chemical_tag_map, state$reference_lists)
+  cleaning_result <- run_cleaning_pipeline(
+    input_data,
+    chemical_tag_map,
+    state$reference_lists,
+    mask = cleaning_steps
+  )
+  cleaning_result$audit_trail <- dplyr::bind_rows(correction_audit, cleaning_result$audit_trail)
   merged_chemical_tags <- combine_tag_maps(chemical_tag_map, cleaning_result$new_tags)
   merged_tags <- combine_tag_maps(state$tag_map, cleaning_result$new_tags)
 
