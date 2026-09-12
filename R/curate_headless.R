@@ -64,6 +64,13 @@
 #'   in the workbook export.
 #' @param site_alias_map Optional Dataset Context raw-label alias map to include
 #'   in the workbook export.
+#' @param value_corrections Optional data frame with `column`, `pattern`,
+#'   `replacement`, and optional `match_mode` columns. Applied to the detected
+#'   data before cleaning. See [apply_value_corrections()].
+#' @param cleaning_steps Optional named list of logicals switching cleaning
+#'   steps on or off: `unicode`, `whitespace`, `cas`, `names`, `isotopes`,
+#'   `multi`, `chiral`, `truncated`, `bare_formula`, `reference_flags`.
+#'   Omitted names keep their defaults.
 #' @param multi_analyte_resolutions Optional data frame/list with `row_index`
 #'   (or `row`), `action`, and optional `value`/`values` columns. Applied after
 #'   cleaning and before curation.
@@ -128,6 +135,8 @@ curate_headless <- function(
   site_manifest = NULL,
   site_alias_map = NULL,
   multi_analyte_resolutions = NULL,
+  value_corrections = NULL,
+  cleaning_steps = NULL,
   media_map = NULL,
   media_map_snapshot = NULL,
   write_files = TRUE,
@@ -156,7 +165,12 @@ curate_headless <- function(
       site_manifest = site_manifest,
       site_alias_map = site_alias_map
     )
-    state <- stage_clean(state, multi_analyte_resolutions = multi_analyte_resolutions)
+    state <- stage_clean(
+      state,
+      multi_analyte_resolutions = multi_analyte_resolutions,
+      value_corrections = value_corrections,
+      cleaning_steps = cleaning_steps
+    )
     state <- stage_curate(
       state,
       wqx_threshold = wqx_threshold,

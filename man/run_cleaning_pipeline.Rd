@@ -8,7 +8,8 @@ run_cleaning_pipeline(
   df,
   tag_map = NULL,
   reference_lists = NULL,
-  use_dedup = TRUE
+  use_dedup = TRUE,
+  mask = NULL
 )
 }
 \arguments{

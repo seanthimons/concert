@@ -2513,12 +2513,12 @@ perform_unicode_qc <- function(df) {
 #' result <- run_cleaning_pipeline(df, tag_map)
 #' result$new_tags  # => list(cas_extract_name = "CASRN")
 #' @export
-run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL, use_dedup = TRUE) {
+run_cleaning_pipeline <- function(df, tag_map = NULL, reference_lists = NULL, use_dedup = TRUE, mask = NULL) {
   run_cleaning_pipeline_masked(
     df = df,
     tag_map = tag_map,
     reference_lists = reference_lists,
-    mask = NULL,
+    mask = mask,
     use_dedup = use_dedup,
     respect_prechecks = TRUE
   )

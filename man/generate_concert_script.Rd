@@ -22,7 +22,10 @@ generate_concert_script(
   reference_lists = NULL,
   activate_all_references = FALSE,
   site_manifest = NULL,
-  site_alias_map = NULL
+  site_alias_map = NULL,
+  value_corrections = NULL,
+  cleaning_steps = NULL,
+  multi_analyte_resolutions = NULL
 )
 }
 \arguments{
@@ -72,6 +75,14 @@ in the replay script.}
 
 \item{site_alias_map}{Optional Dataset Context raw-label alias map to embed
 in the replay script.}
+
+\item{value_corrections}{Optional pre-cleaning value correction table to
+embed. See \code{\link[=apply_value_corrections]{apply_value_corrections()}}.}
+
+\item{cleaning_steps}{Optional named list of cleaning step switches to embed.}
+
+\item{multi_analyte_resolutions}{Optional multi-analyte resolution table to
+embed.}
 }
 \value{
 Complete R script as a character scalar.
