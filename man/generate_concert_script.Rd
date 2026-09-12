@@ -25,7 +25,10 @@ generate_concert_script(
   site_alias_map = NULL,
   value_corrections = NULL,
   cleaning_steps = NULL,
-  multi_analyte_resolutions = NULL
+  multi_analyte_resolutions = NULL,
+  accept_suggestions = FALSE,
+  review_picks = NULL,
+  row_flags = NULL
 )
 }
 \arguments{
@@ -83,6 +86,12 @@ embed. See \code{\link[=apply_value_corrections]{apply_value_corrections()}}.}
 
 \item{multi_analyte_resolutions}{Optional multi-analyte resolution table to
 embed.}
+
+\item{accept_suggestions}{Logical. Embed the bulk-accept switch.}
+
+\item{review_picks}{Optional content-keyed DTXSID picks table to embed.}
+
+\item{row_flags}{Optional content-keyed row flag table to embed.}
 }
 \value{
 Complete R script as a character scalar.
