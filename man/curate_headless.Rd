@@ -24,6 +24,9 @@ curate_headless(
   starts_with = FALSE,
   postprocess_candidates = FALSE,
   review_overrides = NULL,
+  accept_suggestions = FALSE,
+  review_picks = NULL,
+  row_flags = NULL,
   site_manifest = NULL,
   site_alias_map = NULL,
   multi_analyte_resolutions = NULL,
@@ -106,6 +109,18 @@ curation. Default FALSE for backward compatibility.}
 \code{generate_concert_script()}, content-match spec from
 \code{build_review_overrides()}, or legacy positional override table/list to
 replay Review Results edits.}
+
+\item{accept_suggestions}{Logical. If TRUE, accepts every row scored as
+\code{"suggested"} after candidate postprocessing (same as the Review Results
+bulk accept).}
+
+\item{review_picks}{Optional data frame with \code{name}, \code{dtxsid}, and optional
+\code{casrn} columns. Rows whose cleaned Name (and CAS, when given) match are
+resolved to that DTXSID after validation against CompTox.}
+
+\item{row_flags}{Optional data frame with \code{name}, \code{flag}, and optional
+\code{casrn} and \code{reason} columns. Matching rows get the row flag (one of
+\code{valid_row_flags()}).}
 
 \item{site_manifest}{Optional curated Dataset Context site manifest to include
 in the workbook export.}

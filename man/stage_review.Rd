@@ -4,7 +4,13 @@
 \alias{stage_review}
 \title{Stage 4: apply Review Results edits}
 \usage{
-stage_review(state, review_overrides = NULL)
+stage_review(
+  state,
+  review_overrides = NULL,
+  accept_suggestions = FALSE,
+  review_picks = NULL,
+  row_flags = NULL
+)
 }
 \arguments{
 \item{state}{State list from \code{\link[=stage_curate]{stage_curate()}}.}
@@ -13,9 +19,23 @@ stage_review(state, review_overrides = NULL)
 \code{generate_concert_script()}, content-match spec from
 \code{build_review_overrides()}, or legacy positional override table/list to
 replay Review Results edits.}
+
+\item{accept_suggestions}{Logical. If TRUE, accepts every row scored as
+\code{"suggested"} after candidate postprocessing (same as the Review Results
+bulk accept).}
+
+\item{review_picks}{Optional data frame with \code{name}, \code{dtxsid}, and optional
+\code{casrn} columns. Rows whose cleaned Name (and CAS, when given) match are
+resolved to that DTXSID after validation against CompTox.}
+
+\item{row_flags}{Optional data frame with \code{name}, \code{flag}, and optional
+\code{casrn} and \code{reason} columns. Matching rows get the row flag (one of
+\code{valid_row_flags()}).}
 }
 \value{
-The state with \code{resolution_state} and \code{consensus_summary} updated.
+The state with \code{resolution_state} and \code{consensus_summary} updated,
+plus \code{unmatched_decisions}: a character vector naming any \code{review_picks}
+or \code{row_flags} entries that matched no row.
 }
 \description{
 Stage 4: apply Review Results edits

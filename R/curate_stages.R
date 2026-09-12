@@ -173,6 +173,10 @@ stage_clean <- function(state, multi_analyte_resolutions = NULL, value_correctio
 #'
 #' @param state State list from [stage_clean()].
 #' @inheritParams curate_headless
+#' @param cache_dir Optional directory. When set, the CompTox search result is
+#'   cached by a hash of the cleaned chemical columns and search settings, and
+#'   the candidate enrichment cache persists across runs. Used by
+#'   [curate_iterate()] so re-runs after review edits skip the API.
 #' @return The state with `resolution_state`, `consensus_summary`,
 #'   `enrichment_cache`, `enrichment_failed`, and `script_baseline_state` added.
 #' @export
@@ -180,19 +184,47 @@ stage_curate <- function(
   state,
   wqx_threshold = 0.85,
   starts_with = FALSE,
-  postprocess_candidates = FALSE
+  postprocess_candidates = FALSE,
+  cache_dir = NULL
 ) {
-  message("[headless] Running curation pipeline (CompTox API search)...")
-  pipeline_result <- run_curation_pipeline(
-    state$cleaning_result$cleaned_data,
-    state$merged_chemical_tags,
-    wqx_threshold = wqx_threshold,
-    starts_with = starts_with
-  )
+  cleaned <- state$cleaning_result$cleaned_data
+  search_cache_path <- NULL
+  enrichment_cache_path <- NULL
+  pipeline_result <- NULL
+  if (!is.null(cache_dir)) {
+    fs::dir_create(cache_dir, recurse = TRUE)
+    key_cols <- intersect(
+      c(names(state$merged_chemical_tags), "cleaning_flag", "isotope_dtxsid"),
+      names(cleaned)
+    )
+    key <- digest::digest(list(cleaned[key_cols], wqx_threshold, starts_with))
+    search_cache_path <- file.path(cache_dir, paste0("curation_", key, ".rds"))
+    enrichment_cache_path <- file.path(cache_dir, "enrichment.rds")
+    if (file.exists(search_cache_path)) {
+      message("[headless] Curation search loaded from cache")
+      pipeline_result <- readRDS(search_cache_path)
+    }
+  }
+
+  if (is.null(pipeline_result)) {
+    message("[headless] Running curation pipeline (CompTox API search)...")
+    pipeline_result <- run_curation_pipeline(
+      cleaned,
+      state$merged_chemical_tags,
+      wqx_threshold = wqx_threshold,
+      starts_with = starts_with
+    )
+    if (!is.null(search_cache_path)) {
+      saveRDS(pipeline_result, search_cache_path)
+    }
+  }
   resolution_state <- pipeline_result$results
   consensus_summary <- pipeline_result$consensus_summary
   enrichment_cache <- NULL
   enrichment_failed <- character(0)
+  if (!is.null(enrichment_cache_path) && file.exists(enrichment_cache_path)) {
+    enrichment_cache <- readRDS(enrichment_cache_path)
+  }
 
   if (isTRUE(postprocess_candidates)) {
     message("[headless] Running post-curation candidate enrichment...")
@@ -206,6 +238,9 @@ stage_curate <- function(
     consensus_summary <- postprocess_result$consensus_summary
     enrichment_cache <- postprocess_result$enrichment_cache
     enrichment_failed <- postprocess_result$enrichment_failed
+    if (!is.null(enrichment_cache_path) && !is.null(enrichment_cache)) {
+      saveRDS(enrichment_cache, enrichment_cache_path)
+    }
     message(sprintf(
       "[headless] Candidate postprocessing: %d auto-resolved, %d suggested",
       postprocess_result$n_auto,
@@ -225,15 +260,116 @@ stage_curate <- function(
 #'
 #' @param state State list from [stage_curate()].
 #' @inheritParams curate_headless
-#' @return The state with `resolution_state` and `consensus_summary` updated.
+#' @return The state with `resolution_state` and `consensus_summary` updated,
+#'   plus `unmatched_decisions`: a character vector naming any `review_picks`
+#'   or `row_flags` entries that matched no row.
 #' @export
-stage_review <- function(state, review_overrides = NULL) {
+stage_review <- function(
+  state,
+  review_overrides = NULL,
+  accept_suggestions = FALSE,
+  review_picks = NULL,
+  row_flags = NULL
+) {
+  rs <- state$resolution_state
+  unmatched <- character(0)
+  changed <- FALSE
+
   if (review_overrides_present(review_overrides)) {
     message("[headless] Applying review overrides...")
-    state$resolution_state <- apply_review_overrides(state$resolution_state, review_overrides)
-    state$consensus_summary <- recalc_consensus_summary(state$resolution_state)
+    rs <- apply_review_overrides(rs, review_overrides)
+    changed <- TRUE
   }
+
+  if (isTRUE(accept_suggestions)) {
+    rs <- accept_all_suggestions(init_resolution_state(rs), find_dtxsid_cols(rs))
+    changed <- TRUE
+  }
+
+  name_col <- first_tag_col(state$merged_chemical_tags, "Name")
+  cas_col <- first_tag_col(state$merged_chemical_tags, "CASRN")
+
+  if (!is.null(review_picks) && NROW(review_picks) > 0) {
+    picks <- tibble::as_tibble(review_picks)
+    if (!all(c("name", "dtxsid") %in% names(picks))) {
+      stop("review_picks must have name and dtxsid columns (casrn optional).", call. = FALSE)
+    }
+    if (!"casrn" %in% names(picks)) {
+      picks$casrn <- NA_character_
+    }
+    message(sprintf("[headless] Applying %d review picks...", nrow(picks)))
+    validation <- validate_manual_dtxsids(unique(picks$dtxsid))
+    invalid <- setdiff(unique(picks$dtxsid), validation$searchValue[validation$is_valid])
+    if (length(invalid) > 0) {
+      stop(
+        sprintf("review_picks contains DTXSIDs CompTox does not know: %s", paste(invalid, collapse = ", ")),
+        call. = FALSE
+      )
+    }
+    rs <- init_resolution_state(rs)
+    for (col in c("consensus_dtxsid", "consensus_source", "consensus_status", "manual_preferredName")) {
+      if (!col %in% names(rs)) rs[[col]] <- NA_character_
+    }
+    for (i in seq_len(nrow(picks))) {
+      mask <- content_row_mask(rs, name_col, cas_col, picks$name[i], picks$casrn[i])
+      if (!any(mask)) {
+        unmatched <- c(unmatched, sprintf("review_picks: name=%s casrn=%s", picks$name[i], picks$casrn[i]))
+        next
+      }
+      pref <- validation$preferredName[match(picks$dtxsid[i], validation$searchValue)]
+      rs$consensus_status[mask] <- "manual"
+      rs$consensus_dtxsid[mask] <- picks$dtxsid[i]
+      rs$consensus_source[mask] <- "manual_entry"
+      rs$manual_preferredName[mask] <- pref
+      rs$.manual_entry[mask] <- TRUE
+      rs$.pinned[mask] <- TRUE
+      rs$.resolution_method[mask] <- "manual"
+    }
+    changed <- TRUE
+  }
+
+  if (!is.null(row_flags) && NROW(row_flags) > 0) {
+    flags <- tibble::as_tibble(row_flags)
+    if (!all(c("name", "flag") %in% names(flags))) {
+      stop("row_flags must have name and flag columns (casrn and reason optional).", call. = FALSE)
+    }
+    if (!"casrn" %in% names(flags)) {
+      flags$casrn <- NA_character_
+    }
+    if (!"reason" %in% names(flags)) {
+      flags$reason <- NA_character_
+    }
+    message(sprintf("[headless] Applying %d row flags...", nrow(flags)))
+    rs <- init_resolution_state(rs)
+    for (i in seq_len(nrow(flags))) {
+      mask <- content_row_mask(rs, name_col, cas_col, flags$name[i], flags$casrn[i])
+      if (!any(mask)) {
+        unmatched <- c(unmatched, sprintf("row_flags: name=%s casrn=%s", flags$name[i], flags$casrn[i]))
+        next
+      }
+      rs <- set_row_flags(rs, which(mask), flags$flag[i], flags$reason[i])
+    }
+    changed <- TRUE
+  }
+
+  state$resolution_state <- rs
+  if (changed) {
+    state$consensus_summary <- recalc_consensus_summary(rs)
+  }
+  state$unmatched_decisions <- unmatched
   state
+}
+
+# Rows whose cleaned Name (and CAS, when given) equal the decision key.
+content_row_mask <- function(rs, name_col, cas_col, name, casrn) {
+  if (is.na(name_col)) {
+    stop("review_picks and row_flags need a Name-tagged column.", call. = FALSE)
+  }
+  mask <- !is.na(rs[[name_col]]) & as.character(rs[[name_col]]) == as.character(name)
+  if (!is.na(casrn) && nzchar(casrn) && !is.na(cas_col)) {
+    mask <- mask & !is.na(rs[[cas_col]]) & as.character(rs[[cas_col]]) == as.character(casrn)
+  }
+  mask
 }
 
 #' Stage 5: run numeric, unit, media, and ToxVal harmonization

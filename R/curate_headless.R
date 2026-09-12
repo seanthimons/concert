@@ -60,6 +60,15 @@
 #'   `generate_concert_script()`, content-match spec from
 #'   `build_review_overrides()`, or legacy positional override table/list to
 #'   replay Review Results edits.
+#' @param accept_suggestions Logical. If TRUE, accepts every row scored as
+#'   `"suggested"` after candidate postprocessing (same as the Review Results
+#'   bulk accept).
+#' @param review_picks Optional data frame with `name`, `dtxsid`, and optional
+#'   `casrn` columns. Rows whose cleaned Name (and CAS, when given) match are
+#'   resolved to that DTXSID after validation against CompTox.
+#' @param row_flags Optional data frame with `name`, `flag`, and optional
+#'   `casrn` and `reason` columns. Matching rows get the row flag (one of
+#'   `valid_row_flags()`).
 #' @param site_manifest Optional curated Dataset Context site manifest to include
 #'   in the workbook export.
 #' @param site_alias_map Optional Dataset Context raw-label alias map to include
@@ -132,6 +141,9 @@ curate_headless <- function(
   starts_with = FALSE,
   postprocess_candidates = FALSE,
   review_overrides = NULL,
+  accept_suggestions = FALSE,
+  review_picks = NULL,
+  row_flags = NULL,
   site_manifest = NULL,
   site_alias_map = NULL,
   multi_analyte_resolutions = NULL,
@@ -177,7 +189,13 @@ curate_headless <- function(
       starts_with = starts_with,
       postprocess_candidates = postprocess_candidates
     )
-    state <- stage_review(state, review_overrides = review_overrides)
+    state <- stage_review(
+      state,
+      review_overrides = review_overrides,
+      accept_suggestions = accept_suggestions,
+      review_picks = review_picks,
+      row_flags = row_flags
+    )
     state <- stage_harmonize(
       state,
       harmonize = harmonize,
