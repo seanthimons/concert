@@ -62,6 +62,13 @@ concert::curate_headless(
 )
 ```
 
+For agent-driven curation, the package ships a runner script and a skill:
+
+```r
+system.file("scripts/curate_loop.R", package = "concert")
+system.file("skills/concert-curate/SKILL.md", package = "concert")
+```
+
 ## Export Re-Import
 
 CONCERT exports include a `Pipeline Config` sheet with a `concert_export`
