@@ -2499,6 +2499,9 @@ perform_unicode_qc <- function(df) {
 #' @param use_dedup Logical. When TRUE (default), uses dedup_step() wrappers
 #'   and pre-check predicates for performance optimization. Set to FALSE for
 #'   benchmark comparison against the non-dedup baseline path.
+#' @param mask Optional named list of logicals switching cleaning steps on or off
+#'   (`unicode`, `whitespace`, `cas`, `names`, `isotopes`, `multi`, `chiral`,
+#'   `truncated`, `bare_formula`, `reference_flags`). Missing entries use the defaults.
 #' @return List with cleaned_data (tibble), audit_trail (tibble), and new_tags (list)
 #'
 #' @examples
