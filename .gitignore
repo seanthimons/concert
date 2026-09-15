@@ -52,3 +52,5 @@ curation/
 # Agent files
 AGENTS.md
 CLAUDE.md
+docs/site/
+pkgdown/

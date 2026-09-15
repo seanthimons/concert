@@ -1,0 +1,133 @@
+---
+title: "Measurement harmonization"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Measurement harmonization}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+```{r setup, message = FALSE}
+library(concert)
+```
+
+Harmonization turns free-text results, unit strings, and media labels into
+numeric values in ToxVal target units. In `curate_headless()` it runs when
+`harmonize = TRUE`; in the app it is the Harmonize tab. The building blocks
+are exported and work on plain vectors.
+
+## Parse numeric results
+
+Result columns mix numbers with qualifiers, detection limits, and
+scientific notation in several spellings.
+
+```{r}
+parsed <- parse_numeric_results(c("< 5.0", "2.5x10^3", "BDL", "4.56+02", "≥100", "5-10", "1e-3"))
+parsed
+```
+
+Each row keeps the original string, the parsed value, and a qualifier or
+flag explaining anything that was not a plain number.
+
+## Harmonize units
+
+`harmonize_units()` converts values into the target unit for each unit
+family using the bundled conversion table.
+
+```{r, message = FALSE}
+unit_map <- load_unit_map()
+head(unit_map[, c("from_unit", "to_unit", "multiplier")])
+```
+
+```{r}
+harmonize_units(
+  values = c(2.5, 500, 12, 0.3),
+  units = c("mg/L", "ug/L", "µg/l", "ppb"),
+  unit_map = unit_map
+)
+```
+
+Notes on the lookup:
+
+- Micro symbols and whitespace are normalized before lookup.
+- Exact, case-sensitive matches win. Case-insensitive fallback only applies when
+  every candidate row agrees on the target and multiplier.
+- Unknown units pass through unchanged with `unit_flag = "unmatched"`.
+
+### ppb and ppm need a media context
+
+`ppb` in water means micrograms per litre. In soil it means micrograms per
+kilogram. In air it is a volume ratio that cannot be converted without
+molecular weight, temperature, and pressure. Pass `media` to route these.
+
+```{r}
+harmonize_units(
+  values = c(1, 1, 1),
+  units = c("ppb", "ppb", "ppb"),
+  unit_map = unit_map,
+  media = c("aqueous", "solid", "air")
+)[, c("orig_unit", "harmonized_value", "harmonized_unit", "unit_flag")]
+```
+
+### Molarity needs a molecular weight
+
+Units like `mM` or `mol/L` convert to mass concentration only with a
+molecular weight. Supply it directly, or pass `dtxsid` and let the function
+look it up from CompTox (network required).
+
+```{r}
+harmonize_units(
+  values = 1,
+  units = "mM",
+  unit_map = unit_map,
+  molecular_weight = 58.08
+)[, c("orig_unit", "harmonized_value", "harmonized_unit", "unit_flag")]
+```
+
+## Harmonize media
+
+Media labels are mapped to canonical terms with ENVO identifiers and a
+routing category (`aqueous`, `air`, `solid`). That category is what feeds
+the ppb/ppm routing above.
+
+```{r}
+harmonize_media(c("surface water", "Soil", "ambient air", "mystery matrix"))[
+  , c("raw_media", "canonical_media", "envo_id", "media_category", "media_flag")
+]
+```
+
+Unmatched labels get `media_flag = "media_unmatched"` and no route. Add
+them to the media map in the app's Harmonize tab, or pass a custom
+`media_map`.
+
+## Dates and uncertainty
+
+```{r}
+parse_dates(c("2024-01-15", "01/15/2024", "15 Jan 2024", "not a date"))
+```
+
+Uncertainty columns are normalized to two-sigma with
+`normalize_uncertainty_to_two_sigma()`, using the tagged
+`UncertaintyCoverage` column when present.
+
+## Putting it together
+
+`curate_headless(harmonize = TRUE)` runs these steps on the tagged columns,
+then `map_to_toxval_schema()` assembles the 56-column ToxVal table. The
+returned list carries the harmonization audit alongside the data:
+
+```r
+out <- curate_headless(
+  input_path = "input.xlsx",
+  output_path = "output.xlsx",
+  tag_map = list(chemical_name = "Name", casrn = "CASRN", result = "Result", unit = "Unit", matrix = "Media"),
+  harmonize = TRUE,
+  format = "both"
+)
+out$data              # ToxVal rows
+out$harmonize_audit   # one row per converted or flagged value
+```

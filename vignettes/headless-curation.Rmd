@@ -1,0 +1,182 @@
+---
+title: "Headless curation"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Headless curation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+Headless curation runs the whole pipeline from a script. It queries the
+CompTox dashboard, so the code in this vignette is shown but not executed.
+
+## One call
+
+```{r}
+library(concert)
+
+out <- curate_headless(
+  input_path = "data/inventory.xlsx",
+  output_path = "output/inventory_curated.xlsx",
+  tag_map = list(
+    chemical_name = "Name",
+    cas_number = "CASRN",
+    result = "Result",
+    unit = "Unit"
+  )
+)
+```
+
+`tag_map` keys are column names after `janitor::clean_names()`, so
+`"CAS Number"` becomes `cas_number`. Run `suggest_column_tags()` on the
+cleaned names if you are unsure (see `vignette("cleaning-pipeline")`).
+
+The output workbook has one sheet per pipeline stage: cleaned data,
+resolution state, cleaning audit, consensus summary, and a `Pipeline Config`
+sheet that lets the app or `parse_concert_export()` reload the run.
+
+The return value mirrors the workbook:
+
+```{r}
+out$data          # one row per input row, with dtxsid, preferred name, and status
+out$audit_trail   # every cleaning change
+```
+
+Set `write_files = FALSE` to get the same list without touching disk.
+
+## Useful options
+
+| Argument | Use it when |
+|---|---|
+| `header_row` | Frontmatter detection picked the wrong row. |
+| `value_corrections` | A prefix, suffix, or typo affects many rows. Applied before cleaning. |
+| `cleaning_steps` | A cleaning step mangles this dataset. `list(chiral = FALSE)` and so on. |
+| `postprocess_candidates` | You want the same enrichment, scoring, and auto-resolve pass as the app. |
+| `accept_suggestions` | Accept every candidate scored `suggested` after postprocessing. |
+| `review_picks` | You know the right DTXSID for specific names. Validated against CompTox. |
+| `row_flags` | Mark rows `FOLLOW-UP`, `BAD`, or `VERIFIED` with a reason. |
+| `multi_analyte_resolutions` | Split, keep, or rename cells like `"Lead + Zinc"`. |
+| `harmonize`, `media`, `format` | Parse results, convert units, and write ToxVal parquet or CSV. |
+| `starts_with` | Allow a CompTox starts-with fallback for names nothing else matched. |
+
+Review inputs are content-keyed. A `review_picks` row matches on the cleaned
+`name` (and `casrn` when given), never on row position, so decisions survive
+re-runs after upstream corrections change the row order.
+
+```{r}
+out <- curate_headless(
+  input_path = "data/inventory.xlsx",
+  output_path = "output/inventory_curated.xlsx",
+  tag_map = list(chemical_name = "Name", cas_number = "CASRN"),
+  postprocess_candidates = TRUE,
+  accept_suggestions = TRUE,
+  review_picks = data.frame(
+    name = "TKN",
+    dtxsid = "DTXSID0020000"
+  ),
+  row_flags = data.frame(
+    name = "Total PFAS",
+    flag = "FOLLOW-UP",
+    reason = "Group total, no single DTXSID"
+  ),
+  value_corrections = data.frame(
+    column = "chemical_name",
+    pattern = "^Dissolved ",
+    replacement = ""
+  )
+)
+```
+
+## Stages
+
+`curate_headless()` is a composition of six stage functions. Call them
+yourself when you want to stop partway, inspect state, or swap a step.
+
+```{r}
+state <- stage_ingest(input_path = "data/inventory.xlsx", tag_map = tag_map)
+state <- stage_clean(state)
+state$cleaning_result$audit_trail
+
+state <- stage_curate(state)
+state$consensus_summary
+
+state <- stage_review(state, accept_suggestions = TRUE)
+state <- stage_harmonize(state, harmonize = TRUE)
+stage_export(state, output_path = "output/inventory_curated.xlsx")
+```
+
+Each stage adds fields to the same state list. The header comment in
+`R/curate_stages.R` lists them.
+
+## Replay scripts
+
+`generate_concert_script()` writes a standalone script that reproduces a run
+with one `curate_headless()` call. It embeds every decision plus compact
+snapshots of the reference lists, unit map, and media map, so the replay is
+pinned even after package defaults change.
+
+```{r}
+script <- generate_concert_script(
+  input_path = "data/inventory.xlsx",
+  output_path = "output/inventory_curated.xlsx",
+  tag_map = tag_map,
+  header_row = state$detection$header_row,
+  reference_lists = state$reference_lists,
+  accept_suggestions = TRUE,
+  review_picks = data.frame(name = "TKN", dtxsid = "DTXSID0020000")
+)
+writeLines(script, "output/replay.R")
+```
+
+The app's export does the same from the Review Results tab, and the agent
+loop below writes one on every run. Commit `replay.R` with the data. It is
+the reproducibility record.
+
+## Agent loop
+
+For unattended curation, the package ships a decide-run-inspect loop. An
+agent (or you) edits one file, `decisions.R`, and re-runs until no row is
+pending.
+
+```{r}
+curate_decisions_template("data/inventory.xlsx", out_dir = "output/loop")
+```
+
+This writes `output/loop/decisions.R` with the detected header row, suggested
+tags, a pinned reference-list snapshot, and a commented schema for every other
+decision object. Then:
+
+```{r}
+curate_iterate("output/loop/decisions.R")
+```
+
+Each run writes:
+
+- `status.md`: done or not, errors, unmatched decision keys, and a list of
+  low-similarity matches that deserve a second look.
+- `pending.csv`: one row per unresolved data row with a `pending_type`
+  (`multi_analyte`, `disagree`, `suggested`, `no_match`), the suggested
+  DTXSID or split, and the candidate list.
+- `replay.R`: the standalone reproduction script.
+- `cache/`: CompTox search results, so re-runs only re-query changed names.
+
+Resolve pending rows by adding to the decision objects in `decisions.R`
+(`review_picks`, `row_flags`, `multi_analyte_resolutions`,
+`value_corrections`, `cleaning_steps`, reference-list overrides), then
+re-run. Root-cause fixes that clear many rows beat per-row picks.
+
+A command-line runner and an agent skill document the same loop:
+
+```{r}
+system.file("scripts/curate_loop.R", package = "concert")
+system.file("skills/concert-curate/SKILL.md", package = "concert")
+```
+
+```bash
+Rscript <runner> --template input.csv output/loop
+Rscript <runner> output/loop/decisions.R   # exit 0 = done, exit 2 = rows pending
+```
