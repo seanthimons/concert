@@ -16,7 +16,7 @@ Rscript <runner> --template <input.csv> <out_dir> [--harmonize]
 
 This writes `<out_dir>/decisions.R` with the detected header row, suggested column tags, the pinned reference-list snapshot, and a commented schema example for every other decision object.
 
-Run every command from the CONCERT project root so renv loads the current package. An `unused argument` error from `curate_headless()` means an older concert was loaded from another library.
+The runner installs the latest concert GitHub release before each run, so it works from any directory. If the runner file itself changed in that release, re-run the locate command once to pick up the new path.
 
 ## Loop
 

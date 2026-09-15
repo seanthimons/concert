@@ -13,6 +13,9 @@ if (length(args) == 0) {
   stop("usage: curate_loop.R --template <input> <out_dir> [--harmonize] | curate_loop.R <decisions.R>")
 }
 
+# Always run the latest GitHub release; pak is a no-op when already current.
+if (!requireNamespace("pak", quietly = TRUE)) install.packages("pak")
+pak::pak("seanthimons/concert@*release", ask = FALSE)
 suppressPackageStartupMessages(library(concert))
 
 if (args[1] == "--template") {
