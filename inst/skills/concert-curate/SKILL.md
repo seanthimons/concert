@@ -9,6 +9,8 @@ You edit one file (`decisions.R`). A runner turns it into `status.md`, `pending.
 
 ## Setup
 
+This skill ships inside the concert package. From any repo, locate it with `Rscript -e 'system.file("skills/concert-curate/SKILL.md", package = "concert")'`; do not copy it per repo.
+
 ```bash
 Rscript -e 'system.file("scripts/curate_loop.R", package = "concert")'   # locate the runner
 Rscript <runner> --template <input.csv> <out_dir> [--harmonize]
@@ -16,7 +18,7 @@ Rscript <runner> --template <input.csv> <out_dir> [--harmonize]
 
 This writes `<out_dir>/decisions.R` with the detected header row, suggested column tags, the pinned reference-list snapshot, and a commented schema example for every other decision object.
 
-The runner installs the latest concert GitHub release before each run, so it works from any directory. If the runner file itself changed in that release, re-run the locate command once to pick up the new path.
+The runner installs the latest concert GitHub release before each run, so it works from any directory. If the runner file itself changed in that release, re-run the locate command once to pick up the new path. If the install fails (read-only library, `--vanilla`, offline) the runner warns and uses the installed concert; set `CONCERT_SKIP_INSTALL=1` to skip the attempt.
 
 ## Loop
 
@@ -63,7 +65,13 @@ Set `harmonize <- TRUE` when measurements should be parsed and unit-converted in
 
 ## Done
 
-When `done: TRUE`:
+`done: TRUE` means no row is pending. It does not mean every match is right. Before reporting:
+
+1. Read `## Low-similarity matches` in `status.md`. These are accepted DTXSIDs whose preferred name barely resembles the input name (past misses: "Total PFAS" to "Total Furans", "COD" to "Total Oxygen Demand", "TKN" to nitrogen gas). For each row add `row_flags` with `VERIFIED` if correct, `review_picks` if wrong, or `FOLLOW-UP` if unsure.
+2. Skim the workbook's preferred names once for analogs (methyl vs ethyl, salt vs parent, gas vs ion). Automatic and `accept_suggestions` hits get no other second look.
+3. Re-run until the low-similarity section is empty or every row in it is flagged.
+
+Then:
 
 - `<out_dir>/<input>_curated.xlsx` holds the workbook (plus `_toxval.parquet` when harmonized).
 - `<out_dir>/replay.R` reproduces the run with one `curate_headless()` call. Hand this to the user; it is the deliverable that makes the curation reproducible.

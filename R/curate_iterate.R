@@ -285,6 +285,53 @@ first_tag_col <- function(tags, tag) {
   if (length(cols) == 0) NA_character_ else cols[1]
 }
 
+# Accepted matches whose preferred name looks nothing like the input name.
+# Catches wrong automatic hits ("Total PFAS" -> "Total Furans") that never
+# reach pending.csv. Token Jaccard on lowercase words: shared prefixes such as
+# "Total" do not rescue a match whose distinguishing token differs.
+low_similarity_rows <- function(state, threshold = 0.5) {
+  rs <- state$resolution_state
+  name_col <- first_tag_col(state$merged_chemical_tags, "Name")
+  empty <- tibble::tibble(row_index = integer(), name = character(), dtxsid = character(), preferred_name = character())
+  if (NROW(rs) == 0 || is.na(name_col) || !"consensus_dtxsid" %in% names(rs)) {
+    return(empty)
+  }
+  rs <- init_resolution_state(rs)
+  n <- nrow(rs)
+  pref <- rep(NA_character_, n)
+  src <- rs$consensus_source %||% rep(NA_character_, n)
+  for (s in unique(src[!is.na(src)])) {
+    col <- paste0("preferredName_", s)
+    mask <- !is.na(src) & src == s
+    if (col %in% names(rs)) {
+      pref[mask] <- as.character(rs[[col]][mask])
+    }
+  }
+  if ("manual_preferredName" %in% names(rs)) {
+    m <- !is.na(rs$manual_preferredName)
+    pref[m] <- as.character(rs$manual_preferredName[m])
+  }
+  name <- as.character(rs[[name_col]])
+  ok <- !is.na(rs$consensus_dtxsid) & !is.na(pref) & !is.na(name) & is.na(rs$row_flag) & !(rs$.pinned %in% TRUE)
+  if (!any(ok)) {
+    return(empty)
+  }
+  tokens <- function(x) lapply(strsplit(tolower(x), "[^a-z0-9]+"), function(t) unique(t[nzchar(t)]))
+  sim <- rep(NA_real_, n)
+  sim[ok] <- mapply(
+    function(a, b) length(intersect(a, b)) / max(length(union(a, b)), 1),
+    tokens(name[ok]),
+    tokens(pref[ok])
+  )
+  idx <- which(ok & sim < threshold)
+  tibble::tibble(
+    row_index = if ("original_row_id" %in% names(rs)) as.integer(rs$original_row_id[idx]) else idx,
+    name = name[idx],
+    dtxsid = as.character(rs$consensus_dtxsid[idx]),
+    preferred_name = pref[idx]
+  )
+}
+
 write_status_md <- function(path, state, pending, done, decisions, error = NULL) {
   summary <- state$consensus_summary %||% list()
   summary_lines <- if (length(summary)) {
@@ -299,6 +346,22 @@ write_status_md <- function(path, state, pending, done, decisions, error = NULL)
     "| (none) | 0 |"
   }
   unmatched <- state$unmatched_decisions %||% character(0)
+  low_sim <- if (length(state)) low_similarity_rows(state) else NULL
+  low_sim_lines <- if (NROW(low_sim)) {
+    c(
+      "## Low-similarity matches",
+      "",
+      "Accepted resolutions whose preferred name differs from the input name. Confirm each with",
+      "`row_flags` (VERIFIED) or override it with `review_picks` before calling the curation done.",
+      "",
+      "| row | name | dtxsid | preferred name |",
+      "|---|---|---|---|",
+      paste0("| ", low_sim$row_index, " | ", low_sim$name, " | ", low_sim$dtxsid, " | ", low_sim$preferred_name, " |"),
+      ""
+    )
+  } else {
+    character(0)
+  }
 
   lines <- c(
     "# CONCERT curation status",
@@ -322,6 +385,7 @@ write_status_md <- function(path, state, pending, done, decisions, error = NULL)
     pending_lines,
     "",
     if (length(unmatched)) c("## Unmatched decisions", "", paste0("- ", unmatched), "") else character(0),
+    low_sim_lines,
     "## Next",
     "",
     if (done) {
