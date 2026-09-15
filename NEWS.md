@@ -2,10 +2,24 @@
 
 # concert NEWS
 
-## v0.4.1 (2026-09-11)
+## v0.4.1 (2026-09-15)
+
+#### New features
+
+- runner installs latest release before each run
+  ([6321799](https://github.com/seanthimons/concert/tree/6321799c858edcae3b35db28ff066f9e3a369d3b))
+- ship curate_loop.R runner and concert-curate agent skill
+  ([f3334fa](https://github.com/seanthimons/concert/tree/f3334fa906f610f21c1dee62ec5f88153572322b))
+- add curate_iterate agent loop with decisions template and search cache
+  ([8246696](https://github.com/seanthimons/concert/tree/824669692cf17897aa52dba5876612648c450521))
+- add value_corrections and cleaning_steps replay inputs
+  ([e9de6b8](https://github.com/seanthimons/concert/tree/e9de6b8921a723989e176b3380a37cd19fa3a52b))
 
 #### Bug fixes
 
+- runner survives failed release install and status.md flags
+  low-similarity matches
+  ([df429ff](https://github.com/seanthimons/concert/tree/df429ff76b5925525d586771584ca27b5fe70591))
 - integrate Unicode cleanup with review performance
   ([d67ac97](https://github.com/seanthimons/concert/tree/d67ac973016c5ab174e7fea4b64439449ce48cd1))
 - protect primed locants from synonym splitting
@@ -14,6 +28,11 @@
   ([eb4976e](https://github.com/seanthimons/concert/tree/eb4976efdf90e25dbf3a0c8488452ab475b757f4))
 - normalize hyphen and zero-width space
   ([d8cdd15](https://github.com/seanthimons/concert/tree/d8cdd15a28010516aa4b1a909f5f38089569ced1))
+
+#### Refactorings
+
+- split curate_headless into composable stage functions
+  ([1160cfe](https://github.com/seanthimons/concert/tree/1160cfe818865b59136b7c370684455fa9ed5387))
 
 #### Performance
 
@@ -24,6 +43,13 @@
 
 - pin renv lock to dated PPM snapshot for binary restore
   ([d680202](https://github.com/seanthimons/concert/tree/d68020270e532c9a130df33091f9785c96f443ee))
+
+#### Docs
+
+- document mask argument of run_cleaning_pipeline
+  ([682e66c](https://github.com/seanthimons/concert/tree/682e66c6fdedef2fbcda60aff5ad3689b9dfbefd))
+- update NEWS.md for v0.4.1 \[skip ci\]
+  ([caca328](https://github.com/seanthimons/concert/tree/caca3280cbd0416fb6962d8580ba6f5be4f4f5c0))
 
 #### Other changes
 
