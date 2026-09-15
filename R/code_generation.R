@@ -216,8 +216,14 @@ keyed_map_snapshot_script_literal <- function(snapshot) {
     "  default_hash = ",
     script_literal(snapshot$default_hash),
     ",\n",
-    paste(vapply(intersect(c("snapshot_version", "artifact_version", "artifact_sha256"), names(snapshot)),
-      function(name) paste0("  ", name, " = ", script_literal(snapshot[[name]]), ",\n"), character(1)), collapse = ""),
+    paste(
+      vapply(
+        intersect(c("snapshot_version", "artifact_version", "artifact_sha256"), names(snapshot)),
+        function(name) paste0("  ", name, " = ", script_literal(snapshot[[name]]), ",\n"),
+        character(1)
+      ),
+      collapse = ""
+    ),
     "  overrides = ",
     tibble_script_literal(snapshot$overrides),
     "\n)"
@@ -1390,6 +1396,14 @@ append_optional_script_object <- function(lines, name, value) {
 #'   in the replay script.
 #' @param site_alias_map Optional Dataset Context raw-label alias map to embed
 #'   in the replay script.
+#' @param value_corrections Optional pre-cleaning value correction table to
+#'   embed. See [apply_value_corrections()].
+#' @param cleaning_steps Optional named list of cleaning step switches to embed.
+#' @param multi_analyte_resolutions Optional multi-analyte resolution table to
+#'   embed.
+#' @param accept_suggestions Logical. Embed the bulk-accept switch.
+#' @param review_picks Optional content-keyed DTXSID picks table to embed.
+#' @param row_flags Optional content-keyed row flag table to embed.
 #'
 #' @return Complete R script as a character scalar.
 #' @export
@@ -1411,9 +1425,30 @@ generate_concert_script <- function(
   reference_lists = NULL,
   activate_all_references = FALSE,
   site_manifest = NULL,
-  site_alias_map = NULL
+  site_alias_map = NULL,
+  value_corrections = NULL,
+  cleaning_steps = NULL,
+  multi_analyte_resolutions = NULL,
+  accept_suggestions = FALSE,
+  review_picks = NULL,
+  row_flags = NULL
 ) {
   has_review_overrides <- review_overrides_present(review_overrides)
+  if (!is.null(review_picks) && NROW(review_picks) == 0) {
+    review_picks <- NULL
+  }
+  if (!is.null(row_flags) && NROW(row_flags) == 0) {
+    row_flags <- NULL
+  }
+  if (!is.null(value_corrections) && nrow(value_corrections) == 0) {
+    value_corrections <- NULL
+  }
+  if (!is.null(multi_analyte_resolutions) && NROW(multi_analyte_resolutions) == 0) {
+    multi_analyte_resolutions <- NULL
+  }
+  if (!is.null(cleaning_steps) && length(cleaning_steps) == 0) {
+    cleaning_steps <- NULL
+  }
   reference_list_snapshot <- build_reference_list_snapshot(reference_lists)
   unit_map_snapshot <- if (isTRUE(harmonize)) build_unit_map_snapshot(unit_map) else NULL
   media_map_snapshot <- if (isTRUE(harmonize)) {
@@ -1421,7 +1456,9 @@ generate_concert_script <- function(
       media_map <- reference_lists$media_map %||% get_media_table()
     }
     build_media_map_snapshot(media_map)
-  } else NULL
+  } else {
+    NULL
+  }
   site_alias_map_for_replay <- build_site_alias_map(site_context_alias_source(site_alias_map, site_manifest))
   site_manifest_input <- if (nrow(site_alias_map_for_replay) > 0L) site_alias_map_for_replay else site_manifest
   site_manifest_for_replay <- build_site_manifest(site_manifest_input)
@@ -1476,6 +1513,12 @@ generate_concert_script <- function(
     )
   }
 
+  setup_lines <- append_optional_script_object(setup_lines, "value_corrections", value_corrections)
+  setup_lines <- append_optional_script_object(setup_lines, "cleaning_steps", cleaning_steps)
+  setup_lines <- append_optional_script_object(setup_lines, "multi_analyte_resolutions", multi_analyte_resolutions)
+  setup_lines <- append_optional_script_object(setup_lines, "review_picks", review_picks)
+  setup_lines <- append_optional_script_object(setup_lines, "row_flags", row_flags)
+
   if (isTRUE(harmonize)) {
     if (!is.null(unit_map_snapshot)) {
       setup_lines <- c(
@@ -1522,10 +1565,29 @@ generate_concert_script <- function(
     call_args$site_alias_map <- "site_alias_map"
   }
 
+  if (!is.null(value_corrections)) {
+    call_args$value_corrections <- "value_corrections"
+  }
+  if (!is.null(cleaning_steps)) {
+    call_args$cleaning_steps <- "cleaning_steps"
+  }
+  if (!is.null(multi_analyte_resolutions)) {
+    call_args$multi_analyte_resolutions <- "multi_analyte_resolutions"
+  }
+
   call_args$postprocess_candidates <- "TRUE"
 
   if (has_review_overrides) {
     call_args$review_overrides <- "apply_review_overrides"
+  }
+  if (isTRUE(accept_suggestions)) {
+    call_args$accept_suggestions <- "TRUE"
+  }
+  if (!is.null(review_picks)) {
+    call_args$review_picks <- "review_picks"
+  }
+  if (!is.null(row_flags)) {
+    call_args$row_flags <- "row_flags"
   }
 
   if (isTRUE(harmonize)) {
