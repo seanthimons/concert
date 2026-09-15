@@ -2,6 +2,13 @@
 
 # concert NEWS
 
+## v0.4.2 (2026-09-15)
+
+#### Other changes
+
+- bump version to 0.4.2 \[skip ci\]
+  ([df5f25b](https://github.com/seanthimons/concert/tree/df5f25bc4d719f517f34072986a6400c3dae656a))
+
 ## v0.4.1 (2026-09-15)
 
 #### New features
@@ -46,6 +53,8 @@
 
 #### Docs
 
+- update NEWS.md for v0.4.1 \[skip ci\]
+  ([d6bc6f6](https://github.com/seanthimons/concert/tree/d6bc6f60b2dd1059564aca99f2fad6a85d3daca5))
 - document mask argument of run_cleaning_pipeline
   ([682e66c](https://github.com/seanthimons/concert/tree/682e66c6fdedef2fbcda60aff5ad3689b9dfbefd))
 - update NEWS.md for v0.4.1 \[skip ci\]
