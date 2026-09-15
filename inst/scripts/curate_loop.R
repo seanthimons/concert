@@ -14,8 +14,21 @@ if (length(args) == 0) {
 }
 
 # Always run the latest GitHub release; pak is a no-op when already current.
-if (!requireNamespace("pak", quietly = TRUE)) install.packages("pak")
-pak::pak("seanthimons/concert@*release", ask = FALSE)
+# Set CONCERT_SKIP_INSTALL=1 to use the installed concert as-is. Install
+# failures (e.g. read-only site library under --vanilla) fall back the same way.
+if (!nzchar(Sys.getenv("CONCERT_SKIP_INSTALL"))) {
+  tryCatch(
+    {
+      if (!requireNamespace("pak", quietly = TRUE)) {
+        install.packages("pak")
+      }
+      pak::pak("seanthimons/concert@*release", ask = FALSE)
+    },
+    error = function(e) {
+      message("[curate_loop] release install failed, using installed concert: ", conditionMessage(e))
+    }
+  )
+}
 suppressPackageStartupMessages(library(concert))
 
 if (args[1] == "--template") {
