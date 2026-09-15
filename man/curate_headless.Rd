@@ -24,9 +24,14 @@ curate_headless(
   starts_with = FALSE,
   postprocess_candidates = FALSE,
   review_overrides = NULL,
+  accept_suggestions = FALSE,
+  review_picks = NULL,
+  row_flags = NULL,
   site_manifest = NULL,
   site_alias_map = NULL,
   multi_analyte_resolutions = NULL,
+  value_corrections = NULL,
+  cleaning_steps = NULL,
   media_map = NULL,
   media_map_snapshot = NULL,
   write_files = TRUE,
@@ -105,6 +110,18 @@ curation. Default FALSE for backward compatibility.}
 \code{build_review_overrides()}, or legacy positional override table/list to
 replay Review Results edits.}
 
+\item{accept_suggestions}{Logical. If TRUE, accepts every row scored as
+\code{"suggested"} after candidate postprocessing (same as the Review Results
+bulk accept).}
+
+\item{review_picks}{Optional data frame with \code{name}, \code{dtxsid}, and optional
+\code{casrn} columns. Rows whose cleaned Name (and CAS, when given) match are
+resolved to that DTXSID after validation against CompTox.}
+
+\item{row_flags}{Optional data frame with \code{name}, \code{flag}, and optional
+\code{casrn} and \code{reason} columns. Matching rows get the row flag (one of
+\code{valid_row_flags()}).}
+
 \item{site_manifest}{Optional curated Dataset Context site manifest to include
 in the workbook export.}
 
@@ -114,6 +131,15 @@ in the workbook export.}
 \item{multi_analyte_resolutions}{Optional data frame/list with \code{row_index}
 (or \code{row}), \code{action}, and optional \code{value}/\code{values} columns. Applied after
 cleaning and before curation.}
+
+\item{value_corrections}{Optional data frame with \code{column}, \code{pattern},
+\code{replacement}, and optional \code{match_mode} columns. Applied to the detected
+data before cleaning. See \code{\link[=apply_value_corrections]{apply_value_corrections()}}.}
+
+\item{cleaning_steps}{Optional named list of logicals switching cleaning
+steps on or off: \code{unicode}, \code{whitespace}, \code{cas}, \code{names}, \code{isotopes},
+\code{multi}, \code{chiral}, \code{truncated}, \code{bare_formula}, \code{reference_flags}.
+Omitted names keep their defaults.}
 
 \item{media_map}{Optional media harmonization map passed to
 \code{harmonize_media()}.}
