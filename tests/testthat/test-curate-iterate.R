@@ -172,3 +172,21 @@ test_that("curate_iterate writes an error status when a stage fails", {
   expect_match(status, "## Error", fixed = TRUE)
   expect_match(status, "done: FALSE", fixed = TRUE)
 })
+
+test_that("low_similarity_rows flags accepted matches whose preferred name drifts", {
+  rs <- init_resolution_state(tibble::tibble(
+    chemical_name = c("Total PFAS", "Lead", "COD", "TKN"),
+    consensus_dtxsid = c("DTXSID1", "DTXSID2", "DTXSID3", "DTXSID4"),
+    consensus_source = "chemical_name",
+    consensus_status = c("single", "single", "single", "single"),
+    preferredName_chemical_name = c("Total Furans", "Lead", "Total Oxygen Demand", "Nitrogen")
+  ))
+  rs$row_flag[4] <- "VERIFIED"
+  state <- list(resolution_state = rs, merged_chemical_tags = list(chemical_name = "Name"))
+
+  out <- low_similarity_rows(state)
+  expect_setequal(out$name, c("Total PFAS", "COD"))
+  expect_equal(out$preferred_name[out$name == "COD"], "Total Oxygen Demand")
+
+  expect_equal(nrow(low_similarity_rows(list(resolution_state = rs[0, ], merged_chemical_tags = list()))), 0)
+})
