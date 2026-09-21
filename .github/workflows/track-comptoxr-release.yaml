@@ -33,7 +33,7 @@ jobs:
       GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
       UPSTREAM: seanthimons/ComptoxR
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Determine latest stable release and current pin
         id: check
