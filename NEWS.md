@@ -2,6 +2,30 @@
 
 # concert NEWS
 
+## v0.4.4 (2026-09-22)
+
+#### Bug fixes
+
+- merge semicolon-only synonym split and original_row_id keyed
+  resolutions (v0.4.4)
+  ([0cdd735](https://github.com/seanthimons/concert/tree/0cdd73503bb3cddbd31130bcd6d1da94ca21e08d))
+- split synonyms on semicolons only and key resolutions by
+  original_row_id
+  ([90acc47](https://github.com/seanthimons/concert/tree/90acc4702899e9ccad50931112586d2eb4b09aea))
+
+#### Docs
+
+- document row_index keying and value_corrections ordering
+  ([964681b](https://github.com/seanthimons/concert/tree/964681be35a34d99b93c2848c238542d18520c41))
+
+#### Other changes
+
+- bump version to 0.4.4
+  ([c585146](https://github.com/seanthimons/concert/tree/c585146f75345d310276332bcc3e77a3dcf6625f))
+
+Full set of changes:
+[`v0.4.4...v0.4.4`](https://github.com/seanthimons/concert/compare/v0.4.4...v0.4.4)
+
 ## v0.4.3 (2026-09-22)
 
 #### Bug fixes
@@ -10,6 +34,11 @@
   ([353cb60](https://github.com/seanthimons/concert/tree/353cb60d813999b7225f7d7cce203a88a7563516))
 - stop split_synonyms breaking IUPAC and registry names on commas
   ([9659e07](https://github.com/seanthimons/concert/tree/9659e07a103f4a4eaf38edc76efe01600321ec52))
+
+#### Docs
+
+- update NEWS.md for v0.4.3 \[skip ci\]
+  ([598fcfa](https://github.com/seanthimons/concert/tree/598fcfa3dece62dd0ec24049c44507d911f1301d))
 
 #### Other changes
 
