@@ -420,6 +420,34 @@ precheck_name_cleaning <- function(df, name_cols) {
   list(should_run = est_changes > 0L, est_changes = est_changes)
 }
 
+#' Pre-check predicate for split_synonyms step
+#'
+#' Counts CAS-less name values containing a comma or semicolon. Rows with a
+#' CASRN are never split, so they are excluded from the estimate.
+#'
+#' @param df Dataframe to check.
+#' @param name_cols Character vector of name column names.
+#' @param tag_map Named list mapping column names to types.
+#' @return List with should_run (logical) and est_changes (integer).
+#' @keywords internal
+precheck_split_synonyms <- function(df, name_cols, tag_map) {
+  if (length(name_cols) == 0 || nrow(df) == 0) {
+    return(list(should_run = FALSE, est_changes = 0L))
+  }
+  cas_cols <- intersect(names(tag_map)[tag_map == "CASRN"], names(df))
+  has_cas <- rep(FALSE, nrow(df))
+  for (cas_col in cas_cols) {
+    cas_vals <- df[[cas_col]]
+    has_cas <- has_cas | (!is.na(cas_vals) & nzchar(trimws(as.character(cas_vals))))
+  }
+  est_changes <- as.integer(sum(vapply(
+    name_cols,
+    function(col) sum(!has_cas & !is.na(df[[col]]) & grepl("[;,]", df[[col]])),
+    integer(1)
+  )))
+  list(should_run = est_changes > 0L, est_changes = est_changes)
+}
+
 #' Pre-check predicate for expand_isotope_shortcodes step
 #'
 #' Uses a compiled word-boundary regex from the isotope lookup shortcodes to
@@ -1470,11 +1498,31 @@ strip_reference_terms <- function(df, name_cols, strip_terms_tbl) {
   )
 }
 
+# Fragments that cannot stand alone as a chemical name. Any such part after a
+# tentative split means the cell was one inverted IUPAC / CAS-registry name.
+# ponytail: word list, extend as new false splits show up in curated datasets.
+SYNONYM_IMPLAUSIBLE_PART <- stringr::regex(
+  paste0(
+    "-$", # trailing hyphen fragment: "mercapto-", "2-methyl-"
+    "|^\\d+(,\\d+)*-", # leading locant: "2,4-trien-3-yl ..."
+    "|^(or|and)\\s", # prose conjunction: "or turkeys"
+    "|^(branched|linear|cyclic|homopolymer|polymer|copolymer|ethoxylated|propoxylated",
+    "|hydrotreated|hydrogenated|sulfonated|sulfated|chlorinated|technical|basic|mixture|mixed",
+    "|salts?|esters?|isomers?|derivs?\\.?|derivatives?|compds?\\.?|compounds?",
+    "|no\\.?\\s*\\d+|C\\d+-\\d+)$"
+  ),
+  ignore_case = TRUE
+)
+
 #' Split synonyms in name fields with IUPAC comma protection
 #'
 #' Splits comma/semicolon-separated synonyms into separate rows.
 #' Protects digit-comma-digit patterns (IUPAC inverted names like "butane, 2,2-dimethyl").
+#' Rows that carry a CASRN are never split (one CAS is one chemical). CAS-less
+#' rows are left intact when any fragment cannot stand alone as a name
+#' (trailing hyphen, leading locant, bare descriptor such as "branched").
 #' Primary name keeps original row; synonyms get new rows with CAS columns set to NA.
+#' Switch off in the pipeline with `mask = list(synonyms = FALSE)`.
 #'
 #' @param df Dataframe with name columns
 #' @param name_cols Character vector of Name-tagged column names
@@ -1523,7 +1571,14 @@ split_synonyms <- function(df, name_cols, tag_map) {
       stringr::str_replace_all("@@@", ",") %>%
       stringr::str_replace_all("%%%", ", ")
 
-    parts[parts != "" & !is.na(parts)]
+    parts <- parts[parts != "" & !is.na(parts)]
+
+    # Plausibility gate: a fragment that cannot stand alone as a chemical name
+    # means the cell was one inverted IUPAC / CAS-registry name, not a synonym list.
+    if (length(parts) > 1 && any(nchar(parts) < 4 | stringr::str_detect(parts, SYNONYM_IMPLAUSIBLE_PART))) {
+      return(name)
+    }
+    parts
   }
 
   df_result <- df
@@ -1539,9 +1594,16 @@ split_synonyms <- function(df, name_cols, tag_map) {
     col_values <- df_result[[col_name]]
     n_rows <- nrow(df_result)
 
+    # One CAS is one chemical: never split a row that already carries a CASRN.
+    has_cas <- rep(FALSE, n_rows)
+    for (cas_col in intersect(cas_cols, names(df_result))) {
+      cas_vals <- df_result[[cas_col]]
+      has_cas <- has_cas | (!is.na(cas_vals) & nzchar(trimws(as.character(cas_vals))))
+    }
+
     # Vectorized: quick check for potential splits (contains ; or ,)
     # This lets us skip the expensive split_one_name for most rows
-    might_split <- !is.na(col_values) & stringr::str_detect(col_values, "[;,]")
+    might_split <- !is.na(col_values) & !has_cas & stringr::str_detect(col_values, "[;,]")
     might_split[is.na(might_split)] <- FALSE
 
     # If nothing might split, just add synonym columns and continue
@@ -2500,7 +2562,7 @@ perform_unicode_qc <- function(df) {
 #'   and pre-check predicates for performance optimization. Set to FALSE for
 #'   benchmark comparison against the non-dedup baseline path.
 #' @param mask Optional named list of logicals switching cleaning steps on or off
-#'   (`unicode`, `whitespace`, `cas`, `names`, `isotopes`, `multi`, `chiral`,
+#'   (`unicode`, `whitespace`, `cas`, `names`, `synonyms`, `isotopes`, `multi`, `chiral`,
 #'   `truncated`, `bare_formula`, `reference_flags`). Missing entries use the defaults.
 #' @return List with cleaned_data (tibble), audit_trail (tibble), and new_tags (list)
 #'
@@ -2533,6 +2595,7 @@ default_cleaning_step_mask <- function() {
     whitespace = TRUE,
     cas = TRUE,
     names = TRUE,
+    synonyms = TRUE,
     isotopes = TRUE,
     multi = TRUE,
     chiral = TRUE,
@@ -2735,9 +2798,11 @@ run_cleaning_pipeline_masked <- function(
           tag_map_updated <- c(tag_map_updated, pass1_new_tags)
         }
 
-        synonym_result <- split_synonyms(df_work, name_cols, tag_map_updated)
-        df_work <- synonym_result$cleaned_data
-        audit_parts[[length(audit_parts) + 1]] <- synonym_result$audit_trail
+        if (mask$synonyms) {
+          synonym_result <- split_synonyms(df_work, name_cols, tag_map_updated)
+          df_work <- synonym_result$cleaned_data
+          audit_parts[[length(audit_parts) + 1]] <- synonym_result$audit_trail
+        }
 
         df_work <- df_work %>%
           dplyr::mutate(dplyr::across(

@@ -19,7 +19,11 @@ List with cleaned_data and audit_trail
 \description{
 Splits comma/semicolon-separated synonyms into separate rows.
 Protects digit-comma-digit patterns (IUPAC inverted names like "butane, 2,2-dimethyl").
+Rows that carry a CASRN are never split (one CAS is one chemical). CAS-less
+rows are left intact when any fragment cannot stand alone as a name
+(trailing hyphen, leading locant, bare descriptor such as "branched").
 Primary name keeps original row; synonyms get new rows with CAS columns set to NA.
+Switch off in the pipeline with \code{mask = list(synonyms = FALSE)}.
 }
 \examples{
 df <- tibble::tibble(

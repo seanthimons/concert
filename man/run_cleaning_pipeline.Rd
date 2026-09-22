@@ -24,7 +24,7 @@ and pre-check predicates for performance optimization. Set to FALSE for
 benchmark comparison against the non-dedup baseline path.}
 
 \item{mask}{Optional named list of logicals switching cleaning steps on or off
-(\code{unicode}, \code{whitespace}, \code{cas}, \code{names}, \code{isotopes}, \code{multi}, \code{chiral},
+(\code{unicode}, \code{whitespace}, \code{cas}, \code{names}, \code{synonyms}, \code{isotopes}, \code{multi}, \code{chiral},
 \code{truncated}, \code{bare_formula}, \code{reference_flags}). Missing entries use the defaults.}
 }
 \value{
