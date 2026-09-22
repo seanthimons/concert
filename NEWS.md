@@ -2,12 +2,37 @@
 
 # concert NEWS
 
+## v0.4.3 (2026-09-22)
+
+#### Bug fixes
+
+- merge split_synonyms CAS gate and synonyms step switch
+  ([353cb60](https://github.com/seanthimons/concert/tree/353cb60d813999b7225f7d7cce203a88a7563516))
+- stop split_synonyms breaking IUPAC and registry names on commas
+  ([9659e07](https://github.com/seanthimons/concert/tree/9659e07a103f4a4eaf38edc76efe01600321ec52))
+
+#### Other changes
+
+- bump version to 0.4.3 \[skip ci\]
+  ([16ebacb](https://github.com/seanthimons/concert/tree/16ebacbc3a9c1ddf72ffa885fff789e1f74427ef))
+
+Full set of changes:
+[`v0.4.2...v0.4.3`](https://github.com/seanthimons/concert/compare/v0.4.2...v0.4.3)
+
 ## v0.4.2 (2026-09-15)
+
+#### Docs
+
+- update NEWS.md for v0.4.2 \[skip ci\]
+  ([1ff7a87](https://github.com/seanthimons/concert/tree/1ff7a878c1be449c9e265f088210e157eaffc05f))
 
 #### Other changes
 
 - bump version to 0.4.2 \[skip ci\]
   ([df5f25b](https://github.com/seanthimons/concert/tree/df5f25bc4d719f517f34072986a6400c3dae656a))
+
+Full set of changes:
+[`v0.4.1...v0.4.2`](https://github.com/seanthimons/concert/compare/v0.4.1...v0.4.2)
 
 ## v0.4.1 (2026-09-15)
 
