@@ -15,12 +15,14 @@ stage_clean(
 \item{state}{State list from \code{\link[=stage_ingest]{stage_ingest()}}.}
 
 \item{multi_analyte_resolutions}{Optional data frame/list with \code{row_index}
-(or \code{row}), \code{action}, and optional \code{value}/\code{values} columns. Applied after
-cleaning and before curation.}
+(or \code{row}), \code{action}, and optional \code{value}/\code{values} columns. \code{row_index} is
+the \code{original_row_id} as written to \code{pending.csv}, so it stays valid after
+synonym or multi-analyte splits. Applied after cleaning and before curation.}
 
 \item{value_corrections}{Optional data frame with \code{column}, \code{pattern},
 \code{replacement}, and optional \code{match_mode} columns. Applied to the detected
-data before cleaning. See \code{\link[=apply_value_corrections]{apply_value_corrections()}}.}
+data before cleaning, so before Unicode folding: match Unicode hyphens
+with \verb{\\\\p\{Pd\}}, not \code{-}. See \code{\link[=apply_value_corrections]{apply_value_corrections()}}.}
 
 \item{cleaning_steps}{Optional named list of logicals switching cleaning
 steps on or off: \code{unicode}, \code{whitespace}, \code{cas}, \code{names}, \code{synonyms}, \code{isotopes},
