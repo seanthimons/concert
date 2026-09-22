@@ -116,7 +116,7 @@ test_that("Validation: Stop word matching uses whole-word boundaries", {
 test_that("Validation: IUPAC letter-comma-letter protected", {
   # Create test dataset
   test_df <- tibble::tibble(
-    casrn = c("68-12-2", "1330-20-7"),
+    casrn = c("68-12-2", NA_character_),
     name = c("N,N-Dimethylformamide", "xylene, dimethylbenzene, xylol")
   )
 
@@ -146,11 +146,11 @@ test_that("Validation: Full pipeline integration", {
   # Create mixed dataset with all three issue types
   test_df <- tibble::tibble(
     casrn = c(
-      "91-20-3",      # Naphthalene (formula false positive)
-      "68-12-2",      # N,N-Dimethylformamide (IUPAC comma)
-      "7647-14-5",    # Sodium bicarbonate → Sodium chloride (stop word false positive)
-      NA,             # C10H22 (true formula)
-      NA              # test (true stop word)
+      "91-20-3", # Naphthalene (formula false positive)
+      "68-12-2", # N,N-Dimethylformamide (IUPAC comma)
+      "7647-14-5", # Sodium bicarbonate → Sodium chloride (stop word false positive)
+      NA, # C10H22 (true formula)
+      NA # test (true stop word)
     ),
     name = c(
       "Naphthalene",
@@ -243,9 +243,9 @@ test_that("Validation: Unicode characters cleaned before QC runs", {
   test_df <- tibble::tibble(
     casrn = c("10191-41-0", "7235-40-7", "958-09-8"),
     name = c(
-      "\u03B1-tocopherol",        # Greek alpha (U+03B1)
-      "\u03B2-carotene",           # Greek beta (U+03B2)
-      "2\u2032-deoxyadenosine"     # Prime symbol (U+2032)
+      "\u03B1-tocopherol", # Greek alpha (U+03B1)
+      "\u03B2-carotene", # Greek beta (U+03B2)
+      "2\u2032-deoxyadenosine" # Prime symbol (U+2032)
     )
   )
 

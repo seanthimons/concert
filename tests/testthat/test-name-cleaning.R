@@ -178,7 +178,7 @@ test_that("split_synonyms protects IUPAC digit-comma-digit patterns", {
   cleaned <- result$cleaned_data
 
   # Row 1 is IUPAC inverted name - should NOT split
-  expect_equal(nrow(cleaned), 3)  # 3 rows stay 3 rows
+  expect_equal(nrow(cleaned), 3) # 3 rows stay 3 rows
   expect_equal(cleaned$chemical_name[1], "butane, 2,2-dimethyl")
   expect_equal(cleaned$chemical_name[2], "1,4-Dioxane")
   expect_equal(cleaned$chemical_name[3], "2,4-dichlorophenol")
@@ -202,7 +202,7 @@ test_that("split_synonyms tracks original_row_id for synonym rows", {
 test_that("split_synonyms sets CAS columns to NA for synonym rows", {
   df <- tibble::tibble(
     original_row_id = 1L,
-    cas_number = "67-64-1",
+    cas_number = NA_character_,
     chemical_name = "acetone, dimethyl ketone"
   )
   tag_map <- list(cas_number = "CASRN", chemical_name = "Name")
@@ -211,8 +211,7 @@ test_that("split_synonyms sets CAS columns to NA for synonym rows", {
   cleaned <- result$cleaned_data
 
   expect_equal(nrow(cleaned), 2)
-  expect_equal(cleaned$cas_number[1], "67-64-1")  # Primary row keeps CAS
-  expect_true(is.na(cleaned$cas_number[2]))       # Synonym row gets NA
+  expect_true(is.na(cleaned$cas_number[2])) # Synonym row gets NA
 })
 
 test_that("split_synonyms adds synonym_count and synonym_index columns", {
@@ -233,6 +232,79 @@ test_that("split_synonyms adds synonym_count and synonym_index columns", {
   expect_equal(cleaned$synonym_index[3], 3)
 })
 
+test_that("split_synonyms never splits rows that carry a CASRN", {
+  df <- tibble::tibble(
+    original_row_id = 1:7,
+    cas = c("68783-36-8", "481-96-9", "70892-10-3", "1190-28-9", "24539-56-8", "84852-15-3", "9003-42-3"),
+    name = c(
+      "FATTY ACIDS, C16-22, LITHIUM SALTS",
+      "17-Hydroxyestra-1(10),2,4-trien-3-yl hydrogen sulfate",
+      "Fuel oil, no. 1",
+      "Succinic acid, mercapto-, O,O-dimethyl phosphorodithioate",
+      "1,2-Benzenedicarboxylic acid, monopentyl ester",
+      "4-Nonylphenol, branched",
+      "2-Propenoic acid, 2-methyl-, ethyl ester, homopolymer"
+    )
+  )
+  tag_map <- list(cas = "CASRN", name = "Name")
+
+  out <- split_synonyms(df, "name", tag_map)$cleaned_data
+
+  expect_equal(nrow(out), 7)
+  expect_equal(out$name, df$name)
+  expect_equal(out$synonym_count, rep(1L, 7))
+})
+
+test_that("split_synonyms keeps CAS-less IUPAC and registry names intact", {
+  df <- tibble::tibble(
+    original_row_id = 1:8,
+    cas = NA_character_,
+    name = c(
+      "FATTY ACIDS, C16-22, LITHIUM SALTS",
+      "17-Hydroxyestra-1(10),2,4-trien-3-yl hydrogen sulfate",
+      "Fuel oil, no. 1",
+      "Succinic acid, mercapto-, O,O-dimethyl phosphorodithioate",
+      "1,2-Benzenedicarboxylic acid, monopentyl ester",
+      "4-Nonylphenol, branched",
+      "2-Propenoic acid, 2-methyl-, ethyl ester, homopolymer",
+      "Cephalosporins (not including cephapirin) in cattle, swine, chickens, or turkeys"
+    )
+  )
+  tag_map <- list(cas = "CASRN", name = "Name")
+
+  out <- split_synonyms(df, "name", tag_map)$cleaned_data
+
+  expect_equal(nrow(out), 8)
+  expect_equal(out$name, df$name)
+})
+
+test_that("run_cleaning_pipeline mask synonyms = FALSE skips splitting", {
+  df <- tibble::tibble(
+    cas = NA_character_,
+    name = "xylene, dimethylbenzene, xylol"
+  )
+  tag_map <- list(cas = "CASRN", name = "Name")
+
+  on_out <- run_cleaning_pipeline(df, tag_map)$cleaned_data
+  off_out <- run_cleaning_pipeline(df, tag_map, mask = list(synonyms = FALSE))$cleaned_data
+
+  expect_equal(nrow(on_out), 3)
+  expect_equal(nrow(off_out), 1)
+  expect_equal(off_out$name, "xylene, dimethylbenzene, xylol")
+})
+
+test_that("precheck_split_synonyms counts only CAS-less delimited names", {
+  df <- tibble::tibble(
+    cas = c("67-64-1", NA, NA, NA),
+    name = c("acetone, dimethyl ketone", "xylene, xylol", "benzene", "a; b")
+  )
+  tag_map <- list(cas = "CASRN", name = "Name")
+
+  check <- precheck_split_synonyms(df, "name", tag_map)
+  expect_true(check$should_run)
+  expect_equal(check$est_changes, 2L)
+})
+
 test_that("split_synonyms removes empty strings after split", {
   df <- tibble::tibble(
     original_row_id = 1L,
@@ -243,7 +315,7 @@ test_that("split_synonyms removes empty strings after split", {
   result <- split_synonyms(df, names(tag_map)[tag_map == "Name"], tag_map)
   cleaned <- result$cleaned_data
 
-  expect_equal(nrow(cleaned), 2)  # Empty string removed
+  expect_equal(nrow(cleaned), 2) # Empty string removed
   expect_equal(cleaned$chemical_name[1], "acetone")
   expect_equal(cleaned$chemical_name[2], "water")
 })
@@ -582,7 +654,7 @@ test_that("run_cleaning_pipeline processes name cleaning in correct order", {
 test_that("run_cleaning_pipeline synonym splitting happens last", {
   df <- tibble::tibble(
     original_row_id = 1L,
-    cas_number = "67-64-1",
+    cas_number = NA_character_,
     chemical_name = "acetone (pure), dimethyl ketone"
   )
   tag_map <- list(cas_number = "CASRN", chemical_name = "Name")
@@ -596,10 +668,6 @@ test_that("run_cleaning_pipeline synonym splitting happens last", {
   # Primary name should have cleaned parenthetical and quality first
   expect_equal(cleaned$chemical_name[1], "acetone")
   expect_equal(cleaned$chemical_name[2], "dimethyl ketone")
-
-  # Synonym should have NA CAS
-  expect_equal(cleaned$cas_number[1], "67-64-1")
-  expect_true(is.na(cleaned$cas_number[2]))
 })
 
 test_that("run_cleaning_pipeline skips name cleaning when no Name columns", {
@@ -622,7 +690,7 @@ test_that("run_cleaning_pipeline skips name cleaning when no Name columns", {
 test_that("run_cleaning_pipeline removes rows where all name columns are empty", {
   df <- tibble::tibble(
     cas_number = c("67-64-1", "108-88-3", "64-17-5"),
-    chemical_name = c("Acetone", "pure", "Water")  # Row 2 will become empty after stripping
+    chemical_name = c("Acetone", "pure", "Water") # Row 2 will become empty after stripping
   )
   tag_map <- list(cas_number = "CASRN", chemical_name = "Name")
 
@@ -682,7 +750,7 @@ test_that("strip_terminal_enclosures preserves element+numeral roman forms", {
   df <- tibble::tibble(
     chemical_name = c(
       "Chromium (Cr III) complex", # non-terminal, won't match terminal regex anyway
-      "Some compound (Fe II)"      # terminal element+numeral
+      "Some compound (Fe II)" # terminal element+numeral
     )
   )
   result <- strip_terminal_enclosures(df, "chemical_name")
