@@ -118,6 +118,32 @@ test_that("apply_multi_analyte_resolutions applies specs in descending row order
   expect_false(any(is_multi_analyte_review_row(result$cleaned_data)))
 })
 
+test_that("apply_multi_analyte_resolutions keys row_index by original_row_id after a prior split", {
+  # A synonym split upstream appends rows at the end, so position != original_row_id.
+  df <- multi_analyte_fixture(c("acetone", "lead and arsenic", "benzene"))
+  df <- df[c(1L, 3L, 2L), ] # row 2 by id now sits at position 3
+
+  spec <- tibble::tibble(row_index = 2L, action = "split", values = I(list(c("lead", "arsenic"))))
+  result <- apply_multi_analyte_resolutions(df, "analyte", spec)
+
+  expect_equal(result$cleaned_data$analyte, c("acetone", "benzene", "lead", "arsenic"))
+  expect_equal(result$cleaned_data$original_row_id, c(1L, 3L, 2L, 2L))
+})
+
+test_that("apply_multi_analyte_resolutions errors on missing or duplicated original_row_id", {
+  df <- multi_analyte_fixture(c("lead and arsenic", "nitrate + nitrite"))
+  df$original_row_id <- c(1L, 1L)
+
+  expect_error(
+    apply_multi_analyte_resolutions(df, "analyte", tibble::tibble(row_index = 1L, action = "keep")),
+    "exactly one original_row_id"
+  )
+  expect_error(
+    apply_multi_analyte_resolutions(df, "analyte", tibble::tibble(row_index = 9L, action = "keep")),
+    "bad ids: 9"
+  )
+})
+
 test_that("curate_headless applies multi-analyte resolutions before curation", {
   skip_if_not_installed("withr")
   skip_if_not_installed("readr")
