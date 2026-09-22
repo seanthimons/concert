@@ -133,13 +133,13 @@ test_that("strip_terminal_enclosures returns audit trail for stripping", {
 })
 
 # ==============================================================================
-# NAME-03: split_synonyms - IUPAC-aware comma/semicolon splitting
+# NAME-03: split_synonyms - semicolon splitting, commas never split
 # ==============================================================================
 
-test_that("split_synonyms splits comma-separated synonyms", {
+test_that("split_synonyms splits semicolon-separated synonyms with three parts", {
   df <- tibble::tibble(
     original_row_id = 1L,
-    chemical_name = "xylene, dimethylbenzene, xylol"
+    chemical_name = "xylene; dimethylbenzene; xylol"
   )
   tag_map <- list(chemical_name = "Name")
 
@@ -187,7 +187,7 @@ test_that("split_synonyms protects IUPAC digit-comma-digit patterns", {
 test_that("split_synonyms tracks original_row_id for synonym rows", {
   df <- tibble::tibble(
     original_row_id = 1L,
-    chemical_name = "xylene, dimethylbenzene"
+    chemical_name = "xylene; dimethylbenzene"
   )
   tag_map <- list(chemical_name = "Name")
 
@@ -203,7 +203,7 @@ test_that("split_synonyms sets CAS columns to NA for synonym rows", {
   df <- tibble::tibble(
     original_row_id = 1L,
     cas_number = NA_character_,
-    chemical_name = "acetone, dimethyl ketone"
+    chemical_name = "acetone; dimethyl ketone"
   )
   tag_map <- list(cas_number = "CASRN", chemical_name = "Name")
 
@@ -217,7 +217,7 @@ test_that("split_synonyms sets CAS columns to NA for synonym rows", {
 test_that("split_synonyms adds synonym_count and synonym_index columns", {
   df <- tibble::tibble(
     original_row_id = 1L,
-    chemical_name = "xylene, dimethylbenzene, xylol"
+    chemical_name = "xylene; dimethylbenzene; xylol"
   )
   tag_map <- list(chemical_name = "Name")
 
@@ -278,10 +278,61 @@ test_that("split_synonyms keeps CAS-less IUPAC and registry names intact", {
   expect_equal(out$name, df$name)
 })
 
+test_that("split_synonyms never splits on commas: registry, regulatory, and prose names", {
+  # Every CAS-less comma name seen in curated datasets (SSWQS, UAT, treatment
+  # pilot) is one chemical or prose. None is a synonym list.
+  names <- c(
+    "[Dideuterio-(2,3,4,5,6-pentadeuteriophenyl)methyl]-dimethyl-octadecylazanium, chloride",
+    "¹³C₂, D4-Sodium 1H,1H,2H,2H-Perfluoro-1-octanesulfonate (6:2 FTS)",
+    "Cyclohexane-1,2-dicarboxylic acid, mono(hydroxy-isononyl) ester",
+    "2-propanol, 1-(2-butoxy-1-methylethoxy)-",
+    "gases, total dissolved",
+    "nitrosodimethylamine, n",
+    "aluminum, ionic",
+    "phosphorus, elemental",
+    "phenols, total chlorinated",
+    "conductance, specific",
+    "polychlorinated biphenyls, total",
+    "endosulfan, ii",
+    "oils, fats, and grease",
+    "chlorine, residual",
+    "glyphosate, isopropylamine salt",
+    "hexachlorocyclohexane, technical",
+    "Mercury, inorg.",
+    "PP, Unspecified",
+    "Oral contraceptives, combined",
+    "Salted fish, Chinese-style",
+    "Hydrocarbons, C11-C13, isoalkanes, <2% aromatics",
+    "ammonia, anhydrous",
+    "Fatty Acids, Tallow, Sodium Salts"
+  )
+  df <- tibble::tibble(original_row_id = seq_along(names), cas = NA_character_, name = names)
+  tag_map <- list(cas = "CASRN", name = "Name")
+
+  out <- split_synonyms(df, "name", tag_map)$cleaned_data
+
+  expect_equal(nrow(out), length(names))
+  expect_equal(out$name, names)
+  expect_equal(out$synonym_count, rep(1L, length(names)))
+})
+
+test_that("split_synonyms keeps a semicolon inside one name when a fragment is implausible", {
+  df <- tibble::tibble(
+    original_row_id = 1:2,
+    cas = NA_character_,
+    name = c("hexa chlorocyclohexane (gamma bhc; lindane)", "2-Propenoic acid; 2-methyl-")
+  )
+  tag_map <- list(cas = "CASRN", name = "Name")
+
+  out <- split_synonyms(df, "name", tag_map)$cleaned_data
+
+  expect_equal(out$name, df$name)
+})
+
 test_that("run_cleaning_pipeline mask synonyms = FALSE skips splitting", {
   df <- tibble::tibble(
     cas = NA_character_,
-    name = "xylene, dimethylbenzene, xylol"
+    name = "xylene; dimethylbenzene; xylol"
   )
   tag_map <- list(cas = "CASRN", name = "Name")
 
@@ -290,13 +341,13 @@ test_that("run_cleaning_pipeline mask synonyms = FALSE skips splitting", {
 
   expect_equal(nrow(on_out), 3)
   expect_equal(nrow(off_out), 1)
-  expect_equal(off_out$name, "xylene, dimethylbenzene, xylol")
+  expect_equal(off_out$name, "xylene; dimethylbenzene; xylol")
 })
 
 test_that("precheck_split_synonyms counts only CAS-less delimited names", {
   df <- tibble::tibble(
     cas = c("67-64-1", NA, NA, NA),
-    name = c("acetone, dimethyl ketone", "xylene, xylol", "benzene", "a; b")
+    name = c("acetone; dimethyl ketone", "xylene; xylol", "benzene", "abcd; efgh")
   )
   tag_map <- list(cas = "CASRN", name = "Name")
 
@@ -308,7 +359,7 @@ test_that("precheck_split_synonyms counts only CAS-less delimited names", {
 test_that("split_synonyms removes empty strings after split", {
   df <- tibble::tibble(
     original_row_id = 1L,
-    chemical_name = "acetone, , water"
+    chemical_name = "acetone; ; water"
   )
   tag_map <- list(chemical_name = "Name")
 
@@ -337,7 +388,7 @@ test_that("split_synonyms handles single names without splitting", {
 test_that("split_synonyms returns audit trail with split information", {
   df <- tibble::tibble(
     original_row_id = 1L,
-    chemical_name = "xylene, dimethylbenzene"
+    chemical_name = "xylene; dimethylbenzene"
   )
   tag_map <- list(chemical_name = "Name")
 
@@ -370,10 +421,10 @@ test_that("split_synonyms protects letter-comma-letter IUPAC patterns", {
   expect_equal(cleaned$synonym_count[3], 1)
 })
 
-test_that("split_synonyms still splits normal comma-separated names after IUPAC fix", {
+test_that("split_synonyms still splits semicolon-separated names", {
   df <- tibble::tibble(
     original_row_id = 1L,
-    chemical_name = "xylene, dimethylbenzene"
+    chemical_name = "xylene; dimethylbenzene"
   )
   tag_map <- list(chemical_name = "Name")
 
@@ -394,7 +445,7 @@ test_that("split_synonyms protects multi-locant IUPAC patterns (3+ locants)", {
       "1,2,3,4,5,6-hexachlorocyclohexane",
       "butane, 2,4,6-trimethyl",
       "acetone, 2,4-dinitrophenylhydrazone",
-      "xylene, toluene"
+      "xylene; toluene"
     )
   )
   tag_map <- list(chemical_name = "Name")
@@ -423,7 +474,7 @@ test_that("split_synonyms protects multi-locant IUPAC patterns (3+ locants)", {
   expect_equal(nrow(row4), 1)
   expect_equal(row4$chemical_name, "acetone, 2,4-dinitrophenylhydrazone")
 
-  # Row 5: plain synonyms — SHOULD split into 2
+  # Row 5: semicolon synonyms — SHOULD split into 2
   row5 <- cleaned[cleaned$original_row_id == 5L, ]
   expect_equal(nrow(row5), 2)
   expect_equal(row5$chemical_name[1], "xylene")
@@ -655,7 +706,7 @@ test_that("run_cleaning_pipeline synonym splitting happens last", {
   df <- tibble::tibble(
     original_row_id = 1L,
     cas_number = NA_character_,
-    chemical_name = "acetone (pure), dimethyl ketone"
+    chemical_name = "acetone (pure); dimethyl ketone"
   )
   tag_map <- list(cas_number = "CASRN", chemical_name = "Name")
 

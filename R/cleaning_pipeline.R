@@ -442,7 +442,7 @@ precheck_split_synonyms <- function(df, name_cols, tag_map) {
   }
   est_changes <- as.integer(sum(vapply(
     name_cols,
-    function(col) sum(!has_cas & !is.na(df[[col]]) & grepl("[;,]", df[[col]])),
+    function(col) sum(!has_cas & !is.na(df[[col]]) & grepl(";", df[[col]], fixed = TRUE)),
     integer(1)
   )))
   list(should_run = est_changes > 0L, est_changes = est_changes)
@@ -1505,6 +1505,7 @@ SYNONYM_IMPLAUSIBLE_PART <- stringr::regex(
   paste0(
     "-$", # trailing hyphen fragment: "mercapto-", "2-methyl-"
     "|^\\d+(,\\d+)*-", # leading locant: "2,4-trien-3-yl ..."
+    "|\\([^)]*$|^[^(]*\\)", # unbalanced parenthesis: "(gamma bhc" / "lindane)"
     "|^(or|and)\\s", # prose conjunction: "or turkeys"
     "|^(branched|linear|cyclic|homopolymer|polymer|copolymer|ethoxylated|propoxylated",
     "|hydrotreated|hydrogenated|sulfonated|sulfated|chlorinated|technical|basic|mixture|mixed",
@@ -1514,10 +1515,11 @@ SYNONYM_IMPLAUSIBLE_PART <- stringr::regex(
   ignore_case = TRUE
 )
 
-#' Split synonyms in name fields with IUPAC comma protection
+#' Split semicolon-separated synonyms in name fields
 #'
-#' Splits comma/semicolon-separated synonyms into separate rows.
-#' Protects digit-comma-digit patterns (IUPAC inverted names like "butane, 2,2-dimethyl").
+#' Splits semicolon-separated synonyms into separate rows. Commas never split:
+#' inverted IUPAC and CAS-registry names ("butane, 2,2-dimethyl",
+#' "Fatty acids, C16-22, lithium salts") carry commas inside one name.
 #' Rows that carry a CASRN are never split (one CAS is one chemical). CAS-less
 #' rows are left intact when any fragment cannot stand alone as a name
 #' (trailing hyphen, leading locant, bare descriptor such as "branched").
@@ -1533,7 +1535,7 @@ SYNONYM_IMPLAUSIBLE_PART <- stringr::regex(
 #' df <- tibble::tibble(
 #'   original_row_id = 1L,
 #'   cas_number = "67-64-1",
-#'   chemical_name = "xylene, dimethylbenzene, xylol"
+#'   chemical_name = "xylene; dimethylbenzene; xylol"
 #' )
 #' tag_map <- list(cas_number = "CASRN", chemical_name = "Name")
 #' split_synonyms(df, "chemical_name", tag_map)
@@ -1542,39 +1544,18 @@ split_synonyms <- function(df, name_cols, tag_map) {
   # Get CASRN columns
   cas_cols <- names(tag_map)[tag_map == "CASRN"]
 
-  # Helper: protect IUPAC patterns and split a single string
+  # Helper: split one cell on semicolons. Commas never split: across every
+  # curated dataset so far, CAS-less comma names are inverted IUPAC / registry
+  # names or prose, and real comma synonym lists always carry a CAS (gated below).
   split_one_name <- function(name) {
     if (is.na(name)) {
       return(NA_character_)
     }
-
-    # Protect IUPAC comma patterns (repeat until stable)
-    protected <- name
-    for (iter in seq_len(10)) {
-      prev <- protected
-      protected <- stringr::str_replace_all(protected, "([A-Za-z]),([A-Za-z])", "\\1@@@\\2")
-      protected <- stringr::str_replace_all(protected, "([A-Za-z]),(\\d)", "\\1@@@\\2")
-      protected <- stringr::str_replace_all(protected, "(\\d+['\u2032\u2019\u2033]*),(\\d+)", "\\1@@@\\2")
-      if (identical(prev, protected)) break
-    }
-
-    # Protect IUPAC inverted names
-    protected <- stringr::str_replace_all(protected, ",\\s+(\\d)", "%%%\\1")
-
-    # Split and restore
-    parts <- protected %>%
-      stringr::str_split(";") %>%
-      unlist() %>%
-      stringr::str_split(",") %>%
-      unlist() %>%
-      stringr::str_trim() %>%
-      stringr::str_replace_all("@@@", ",") %>%
-      stringr::str_replace_all("%%%", ", ")
-
+    parts <- stringr::str_trim(unlist(stringr::str_split(name, ";")))
     parts <- parts[parts != "" & !is.na(parts)]
 
     # Plausibility gate: a fragment that cannot stand alone as a chemical name
-    # means the cell was one inverted IUPAC / CAS-registry name, not a synonym list.
+    # means the cell was one name, not a synonym list.
     if (length(parts) > 1 && any(nchar(parts) < 4 | stringr::str_detect(parts, SYNONYM_IMPLAUSIBLE_PART))) {
       return(name)
     }
@@ -1601,9 +1582,8 @@ split_synonyms <- function(df, name_cols, tag_map) {
       has_cas <- has_cas | (!is.na(cas_vals) & nzchar(trimws(as.character(cas_vals))))
     }
 
-    # Vectorized: quick check for potential splits (contains ; or ,)
-    # This lets us skip the expensive split_one_name for most rows
-    might_split <- !is.na(col_values) & !has_cas & stringr::str_detect(col_values, "[;,]")
+    # Vectorized: quick check for potential splits (contains ;)
+    might_split <- !is.na(col_values) & !has_cas & stringr::str_detect(col_values, stringr::fixed(";"))
     might_split[is.na(might_split)] <- FALSE
 
     # If nothing might split, just add synonym columns and continue
@@ -1677,7 +1657,7 @@ split_synonyms <- function(df, name_cols, tag_map) {
       audit_fields <- c(audit_fields, col_name)
       audit_originals <- c(audit_originals, original_name)
       audit_news <- c(audit_news, paste0("Split into ", synonym_count, " synonyms: ", paste(parts, collapse = "; ")))
-      audit_reasons <- c(audit_reasons, paste0("Split comma/semicolon-separated synonyms in ", col_name))
+      audit_reasons <- c(audit_reasons, paste0("Split semicolon-separated synonyms in ", col_name))
 
       # Audit entries for synonym rows (index > 1)
       if (synonym_count > 1) {
@@ -3981,7 +3961,9 @@ resolve_multi_analyte_row <- function(df, name_cols, row_index, action, values =
 #' @param df Cleaned data frame.
 #' @param name_cols Character vector of Name-tagged column names.
 #' @param resolutions Data frame/list with `row` or `row_index`, `action`, and
-#'   optional `value` or `values`.
+#'   optional `value` or `values`. When `df` has an `original_row_id` column the
+#'   row key is matched against it (as written by `pending.csv`); otherwise it is
+#'   a 1-based row position.
 #' @return List with `cleaned_data` and `audit_trail`.
 #' @export
 apply_multi_analyte_resolutions <- function(df, name_cols, resolutions = NULL) {
@@ -3993,6 +3975,22 @@ apply_multi_analyte_resolutions <- function(df, name_cols, resolutions = NULL) {
   row_col <- intersect(c("row_index", "row"), names(spec))[1]
   if (is.na(row_col) || !"action" %in% names(spec)) {
     stop("resolutions must include row_index (or row) and action columns.", call. = FALSE)
+  }
+
+  # pending.csv keys rows by original_row_id, which drifts from row position
+  # after any split. Resolve ids to positions once, against the frame as it is now.
+  if ("original_row_id" %in% names(df)) {
+    ids <- suppressWarnings(as.integer(spec[[row_col]]))
+    hits <- match(ids, df$original_row_id)
+    dup <- ids %in% df$original_row_id[duplicated(df$original_row_id)]
+    if (anyNA(hits) || any(dup)) {
+      stop(
+        "row_index must match exactly one original_row_id; bad ids: ",
+        paste(unique(ids[is.na(hits) | dup]), collapse = ", "),
+        call. = FALSE
+      )
+    }
+    spec[[row_col]] <- hits
   }
 
   spec$.row_order <- seq_len(nrow(spec))

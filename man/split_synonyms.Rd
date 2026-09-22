@@ -2,7 +2,7 @@
 % Please edit documentation in R/cleaning_pipeline.R
 \name{split_synonyms}
 \alias{split_synonyms}
-\title{Split synonyms in name fields with IUPAC comma protection}
+\title{Split semicolon-separated synonyms in name fields}
 \usage{
 split_synonyms(df, name_cols, tag_map)
 }
@@ -17,8 +17,9 @@ split_synonyms(df, name_cols, tag_map)
 List with cleaned_data and audit_trail
 }
 \description{
-Splits comma/semicolon-separated synonyms into separate rows.
-Protects digit-comma-digit patterns (IUPAC inverted names like "butane, 2,2-dimethyl").
+Splits semicolon-separated synonyms into separate rows. Commas never split:
+inverted IUPAC and CAS-registry names ("butane, 2,2-dimethyl",
+"Fatty acids, C16-22, lithium salts") carry commas inside one name.
 Rows that carry a CASRN are never split (one CAS is one chemical). CAS-less
 rows are left intact when any fragment cannot stand alone as a name
 (trailing hyphen, leading locant, bare descriptor such as "branched").
@@ -29,7 +30,7 @@ Switch off in the pipeline with \code{mask = list(synonyms = FALSE)}.
 df <- tibble::tibble(
   original_row_id = 1L,
   cas_number = "67-64-1",
-  chemical_name = "xylene, dimethylbenzene, xylol"
+  chemical_name = "xylene; dimethylbenzene; xylol"
 )
 tag_map <- list(cas_number = "CASRN", chemical_name = "Name")
 split_synonyms(df, "chemical_name", tag_map)

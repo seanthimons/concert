@@ -117,7 +117,7 @@ test_that("Validation: IUPAC letter-comma-letter protected", {
   # Create test dataset
   test_df <- tibble::tibble(
     casrn = c("68-12-2", NA_character_),
-    name = c("N,N-Dimethylformamide", "xylene, dimethylbenzene, xylol")
+    name = c("N,N-Dimethylformamide", "xylene; dimethylbenzene; xylol")
   )
 
   tag_map <- list(casrn = "CASRN", name = "Name")
@@ -132,7 +132,7 @@ test_that("Validation: IUPAC letter-comma-letter protected", {
   expect_equal(dmf_rows$name, "N,N-Dimethylformamide")
   expect_equal(dmf_rows$synonym_count, 1L)
 
-  # Test: "xylene, dimethylbenzene, xylol" SHOULD split into 3 rows
+  # Test: "xylene; dimethylbenzene; xylol" SHOULD split into 3 rows
   xylene_rows <- final_data %>% dplyr::filter(original_row_id == 2)
   expect_equal(nrow(xylene_rows), 3)
   expect_equal(xylene_rows$synonym_count[1], 3L)

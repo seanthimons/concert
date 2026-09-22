@@ -12,7 +12,9 @@ apply_multi_analyte_resolutions(df, name_cols, resolutions = NULL)
 \item{name_cols}{Character vector of Name-tagged column names.}
 
 \item{resolutions}{Data frame/list with \code{row} or \code{row_index}, \code{action}, and
-optional \code{value} or \code{values}.}
+optional \code{value} or \code{values}. When \code{df} has an \code{original_row_id} column the
+row key is matched against it (as written by \code{pending.csv}); otherwise it is
+a 1-based row position.}
 }
 \value{
 List with \code{cleaned_data} and \code{audit_trail}.
