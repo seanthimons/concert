@@ -192,6 +192,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
           whitespace = precheck_trim_whitespace(df),
           cas = precheck_normalize_cas(df, tag_map),
           names = precheck_name_cleaning(df, name_cols),
+          synonyms = precheck_split_synonyms(df, name_cols, tag_map),
           isotopes = precheck_isotope_shortcodes(
             df,
             name_cols,
@@ -293,6 +294,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         make_row("whitespace", "Trim Whitespace", checks$whitespace),
         make_row("cas", "Normalize CAS", checks$cas),
         make_row("names", "Name Cleaning", checks$names),
+        make_row("synonyms", "Split Synonyms", checks$synonyms),
         make_row("isotopes", "Isotope Shortcodes", checks$isotopes),
         make_row("multi", "Multi-Analyte Detection", checks$multi),
         make_row("chiral", "Chiral Restoration", checks$chiral)
@@ -375,6 +377,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         whitespace = isTRUE(input$step_whitespace),
         cas = isTRUE(input$step_cas),
         names = isTRUE(input$step_names),
+        synonyms = isTRUE(input$step_synonyms),
         isotopes = isTRUE(input$step_isotopes),
         multi = isTRUE(input$step_multi),
         chiral = isTRUE(input$step_chiral),
@@ -466,6 +469,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
               if (mask$whitespace) "Whitespace" else NULL,
               if (mask$cas) "CAS normalization" else NULL,
               if (mask$names) "Name cleaning" else NULL,
+              if (mask$synonyms) "Synonym splitting" else NULL,
               if (mask$isotopes) "Isotope expansion" else NULL,
               if (mask$multi) "Multi-analyte detection" else NULL,
               if (mask$chiral) "Chiral restoration" else NULL
@@ -553,6 +557,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         whitespace = TRUE,
         cas = TRUE,
         names = TRUE,
+        synonyms = TRUE,
         isotopes = TRUE,
         multi = TRUE,
         chiral = TRUE,

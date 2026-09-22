@@ -77,7 +77,7 @@
 #'   `replacement`, and optional `match_mode` columns. Applied to the detected
 #'   data before cleaning. See [apply_value_corrections()].
 #' @param cleaning_steps Optional named list of logicals switching cleaning
-#'   steps on or off: `unicode`, `whitespace`, `cas`, `names`, `isotopes`,
+#'   steps on or off: `unicode`, `whitespace`, `cas`, `names`, `synonyms`, `isotopes`,
 #'   `multi`, `chiral`, `truncated`, `bare_formula`, `reference_flags`.
 #'   Omitted names keep their defaults.
 #' @param multi_analyte_resolutions Optional data frame/list with `row_index`

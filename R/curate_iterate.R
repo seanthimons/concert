@@ -121,7 +121,7 @@ curate_decisions_template <- function(input_path, out_dir, harmonize = FALSE) {
     "",
     "# --- Cleaning -------------------------------------------------------------",
     "# Switch cleaning steps off when they misfire on this dataset.",
-    "# cleaning_steps <- list(chiral = FALSE, truncated = FALSE)",
+    "# cleaning_steps <- list(chiral = FALSE, truncated = FALSE, synonyms = FALSE)",
     "",
     "# Dataset-specific rewrites applied before cleaning. match_mode: regex (default), literal_exact, literal_word.",
     "# value_corrections <- tibble::tibble(",

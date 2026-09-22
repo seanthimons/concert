@@ -23,7 +23,7 @@ cleaning and before curation.}
 data before cleaning. See \code{\link[=apply_value_corrections]{apply_value_corrections()}}.}
 
 \item{cleaning_steps}{Optional named list of logicals switching cleaning
-steps on or off: \code{unicode}, \code{whitespace}, \code{cas}, \code{names}, \code{isotopes},
+steps on or off: \code{unicode}, \code{whitespace}, \code{cas}, \code{names}, \code{synonyms}, \code{isotopes},
 \code{multi}, \code{chiral}, \code{truncated}, \code{bare_formula}, \code{reference_flags}.
 Omitted names keep their defaults.}
 }
