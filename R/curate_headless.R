@@ -75,14 +75,16 @@
 #'   in the workbook export.
 #' @param value_corrections Optional data frame with `column`, `pattern`,
 #'   `replacement`, and optional `match_mode` columns. Applied to the detected
-#'   data before cleaning. See [apply_value_corrections()].
+#'   data before cleaning, so before Unicode folding: match Unicode hyphens
+#'   with `\\p{Pd}`, not `-`. See [apply_value_corrections()].
 #' @param cleaning_steps Optional named list of logicals switching cleaning
 #'   steps on or off: `unicode`, `whitespace`, `cas`, `names`, `synonyms`, `isotopes`,
 #'   `multi`, `chiral`, `truncated`, `bare_formula`, `reference_flags`.
 #'   Omitted names keep their defaults.
 #' @param multi_analyte_resolutions Optional data frame/list with `row_index`
-#'   (or `row`), `action`, and optional `value`/`values` columns. Applied after
-#'   cleaning and before curation.
+#'   (or `row`), `action`, and optional `value`/`values` columns. `row_index` is
+#'   the `original_row_id` as written to `pending.csv`, so it stays valid after
+#'   synonym or multi-analyte splits. Applied after cleaning and before curation.
 #' @param media_map Optional media harmonization map passed to
 #'   `harmonize_media()`.
 #' @param media_map_snapshot Optional compact replay snapshot from
