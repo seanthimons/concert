@@ -9,7 +9,9 @@ stage_curate(
   wqx_threshold = 0.85,
   starts_with = FALSE,
   postprocess_candidates = FALSE,
-  cache_dir = NULL
+  cache_dir = NULL,
+  pubchem = FALSE,
+  desalt = FALSE
 )
 }
 \arguments{
@@ -19,6 +21,12 @@ stage_curate(
 
 \item{starts_with}{Logical. If TRUE, enables CompTox starts-with fallback
 search for names unresolved by exact, CAS, and WQX matching.}
+
+\item{pubchem}{Logical. If TRUE, searches unresolved names in PubChem and
+exports candidates without assigning DTXSIDs.}
+
+\item{desalt}{Logical. If TRUE, suggests salt parent candidates without
+assigning parent DTXSIDs. Independent of \code{pubchem}.}
 
 \item{postprocess_candidates}{Logical. If TRUE, runs the same enrichment,
 similarity scoring, and auto-resolve pass used by the Shiny app after

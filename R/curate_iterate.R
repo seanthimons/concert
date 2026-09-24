@@ -14,6 +14,8 @@ decision_object_names <- function() {
     "multi_analyte_resolutions",
     "wqx_threshold",
     "starts_with",
+    "pubchem",
+    "desalt",
     "accept_suggestions",
     "review_picks",
     "row_flags",
@@ -51,6 +53,8 @@ read_decisions <- function(decisions_path) {
   d$activate_all_references <- isTRUE(d$activate_all_references)
   d$wqx_threshold <- d$wqx_threshold %||% 0.85
   d$starts_with <- isTRUE(d$starts_with)
+  d$pubchem <- isTRUE(d$pubchem)
+  d$desalt <- isTRUE(d$desalt)
   d$accept_suggestions <- isTRUE(d$accept_suggestions)
   d$harmonize <- isTRUE(d$harmonize)
   d$format <- d$format %||% "parquet"
@@ -145,6 +149,8 @@ curate_decisions_template <- function(input_path, out_dir, harmonize = FALSE) {
     "# --- Curation -------------------------------------------------------------",
     "wqx_threshold <- 0.85",
     "starts_with <- FALSE",
+    "pubchem <- FALSE",
+    "desalt <- FALSE",
     "",
     "# --- Review ---------------------------------------------------------------",
     "# Accept every row CONCERT scored as \"suggested\".",
@@ -445,6 +451,8 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
       state,
       wqx_threshold = d$wqx_threshold,
       starts_with = d$starts_with,
+      pubchem = d$pubchem,
+      desalt = d$desalt,
       postprocess_candidates = TRUE,
       cache_dir = cache_dir
     )
@@ -484,6 +492,8 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
     header_row = d$header_row %||% state$detection$header_row,
     wqx_threshold = d$wqx_threshold,
     starts_with = d$starts_with,
+    pubchem = d$pubchem,
+    desalt = d$desalt,
     harmonize = d$harmonize,
     media = d$media,
     unit_map = if (d$harmonize) state$harmonization_refs$unit_map else NULL,
