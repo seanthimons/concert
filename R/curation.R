@@ -693,6 +693,11 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
 #' @param wqx_threshold Numeric WQX fuzzy matching threshold.
 #' @param starts_with Logical. If TRUE, enables CompTox starts-with fallback
 #'   search for names unresolved by exact, CAS, and WQX matching.
+#' @param pubchem Logical. If TRUE, add exact-name PubChem candidates for
+#'   unresolved rows without assigning DTXSIDs.
+#' @param desalt Logical. If TRUE, suggest parent names and DTXSIDs for
+#'   unresolved salt names without assigning them. Independent of `pubchem`.
+#' @param original_data Optional input rows used for the original name lookup.
 #' @return List with results, dedup_summary, search_summary, consensus_summary
 #' @export
 run_curation_pipeline <- function(
@@ -701,7 +706,10 @@ run_curation_pipeline <- function(
   progress_callback = NULL,
   dedup_only = FALSE,
   wqx_threshold = 0.85,
-  starts_with = FALSE
+  starts_with = FALSE,
+  pubchem = FALSE,
+  original_data = NULL,
+  desalt = FALSE
 ) {
   # Build pre-resolved tibble for isotope-matched rows with known DTXSIDs.
   # Isotope matches without DTXSID must remain searchable so WQX can resolve
@@ -976,6 +984,14 @@ run_curation_pipeline <- function(
 
   # Stage 5: Initialize resolution state
   resolved_df <- init_resolution_state(classified_df)
+  if (isTRUE(pubchem)) {
+    name_cols <- names(column_tags)[column_tags == "Name"]
+    resolved_df <- add_pubchem_candidates(resolved_df, name_cols, original_data)
+  }
+  if (isTRUE(desalt)) {
+    name_cols <- names(column_tags)[column_tags == "Name"]
+    resolved_df <- add_salt_parent_candidates(resolved_df, name_cols, original_data)
+  }
 
   # Return full pipeline result
   list(

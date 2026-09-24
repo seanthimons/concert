@@ -1376,6 +1376,8 @@ append_optional_script_object <- function(lines, name, value) {
 #'   `dplyr::rows_update()` override tables.
 #' @param wqx_threshold WQX fuzzy match threshold.
 #' @param starts_with Logical. Enables CompTox starts-with fallback search.
+#' @param pubchem Logical. Enables PubChem candidate lookup for unresolved names.
+#' @param desalt Logical. Enables salt parent suggestions independently of PubChem.
 #' @param harmonize Logical. Re-run harmonization during replay.
 #' @param media Optional dataset-wide media fallback.
 #' @param unit_map Optional effective unit harmonization map. When
@@ -1431,7 +1433,9 @@ generate_concert_script <- function(
   multi_analyte_resolutions = NULL,
   accept_suggestions = FALSE,
   review_picks = NULL,
-  row_flags = NULL
+  row_flags = NULL,
+  pubchem = FALSE,
+  desalt = FALSE
 ) {
   has_review_overrides <- review_overrides_present(review_overrides)
   if (!is.null(review_picks) && NROW(review_picks) == 0) {
@@ -1551,6 +1555,12 @@ generate_concert_script <- function(
   }
   if (isTRUE(starts_with)) {
     call_args$starts_with <- "TRUE"
+  }
+  if (isTRUE(pubchem)) {
+    call_args$pubchem <- "TRUE"
+  }
+  if (isTRUE(desalt)) {
+    call_args$desalt <- "TRUE"
   }
   if (!is.null(reference_list_snapshot)) {
     call_args$reference_list_snapshot <- "reference_list_snapshot"

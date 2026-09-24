@@ -357,6 +357,28 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
           ),
           div(
             checkboxInput(
+              session$ns("pubchem_enabled"),
+              label = "Search unresolved names in PubChem",
+              value = FALSE
+            ),
+            tags$small(
+              class = "text-muted",
+              "Adds review candidates only. PubChem results do not assign DTXSIDs."
+            )
+          ),
+          div(
+            checkboxInput(
+              session$ns("desalt_enabled"),
+              label = "Suggest salt parent candidates",
+              value = FALSE
+            ),
+            tags$small(
+              class = "text-muted",
+              "Searches CompTox for possible parents. Independent of PubChem; never assigns a salt DTXSID."
+            )
+          ),
+          div(
+            checkboxInput(
               session$ns("activate_all_references"),
               label = "Activate all reference terms for this run",
               value = FALSE
@@ -387,6 +409,8 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         media = isTRUE(input$step_media),
         wqx_threshold = input$wqx_threshold,
         starts_with = isTRUE(input$starts_with_enabled),
+        pubchem = isTRUE(input$pubchem_enabled),
+        desalt = isTRUE(input$desalt_enabled),
         activate_all_references = isTRUE(input$activate_all_references)
       )
     }
@@ -414,6 +438,8 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
     execute_pipeline <- function(mask) {
       data_store$wqx_threshold <- mask$wqx_threshold %||% 0.85
       data_store$starts_with <- isTRUE(mask$starts_with)
+      data_store$pubchem <- isTRUE(mask$pubchem)
+      data_store$desalt <- isTRUE(mask$desalt)
       data_store$activate_all_references <- isTRUE(mask$activate_all_references)
       reference_lists_for_run <- if (isTRUE(mask$activate_all_references)) {
         activate_all_reference_terms(data_store$reference_lists)
@@ -567,6 +593,8 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         media = TRUE,
         wqx_threshold = input$wqx_threshold,
         starts_with = isTRUE(input$starts_with_enabled),
+        pubchem = isTRUE(input$pubchem_enabled),
+        desalt = isTRUE(input$desalt_enabled),
         activate_all_references = isTRUE(input$activate_all_references)
       )
       execute_pipeline(mask)
