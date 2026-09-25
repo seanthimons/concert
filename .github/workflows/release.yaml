@@ -100,6 +100,12 @@ jobs:
           )
           an$generate()
           an$write(force = TRUE)
+          # pkgdown requires package-prefixed version headings without a document title.
+          package <- read.dcf("DESCRIPTION", fields = "Package")[[1L]]
+          news <- readLines("NEWS.md", warn = FALSE, encoding = "UTF-8")
+          news <- news[news != paste("#", package, "NEWS")]
+          news <- sub("^## (v?[0-9])", paste0("## ", package, " \\1"), news)
+          writeLines(news, "NEWS.md", useBytes = TRUE)
 
       - name: Commit NEWS.md and finalize tag
         env:
