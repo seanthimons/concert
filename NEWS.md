@@ -1,8 +1,7 @@
 
 
-# concert NEWS
 
-## v0.4.4 (2026-09-22)
+## concert v0.4.4 (2026-09-22)
 
 #### Bug fixes
 
@@ -26,7 +25,7 @@
 Full set of changes:
 [`v0.4.4...v0.4.4`](https://github.com/seanthimons/concert/compare/v0.4.4...v0.4.4)
 
-## v0.4.3 (2026-09-22)
+## concert v0.4.3 (2026-09-22)
 
 #### Bug fixes
 
@@ -48,7 +47,7 @@ Full set of changes:
 Full set of changes:
 [`v0.4.2...v0.4.3`](https://github.com/seanthimons/concert/compare/v0.4.2...v0.4.3)
 
-## v0.4.2 (2026-09-15)
+## concert v0.4.2 (2026-09-15)
 
 #### Docs
 
@@ -63,7 +62,7 @@ Full set of changes:
 Full set of changes:
 [`v0.4.1...v0.4.2`](https://github.com/seanthimons/concert/compare/v0.4.1...v0.4.2)
 
-## v0.4.1 (2026-09-15)
+## concert v0.4.1 (2026-09-15)
 
 #### New features
 
@@ -122,7 +121,7 @@ Full set of changes:
 Full set of changes:
 [`v0.4.0...v0.4.1`](https://github.com/seanthimons/concert/compare/v0.4.0...v0.4.1)
 
-## v0.4.0 (2026-09-11)
+## concert v0.4.0 (2026-09-11)
 
 #### Breaking changes
 
@@ -183,7 +182,7 @@ Full set of changes:
 Full set of changes:
 [`v0.3.2...v0.4.0`](https://github.com/seanthimons/concert/compare/v0.3.2...v0.4.0)
 
-## v0.3.2 (2026-08-12)
+## concert v0.3.2 (2026-08-12)
 
 #### Bug fixes
 
@@ -203,7 +202,7 @@ Full set of changes:
 Full set of changes:
 [`v0.3.1...v0.3.2`](https://github.com/seanthimons/concert/compare/v0.3.1...v0.3.2)
 
-## v0.3.1 (2026-07-21)
+## concert v0.3.1 (2026-07-21)
 
 #### Bug fixes
 
@@ -223,7 +222,7 @@ Full set of changes:
 Full set of changes:
 [`v0.3.0...v0.3.1`](https://github.com/seanthimons/concert/compare/v0.3.0...v0.3.1)
 
-## v0.3.0 (2026-07-21)
+## concert v0.3.0 (2026-07-21)
 
 #### New features
 
@@ -260,7 +259,7 @@ Full set of changes:
 Full set of changes:
 [`v0.2.0...v0.3.0`](https://github.com/seanthimons/concert/compare/v0.2.0...v0.3.0)
 
-## v0.2.0 (2026-07-20)
+## concert v0.2.0 (2026-07-20)
 
 #### New features
 
@@ -313,7 +312,7 @@ Full set of changes:
 Full set of changes:
 [`v0.1.4...v0.2.0`](https://github.com/seanthimons/concert/compare/v0.1.4...v0.2.0)
 
-## v0.1.4 (2026-07-14)
+## concert v0.1.4 (2026-07-14)
 
 #### New features
 
@@ -358,7 +357,7 @@ Full set of changes:
 Full set of changes:
 [`v0.1.3...v0.1.4`](https://github.com/seanthimons/concert/compare/v0.1.3...v0.1.4)
 
-## v0.1.3 (2026-07-10)
+## concert v0.1.3 (2026-07-10)
 
 #### Bug fixes
 
@@ -373,7 +372,7 @@ Full set of changes:
 Full set of changes:
 [`v0.1.2...v0.1.3`](https://github.com/seanthimons/concert/compare/v0.1.2...v0.1.3)
 
-## v0.1.2 (2026-07-09)
+## concert v0.1.2 (2026-07-09)
 
 #### New features
 
@@ -399,7 +398,7 @@ Full set of changes:
 Full set of changes:
 [`v0.1.1...v0.1.2`](https://github.com/seanthimons/concert/compare/v0.1.1...v0.1.2)
 
-## v0.1.1 (2026-07-09)
+## concert v0.1.1 (2026-07-09)
 
 #### New features
 
