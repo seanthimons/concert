@@ -26,6 +26,11 @@ mock_pipeline_result <- function(cleaned_data, ...) {
   cleaned_data$consensus_source <- c("chemical_name", NA, "chemical_name")[seq_len(n)]
   cleaned_data$consensus_name <- NA_character_
   cleaned_data$qc_tier <- 1L
+  cleaned_data$pubchem_query <- c(NA, "Chromium", NA)[seq_len(n)]
+  cleaned_data$pubchem_cid_candidates <- c(NA, "23951", NA)[seq_len(n)]
+  cleaned_data$pubchem_dtxsid_candidates <- c(NA, "23951:DTXSID1020322", NA)[seq_len(n)]
+  cleaned_data$parent_name_candidate <- c(NA, "Chromium", NA)[seq_len(n)]
+  cleaned_data$parent_dtxsid_candidates <- c(NA, "DTXSID1020322", NA)[seq_len(n)]
   list(
     results = init_resolution_state(cleaned_data),
     consensus_summary = list(n_agree = 1, n_disagree = 1, n_agree_caveat = 0, n_single = 1, n_error = 0)
@@ -57,6 +62,8 @@ test_that("curate_decisions_template writes a sourceable decisions file with sug
   expect_equal(env$tag_map$chemical_name, "Name")
   expect_equal(env$tag_map$cas_number, "CASRN")
   expect_true(env$accept_suggestions)
+  expect_true(env$pubchem)
+  expect_true(env$desalt)
   expect_true(is.list(env$reference_list_snapshot))
   expect_match(paste(readLines(path), collapse = "\n"), "# review_picks <- tibble::tibble", fixed = TRUE)
 })
@@ -88,6 +95,10 @@ test_that("curate_iterate loops from pending to done and reuses the search cache
   expect_equal(first$pending$pending_type, "disagree")
   expect_equal(first$pending$name, "Chromium")
   expect_match(first$pending$candidates, "DTXSID1020322 | Chromium | Exact match", fixed = TRUE)
+  expect_true(all(c("pubchem_query", "pubchem_cid_candidates", "pubchem_dtxsid_candidates",
+                    "parent_name_candidate", "parent_dtxsid_candidates") %in% names(first$pending)))
+  expect_equal(first$pending$pubchem_dtxsid_candidates, "23951:DTXSID1020322")
+  expect_equal(first$pending$parent_dtxsid_candidates, "DTXSID1020322")
   expect_equal(calls, 1L)
   expect_true(file.exists(file.path(fx$dir, "pending.csv")))
   expect_match(paste(readLines(file.path(fx$dir, "status.md")), collapse = "\n"), "done: FALSE", fixed = TRUE)

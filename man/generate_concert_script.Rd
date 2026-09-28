@@ -28,7 +28,9 @@ generate_concert_script(
   multi_analyte_resolutions = NULL,
   accept_suggestions = FALSE,
   review_picks = NULL,
-  row_flags = NULL
+  row_flags = NULL,
+  pubchem = FALSE,
+  desalt = FALSE
 )
 }
 \arguments{
@@ -47,6 +49,10 @@ generate_concert_script(
 \item{wqx_threshold}{WQX fuzzy match threshold.}
 
 \item{starts_with}{Logical. Enables CompTox starts-with fallback search.}
+
+\item{pubchem}{Logical. Enables PubChem candidate lookup for unresolved names.}
+
+\item{desalt}{Logical. Enables salt parent suggestions independently of PubChem.}
 
 \item{harmonize}{Logical. Re-run harmonization during replay.}
 

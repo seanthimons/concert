@@ -29,9 +29,9 @@ Rscript <runner> <out_dir>/decisions.R      # exit 0 = done, exit 2 = rows pendi
 Each run:
 
 1. Read `<out_dir>/status.md`. If it has an `## Error` section, fix the cause in `decisions.R` and re-run.
-2. Read `<out_dir>/pending.csv`. One row per unresolved data row. Columns: `row_index`, `pending_type`, `name`, `casrn`, `consensus_status`, `suggested_dtxsid`, `suggested_split`, `candidates`, `cleaning_flag`.
+2. Read `<out_dir>/pending.csv`. One row per unresolved data row. It includes the cleaned name and CAS, CompTox candidates, and, when enabled, PubChem and salt-parent candidates.
 3. Add decisions for every pending row (see table below). Prefer a root-cause fix over a per-row pick when one correction clears many rows.
-4. Re-run. The CompTox search is cached under `<out_dir>/cache/`, so re-runs are cheap unless cleaned names changed.
+4. Re-run. Curation searches are cached under `<out_dir>/cache/`; changed names or lookup switches require new searches.
 
 Stop after 10 iterations if `pending.csv` is not shrinking. Report what is left and why.
 
@@ -45,6 +45,12 @@ Stop after 10 iterations if `pending.csv` is not shrinking. Report what is left 
 | `no_match` | Nothing in CompTox matched. | Fix the name with `value_corrections` or a reference-list override, supply a `review_picks` DTXSID you know, or `row_flags` with `FOLLOW-UP` |
 
 Row keys are content-based: `name` is the cleaned name, `casrn` the cleaned CAS. Unmatched keys are listed under `## Unmatched decisions` in `status.md`; fix the key rather than adding duplicates.
+
+## PubChem and salt-parent candidates
+
+The template enables `pubchem <- TRUE` and `desalt <- TRUE`. These lookups can take time: PubChem searches each unique unresolved name and fetches synonyms for its CIDs; desalting searches CompTox for eligible parent names. A large unresolved set or changed names can make a run slow. The runner caches unchanged curation searches between runs. Set either switch to `FALSE` in `decisions.R` when its candidates are unnecessary.
+
+For `no_match` rows, inspect `pubchem_query`, `pubchem_cid_candidates`, `pubchem_dtxsid_candidates`, `parent_name_candidate`, `parent_dtxsid_candidates`, and their lookup statuses in `pending.csv`. PubChem IDs and parent IDs are leads for review, never accepted resolutions. A parent DTXSID identifies the parent, not its salt. Confirm the correct chemical identity and use `review_picks` only for a verified DTXSID of the original analyte; otherwise correct the name or flag the row `FOLLOW-UP`.
 
 ## Root-cause tools, cheapest first
 
