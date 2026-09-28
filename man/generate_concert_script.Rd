@@ -50,10 +50,6 @@ generate_concert_script(
 
 \item{starts_with}{Logical. Enables CompTox starts-with fallback search.}
 
-\item{pubchem}{Logical. Enables PubChem candidate lookup for unresolved names.}
-
-\item{desalt}{Logical. Enables salt parent suggestions independently of PubChem.}
-
 \item{harmonize}{Logical. Re-run harmonization during replay.}
 
 \item{media}{Optional dataset-wide media fallback.}
@@ -98,6 +94,10 @@ embed.}
 \item{review_picks}{Optional content-keyed DTXSID picks table to embed.}
 
 \item{row_flags}{Optional content-keyed row flag table to embed.}
+
+\item{pubchem}{Logical. Enables PubChem candidate lookup for unresolved names.}
+
+\item{desalt}{Logical. Enables salt parent suggestions independently of PubChem.}
 }
 \value{
 Complete R script as a character scalar.
