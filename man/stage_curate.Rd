@@ -22,12 +22,6 @@ stage_curate(
 \item{starts_with}{Logical. If TRUE, enables CompTox starts-with fallback
 search for names unresolved by exact, CAS, and WQX matching.}
 
-\item{pubchem}{Logical. If TRUE, searches unresolved names in PubChem and
-exports candidates without assigning DTXSIDs.}
-
-\item{desalt}{Logical. If TRUE, suggests salt parent candidates without
-assigning parent DTXSIDs. Independent of \code{pubchem}.}
-
 \item{postprocess_candidates}{Logical. If TRUE, runs the same enrichment,
 similarity scoring, and auto-resolve pass used by the Shiny app after
 curation. Default FALSE for backward compatibility.}
@@ -36,6 +30,12 @@ curation. Default FALSE for backward compatibility.}
 cached by a hash of the cleaned chemical columns and search settings, and
 the candidate enrichment cache persists across runs. Used by
 \code{\link[=curate_iterate]{curate_iterate()}} so re-runs after review edits skip the API.}
+
+\item{pubchem}{Logical. If TRUE, searches unresolved names in PubChem and
+exports candidates without assigning DTXSIDs.}
+
+\item{desalt}{Logical. If TRUE, suggests salt parent candidates without
+assigning parent DTXSIDs. Independent of \code{pubchem}.}
 }
 \value{
 The state with \code{resolution_state}, \code{consensus_summary},

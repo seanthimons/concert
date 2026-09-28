@@ -103,12 +103,6 @@ or "solid". NULL (default) uses aqueous assumption.}
 \item{starts_with}{Logical. If TRUE, enables CompTox starts-with fallback
 search for names unresolved by exact, CAS, and WQX matching.}
 
-\item{pubchem}{Logical. If TRUE, searches unresolved names in PubChem and
-exports candidates without assigning DTXSIDs.}
-
-\item{desalt}{Logical. If TRUE, suggests salt parent candidates without
-assigning parent DTXSIDs. Independent of \code{pubchem}.}
-
 \item{postprocess_candidates}{Logical. If TRUE, runs the same enrichment,
 similarity scoring, and auto-resolve pass used by the Shiny app after
 curation. Default FALSE for backward compatibility.}
@@ -164,6 +158,12 @@ list without requiring or creating output files.}
 
 \item{source_name}{Optional dataset identifier for ToxVal \code{source}. Defaults
 to the input filename stem.}
+
+\item{pubchem}{Logical. If TRUE, searches unresolved names in PubChem and
+exports candidates without assigning DTXSIDs.}
+
+\item{desalt}{Logical. If TRUE, suggests salt parent candidates without
+assigning parent DTXSIDs. Independent of \code{pubchem}.}
 }
 \value{
 Invisibly returns a list:

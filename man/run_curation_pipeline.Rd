@@ -33,10 +33,10 @@ search for names unresolved by exact, CAS, and WQX matching.}
 \item{pubchem}{Logical. If TRUE, add exact-name PubChem candidates for
 unresolved rows without assigning DTXSIDs.}
 
+\item{original_data}{Optional input rows used for the original name lookup.}
+
 \item{desalt}{Logical. If TRUE, suggest parent names and DTXSIDs for
 unresolved salt names without assigning them. Independent of \code{pubchem}.}
-
-\item{original_data}{Optional input rows used for the original name lookup.}
 }
 \value{
 List with results, dedup_summary, search_summary, consensus_summary
