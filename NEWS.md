@@ -2,6 +2,21 @@
 
 # concert NEWS
 
+## v0.5.0 (2026-09-28)
+
+#### New features
+
+- add PubChem and salt parent candidates
+  ([c61f75d](https://github.com/seanthimons/concert/tree/c61f75d57969c6556b816676e4fc5875eda3e4e7))
+
+#### Other changes
+
+- bump version to 0.5.0 \[skip ci\]
+  ([cb11c0c](https://github.com/seanthimons/concert/tree/cb11c0c95684df8894f533fe3659aa3cb06d38e6))
+
+Full set of changes:
+[`v0.4.4...v0.5.0`](https://github.com/seanthimons/concert/compare/v0.4.4...v0.5.0)
+
 ## v0.4.4 (2026-09-22)
 
 #### Bug fixes
@@ -15,6 +30,8 @@
 
 #### Docs
 
+- update NEWS.md for v0.4.4 \[skip ci\]
+  ([e034f50](https://github.com/seanthimons/concert/tree/e034f508f185ea93e4c949231636162394ffd63a))
 - document row_index keying and value_corrections ordering
   ([964681b](https://github.com/seanthimons/concert/tree/964681be35a34d99b93c2848c238542d18520c41))
 
