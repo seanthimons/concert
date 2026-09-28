@@ -185,7 +185,9 @@ stage_curate <- function(
   wqx_threshold = 0.85,
   starts_with = FALSE,
   postprocess_candidates = FALSE,
-  cache_dir = NULL
+  cache_dir = NULL,
+  pubchem = FALSE,
+  desalt = FALSE
 ) {
   cleaned <- state$cleaning_result$cleaned_data
   search_cache_path <- NULL
@@ -197,7 +199,8 @@ stage_curate <- function(
       c(names(state$merged_chemical_tags), "cleaning_flag", "isotope_dtxsid"),
       names(cleaned)
     )
-    key <- digest::digest(list(cleaned[key_cols], wqx_threshold, starts_with))
+    original_names <- if (isTRUE(pubchem) || isTRUE(desalt)) state$clean_data[intersect(names(state$merged_chemical_tags), names(state$clean_data))] else NULL
+    key <- digest::digest(list(cleaned[key_cols], original_names, wqx_threshold, starts_with, pubchem, desalt))
     search_cache_path <- file.path(cache_dir, paste0("curation_", key, ".rds"))
     enrichment_cache_path <- file.path(cache_dir, "enrichment.rds")
     if (file.exists(search_cache_path)) {
@@ -212,7 +215,10 @@ stage_curate <- function(
       cleaned,
       state$merged_chemical_tags,
       wqx_threshold = wqx_threshold,
-      starts_with = starts_with
+      starts_with = starts_with,
+      pubchem = pubchem,
+      desalt = desalt,
+      original_data = state$clean_data
     )
     if (!is.null(search_cache_path)) {
       saveRDS(pipeline_result, search_cache_path)

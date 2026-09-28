@@ -10,7 +10,10 @@ run_curation_pipeline(
   progress_callback = NULL,
   dedup_only = FALSE,
   wqx_threshold = 0.85,
-  starts_with = FALSE
+  starts_with = FALSE,
+  pubchem = FALSE,
+  original_data = NULL,
+  desalt = FALSE
 )
 }
 \arguments{
@@ -26,6 +29,14 @@ run_curation_pipeline(
 
 \item{starts_with}{Logical. If TRUE, enables CompTox starts-with fallback
 search for names unresolved by exact, CAS, and WQX matching.}
+
+\item{pubchem}{Logical. If TRUE, add exact-name PubChem candidates for
+unresolved rows without assigning DTXSIDs.}
+
+\item{desalt}{Logical. If TRUE, suggest parent names and DTXSIDs for
+unresolved salt names without assigning them. Independent of \code{pubchem}.}
+
+\item{original_data}{Optional input rows used for the original name lookup.}
 }
 \value{
 List with results, dedup_summary, search_summary, consensus_summary

@@ -180,7 +180,10 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
               progress_callback = progress_callback,
               dedup_only = FALSE,
               wqx_threshold = data_store$wqx_threshold %||% 0.85,
-              starts_with = isTRUE(data_store$starts_with)
+              starts_with = isTRUE(data_store$starts_with),
+              pubchem = isTRUE(data_store$pubchem),
+              desalt = isTRUE(data_store$desalt),
+              original_data = data_store$clean
             )
 
             # Store results

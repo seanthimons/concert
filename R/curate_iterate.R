@@ -14,6 +14,8 @@ decision_object_names <- function() {
     "multi_analyte_resolutions",
     "wqx_threshold",
     "starts_with",
+    "pubchem",
+    "desalt",
     "accept_suggestions",
     "review_picks",
     "row_flags",
@@ -51,6 +53,8 @@ read_decisions <- function(decisions_path) {
   d$activate_all_references <- isTRUE(d$activate_all_references)
   d$wqx_threshold <- d$wqx_threshold %||% 0.85
   d$starts_with <- isTRUE(d$starts_with)
+  d$pubchem <- isTRUE(d$pubchem)
+  d$desalt <- isTRUE(d$desalt)
   d$accept_suggestions <- isTRUE(d$accept_suggestions)
   d$harmonize <- isTRUE(d$harmonize)
   d$format <- d$format %||% "parquet"
@@ -145,6 +149,9 @@ curate_decisions_template <- function(input_path, out_dir, harmonize = FALSE) {
     "# --- Curation -------------------------------------------------------------",
     "wqx_threshold <- 0.85",
     "starts_with <- FALSE",
+    "# External lookups can take time on large datasets. Set either to FALSE when unnecessary.",
+    "pubchem <- TRUE",
+    "desalt <- TRUE",
     "",
     "# --- Review ---------------------------------------------------------------",
     "# Accept every row CONCERT scored as \"suggested\".",
@@ -253,6 +260,10 @@ pending_rows <- function(state) {
     character(1)
   )
 
+  candidate_field <- function(col) {
+    if (col %in% names(rs)) as.character(rs[[col]][idx]) else rep(NA_character_, length(idx))
+  }
+
   tibble::tibble(
     row_index = if ("original_row_id" %in% names(rs)) as.integer(rs$original_row_id[idx]) else idx,
     pending_type = pending_type,
@@ -262,6 +273,13 @@ pending_rows <- function(state) {
     suggested_dtxsid = suggested_dtxsid,
     suggested_split = split_suggestion,
     candidates = candidates,
+    pubchem_query = candidate_field("pubchem_query"),
+    pubchem_cid_candidates = candidate_field("pubchem_cid_candidates"),
+    pubchem_dtxsid_candidates = candidate_field("pubchem_dtxsid_candidates"),
+    pubchem_lookup_status = candidate_field("pubchem_lookup_status"),
+    parent_name_candidate = candidate_field("parent_name_candidate"),
+    parent_dtxsid_candidates = candidate_field("parent_dtxsid_candidates"),
+    parent_lookup_status = candidate_field("parent_lookup_status"),
     cleaning_flag = if ("cleaning_flag" %in% names(rs)) as.character(rs$cleaning_flag[idx]) else NA_character_
   )
 }
@@ -276,6 +294,13 @@ empty_pending <- function() {
     suggested_dtxsid = character(),
     suggested_split = character(),
     candidates = character(),
+    pubchem_query = character(),
+    pubchem_cid_candidates = character(),
+    pubchem_dtxsid_candidates = character(),
+    pubchem_lookup_status = character(),
+    parent_name_candidate = character(),
+    parent_dtxsid_candidates = character(),
+    parent_lookup_status = character(),
     cleaning_flag = character()
   )
 }
@@ -445,6 +470,8 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
       state,
       wqx_threshold = d$wqx_threshold,
       starts_with = d$starts_with,
+      pubchem = d$pubchem,
+      desalt = d$desalt,
       postprocess_candidates = TRUE,
       cache_dir = cache_dir
     )
@@ -484,6 +511,8 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
     header_row = d$header_row %||% state$detection$header_row,
     wqx_threshold = d$wqx_threshold,
     starts_with = d$starts_with,
+    pubchem = d$pubchem,
+    desalt = d$desalt,
     harmonize = d$harmonize,
     media = d$media,
     unit_map = if (d$harmonize) state$harmonization_refs$unit_map else NULL,

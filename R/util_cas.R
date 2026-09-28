@@ -101,6 +101,12 @@ as_cas <- function(x) {
         return(NA_character_)
       }
 
+      # Source identifiers such as NOCAS_1355346 are not CAS numbers, even if
+      # their digits happen to satisfy the CAS checksum after reformatting.
+      if (grepl("^\\s*NO[_[:space:]-]*CAS(?:[_[:space:]-]|$)", cas_str, ignore.case = TRUE, perl = TRUE)) {
+        return(NA_character_)
+      }
+
       # 1. Extract only the digits from the string.
       digits_only <- stringr::str_remove_all(cas_str, "[^0-9]")
 

@@ -2256,7 +2256,9 @@ mod_review_results_server <- function(id, data_store) {
       # --- Deduplication ---
       name_cols <- names(data_store$column_tags)[data_store$column_tags == "Name"]
       cas_cols <- names(data_store$column_tags)[data_store$column_tags == "CASRN"]
-      group_cols <- c(name_cols, cas_cols, "consensus_dtxsid", "consensus_status", "match_type")
+      group_cols <- c(name_cols, cas_cols, "consensus_dtxsid", "consensus_status", "match_type",
+                      "pubchem_query", "pubchem_cid_candidates", "pubchem_dtxsid_candidates",
+                      "parent_name_candidate", "parent_dtxsid_candidates")
       deduped <- deduplicate_review_rows(df, original_indices, group_cols)
       data_store$dedup_group_map <- deduped$dedup_group_map
       data_store$display_row_map <- deduped$display_row_map
@@ -3172,6 +3174,8 @@ mod_review_results_server <- function(id, data_store) {
         review_overrides = review_overrides,
         wqx_threshold = data_store$wqx_threshold %||% 0.85,
         starts_with = isTRUE(data_store$starts_with),
+        pubchem = isTRUE(data_store$pubchem),
+        desalt = isTRUE(data_store$desalt),
         harmonize = should_harmonize,
         unit_map = data_store$unit_map_working,
         corrections = data_store$corrections_working,
@@ -3517,6 +3521,9 @@ mod_review_results_server <- function(id, data_store) {
             run_curation_pipeline(
               clean_data = subset_data,
               column_tags = new_tags,
+              pubchem = isTRUE(data_store$pubchem),
+              desalt = isTRUE(data_store$desalt),
+              original_data = subset_data,
               progress_callback = function(stage, msg) {
                 incProgress(0.2, detail = msg)
               }
