@@ -49,13 +49,15 @@ test_that("normalize_cas_fields converts unformatted CAS to standard format", {
 })
 
 test_that("normalize_cas_fields converts placeholder text to NA (CAS-01)", {
-  df <- tibble::tibble(cas = c("no cas", "n/a", "proprietary", "-", "N/A", "NO CAS"))
+  df <- tibble::tibble(cas = c("no cas", "n/a", "proprietary", "-", "N/A", "NO CAS", "NOCAS_1355346"))
   tag_map <- list(cas = "CASRN")
 
   result <- normalize_cas_fields(df, tag_map)
   cleaned <- result$cleaned_data
 
   expect_true(all(is.na(cleaned$cas)))
+  expect_na(as_cas("NOCAS_1355346"))
+  expect_equal(as_cas("CAS: 7732-18-5"), "7732-18-5")
 })
 
 test_that("normalize_cas_fields sets invalid checksum CAS to NA (CAS-02)", {
