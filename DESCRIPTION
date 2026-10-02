@@ -60,5 +60,5 @@ Suggests:
     withr
 Remotes:
     glin/reactable@7839a5b7b86b454c393a7613d56ff4d96fbdb885,
-    seanthimons/ComptoxR@v1.7.1
+    seanthimons/ComptoxR@v3.0.0
 Config/roxygen2/version: 8.1.0
