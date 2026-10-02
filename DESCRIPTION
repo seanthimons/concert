@@ -8,7 +8,7 @@ Description: Upload, clean, validate, and translate chemical regulatory and
     benchmark datasets with intelligent frontmatter detection, identifier
     curation, unit harmonization, and ToxVal-compatible exports.
 License: MIT + file LICENSE
-URL: https://github.com/seanthimons/concert
+URL: https://seanthimons.github.io/concert/, https://github.com/seanthimons/concert
 BugReports: https://github.com/seanthimons/concert/issues
 Depends:
     R (>= 4.1.0)
@@ -53,6 +53,8 @@ Imports:
     vctrs,
     writexl
 Suggests:
+    knitr,
+    rmarkdown,
     autonewsmd,
     bench,
     devtools,
@@ -62,3 +64,4 @@ Remotes:
     glin/reactable@7839a5b7b86b454c393a7613d56ff4d96fbdb885,
     seanthimons/ComptoxR@v1.7.1
 Config/roxygen2/version: 8.1.0
+VignetteBuilder: knitr
