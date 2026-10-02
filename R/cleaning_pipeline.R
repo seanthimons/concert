@@ -11,6 +11,12 @@
 # Matches: pure roman numeral like "III", or element symbol + roman numeral like "Cr III"
 ROMAN_NUMERAL_PATTERN <- "(?i)^\\s*([A-Z][a-z]?\\s+)?(I{1,3}|IV|V|VI{0,3}|IX|X|XI{0,2})\\s*$"
 
+# Recognize identity tokens without changing the original enclosure text.
+# Supported label for issue #73's first slice: 13C6.
+is_identity_qualifier <- function(content) {
+  stringr::str_detect(content, "(?<![[:alnum:]_])13C6(?![[:alnum:]_])")
+}
+
 
 #' Clean text field by stripping whitespace and punctuation artifacts
 #'
@@ -1033,7 +1039,8 @@ strip_terminal_enclosures <- function(df, name_cols) {
           })
         )
 
-        should_strip <- (!has_yl | has_exception) & !has_pct & !has_roman
+        has_identity <- is_identity_qualifier(trimmed_ne)
+        should_strip <- (!has_yl | has_exception) & !has_pct & !has_roman & !has_identity
         strip_idx <- non_empty_idx[should_strip]
 
         if (length(strip_idx) > 0) {
@@ -1078,7 +1085,8 @@ strip_terminal_enclosures <- function(df, name_cols) {
           })
         )
 
-        should_strip <- (!has_yl | has_exception) & !has_pct & !has_roman
+        has_identity <- is_identity_qualifier(trimmed_ne)
+        should_strip <- (!has_yl | has_exception) & !has_pct & !has_roman & !has_identity
         strip_idx <- non_empty_idx[should_strip]
 
         if (length(strip_idx) > 0) {
