@@ -42,6 +42,16 @@
 #' @param media_results Row-level media identity, routing and original-value audit.
 #'
 #' @return Named list of data frames with sheet names as keys
+#' @details
+#' The Curated Data sheet marks `needs_review = TRUE` for error/unresolvable
+#' identities, pending `FOLLOW-UP` flags, incoming `needs_review = TRUE` values,
+#' and unreviewed WQX-only candidates, including exact, alias, and fuzzy matches.
+#' To complete WQX identity review, use [set_row_flag()] with `"VERIFIED"`
+#' (or `row_flags` in [stage_review()]), or explicitly accept a WQX identity in
+#' Review Results, which records `consensus_source = "manual_wqx"`. These
+#' outcomes resolve the WQX requirement, but do not clear a separate incoming
+#' review requirement, pending `FOLLOW-UP`, or error/unresolvable status.
+#' `BAD` alone does not create or clear a review requirement.
 #' @export
 build_export_sheets <- function(
   raw,
@@ -68,9 +78,17 @@ build_export_sheets <- function(
 
   # Sheet 2: Curated Data with public row_flag and computed needs_review flag
   resolution_state <- init_resolution_state(resolution_state)
+  wqx_reviewed <- resolution_state$row_flag %in%
+    "VERIFIED" |
+    (resolution_state[["consensus_source"]] %||% rep(NA_character_, nrow(resolution_state))) %in% "manual_wqx"
+  incoming_review <- (resolution_state[["needs_review"]] %||% rep(FALSE, nrow(resolution_state))) %in% TRUE
   curated_data_sheet <- resolution_state %>%
     dplyr::mutate(
-      needs_review = (consensus_status %in% c("error", "unresolvable"))
+      needs_review = consensus_status %in%
+        c("error", "unresolvable") |
+        row_flag %in% "FOLLOW-UP" |
+        incoming_review |
+        (consensus_status %in% "wqx" & !wqx_reviewed)
     ) %>%
     # Note: similarity_score, .resolution_method, .resolution_reason flow through automatically.
     # .pinned, .manual_entry, .suggested_column are internal state -- excluded from export.

@@ -339,8 +339,8 @@ test_that("Curated Data has needs_review column, no .pinned column", {
   expect_false(".pinned" %in% names(curated))
   expect_false(".manual_entry" %in% names(curated))
 
-  # Verify needs_review flag is set correctly (error/unresolvable)
-  expect_equal(curated$needs_review, c(FALSE, FALSE, TRUE))
+  # FOLLOW-UP remains pending alongside system error/unresolvable states.
+  expect_equal(curated$needs_review, c(FALSE, TRUE, TRUE))
 })
 
 test_that("Curated Data includes row_flag reason without extra flag metadata", {
