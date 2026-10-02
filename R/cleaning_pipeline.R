@@ -11,10 +11,25 @@
 # Matches: pure roman numeral like "III", or element symbol + roman numeral like "Cr III"
 ROMAN_NUMERAL_PATTERN <- "(?i)^\\s*([A-Z][a-z]?\\s+)?(I{1,3}|IV|V|VI{0,3}|IX|X|XI{0,2})\\s*$"
 
-# Recognize identity tokens without changing the original enclosure text.
-# Supported label for issue #73's first slice: 13C6.
+# Match whole tokens; prefix case and optional spaces affect recognition only.
+# Element symbols remain case-sensitive. Counts support one or two digits.
+IDENTITY_QUALIFIER_PATTERN <- paste0(
+  "(?<![[:alnum:]_])(?:",
+  "(?:(?i:ring|u)\\s*-\\s*)?",
+  "(?:13\\s*C|14\\s*C|15\\s*N|17\\s*O|18\\s*O|2\\s*H|3\\s*H|34\\s*S|37\\s*Cl)",
+  "(?:\\s*\\d{1,2})?|[Dd]\\s*\\d{1,2}",
+  # Toxaphene codes and PCB/PBDE/PBB congener identifiers.
+  "|(?i:(?:parlar|p)\\s*(?:no\\.?\\s*)?[#-]?\\s*\\d{1,3}[a-z]?",
+  "|TMX\\s*-?\\s*\\d+|H[px]-Sed|B\\d{1,2}-\\d{2,4}|(?:Tox|T)\\s*\\d{1,2}",
+  "|(?:PCB|BZ|CB|PBDE|BDE|PBB|IUPAC)\\s*(?:no\\.?\\s*)?[#-]?\\s*\\d{1,3})",
+  # Charge signs may precede or follow a single digit.
+  "|\\d\\s*[+-]|[+-]\\s*\\d",
+  ")(?![[:alnum:]_])"
+)
+
+# A recognized token protects the whole enclosure, including annotation text.
 is_identity_qualifier <- function(content) {
-  stringr::str_detect(content, "(?<![[:alnum:]_])13C6(?![[:alnum:]_])")
+  stringr::str_detect(content, IDENTITY_QUALIFIER_PATTERN)
 }
 
 
@@ -965,8 +980,19 @@ detect_multi_cas <- function(df, tag_map) {
 #' Strip terminal enclosures (parentheticals and brackets) from name fields
 #'
 #' Removes terminal `(...)` and `[...]` from Name-tagged columns, with protection
-#' for chemical names containing "yl" (except exception words).
+#' for chemical names containing "yl" (except exception words), percentages,
+#' Roman oxidation states, and recognized identity tokens.
 #' Preserves stripped content in `formula_extract_{source}` columns.
+#'
+#' Recognized identity tokens protect the entire enclosure, including mixed
+#' annotation text. Supported forms include 13C/14C, 15N, 17O/18O, 2H/3H,
+#' 34S and 37Cl with optional one- or two-digit counts, and D/d with a count.
+#' Isotope symbols are case-sensitive; ring-/U- prefixes are case-insensitive,
+#' with optional spaces between isotope components. Congener codes include
+#' Parlar/P, TMX, Hp-Sed/Hx-Sed, Andrews-Vetter B codes, T/Tox, and
+#' PCB/BZ/CB/PBDE/BDE/PBB/IUPAC numbers, matched case-insensitively.
+#' Single-digit charges with a preceding or following sign are also protected.
+#' Recognition does not rewrite the original enclosure text.
 #'
 #' @param df Dataframe with name columns
 #' @param name_cols Character vector of Name-tagged column names
