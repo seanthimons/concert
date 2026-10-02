@@ -122,7 +122,48 @@ test_that("bounded identity tokens survive mixed annotations and the full cleani
   )
   removals <- full$audit_trail[full$audit_trail$step == "strip_terminal_enclosures", ]
   expect_equal(removals$row_id, c(5L, 6L, 9L, 10L))
+  expect_identical(removals$original_value, names[c(5, 6, 9, 10)])
   expect_identical(removals$new_value, expected[c(5, 6, 9, 10)])
+  expect_true(all(removals$field == "name"))
+})
+
+test_that("full cleaning keeps distinct identities and accurate audits with dedup enabled or disabled", {
+  names <- c(
+    "Benzene (D6)",
+    "Benzene (D8)",
+    "Heptachlorobornane (Parlar 21)",
+    "Heptachlorobornane [TMX-1]",
+    "Benzene (D6) [ACS reagent]",
+    "Benzene [D8] (ACS reagent)",
+    "Heptachlorobornane (Parlar 21) [food grade]",
+    "Heptachlorobornane (Parlar 21) [food grade]"
+  )
+  expected <- c(names[1:4], "Benzene (D6)", "Benzene [D8]", rep(names[3], 2))
+
+  for (use_dedup in c(TRUE, FALSE)) {
+    result <- run_cleaning_pipeline(
+      tibble::tibble(name = names),
+      list(name = "Name"),
+      use_dedup = use_dedup
+    )
+
+    expect_identical(result$cleaned_data$name, expected)
+    expect_equal(dplyr::n_distinct(result$cleaned_data$name[1:4]), 4L)
+    expect_identical(result$cleaned_data$original_row_id, seq_along(names))
+    expect_identical(
+      result$cleaned_data$formula_extract_name,
+      c(
+        rep(NA_character_, 4),
+        rep("ACS reagent", 2),
+        rep("food grade", 2)
+      )
+    )
+    removals <- result$audit_trail[result$audit_trail$step == "strip_terminal_enclosures", ]
+    expect_identical(sort(removals$row_id), 5:8)
+    expect_identical(removals$original_value, names[removals$row_id])
+    expect_identical(removals$new_value, expected[removals$row_id])
+    expect_true(all(removals$field == "name"))
+  }
 })
 
 test_that("congener and charge tokens protect mixed enclosures in both styles", {
