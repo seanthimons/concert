@@ -16,8 +16,20 @@ List with cleaned_data, audit_trail, and new_tags (empty list)
 }
 \description{
 Removes terminal \code{(...)} and \verb{[...]} from Name-tagged columns, with protection
-for chemical names containing "yl" (except exception words).
+for chemical names containing "yl" (except exception words), percentages,
+Roman oxidation states, and recognized identity tokens.
 Preserves stripped content in \verb{formula_extract_\{source\}} columns.
+}
+\details{
+Recognized identity tokens protect the entire enclosure, including mixed
+annotation text. Supported forms include 13C/14C, 15N, 17O/18O, 2H/3H,
+34S and 37Cl with optional one- or two-digit counts, and D/d with a count.
+Isotope symbols are case-sensitive; ring-/U- prefixes are case-insensitive,
+with optional spaces between isotope components. Congener codes include
+Parlar/P, TMX, Hp-Sed/Hx-Sed, Andrews-Vetter B codes, T/Tox, and
+PCB/BZ/CB/PBDE/BDE/PBB/IUPAC numbers, matched case-insensitively.
+Single-digit charges with a preceding or following sign are also protected.
+Recognition does not rewrite the original enclosure text.
 }
 \examples{
 df <- tibble::tibble(chemical_name = c("Acetone (ACS reagent)", "ethanol (ethyl alcohol)"))
