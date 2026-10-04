@@ -83,3 +83,14 @@ Named list of data frames with sheet names as keys
 Converts CONCERT pipeline state into a named list of data frames ready
 for Excel export via writexl::write_xlsx().
 }
+\details{
+The Curated Data sheet marks \code{needs_review = TRUE} for error/unresolvable
+identities, pending \code{FOLLOW-UP} flags, incoming \code{needs_review = TRUE} values,
+and unreviewed WQX-only candidates, including exact, alias, and fuzzy matches.
+To complete WQX identity review, use \code{\link[=set_row_flag]{set_row_flag()}} with \code{"VERIFIED"}
+(or \code{row_flags} in \code{\link[=stage_review]{stage_review()}}), or explicitly accept a WQX identity in
+Review Results, which records \code{consensus_source = "manual_wqx"}. These
+outcomes resolve the WQX requirement, but do not clear a separate incoming
+review requirement, pending \code{FOLLOW-UP}, or error/unresolvable status.
+\code{BAD} alone does not create or clear a review requirement.
+}

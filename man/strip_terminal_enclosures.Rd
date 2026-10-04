@@ -16,8 +16,31 @@ List with cleaned_data, audit_trail, and new_tags (empty list)
 }
 \description{
 Removes terminal \code{(...)} and \verb{[...]} from Name-tagged columns, with protection
-for chemical names containing "yl" (except exception words).
+for chemical names containing "yl" (except exception words), percentages,
+Roman oxidation states, and recognized identity tokens.
 Preserves stripped content in \verb{formula_extract_\{source\}} columns.
+}
+\details{
+Recognized identity tokens protect the entire enclosure, including mixed
+annotation text. Supported forms include 13C/14C, 15N, 17O/18O, 2H/3H,
+34S and 37Cl with optional one- or two-digit counts, and D/d with a count.
+Isotope symbols are case-sensitive; ring-/U- prefixes are case-insensitive,
+with optional spaces between isotope components. Congener codes include
+Parlar/P, TMX, Hp-Sed/Hx-Sed, Andrews-Vetter B codes, T/Tox, and
+PCB/BZ/CB/PBDE/BDE/PBB/IUPAC numbers, matched case-insensitively.
+Congener tokens cannot immediately follow a hyphen in a longer name;
+name-attached isotope tokens remain supported. Unsupported synonym
+enclosures such as Tryptophan-P-1 follow ordinary annotation stripping.
+Single-digit charges with a preceding or following sign are also protected.
+Numeric comma lists ending in a hyphen (e.g. 1,3- or 2,4,6-) are protected
+as positional locants, not charges. Comma spacing affects recognition only;
+single locants, primed locants, and general structural-name parsing are not
+included in this extension.
+Reporting-basis phrases such as "as PCB6" are preserved separately from
+individual-congener evidence, including mixed annotations. The observed
+PCBtotal qualifier has no established composition in the source workbook;
+preserving it does not certify congener identity or aggregate composition.
+Recognition does not rewrite the original enclosure text.
 }
 \examples{
 df <- tibble::tibble(chemical_name = c("Acetone (ACS reagent)", "ethanol (ethyl alcohol)"))
