@@ -17,7 +17,10 @@ split_synonyms(df, name_cols, tag_map)
 List with cleaned_data and audit_trail
 }
 \description{
-Splits semicolon-separated synonyms into separate rows. Commas never split:
+Splits semicolon-separated synonyms into separate rows.
+Semicolons inside balanced parentheses or brackets stay within the name;
+unmatched or mismatched enclosures leave the entire cell unsplit.
+Commas never split:
 inverted IUPAC and CAS-registry names ("butane, 2,2-dimethyl",
 "Fatty acids, C16-22, lithium salts") carry commas inside one name.
 Rows that carry a CASRN are never split (one CAS is one chemical). CAS-less

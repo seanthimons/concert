@@ -28,7 +28,18 @@ Isotope symbols are case-sensitive; ring-/U- prefixes are case-insensitive,
 with optional spaces between isotope components. Congener codes include
 Parlar/P, TMX, Hp-Sed/Hx-Sed, Andrews-Vetter B codes, T/Tox, and
 PCB/BZ/CB/PBDE/BDE/PBB/IUPAC numbers, matched case-insensitively.
+Congener tokens cannot immediately follow a hyphen in a longer name;
+name-attached isotope tokens remain supported. Unsupported synonym
+enclosures such as Tryptophan-P-1 follow ordinary annotation stripping.
 Single-digit charges with a preceding or following sign are also protected.
+Numeric comma lists ending in a hyphen (e.g. 1,3- or 2,4,6-) are protected
+as positional locants, not charges. Comma spacing affects recognition only;
+single locants, primed locants, and general structural-name parsing are not
+included in this extension.
+Reporting-basis phrases such as "as PCB6" are preserved separately from
+individual-congener evidence, including mixed annotations. The observed
+PCBtotal qualifier has no established composition in the source workbook;
+preserving it does not certify congener identity or aggregate composition.
 Recognition does not rewrite the original enclosure text.
 }
 \examples{
