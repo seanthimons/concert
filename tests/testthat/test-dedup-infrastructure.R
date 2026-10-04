@@ -293,10 +293,7 @@ test_that("run_cleaning_pipeline use_dedup=FALSE produces identical cleaned_data
   tag_map <- c(chemical_name = "Name", cas_number = "CASRN")
   result_dedup <- run_cleaning_pipeline(test_df, tag_map, use_dedup = TRUE)
   result_no_dedup <- run_cleaning_pipeline(test_df, tag_map, use_dedup = FALSE)
-  # Compare all columns except original_row_id -- dedup remaps lineage IDs
-  # which is an expected artifact of the dedup optimization, not a behavior change
-  compare_cols <- setdiff(names(result_dedup$cleaned_data), "original_row_id")
-  expect_equal(result_dedup$cleaned_data[compare_cols], result_no_dedup$cleaned_data[compare_cols])
+  expect_equal(result_dedup$cleaned_data, result_no_dedup$cleaned_data)
 })
 
 test_that("run_cleaning_pipeline use_dedup=FALSE skips dedup_step", {
@@ -309,7 +306,42 @@ test_that("run_cleaning_pipeline use_dedup=FALSE skips dedup_step", {
   tag_map <- c(chemical_name = "Name", cas_number = "CASRN")
   result_dedup <- run_cleaning_pipeline(test_df, tag_map, use_dedup = TRUE)
   result_no_dedup <- run_cleaning_pipeline(test_df, tag_map, use_dedup = FALSE)
-  # Compare all columns except original_row_id -- dedup remaps lineage IDs
-  compare_cols <- setdiff(names(result_dedup$cleaned_data), "original_row_id")
-  expect_equal(result_dedup$cleaned_data[compare_cols], result_no_dedup$cleaned_data[compare_cols])
+  expect_equal(result_dedup$cleaned_data, result_no_dedup$cleaned_data)
+})
+
+test_that("dedup audits preserve sparse and repeated original row IDs", {
+  df <- tibble::tibble(
+    original_row_id = c(3L, 8L, 8L, 20L),
+    name = rep("nitrate + nitrite", 4)
+  )
+  result <- dedup_step(flag_multi_analyte, df, "name", dedup_cols = "name")
+  direct <- flag_multi_analyte(df, "name")
+  expect_identical(result$cleaned_data, direct$cleaned_data)
+  expect_identical(result$audit_trail, direct$audit_trail)
+  expect_identical(result$audit_trail$row_id, df$original_row_id)
+})
+
+test_that("full pipeline audits match both dedup modes after dropping empty rows", {
+  input <- tibble::tibble(
+    name = c(NA_character_, rep(c("k40", "nitrate + nitrite", "acetone"), 3), NA_character_, "k40", "nitrate + nitrite")
+  )
+  refs <- list(isotope_lookup = list(
+    lookup = tibble::tibble(
+      symbol = "K", mass = "40", element_name = "Potassium",
+      shortcode = "k40", canonical = "Potassium-40", dtxsid = "DTXSID10904161"
+    ),
+    elem_alt_names = character()
+  ))
+  dedup <- run_cleaning_pipeline(input, list(name = "Name"), refs)
+  plain <- run_cleaning_pipeline(input, list(name = "Name"), refs, use_dedup = FALSE)
+  sort_audit <- function(audit) dplyr::arrange(audit, row_id, field, step, original_value, new_value, reason)
+  expect_identical(dedup$cleaned_data, plain$cleaned_data)
+  expect_identical(sort_audit(dedup$audit_trail), sort_audit(plain$audit_trail))
+  expect_identical(dedup$cleaned_data$original_row_id, which(!is.na(input$name)))
+  isotopes <- dplyr::filter(dedup$audit_trail, step == "expand_isotope_shortcodes")
+  multi <- dplyr::filter(dedup$audit_trail, step == "flag_multi_analyte")
+  expect_identical(sort(isotopes$row_id), which(input$name == "k40"))
+  expect_identical(sort(multi$row_id), which(input$name == "nitrate + nitrite"))
+  expect_identical(input$name[isotopes$row_id], isotopes$original_value)
+  expect_identical(input$name[multi$row_id], multi$original_value)
 })
