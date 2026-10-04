@@ -2,12 +2,45 @@
 
 # concert NEWS
 
+## v0.5.1 (2026-10-04)
+
+#### Bug fixes
+
+- merge WQX review flags and chemical identity qualifier fixes
+  ([4970a30](https://github.com/seanthimons/concert/tree/4970a300bd55ff74625894b039ce437012f92902))
+- preserve enclosed chemical qualifiers and audit lineage
+  ([543ffc7](https://github.com/seanthimons/concert/tree/543ffc78ab3fe8be93d4bdd5d02e402aa634fdac))
+- preserve bounded identity qualifier tokens (#73)
+  ([da50021](https://github.com/seanthimons/concert/tree/da50021778944f5e814ebe7705a8e9f37f355f78))
+- preserve 13C6 identity enclosures (#73)
+  ([7b5ac6b](https://github.com/seanthimons/concert/tree/7b5ac6b5516295923d69e338fb27328153b5311b))
+- flag unverified WQX identities for review (#72)
+  ([909e2de](https://github.com/seanthimons/concert/tree/909e2de66ad09539b1b7b20d569394727e03b610))
+
+#### Tests
+
+- cover identity qualifiers through full cleaning pipeline (#73)
+  ([806a030](https://github.com/seanthimons/concert/tree/806a030792f44c996d1c2514d7f1341e7b2b7685))
+
+#### Other changes
+
+- bump version to 0.5.1 \[skip ci\]
+  ([d75198d](https://github.com/seanthimons/concert/tree/d75198d21b667fd109547c6da0400df1d92c75bf))
+
+Full set of changes:
+[`v0.5.0...v0.5.1`](https://github.com/seanthimons/concert/compare/v0.5.0...v0.5.1)
+
 ## v0.5.0 (2026-09-28)
 
 #### New features
 
 - add PubChem and salt parent candidates
   ([c61f75d](https://github.com/seanthimons/concert/tree/c61f75d57969c6556b816676e4fc5875eda3e4e7))
+
+#### Docs
+
+- update NEWS.md for v0.5.0 \[skip ci\]
+  ([19543b0](https://github.com/seanthimons/concert/tree/19543b0aa18be9a6ccecd1d9388930ff639678dc))
 
 #### Other changes
 
