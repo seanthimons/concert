@@ -19,17 +19,30 @@ IDENTITY_QUALIFIER_PATTERN <- paste0(
   "(?:13\\s*C|14\\s*C|15\\s*N|17\\s*O|18\\s*O|2\\s*H|3\\s*H|34\\s*S|37\\s*Cl)",
   "(?:\\s*\\d{1,2})?|[Dd]\\s*\\d{1,2}",
   # Toxaphene codes and PCB/PBDE/PBB congener identifiers.
-  "|(?i:(?:parlar|p)\\s*(?:no\\.?\\s*)?[#-]?\\s*\\d{1,3}[a-z]?",
+  "|(?<!-)(?i:(?:parlar|p)\\s*(?:no\\.?\\s*)?[#-]?\\s*\\d{1,3}[a-z]?",
   "|TMX\\s*-?\\s*\\d+|H[px]-Sed|B\\d{1,2}-\\d{2,4}|(?:Tox|T)\\s*\\d{1,2}",
   "|(?:PCB|BZ|CB|PBDE|BDE|PBB|IUPAC)\\s*(?:no\\.?\\s*)?[#-]?\\s*\\d{1,3})",
-  # Charge signs may precede or follow a single digit.
-  "|\\d\\s*[+-]|[+-]\\s*\\d",
   ")(?![[:alnum:]_])"
 )
 
-# A recognized token protects the whole enclosure, including annotation text.
+LOCANT_PATTERN <- "(?<![[:alnum:]_,])\\d+(?:,\\d+)+\\s*-(?![[:alnum:]_])"
+# Numeric comma lists are positional locants, never charge evidence.
+CHARGE_PATTERN <- "(?<![[:alnum:]_])(?<!\\d,)(?:\\d\\s*[+-]|[+-]\\s*\\d)(?![[:alnum:]_])"
+PCB_REPORTING_BASIS_PATTERN <- "(?<![[:alnum:]_])(?i:as\\s+PCB\\s*(?:no\\.?\\s*)?[#-]?\\s*\\d{1,3})(?![[:alnum:]_])"
+
 is_identity_qualifier <- function(content) {
-  stringr::str_detect(content, IDENTITY_QUALIFIER_PATTERN)
+  normalized <- stringr::str_replace_all(content, "\\s*,\\s*", ",")
+  identity_content <- stringr::str_remove_all(normalized, PCB_REPORTING_BASIS_PATTERN)
+  stringr::str_detect(identity_content, IDENTITY_QUALIFIER_PATTERN) |
+    stringr::str_detect(normalized, LOCANT_PATTERN) |
+    stringr::str_detect(normalized, CHARGE_PATTERN)
+}
+
+# Preserve reporting-basis text without asserting individual-congener identity.
+# Any recognized token protects the whole enclosure, including annotation text.
+is_protected_enclosure <- function(content) {
+  is_identity_qualifier(content) |
+    stringr::str_detect(content, PCB_REPORTING_BASIS_PATTERN)
 }
 
 
@@ -129,8 +142,9 @@ build_audit_trail <- function(df_original, df_cleaned, step_name, reason_fn) {
 #'   Row IDs are positions 1..n_unique within the unique slice.
 #' @param parent_map Named list where names are character representations of
 #'   positions in the unique slice ("1", "2", ...) and values are integer vectors
-#'   of ALL parent row indices that mapped to that unique value.
-#' @return 6-column audit tibble with row_id values expanded to parent row indices.
+#'   of ALL parent row IDs that mapped to that unique value. Use original row
+#'   IDs when lineage is available, otherwise parent row positions.
+#' @return 6-column audit tibble with row_id values expanded to parent row IDs.
 #'   Preserves all other columns (field, step, original_value, new_value, reason).
 #' @export
 remap_audit_to_parent <- function(audit_slice, parent_map) {
@@ -190,6 +204,8 @@ remap_audit_to_parent <- function(audit_slice, parent_map) {
 #' If the uniqueness ratio (n_distinct / n_total) exceeds \code{uniqueness_threshold},
 #' deduplication is bypassed and the step function is called directly on the full
 #' dataframe (D-03). This avoids overhead in datasets that are already highly unique.
+#' Audit row IDs retain `original_row_id` when present, including gaps left by
+#' removed rows and repeated IDs from synonym expansion.
 #'
 #' @param step_fn Step function to call. Must return \code{list(cleaned_data, audit_trail)}.
 #' @param df Full parent dataframe to process.
@@ -225,14 +241,15 @@ dedup_step <- function(step_fn, df, ..., dedup_cols, uniqueness_threshold = 0.5)
   df_unique <- df[first_occurrence, , drop = FALSE]
 
   # parent_map: named list, names = position in unique slice (as character),
-  # values = integer vectors of ALL parent row indices mapping to that unique value.
+  # values = original row IDs (or positions when no lineage is available).
   # Use split() + match() to build in O(n) rather than O(n*m) with which() per key.
+  parent_row_ids <- if ("original_row_id" %in% names(df)) as.integer(df$original_row_id) else seq_len(nrow(df))
   key_to_unique_pos <- match(key_vec, unique_keys) # integer position in unique_keys for each parent row
   groups <- split(seq_along(key_vec), key_to_unique_pos) # O(n): group parent indices by unique position
   parent_map <- stats::setNames(
     lapply(as.character(seq_along(unique_keys)), function(pos) {
       idx <- groups[[pos]]
-      if (is.null(idx)) integer(0L) else as.integer(idx)
+      if (is.null(idx)) integer(0L) else parent_row_ids[idx]
     }),
     as.character(seq_along(unique_keys))
   )
@@ -283,9 +300,9 @@ dedup_step <- function(step_fn, df, ..., dedup_cols, uniqueness_threshold = 0.5)
   # Remap audit trail: expand slice row IDs to all matching parent rows
   remapped_audit <- remap_audit_to_parent(result$audit_trail, parent_map)
 
-  # PERF-02 assertion: remapped audit row_ids must not exceed parent row count (T-37-04)
+  # Original IDs can exceed the remaining row count after rows are removed.
   if (nrow(remapped_audit) > 0) {
-    stopifnot(max(remapped_audit$row_id) <= nrow(df))
+    stopifnot(all(remapped_audit$row_id %in% parent_row_ids))
   }
 
   # Build return list preserving step contract
@@ -991,7 +1008,18 @@ detect_multi_cas <- function(df, tag_map) {
 #' with optional spaces between isotope components. Congener codes include
 #' Parlar/P, TMX, Hp-Sed/Hx-Sed, Andrews-Vetter B codes, T/Tox, and
 #' PCB/BZ/CB/PBDE/BDE/PBB/IUPAC numbers, matched case-insensitively.
+#' Congener tokens cannot immediately follow a hyphen in a longer name;
+#' name-attached isotope tokens remain supported. Unsupported synonym
+#' enclosures such as Tryptophan-P-1 follow ordinary annotation stripping.
 #' Single-digit charges with a preceding or following sign are also protected.
+#' Numeric comma lists ending in a hyphen (e.g. 1,3- or 2,4,6-) are protected
+#' as positional locants, not charges. Comma spacing affects recognition only;
+#' single locants, primed locants, and general structural-name parsing are not
+#' included in this extension.
+#' Reporting-basis phrases such as "as PCB6" are preserved separately from
+#' individual-congener evidence, including mixed annotations. The observed
+#' PCBtotal qualifier has no established composition in the source workbook;
+#' preserving it does not certify congener identity or aggregate composition.
 #' Recognition does not rewrite the original enclosure text.
 #'
 #' @param df Dataframe with name columns
@@ -1065,7 +1093,7 @@ strip_terminal_enclosures <- function(df, name_cols) {
           })
         )
 
-        has_identity <- is_identity_qualifier(trimmed_ne)
+        has_identity <- is_protected_enclosure(trimmed_ne)
         should_strip <- (!has_yl | has_exception) & !has_pct & !has_roman & !has_identity
         strip_idx <- non_empty_idx[should_strip]
 
@@ -1111,7 +1139,7 @@ strip_terminal_enclosures <- function(df, name_cols) {
           })
         )
 
-        has_identity <- is_identity_qualifier(trimmed_ne)
+        has_identity <- is_protected_enclosure(trimmed_ne)
         should_strip <- (!has_yl | has_exception) & !has_pct & !has_roman & !has_identity
         strip_idx <- non_empty_idx[should_strip]
 
@@ -1539,7 +1567,6 @@ SYNONYM_IMPLAUSIBLE_PART <- stringr::regex(
   paste0(
     "-$", # trailing hyphen fragment: "mercapto-", "2-methyl-"
     "|^\\d+(,\\d+)*-", # leading locant: "2,4-trien-3-yl ..."
-    "|\\([^)]*$|^[^(]*\\)", # unbalanced parenthesis: "(gamma bhc" / "lindane)"
     "|^(or|and)\\s", # prose conjunction: "or turkeys"
     "|^(branched|linear|cyclic|homopolymer|polymer|copolymer|ethoxylated|propoxylated",
     "|hydrotreated|hydrogenated|sulfonated|sulfated|chlorinated|technical|basic|mixture|mixed",
@@ -1551,7 +1578,10 @@ SYNONYM_IMPLAUSIBLE_PART <- stringr::regex(
 
 #' Split semicolon-separated synonyms in name fields
 #'
-#' Splits semicolon-separated synonyms into separate rows. Commas never split:
+#' Splits semicolon-separated synonyms into separate rows.
+#' Semicolons inside balanced parentheses or brackets stay within the name;
+#' unmatched or mismatched enclosures leave the entire cell unsplit.
+#' Commas never split:
 #' inverted IUPAC and CAS-registry names ("butane, 2,2-dimethyl",
 #' "Fatty acids, C16-22, lithium salts") carry commas inside one name.
 #' Rows that carry a CASRN are never split (one CAS is one chemical). CAS-less
@@ -1585,7 +1615,24 @@ split_synonyms <- function(df, name_cols, tag_map) {
     if (is.na(name)) {
       return(NA_character_)
     }
-    parts <- stringr::str_trim(unlist(stringr::str_split(name, ";")))
+    # Split only outside enclosures, including nested parentheses/brackets.
+    chars <- strsplit(name, "", fixed = TRUE)[[1]]
+    stack <- character()
+    separators <- integer()
+    for (i in which(chars %in% c("(", ")", "[", "]", ";"))) {
+      char <- chars[i]
+      if (char %in% c("(", "[")) {
+        stack <- c(stack, char)
+      } else if (char %in% c(")", "]")) {
+        expected <- if (char == ")") "(" else "["
+        if (length(stack) == 0L || tail(stack, 1L) != expected) return(name)
+        stack <- head(stack, -1L)
+      } else if (length(stack) == 0L) {
+        separators <- c(separators, i)
+      }
+    }
+    if (length(stack) > 0L) return(name)
+    parts <- stringr::str_trim(substring(name, c(1L, separators + 1L), c(separators - 1L, nchar(name))))
     parts <- parts[parts != "" & !is.na(parts)]
 
     # Plausibility gate: a fragment that cannot stand alone as a chemical name

@@ -34,4 +34,6 @@ provides a significant speedup when the dataset has many repeated values
 If the uniqueness ratio (n_distinct / n_total) exceeds \code{uniqueness_threshold},
 deduplication is bypassed and the step function is called directly on the full
 dataframe (D-03). This avoids overhead in datasets that are already highly unique.
+Audit row IDs retain \code{original_row_id} when present, including gaps left by
+removed rows and repeated IDs from synonym expansion.
 }

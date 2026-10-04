@@ -12,10 +12,11 @@ Row IDs are positions 1..n_unique within the unique slice.}
 
 \item{parent_map}{Named list where names are character representations of
 positions in the unique slice ("1", "2", ...) and values are integer vectors
-of ALL parent row indices that mapped to that unique value.}
+of ALL parent row IDs that mapped to that unique value. Use original row
+IDs when lineage is available, otherwise parent row positions.}
 }
 \value{
-6-column audit tibble with row_id values expanded to parent row indices.
+6-column audit tibble with row_id values expanded to parent row IDs.
 Preserves all other columns (field, step, original_value, new_value, reason).
 }
 \description{
