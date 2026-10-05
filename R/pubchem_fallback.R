@@ -156,6 +156,7 @@ empty_parent_cache <- function() {
 # One cache row per DTXSID and workflow. Statuses: self (single unlabelled
 # component, or unchanged by the workflow), parent, isotope_parent, stereo_lost
 # (may combine with isotope_parent), mixture, no_parent, not_registered,
+# markush (CXSMILES with variable attachment, e.g. Xylenes; not standardized),
 # no_structure, error.
 # `rec` is the structure lookup row, or NULL when the lookup failed.
 structure_parent <- function(dtxsid, rec, workflow, stdize_fn) {
@@ -166,6 +167,7 @@ structure_parent <- function(dtxsid, rec, workflow, stdize_fn) {
   if (is.null(rec)) return(row("error"))
   smiles <- rec$smiles
   if (is.na(smiles) || !nzchar(smiles)) return(row("no_structure"))
+  if (grepl("*", smiles, fixed = TRUE)) return(row("markush"))
   isotope <- "\\[[0-9]+[A-Z]"
   labelled <- grepl(isotope, smiles)
   if (!grepl(".", smiles, fixed = TRUE) && !labelled) return(row("self", dtxsid, rec$name, rec$casrn))
@@ -242,7 +244,8 @@ add_structure_parents <- function(df, cache = NULL, workflows = DESALT_WORKFLOWS
 
 # The chemi resolver reaches DSSTox records the public CTX API lacks (e.g.
 # Prochloraz-d4, DTXSID801539501), so hits are review candidates only and
-# carry whether the DTXSID is in the public DSSTox build.
+# carry whether the DTXSIDs are in the public DSSTox build (public, not_public,
+# some_public when a name has several hits, unverified, no_hit, error).
 add_resolver_candidates <- function(df, name_cols, original_data = NULL,
                                     lookup_fn = ComptoxR::chemi_resolver_lookup_bulk,
                                     public_fn = dsstox_public_ids) {
@@ -260,25 +263,35 @@ add_resolver_candidates <- function(df, name_cols, original_data = NULL,
     df$resolver_lookup_status[rows] <- "error"
     return(df)
   }
-  found <- Filter(function(h) identical(h$result, "FOUND") && !is.null(h$chemical$sid), hits)
-  hit_query <- vapply(found, function(h) as.character(h$query), character(1))
-  hit_sid <- vapply(found, function(h) as.character(h$chemical$sid), character(1))
-  hit_name <- vapply(found, function(h) as.character(h$chemical$name %||% NA_character_), character(1))
+  # DUPLICATE marks a chemical already returned in this batch or an extra hit
+  # for the same query, so both count. InChIKey hits come from parsing the name
+  # into a structure (PP -> Diphosphane), so only identifier matches are kept.
+  ok <- Filter(function(h) h$result %in% c("FOUND", "DUPLICATE") && !is.null(h$chemical$sid) &&
+                 isTRUE(h$resolvedBy %in% c("Name", "CAS", "DTXSID")), hits)
+  hit <- tibble::tibble(
+    query = vapply(ok, function(h) as.character(h$query), character(1)),
+    sid = vapply(ok, function(h) as.character(h$chemical$sid), character(1)),
+    name = vapply(ok, function(h) as.character(h$chemical$name %||% NA_character_), character(1))
+  )
+  hit <- hit[!duplicated(hit[c("query", "sid")]), ]
 
-  m <- match(query, hit_query)
   df$resolver_lookup_status[rows] <- "no_hit"
-  matched <- !is.na(m)
+  matched <- query %in% hit$query
   if (!any(matched)) return(df)
   rows <- rows[matched]
-  m <- m[matched]
-  df$resolver_dtxsid_candidate[rows] <- hit_sid[m]
-  df$resolver_name[rows] <- hit_name[m]
+  query <- query[matched]
+  by_query <- split(hit, hit$query)
+  df$resolver_dtxsid_candidate[rows] <- vapply(query, function(q) paste(by_query[[q]]$sid, collapse = "; "), character(1))
+  df$resolver_name[rows] <- vapply(query, function(q) paste(by_query[[q]]$name, collapse = "; "), character(1))
 
-  public <- tryCatch(public_fn(unique(hit_sid)), error = function(e) e)
+  public <- tryCatch(public_fn(unique(hit$sid)), error = function(e) e)
   df$resolver_lookup_status[rows] <- if (inherits(public, "error")) {
     "unverified"
   } else {
-    ifelse(hit_sid[m] %in% public, "public", "not_public")
+    vapply(query, function(q) {
+      n <- sum(by_query[[q]]$sid %in% public)
+      if (n == nrow(by_query[[q]])) "public" else if (n == 0) "not_public" else "some_public"
+    }, character(1), USE.NAMES = FALSE)
   }
   df
 }

@@ -133,14 +133,20 @@ test_that("isotope-labelled records point to the unlabelled parent only where th
   expect_equal(out$consensus_dtxsid, "DTXSID801539501")
 })
 
+test_that("Markush structures are not sent to the standardizer", {
+  rec <- list(smiles = "C*.CC1=CC=CC=C1 |m:1:4.5.6|", name = "Xylenes", casrn = "1330-20-7")
+  out <- structure_parent("DTXSID2021446", rec, "qsar-ready", function(...) stop("called"))
+  expect_equal(out$parent_status, "markush")
+})
+
 test_that("resolver fallback flags hits missing from the public CTX API", {
   df <- tibble::tibble(
     raw_name = c("Prochloraz-d4", "Atrazine", "Resolved", "Nothing", "Atrazine"),
     consensus_status = c("error", "error", "single", "error", "unresolvable"),
     consensus_dtxsid = c(NA, NA, "DTXSID1", NA, NA)
   )
-  hit <- function(q, sid, name) list(result = "FOUND", query = q,
-                                     chemical = list(sid = sid, name = name))
+  hit <- function(q, sid, name, result = "FOUND", by = "Name")
+    list(result = result, query = q, resolvedBy = by, chemical = list(sid = sid, name = name))
   queried <- NULL
   lookup <- function(ids, tidy) {
     queried <<- ids
@@ -158,6 +164,18 @@ test_that("resolver fallback flags hits missing from the public CTX API", {
   expect_equal(out$resolver_lookup_status,
                c("not_public", "public", NA, "no_hit", "public"))
   expect_identical(out$consensus_dtxsid, df$consensus_dtxsid)
+
+  multi <- function(ids, tidy) list(
+    hit("PFOA", "DTXSID8031865", "Perfluorooctanoic acid"),
+    hit("PFOA", "DTXSID40892486", "Perfluorooctanoate", result = "DUPLICATE"),
+    hit("BPA", "DTXSID7020182", "Bisphenol A", result = "DUPLICATE"),
+    hit("PP", "DTXSID1", "Diphosphane", by = "InChIKey"))
+  df2 <- tibble::tibble(raw_name = c("PFOA", "BPA", "PP"), consensus_status = "error",
+                        consensus_dtxsid = NA_character_)
+  out2 <- add_resolver_candidates(df2, "raw_name", lookup_fn = multi,
+                                  public_fn = function(ids) setdiff(ids, "DTXSID40892486"))
+  expect_equal(out2$resolver_dtxsid_candidate, c("DTXSID8031865; DTXSID40892486", "DTXSID7020182", NA))
+  expect_equal(out2$resolver_lookup_status, c("some_public", "public", "no_hit"))
 
   down <- add_resolver_candidates(df, "raw_name", lookup_fn = lookup,
                                   public_fn = function(ids) stop("503"))
