@@ -62,6 +62,15 @@ concert::curate_headless(
 )
 ```
 
+Names that CompTox leaves unresolved are looked up in the chemi resolver. Its hits
+are review candidates and are checked against a local copy of the public DSSTox
+database. That copy is about 800 MB, so CONCERT never downloads it unprompted;
+without it, hits are marked `unverified`. To install it once and keep it current:
+
+```r
+options(concert.dsstox_install = TRUE)  # or run ComptoxR::dss_install() yourself
+```
+
 For agent-driven curation, the package ships a runner script and a skill:
 
 ```r

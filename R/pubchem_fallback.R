@@ -284,7 +284,10 @@ add_resolver_candidates <- function(df, name_cols, original_data = NULL,
   df$resolver_dtxsid_candidate[rows] <- vapply(query, function(q) paste(by_query[[q]]$sid, collapse = "; "), character(1))
   df$resolver_name[rows] <- vapply(query, function(q) paste(by_query[[q]]$name, collapse = "; "), character(1))
 
-  public <- tryCatch(public_fn(unique(hit$sid)), error = function(e) e)
+  public <- tryCatch(public_fn(unique(hit$sid)), error = function(e) {
+    message("[resolver] Hits left unverified: ", conditionMessage(e))
+    e
+  })
   df$resolver_lookup_status[rows] <- if (inherits(public, "error")) {
     "unverified"
   } else {
@@ -298,16 +301,22 @@ add_resolver_candidates <- function(df, name_cols, original_data = NULL,
 
 .dsstox_checked <- new.env(parent = emptyenv())
 
-# The local DSSTox build mirrors the public dashboard. Install it if missing and
-# reinstall when stale or unversioned; checked once per session. Offline, the
-# existing copy is used as-is.
+# The local DSSTox build mirrors the public dashboard. It is ~800 MB, so it is
+# only downloaded or refreshed when options(concert.dsstox_install = TRUE);
+# otherwise a missing copy leaves hits "unverified" and a stale copy is used
+# as-is. Checked once per session.
 ensure_dsstox <- function() {
   if (isTRUE(.dsstox_checked$done)) return(invisible())
   fresh <- suppressMessages(suppressWarnings(ComptoxR::dss_diag_freshness()))
+  allow <- isTRUE(getOption("concert.dsstox_install", FALSE))
   upstream_known <- !is.na(fresh$latest_upstream_version)
   if (fresh$status == "missing") {
+    if (!allow) {
+      stop("local DSSTox copy not installed; set options(concert.dsstox_install = TRUE) ",
+           "or run ComptoxR::dss_install() (~800 MB) to verify resolver hits", call. = FALSE)
+    }
     ComptoxR::dss_install()
-  } else if (fresh$status == "stale" || (fresh$status == "unknown" && upstream_known)) {
+  } else if (allow && (fresh$status == "stale" || (fresh$status == "unknown" && upstream_known))) {
     message("[dsstox] Refreshing local DSSTox database")
     ComptoxR::dss_disconnect()
     ComptoxR::dss_install(overwrite = TRUE)

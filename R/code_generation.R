@@ -1378,6 +1378,8 @@ append_optional_script_object <- function(lines, name, value) {
 #' @param starts_with Logical. Enables CompTox starts-with fallback search.
 #' @param pubchem Logical. Enables PubChem candidate lookup for unresolved names.
 #' @param desalt Logical. Enables salt parent suggestions independently of PubChem.
+#' @param desalt_workflows Standardizer workflows used when `desalt = TRUE`:
+#'   "qsar-ready", "ms-ready", or both (default).
 #' @param harmonize Logical. Re-run harmonization during replay.
 #' @param media Optional dataset-wide media fallback.
 #' @param unit_map Optional effective unit harmonization map. When
@@ -1435,7 +1437,8 @@ generate_concert_script <- function(
   review_picks = NULL,
   row_flags = NULL,
   pubchem = FALSE,
-  desalt = FALSE
+  desalt = FALSE,
+  desalt_workflows = c("qsar-ready", "ms-ready")
 ) {
   has_review_overrides <- review_overrides_present(review_overrides)
   if (!is.null(review_picks) && NROW(review_picks) == 0) {
@@ -1561,6 +1564,9 @@ generate_concert_script <- function(
   }
   if (isTRUE(desalt)) {
     call_args$desalt <- "TRUE"
+    if (!setequal(desalt_workflows, DESALT_WORKFLOWS)) {
+      call_args$desalt_workflows <- script_literal(desalt_workflows)
+    }
   }
   if (!is.null(reference_list_snapshot)) {
     call_args$reference_list_snapshot <- "reference_list_snapshot"

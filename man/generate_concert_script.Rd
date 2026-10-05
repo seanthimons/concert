@@ -30,7 +30,8 @@ generate_concert_script(
   review_picks = NULL,
   row_flags = NULL,
   pubchem = FALSE,
-  desalt = FALSE
+  desalt = FALSE,
+  desalt_workflows = c("qsar-ready", "ms-ready")
 )
 }
 \arguments{
@@ -98,6 +99,9 @@ embed.}
 \item{pubchem}{Logical. Enables PubChem candidate lookup for unresolved names.}
 
 \item{desalt}{Logical. Enables salt parent suggestions independently of PubChem.}
+
+\item{desalt_workflows}{Standardizer workflows used when \code{desalt = TRUE}:
+"qsar-ready", "ms-ready", or both (default).}
 }
 \value{
 Complete R script as a character scalar.

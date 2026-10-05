@@ -183,3 +183,32 @@ test_that("resolver fallback flags hits missing from the public CTX API", {
   err <- add_resolver_candidates(df, "raw_name", lookup_fn = function(...) stop("down"))
   expect_equal(err$resolver_lookup_status, c("error", "error", NA, "error", "error"))
 })
+
+test_that("DSSTox is only downloaded or refreshed when opted in", {
+  installs <- 0L
+  status <- "missing"
+  local_mocked_bindings(
+    dss_diag_freshness = function(...) list(status = status, latest_upstream_version = "2025-12-29"),
+    dss_install = function(...) installs <<- installs + 1L,
+    dss_disconnect = function(...) invisible(),
+    .package = "ComptoxR"
+  )
+  reset <- function() rm(list = ls(.dsstox_checked), envir = .dsstox_checked)
+  withr::defer(reset())
+
+  withr::local_options(concert.dsstox_install = NULL)
+  reset()
+  expect_error(ensure_dsstox(), "concert.dsstox_install")
+  status <- "stale"
+  reset()
+  ensure_dsstox()
+  expect_equal(installs, 0L)
+
+  withr::local_options(concert.dsstox_install = TRUE)
+  reset()
+  ensure_dsstox()
+  status <- "missing"
+  reset()
+  ensure_dsstox()
+  expect_equal(installs, 2L)
+})
