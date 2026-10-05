@@ -132,3 +132,36 @@ test_that("isotope-labelled records point to the unlabelled parent only where th
   expect_equal(out$parent_status_ms_ready, "self")
   expect_equal(out$consensus_dtxsid, "DTXSID801539501")
 })
+
+test_that("resolver fallback flags hits missing from the public CTX API", {
+  df <- tibble::tibble(
+    raw_name = c("Prochloraz-d4", "Atrazine", "Resolved", "Nothing", "Atrazine"),
+    consensus_status = c("error", "error", "single", "error", "unresolvable"),
+    consensus_dtxsid = c(NA, NA, "DTXSID1", NA, NA)
+  )
+  hit <- function(q, sid, name) list(result = "FOUND", query = q,
+                                     chemical = list(sid = sid, name = name))
+  queried <- NULL
+  lookup <- function(ids, tidy) {
+    queried <<- ids
+    list(hit("Prochloraz-d4", "DTXSID801539501", "Prochloraz-d4"),
+         hit("Atrazine", "DTXSID9020112", "Atrazine"),
+         list(result = "NOT_RESOLVED", query = "Nothing"))
+  }
+  public <- function(ids) intersect(ids, "DTXSID9020112")
+
+  out <- add_resolver_candidates(df, "raw_name", lookup_fn = lookup, public_fn = public)
+
+  expect_equal(queried, c("Prochloraz-d4", "Atrazine", "Nothing"))
+  expect_equal(out$resolver_dtxsid_candidate,
+               c("DTXSID801539501", "DTXSID9020112", NA, NA, "DTXSID9020112"))
+  expect_equal(out$resolver_lookup_status,
+               c("not_public", "public", NA, "no_hit", "public"))
+  expect_identical(out$consensus_dtxsid, df$consensus_dtxsid)
+
+  down <- add_resolver_candidates(df, "raw_name", lookup_fn = lookup,
+                                  public_fn = function(ids) stop("503"))
+  expect_equal(down$resolver_lookup_status[1:2], c("unverified", "unverified"))
+  err <- add_resolver_candidates(df, "raw_name", lookup_fn = function(...) stop("down"))
+  expect_equal(err$resolver_lookup_status, c("error", "error", NA, "error", "error"))
+})
