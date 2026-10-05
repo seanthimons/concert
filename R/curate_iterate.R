@@ -280,6 +280,9 @@ pending_rows <- function(state) {
     parent_name_candidate = candidate_field("parent_name_candidate"),
     parent_dtxsid_candidates = candidate_field("parent_dtxsid_candidates"),
     parent_lookup_status = candidate_field("parent_lookup_status"),
+    resolver_dtxsid_candidate = candidate_field("resolver_dtxsid_candidate"),
+    resolver_name = candidate_field("resolver_name"),
+    resolver_lookup_status = candidate_field("resolver_lookup_status"),
     cleaning_flag = if ("cleaning_flag" %in% names(rs)) as.character(rs$cleaning_flag[idx]) else NA_character_
   )
 }
@@ -301,6 +304,9 @@ empty_pending <- function() {
     parent_name_candidate = character(),
     parent_dtxsid_candidates = character(),
     parent_lookup_status = character(),
+    resolver_dtxsid_candidate = character(),
+    resolver_name = character(),
+    resolver_lookup_status = character(),
     cleaning_flag = character()
   )
 }

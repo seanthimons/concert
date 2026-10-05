@@ -125,3 +125,71 @@ add_salt_parent_candidates <- function(df, name_cols, original_data = NULL,
   }
   df
 }
+
+# The chemi resolver reaches DSSTox records the public CTX API lacks (e.g.
+# Prochloraz-d4, DTXSID801539501), so hits are review candidates only and
+# carry whether the DTXSID is in the public DSSTox build.
+add_resolver_candidates <- function(df, name_cols, original_data = NULL,
+                                    lookup_fn = ComptoxR::chemi_resolver_lookup_bulk,
+                                    public_fn = dsstox_public_ids) {
+  df$resolver_dtxsid_candidate <- NA_character_
+  df$resolver_name <- NA_character_
+  df$resolver_lookup_status <- NA_character_
+  queries_info <- unresolved_name_queries(df, name_cols, original_data)
+  keep <- !is.na(queries_info$names) & nzchar(queries_info$names)
+  rows <- queries_info$rows[keep]
+  query <- queries_info$names[keep]
+  if (!length(rows)) return(df)
+
+  hits <- tryCatch(lookup_fn(unique(query), tidy = FALSE), error = function(e) e)
+  if (inherits(hits, "error")) {
+    df$resolver_lookup_status[rows] <- "error"
+    return(df)
+  }
+  found <- Filter(function(h) identical(h$result, "FOUND") && !is.null(h$chemical$sid), hits)
+  hit_query <- vapply(found, function(h) as.character(h$query), character(1))
+  hit_sid <- vapply(found, function(h) as.character(h$chemical$sid), character(1))
+  hit_name <- vapply(found, function(h) as.character(h$chemical$name %||% NA_character_), character(1))
+
+  m <- match(query, hit_query)
+  df$resolver_lookup_status[rows] <- "no_hit"
+  matched <- !is.na(m)
+  if (!any(matched)) return(df)
+  rows <- rows[matched]
+  m <- m[matched]
+  df$resolver_dtxsid_candidate[rows] <- hit_sid[m]
+  df$resolver_name[rows] <- hit_name[m]
+
+  public <- tryCatch(public_fn(unique(hit_sid)), error = function(e) e)
+  df$resolver_lookup_status[rows] <- if (inherits(public, "error")) {
+    "unverified"
+  } else {
+    ifelse(hit_sid[m] %in% public, "public", "not_public")
+  }
+  df
+}
+
+.dsstox_checked <- new.env(parent = emptyenv())
+
+# The local DSSTox build mirrors the public dashboard. Install it if missing and
+# reinstall when stale or unversioned; checked once per session. Offline, the
+# existing copy is used as-is.
+ensure_dsstox <- function() {
+  if (isTRUE(.dsstox_checked$done)) return(invisible())
+  fresh <- suppressMessages(suppressWarnings(ComptoxR::dss_diag_freshness()))
+  upstream_known <- !is.na(fresh$latest_upstream_version)
+  if (fresh$status == "missing") {
+    ComptoxR::dss_install()
+  } else if (fresh$status == "stale" || (fresh$status == "unknown" && upstream_known)) {
+    message("[dsstox] Refreshing local DSSTox database")
+    ComptoxR::dss_disconnect()
+    ComptoxR::dss_install(overwrite = TRUE)
+  }
+  .dsstox_checked$done <- TRUE
+  invisible()
+}
+
+dsstox_public_ids <- function(ids) {
+  ensure_dsstox()
+  unique(suppressMessages(ComptoxR::dss_synonyms(ids))$DTXSID)
+}
