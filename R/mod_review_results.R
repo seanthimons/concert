@@ -3293,10 +3293,18 @@ mod_review_results_server <- function(id, data_store) {
           data_store$study_type_tags
         )
 
+        # Parents follow the reviewed DTXSIDs; cached lookups only fetch new IDs.
+        export_state <- data_store$resolution_state
+        if (isTRUE(data_store$desalt)) {
+          parents <- add_structure_parents(export_state, data_store$parent_cache)
+          data_store$parent_cache <- parents$cache
+          export_state <- parents$data
+        }
+
         # Build export sheets
         sheets <- build_export_sheets(
           raw = data_store$raw,
-          resolution_state = data_store$resolution_state,
+          resolution_state = export_state,
           consensus_summary = data_store$consensus_summary,
           cleaning_audit = data_store$cleaning_audit,
           reference_lists = data_store$reference_lists,

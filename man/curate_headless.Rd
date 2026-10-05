@@ -37,7 +37,8 @@ curate_headless(
   write_files = TRUE,
   source_name = NULL,
   pubchem = FALSE,
-  desalt = FALSE
+  desalt = FALSE,
+  desalt_workflows = c("qsar-ready", "ms-ready")
 )
 }
 \arguments{
@@ -163,7 +164,13 @@ to the input filename stem.}
 exports candidates without assigning DTXSIDs.}
 
 \item{desalt}{Logical. If TRUE, suggests salt parent candidates without
-assigning parent DTXSIDs. Independent of \code{pubchem}.}
+assigning parent DTXSIDs, and adds structure-based
+\verb{parent_dtxsid_}, \verb{parent_name_}, \verb{parent_casrn_}, and
+\verb{parent_status_<workflow>} columns for resolved
+rows via the chemi standardizer. Independent of \code{pubchem}.}
+
+\item{desalt_workflows}{Standardizer workflows used when \code{desalt = TRUE}:
+"qsar-ready", "ms-ready", or both (default).}
 }
 \value{
 Invisibly returns a list:

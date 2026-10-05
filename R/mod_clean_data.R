@@ -374,7 +374,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
             ),
             tags$small(
               class = "text-muted",
-              "Searches CompTox for possible parents. Independent of PubChem; never assigns a salt DTXSID."
+              "Suggests parents for unresolved salt names and adds QSAR-/MS-ready parent DTXSID columns to the export. Never replaces the resolved DTXSID."
             )
           ),
           div(

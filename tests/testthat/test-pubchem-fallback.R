@@ -58,3 +58,61 @@ test_that("salt parent suggestions follow exact lookup and preserve identity", {
   expect_identical(out$consensus_dtxsid, df$consensus_dtxsid)
   expect_setequal(calls, out$parent_name_candidate[c(1:4, 8:9)])
 })
+
+test_that("structure parents flag salts, mixtures and stereo loss without touching consensus", {
+  ids <- paste0("DTXSID", 1:6) # salt, single, mixture, inorganic, stereo salt, no structure
+  df <- tibble::tibble(consensus_dtxsid = c(ids, NA, ids[1]))
+  smiles <- stats::setNames(c("[Na+].[O-]C(=O)c1ccccc1", "CCO", "CCO.CC(C)=O", "[Na+].[Cl-]",
+                              "C[C@H](N)O.Cl", NA), ids)
+  lookups <- list()
+  lookup <- function(x) {
+    lookups[[length(lookups) + 1]] <<- x
+    tibble::tibble(dtxsid = x, smiles = unname(smiles[x]), name = paste("name", x), casrn = paste("cas", x))
+  }
+  calls <- character()
+  stdize <- function(smi, wf) {
+    calls <<- c(calls, paste(wf, smi))
+    switch(smi,
+      "[Na+].[O-]C(=O)c1ccccc1" = list(list(sid = "DTXSID9PARENT", name = "Benzoic acid", casrn = "65-85-0", smiles = "OC(=O)c1ccccc1")),
+      "CCO.CC(C)=O" = list(list(sid = "DTXSID9A", name = "Ethanol", casrn = "64-17-5", smiles = "CCO"),
+                           list(sid = "DTXSID9B", name = "Acetone", smiles = "CC(C)=O")),
+      "[Na+].[Cl-]" = list(),
+      "C[C@H](N)O.Cl" = list(list(sid = "DTXSID9FLAT", name = "Flat", casrn = "NOCAS_1", smiles = "CC(N)O"))
+    )
+  }
+
+  out <- add_structure_parents(df, NULL, lookup_fn = lookup, stdize_fn = stdize)
+
+  expect_identical(out$data$consensus_dtxsid, df$consensus_dtxsid)
+  expect_equal(out$data$parent_status_qsar_ready,
+               c("parent", "self", "mixture", "no_parent", "stereo_lost", "no_structure", NA, "parent"))
+  expect_equal(out$data$parent_dtxsid_qsar_ready,
+               c("DTXSID9PARENT", ids[2], "DTXSID9A; DTXSID9B", NA, "DTXSID9FLAT", NA, NA, "DTXSID9PARENT"))
+  expect_equal(out$data$parent_name_qsar_ready,
+               c("Benzoic acid", "name DTXSID2", "Ethanol; Acetone", NA, "Flat", NA, NA, "Benzoic acid"))
+  expect_equal(out$data$parent_casrn_qsar_ready,
+               c("65-85-0", "cas DTXSID2", "64-17-5; ?", NA, "NOCAS_1", NA, NA, "65-85-0"))
+  expect_identical(out$data$parent_status_ms_ready, out$data$parent_status_qsar_ready)
+  # Single components skip the standardizer; each salt is standardized once per workflow.
+  expect_length(calls, 8)
+
+  again <- add_structure_parents(df, out$cache, lookup_fn = lookup, stdize_fn = stdize)
+  expect_length(lookups, 1)
+  expect_identical(again$data, out$data)
+
+  qsar_only <- add_structure_parents(df, NULL, "qsar-ready", lookup_fn = lookup, stdize_fn = stdize)
+  expect_false(any(grepl("ms_ready", names(qsar_only$data))))
+})
+
+test_that("structure parent lookup errors are reported and retried", {
+  df <- tibble::tibble(consensus_dtxsid = "DTXSID1")
+  failing <- add_structure_parents(df, NULL, "qsar-ready",
+                                   lookup_fn = function(x) stop("offline"), stdize_fn = function(...) NULL)
+  expect_equal(failing$data$parent_status_qsar_ready, "error")
+  ok <- add_structure_parents(df, failing$cache, "qsar-ready",
+                              lookup_fn = function(x) tibble::tibble(dtxsid = x, smiles = "CCO", name = "Ethanol", casrn = "64-17-5"),
+                              stdize_fn = function(...) NULL)
+  expect_equal(ok$data$parent_status_qsar_ready, "self")
+  expect_equal(ok$data$parent_name_qsar_ready, "Ethanol")
+  expect_equal(nrow(ok$cache), 1)
+})

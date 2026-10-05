@@ -56,7 +56,11 @@
 #' @param pubchem Logical. If TRUE, searches unresolved names in PubChem and
 #'   exports candidates without assigning DTXSIDs.
 #' @param desalt Logical. If TRUE, suggests salt parent candidates without
-#'   assigning parent DTXSIDs. Independent of `pubchem`.
+#'   assigning parent DTXSIDs, and adds structure-based `parent_dtxsid_`,
+#'   `parent_name_`, `parent_casrn_`, and `parent_status_<workflow>` columns for resolved
+#'   rows via the chemi standardizer. Independent of `pubchem`.
+#' @param desalt_workflows Standardizer workflows used when `desalt = TRUE`:
+#'   "qsar-ready", "ms-ready", or both (default).
 #' @param postprocess_candidates Logical. If TRUE, runs the same enrichment,
 #'   similarity scoring, and auto-resolve pass used by the Shiny app after
 #'   curation. Default FALSE for backward compatibility.
@@ -160,7 +164,8 @@ curate_headless <- function(
   write_files = TRUE,
   source_name = NULL,
   pubchem = FALSE,
-  desalt = FALSE
+  desalt = FALSE,
+  desalt_workflows = c("qsar-ready", "ms-ready")
 ) {
   # skip_flags reserved for future use; isotope_match skip is handled internally by run_curation_pipeline()
 
@@ -197,6 +202,7 @@ curate_headless <- function(
       starts_with = starts_with,
       pubchem = pubchem,
       desalt = desalt,
+      desalt_workflows = desalt_workflows,
       postprocess_candidates = postprocess_candidates
     )
     state <- stage_review(
