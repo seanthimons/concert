@@ -322,3 +322,16 @@ test_that("enclosures attached to the name are nomenclature, not annotations", {
   expect_identical(full$cleaned_data$name, expected)
   expect_identical(full$cleaned_data$formula_extract_name, c(rep(NA_character_, 3), "ACS reagent"))
 })
+
+test_that("glued acronyms and plural markers are still stripped", {
+  names <- c("Perfluoropentanoic acid(PFPeA)", "Perfluorohexanoic acid(PFHxA)",
+             "Sodium Xylenesulphonate(SXS)", "Acrylic Polymer(s)",
+             "4,4'-Methylene bis(2-chloroaniline)", "Poly(dimethoxysiloxane)")
+  out <- strip_terminal_enclosures(tibble::tibble(name = names), "name")
+
+  expect_identical(out$cleaned_data$name,
+                   c("Perfluoropentanoic acid", "Perfluorohexanoic acid",
+                     "Sodium Xylenesulphonate", "Acrylic Polymer", names[5:6]))
+  expect_identical(out$cleaned_data$formula_extract_name,
+                   c("PFPeA", "PFHxA", "SXS", "s", NA, NA))
+})

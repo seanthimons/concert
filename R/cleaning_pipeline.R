@@ -45,6 +45,15 @@ is_protected_enclosure <- function(content) {
     stringr::str_detect(content, PCB_REPORTING_BASIS_PATTERN)
 }
 
+# Enclosure glued to the name (no space) is nomenclature, e.g. Cyclo(L-Phe-L-Pro),
+# bis(2-chloroaniline); glued acronyms and plural markers are annotations:
+# acid(PFPeA), Polymer(s).
+# ponytail: letters-only content with 2+ capitals counts as an acronym, so a
+# glued all-caps nomenclature fragment would be stripped; add exceptions if seen.
+is_attached_nomenclature <- function(base, content) {
+  acronym <- grepl("^(?=(?:[^A-Z]*[A-Z]){2})[A-Za-z]+$", content, perl = TRUE)
+  stringr::str_detect(base, "\\S$") & !acronym & content != "s"
+}
 
 #' Clean text field by stripping whitespace and punctuation artifacts
 #'
@@ -1095,8 +1104,7 @@ strip_terminal_enclosures <- function(df, name_cols) {
         )
 
         has_identity <- is_protected_enclosure(trimmed_ne)
-        # Enclosure glued to the name (no space) is nomenclature, e.g. Cyclo(L-Phe-L-Pro)
-        is_attached <- stringr::str_detect(parenth_base[!is_empty], "\\S$")
+        is_attached <- is_attached_nomenclature(parenth_base[!is_empty], trimmed_ne)
         should_strip <- (!has_yl | has_exception) & !has_pct & !has_roman & !has_identity & !is_attached
         strip_idx <- non_empty_idx[should_strip]
 
@@ -1143,8 +1151,7 @@ strip_terminal_enclosures <- function(df, name_cols) {
         )
 
         has_identity <- is_protected_enclosure(trimmed_ne)
-        # Enclosure glued to the name (no space) is nomenclature, e.g. Cyclo(L-Phe-L-Pro)
-        is_attached <- stringr::str_detect(bracket_base[!is_empty], "\\S$")
+        is_attached <- is_attached_nomenclature(bracket_base[!is_empty], trimmed_ne)
         should_strip <- (!has_yl | has_exception) & !has_pct & !has_roman & !has_identity & !is_attached
         strip_idx <- non_empty_idx[should_strip]
 
