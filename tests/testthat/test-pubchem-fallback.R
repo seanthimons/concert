@@ -116,3 +116,19 @@ test_that("structure parent lookup errors are reported and retried", {
   expect_equal(ok$data$parent_name_qsar_ready, "Ethanol")
   expect_equal(nrow(ok$cache), 1)
 })
+
+test_that("isotope-labelled records point to the unlabelled parent only where the workflow strips labels", {
+  df <- tibble::tibble(consensus_dtxsid = "DTXSID801539501")
+  lookup <- function(x) tibble::tibble(dtxsid = x, smiles = "[2H]C([2H])(Cl)C", name = "Label-d2", casrn = "NOCAS_1")
+  stdize <- function(smi, wf) {
+    if (wf == "qsar-ready") list(list(sid = "DTXSID4024270", name = "Parent", casrn = "1-1-1", smiles = "CCCl"))
+    else list(list(sid = "DTXSID801539501", name = "Label-d2", casrn = "NOCAS_1", smiles = smi))
+  }
+
+  out <- add_structure_parents(df, NULL, lookup_fn = lookup, stdize_fn = stdize)$data
+
+  expect_equal(out$parent_status_qsar_ready, "isotope_parent")
+  expect_equal(out$parent_dtxsid_qsar_ready, "DTXSID4024270")
+  expect_equal(out$parent_status_ms_ready, "self")
+  expect_equal(out$consensus_dtxsid, "DTXSID801539501")
+})
