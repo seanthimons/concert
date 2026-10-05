@@ -1,0 +1,97 @@
+---
+title: "Get started with concert"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Get started with concert}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+concert takes messy chemical datasets (CSV or XLSX with report headers, odd
+unit strings, inconsistent names) and produces reviewable, ToxVal-compatible
+output. It resolves chemical identities against the EPA CompTox dashboard,
+harmonizes units and media, and keeps an audit trail of every change.
+
+You can use it three ways:
+
+1. **Shiny app**: interactive, step-by-step, with review tables.
+2. **Headless**: one `curate_headless()` call from a script.
+3. **Agent loop**: `curate_iterate()` plus a `decisions.R` file, for automated curation.
+
+## Installation
+
+From a repository checkout, restore the locked environment and install:
+
+```r
+renv::restore()
+devtools::install()
+library(concert)
+```
+
+Or install the latest release from GitHub:
+
+```r
+pak::pak("seanthimons/concert")
+```
+
+## The pipeline
+
+Every entry point runs the same stages, in the same order:
+
+| Stage | What happens | Key functions |
+|---|---|---|
+| Ingest | Read the file, find where the data starts, drop frontmatter | `safely_read_file()`, `detect_data_start()`, `extract_clean_data()` |
+| Tag | Say which columns hold names, CAS numbers, results, units | `suggest_column_tags()` |
+| Clean | Normalize CAS, strip name artifacts, flag multi-analyte cells | `run_cleaning_pipeline()` |
+| Curate | Resolve names and CAS numbers to DTXSIDs via CompTox and WQX | `run_curation_pipeline()` |
+| Review | Accept suggestions, pick candidates, flag rows | `resolve_review_row()`, `set_row_flags()` |
+| Harmonize | Parse numeric results, convert units, map media, build ToxVal rows | `parse_numeric_results()`, `harmonize_units()`, `harmonize_media()` |
+| Export | Write an XLSX workbook with audit sheets and optional parquet | `write_curation_output()` |
+
+The Curate stage needs network access to CompTox. Everything else runs offline
+from the reference data bundled with the package.
+
+## The Shiny app
+
+```r
+concert::run_app()
+```
+
+The app's tabs follow the pipeline stages:
+
+- **Data Preview** and **Detection Info** show what was read and why the
+  header row was chosen. Switch to manual mode if detection is wrong.
+- **Tag Columns** pre-fills tag suggestions from column names. Every
+  `Result` column needs a paired `Unit` column.
+- **Dataset Context** captures site or location metadata for the export.
+- **Clean Data** runs the cleaning pipeline and shows the audit trail.
+- **Run Curation** queries CompTox and WQX and scores candidates.
+- **Harmonize** parses numbers, converts units, and maps media.
+- **Review Results** is where you resolve disagreements, accept suggestions,
+  and flag rows, then export.
+
+Exports contain a `Pipeline Config` sheet. Uploading an exported workbook back
+into the app restores tags, overrides, and reference-list edits.
+
+## Headless in one call
+
+```r
+concert::curate_headless(
+  input_path = "path/to/input.xlsx",
+  output_path = "path/to/output.xlsx",
+  tag_map = list(chemical_name = "Name", casrn = "CASRN", result = "Result", unit = "Unit"),
+  harmonize = TRUE
+)
+```
+
+See `vignette("headless-curation")` for the full option set and the agent loop.
+
+## Where to next
+
+- `vignette("cleaning-pipeline")`: frontmatter detection and name/CAS cleaning, with the audit trail.
+- `vignette("harmonization")`: numeric parsing, unit conversion, and media mapping.
+- `vignette("headless-curation")`: scripted and agent-driven curation, replay scripts.

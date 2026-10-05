@@ -1,0 +1,167 @@
+---
+title: "Cleaning pipeline"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Cleaning pipeline}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+```{r setup, message = FALSE}
+library(concert)
+```
+
+This vignette covers the offline half of the pipeline: reading a messy file,
+finding the header row, tagging columns, and cleaning names and CAS numbers.
+Nothing here touches the network.
+
+## Read a file with frontmatter
+
+Lab exports usually start with report metadata. Here is a small CSV with four
+lines of frontmatter before the real header, padded with commas the way Excel
+writes them.
+
+```{r}
+csv_path <- tempfile(fileext = ".csv")
+writeLines(c(
+  "Chemical Inventory Report,,,,",
+  "Generated: 2024-01-15,,,,",
+  "Laboratory: Organic Chemistry Lab,,,,",
+  ",,,,",
+  "Chemical Name,CAS Number,Result,Unit,Location",
+  "Acetone,67641,2.5,mg/L,Building A",
+  "  Ethanol  ,64-17-5,< 0.5,ug/L,Building A",
+  "Toluene,108-88-3,12,mg/L,Building B",
+  "Lead + Zinc,,0.3,ppb,Building B"
+), csv_path)
+
+raw <- safely_read_file(csv_path, "csv")
+raw
+```
+
+`detect_data_start()` runs three detectors (fill-ratio heuristic, chemistry
+keyword matching, type consistency) and keeps the most confident answer.
+
+```{r}
+detection <- detect_data_start(raw)
+detection[c("header_row", "data_start_row", "method", "confidence")]
+```
+
+If detection is wrong, pass the row yourself:
+
+```r
+detection <- detect_data_start(raw, mode = "manual", manual_row = 5)
+```
+
+`extract_clean_data()` promotes the header row and drops everything above it.
+The app then runs `handle_merged_cells()` and `janitor::clean_names()`, so do
+the same here.
+
+```{r}
+clean <- extract_clean_data(raw, detection)
+clean <- janitor::clean_names(handle_merged_cells(clean))
+clean
+```
+
+## Tag columns
+
+Tags tell the pipeline what each column means. `suggest_column_tags()`
+guesses from header names only, and stays quiet when unsure.
+
+```{r}
+suggest_column_tags(names(clean))
+```
+
+Suggestions are a starting point. Build the final `tag_map` yourself; every
+`Result` column needs a `Unit` partner.
+
+```{r}
+tag_map <- list(
+  chemical_name = "Name",
+  cas_number = "CASRN",
+  result = "Result",
+  unit = "Unit"
+)
+is.null(validate_tag_pairing(tag_map))  # NULL means no pairing problem
+```
+
+## Run the cleaning pipeline
+
+`run_cleaning_pipeline()` chains the cleaning steps and records every change.
+
+```{r}
+result <- run_cleaning_pipeline(clean, tag_map)
+result$cleaned_data
+```
+
+The audit trail has one row per changed cell: which step touched it and the
+before and after values. Here the CAS for acetone was normalized to the
+hyphenated form, and the multi-analyte cell was flagged.
+
+```{r}
+result$audit_trail[, c("row_id", "field", "step", "original_value", "new_value")]
+```
+
+The `Lead + Zinc` row was flagged, not split. Multi-analyte cells are left for
+review because the right action (split, keep, rename) depends on the dataset.
+See `resolve_multi_analyte_row()` and the headless vignette for how to resolve
+them in bulk.
+
+### Switch steps off
+
+Some datasets are mangled by a step that helps elsewhere. `mask` turns
+individual steps off. Names are `unicode`, `whitespace`, `cas`, `names`,
+`isotopes`, `multi`, `chiral`, `truncated`, `bare_formula`, and
+`reference_flags`.
+
+```{r}
+no_multi <- run_cleaning_pipeline(clean, tag_map, mask = list(multi = FALSE))
+unique(no_multi$audit_trail$step)
+```
+
+### Fix values before cleaning
+
+`apply_value_corrections()` runs column-scoped pattern replacements before
+the pipeline. Use it for known prefixes, suffixes, and typos.
+
+```{r}
+corrections <- data.frame(
+  column = "chemical_name",
+  pattern = "^Total ",
+  replacement = ""
+)
+fixed <- apply_value_corrections(
+  data.frame(chemical_name = c("Total Lead", "Zinc")),
+  corrections
+)
+fixed$cleaned_data
+```
+
+## CAS helpers
+
+The CAS utilities are exported for use outside the pipeline.
+
+```{r}
+is_cas(c("67-64-1", "67-64-2", "not a cas"))
+as_cas(c("67641", "64-17-5"))
+extract_cas("ethanol (64-17-5) in water")
+```
+
+## Reference lists
+
+The name-cleaning steps read bundled reference lists: stop words, strip terms,
+block patterns, functional categories, and an isotope lookup. Load them to
+inspect or extend.
+
+```{r, message = FALSE}
+refs <- load_all_reference_lists()
+names(refs)
+head(refs$strip_terms, 3)
+```
+
+User edits persist through `save_user_reference_lists()` and are merged over
+the package defaults on the next load.
