@@ -64,6 +64,7 @@ test_that("curate_decisions_template writes a sourceable decisions file with sug
   expect_true(env$accept_suggestions)
   expect_true(env$pubchem)
   expect_true(env$desalt)
+  expect_equal(env$desalt_workflows, c("qsar-ready", "ms-ready"))
   expect_true(is.list(env$reference_list_snapshot))
   expect_match(paste(readLines(path), collapse = "\n"), "# review_picks <- tibble::tibble", fixed = TRUE)
 })

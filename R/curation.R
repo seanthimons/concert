@@ -201,7 +201,49 @@ search_exact <- function(unique_names) {
     dplyr::slice_min(rank, n = 1, with_ties = FALSE) |>
     dplyr::ungroup()
 
+  # The bulk endpoint returns one of several equally ranked hits, picked by what
+  # else is in the batch (PFOA -> acid or anion). Approved names (rank 9) are
+  # unique, so only synonym-level hits are re-checked; tied names get no DTXSID
+  # and carry their candidates to consensus.
+  ties <- find_name_ties(result$searchValue[!is.na(result$rank) & result$rank > 9])
+  tie_idx <- match(result$searchValue, ties$searchValue)
+  tied <- !is.na(tie_idx)
+  result$tied_dtxsids <- ties$tied_dtxsids[tie_idx]
+  result$dtxsid[tied] <- NA_character_
+  result$preferredName[tied] <- ties$tied_names[tie_idx[tied]]
+  if (any(tied)) message(sprintf("Exact search: %d names tie between equally ranked DTXSIDs", sum(tied)))
+
   result
+}
+
+# Names whose top rank holds more than one DTXSID, via the single-name GET,
+# which (unlike the bulk POST) returns every tied hit.
+# ponytail: one GET per name (840 names took ~50 s in UAT); batch in parallel if that hurts.
+find_name_ties <- function(names, get_fn = ComptoxR::ct_chemical_search_equal) {
+  empty <- tibble::tibble(searchValue = character(), tied_dtxsids = character(), tied_names = character())
+  names <- unique(names[!is.na(names)])
+  if (length(names) == 0) {
+    return(empty)
+  }
+  message(sprintf("Exact search: checking %d synonym-level hits for ties...", length(names)))
+  hits <- tryCatch(suppressWarnings(get_fn(names)), error = function(e) {
+    message("Exact search: tie check failed, keeping bulk picks: ", conditionMessage(e))
+    NULL
+  })
+  if (is.null(hits) || nrow(hits) == 0) {
+    return(empty)
+  }
+  hits |>
+    dplyr::filter(!is.na(dtxsid), !is.na(rank)) |>
+    dplyr::group_by(searchValue) |>
+    dplyr::filter(rank == min(rank)) |>
+    dplyr::distinct(searchValue, dtxsid, .keep_all = TRUE) |>
+    dplyr::filter(dplyr::n() > 1) |>
+    dplyr::arrange(dtxsid, .by_group = TRUE) |>
+    dplyr::summarise(
+      tied_dtxsids = paste(dtxsid, collapse = "; "),
+      tied_names = paste(preferredName, collapse = "; ")
+    )
 }
 
 # ============================================================================
@@ -426,6 +468,10 @@ validate_and_lookup_cas <- function(unique_cas) {
 # run_tiered_search
 # ============================================================================
 
+exact_tier <- function(exact_results) {
+  ifelse(is.na(exact_results[["tied_dtxsids"]] %||% NA), "exact", "exact_tied")
+}
+
 #' Run tiered search: exact -> CAS -> starts-with (3-char min)
 #'
 #' @param dedup_result Output of deduplicate_tagged_columns
@@ -438,12 +484,12 @@ run_tiered_search <- function(dedup_result) {
     exact_results <- search_exact(dedup_result$unique_names)
 
     if (nrow(exact_results) > 0) {
-      exact_results$source_tier <- "exact"
+      exact_results$source_tier <- exact_tier(exact_results)
       all_results[[length(all_results) + 1]] <- exact_results
     }
 
     # Identify misses
-    matched_names <- exact_results$searchValue[!is.na(exact_results$dtxsid)]
+    matched_names <- exact_results$searchValue[!is.na(exact_results$dtxsid) | !is.na(exact_results[["tied_dtxsids"]] %||% NA)]
     missed_names <- setdiff(dedup_result$unique_names, matched_names)
 
     # Tier 2: CAS validation on exact misses
@@ -607,6 +653,7 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
     rank_vec <- rep(NA_integer_, input_rows)
     tier_vec <- rep(NA_character_, input_rows)
     wqx_conf_vec <- rep(NA_real_, input_rows)
+    tied_vec <- rep(NA_character_, input_rows)
 
     # Fill in results by direct index lookup
     for (i in seq_len(nrow(col_keys))) {
@@ -623,6 +670,9 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
         if ("wqx_confidence" %in% names(lookup_deduped)) {
           wqx_conf_vec[ridx] <- lookup_deduped$wqx_confidence[match_pos]
         }
+        if ("tied_dtxsids" %in% names(lookup_deduped)) {
+          tied_vec[ridx] <- lookup_deduped$tied_dtxsids[match_pos]
+        }
       }
     }
 
@@ -634,6 +684,7 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
       df$rank <- rank_vec
       df$source_tier <- tier_vec
       df$wqx_confidence <- wqx_conf_vec
+      df$tied_dtxsids <- tied_vec
     } else {
       suffix <- paste0("_", col)
       df[[paste0("dtxsid", suffix)]] <- dtxsid_vec
@@ -642,6 +693,7 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
       df[[paste0("rank", suffix)]] <- rank_vec
       df[[paste0("source_tier", suffix)]] <- tier_vec
       df[[paste0("wqx_confidence", suffix)]] <- wqx_conf_vec
+      df[[paste0("tied_dtxsids", suffix)]] <- tied_vec
     }
   }
 
@@ -770,12 +822,13 @@ run_curation_pipeline <- function(
     exact_results <- search_exact(dedup_result$unique_names)
 
     if (nrow(exact_results) > 0) {
-      exact_results$source_tier <- "exact"
+      exact_results$source_tier <- exact_tier(exact_results)
       all_results[[length(all_results) + 1]] <- exact_results
       n_exact <- sum(!is.na(exact_results$dtxsid))
     }
 
-    matched_names <- exact_results$searchValue[!is.na(exact_results$dtxsid)]
+    # Tied names are matched too; consensus decides between their candidates.
+    matched_names <- exact_results$searchValue[!is.na(exact_results$dtxsid) | !is.na(exact_results[["tied_dtxsids"]] %||% NA)]
     missed_names <- setdiff(dedup_result$unique_names, matched_names)
 
     if (!is.null(progress_callback)) {
@@ -992,6 +1045,10 @@ run_curation_pipeline <- function(
     name_cols <- names(column_tags)[column_tags == "Name"]
     resolved_df <- add_salt_parent_candidates(resolved_df, name_cols, original_data)
   }
+  # Always on: only unresolved rows are queried and failures are recorded, not raised.
+  resolved_df <- add_resolver_candidates(
+    resolved_df, names(column_tags)[column_tags == "Name"], original_data
+  )
 
   # Return full pipeline result
   list(

@@ -163,6 +163,7 @@ derive_match_type <- function(df) {
 
   tier_label_map <- c(
     "exact" = "Exact Match",
+    "exact_tied" = "Exact Match (Tied)",
     "cas" = "CAS Lookup",
     "starts_with" = "Starts-With",
     "wqx_exact" = "WQX Exact",
@@ -2258,7 +2259,9 @@ mod_review_results_server <- function(id, data_store) {
       cas_cols <- names(data_store$column_tags)[data_store$column_tags == "CASRN"]
       group_cols <- c(name_cols, cas_cols, "consensus_dtxsid", "consensus_status", "match_type",
                       "pubchem_query", "pubchem_cid_candidates", "pubchem_dtxsid_candidates",
-                      "parent_name_candidate", "parent_dtxsid_candidates")
+                      "parent_name_candidate", "parent_dtxsid_candidates",
+                      "resolver_dtxsid_candidate", "resolver_lookup_status",
+                      grep("^tied_dtxsids", names(df), value = TRUE))
       deduped <- deduplicate_review_rows(df, original_indices, group_cols)
       data_store$dedup_group_map <- deduped$dedup_group_map
       data_store$display_row_map <- deduped$display_row_map
@@ -3293,10 +3296,18 @@ mod_review_results_server <- function(id, data_store) {
           data_store$study_type_tags
         )
 
+        # Parents follow the reviewed DTXSIDs; cached lookups only fetch new IDs.
+        export_state <- data_store$resolution_state
+        if (isTRUE(data_store$desalt)) {
+          parents <- add_structure_parents(export_state, data_store$parent_cache)
+          data_store$parent_cache <- parents$cache
+          export_state <- parents$data
+        }
+
         # Build export sheets
         sheets <- build_export_sheets(
           raw = data_store$raw,
-          resolution_state = data_store$resolution_state,
+          resolution_state = export_state,
           consensus_summary = data_store$consensus_summary,
           cleaning_audit = data_store$cleaning_audit,
           reference_lists = data_store$reference_lists,
