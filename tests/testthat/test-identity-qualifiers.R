@@ -308,3 +308,17 @@ test_that("semicolon synonyms split only outside balanced enclosures", {
     expect_equal(sum(full$audit_trail$step == "split_synonyms"), 2L)
   }
 })
+
+test_that("enclosures attached to the name are nomenclature, not annotations", {
+  names <- c(
+    "Perfluoro(2-propoxypropanoate)", "Cyclo(L-Phe-L-Pro)",
+    "Cyclo[L-Phe-L-Pro]", "Perfluoro(2-propoxypropanoate) (ACS reagent)"
+  )
+  expected <- c(names[1:3], "Perfluoro(2-propoxypropanoate)")
+  direct <- strip_terminal_enclosures(tibble::tibble(name = names), "name")
+  full <- run_cleaning_pipeline(tibble::tibble(name = names), list(name = "Name"))
+
+  expect_identical(direct$cleaned_data$name, expected)
+  expect_identical(full$cleaned_data$name, expected)
+  expect_identical(full$cleaned_data$formula_extract_name, c(rep(NA_character_, 3), "ACS reagent"))
+})
