@@ -2,6 +2,42 @@
 
 # concert NEWS
 
+## v0.5.2 (2026-10-05)
+
+#### New features
+
+- merge v0.5.2 curation fixes (#78)
+  ([37f16b8](https://github.com/seanthimons/concert/tree/37f16b8df4ccce0cb6a40c9b9eae931306bee01a))
+- opt-in DSSTox download and desalt_workflows in scripts and decisions
+  ([991899e](https://github.com/seanthimons/concert/tree/991899e60d1704b8fbbd6911f344a3f288798868))
+- chemi resolver fallback for names CTX leaves unresolved
+  ([c908a78](https://github.com/seanthimons/concert/tree/c908a781af025792f10cd8775a89d4624d058e22))
+- point isotope-labelled records to their unlabelled parent
+  ([fefbba2](https://github.com/seanthimons/concert/tree/fefbba2794db34aafa0f002b5f2ed41e6f5ebafa))
+- add structure-based parent columns via chemi standardizer
+  ([c4982a8](https://github.com/seanthimons/concert/tree/c4982a8c733eb4b4bdbc8f9d77c432adc23e50ea))
+
+#### Bug fixes
+
+- send tied exact-name hits to review instead of a batch-dependent pick
+  ([a834646](https://github.com/seanthimons/concert/tree/a834646707e525a8c6d425e99634dfaf63d49c7d))
+- keep DUPLICATE resolver hits, drop structure-parsed ones; flag Markush
+  ([f0b76c9](https://github.com/seanthimons/concert/tree/f0b76c9bef9af216bc41e2f068ed535c491d5ef7))
+- still strip glued acronyms and plural markers from names
+  ([121b778](https://github.com/seanthimons/concert/tree/121b7784c51ac560452a4ad0d6494dd626d4fefb))
+- block WQX fuzzy matches that bridge isotope labels or congener codes
+  ([d5cfaab](https://github.com/seanthimons/concert/tree/d5cfaab6ad5f84daabfc1ea3b66c499a17e77012))
+- keep name-attached enclosures during terminal stripping
+  ([4becc15](https://github.com/seanthimons/concert/tree/4becc1519f7ea59f76fced15cf8320389366b509))
+
+#### Other changes
+
+- bump version to 0.5.2 \[skip ci\]
+  ([60655d0](https://github.com/seanthimons/concert/tree/60655d04e8f7852b04e49420853fbd73d80cb54b))
+
+Full set of changes:
+[`v0.5.1...v0.5.2`](https://github.com/seanthimons/concert/compare/v0.5.1...v0.5.2)
+
 ## v0.5.1 (2026-10-04)
 
 #### Bug fixes
@@ -21,6 +57,11 @@
 
 - cover identity qualifiers through full cleaning pipeline (#73)
   ([806a030](https://github.com/seanthimons/concert/tree/806a030792f44c996d1c2514d7f1341e7b2b7685))
+
+#### Docs
+
+- update NEWS.md for v0.5.1 \[skip ci\]
+  ([891e4ea](https://github.com/seanthimons/concert/tree/891e4ea32cf99030460b55111ff2fd270fad9ec6))
 
 #### Other changes
 
