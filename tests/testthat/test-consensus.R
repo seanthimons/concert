@@ -1493,3 +1493,32 @@ test_that("get_resolution_options: returns candidates for suggested rows", {
   expect_true("dtxsid_Chemical" %in% names(options))
   expect_true("dtxsid_CAS" %in% names(options))
 })
+
+test_that("tied name hits are broken by other sources or sent to review", {
+  ties <- "DTXSID40892486; DTXSID8031865"
+  df <- data.frame(
+    dtxsid_Name = NA_character_,
+    tied_dtxsids_Name = ties,
+    dtxsid_CAS = c("DTXSID8031865", "DTXSID7020182", NA),
+    stringsAsFactors = FALSE
+  )
+  result <- classify_consensus(df, c("dtxsid_Name", "dtxsid_CAS"))
+  expect_equal(result$consensus_status, c("agree", "disagree", "error"))
+  expect_equal(result$consensus_dtxsid, c("DTXSID8031865", NA, NA))
+})
+
+test_that("find_name_ties keeps only names with several top-rank DTXSIDs", {
+  stub <- function(names) {
+    tibble::tibble(
+      searchValue = c("PFOA", "PFOA", "PFOA", "Atrazine"),
+      dtxsid = c("DTXSID8031865", "DTXSID40892486", "DTXSID0000001", "DTXSID9020112"),
+      preferredName = c("Perfluorooctanoic acid", "Perfluorooctanoate", "Other", "Atrazine"),
+      rank = c(15L, 15L, 16L, 15L)
+    )
+  }
+  ties <- find_name_ties(c("PFOA", "Atrazine"), get_fn = stub)
+  expect_equal(ties$searchValue, "PFOA")
+  expect_equal(ties$tied_dtxsids, "DTXSID40892486; DTXSID8031865")
+  expect_equal(ties$tied_names, "Perfluorooctanoate; Perfluorooctanoic acid")
+  expect_equal(nrow(find_name_ties("PFOA", get_fn = function(x) stop("down"))), 0)
+})

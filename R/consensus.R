@@ -148,6 +148,26 @@ classify_consensus <- function(df, dtxsid_cols) {
   consensus_name <- rep(NA_character_, nrow(df))
   qc_tier <- integer(nrow(df))
 
+  # A name tied between equally ranked DTXSIDs (see search_exact) has no DTXSID
+  # of its own. It agrees when every other source picks one of the tied DTXSIDs,
+  # disagrees when another source picks something else, and with no other source
+  # the row stays unresolved (error) so the candidates go to review.
+  tie_conflict <- rep(FALSE, nrow(df))
+  for (j in seq_along(dtxsid_cols)) {
+    tie_col <- source_field_column(dtxsid_cols[j], "tied_dtxsids")
+    if (!tie_col %in% names(df)) next
+    for (i in which(!is.na(df[[tie_col]]) & is.na(df[[dtxsid_cols[j]]]))) {
+      others <- vapply(dtxsid_cols[-j], function(col) as.character(df[[col]][i]), character(1))
+      others <- unique(others[!is.na(others)])
+      if (length(others) == 0) next
+      if (all(others %in% strsplit(df[[tie_col]][i], "; ", fixed = TRUE)[[1]])) {
+        df[[dtxsid_cols[j]]][i] <- others[1]
+      } else {
+        tie_conflict[i] <- TRUE
+      }
+    }
+  }
+
   # Pre-compute source_tier column names (avoids repeated sub() inside loop)
   tier_cols <- ifelse(dtxsid_cols == "dtxsid", "source_tier", sub("^dtxsid_", "source_tier_", dtxsid_cols))
   tier_cols_exist <- tier_cols %in% names(df)
@@ -249,6 +269,11 @@ classify_consensus <- function(df, dtxsid_cols) {
       qc_tier[i] <- compute_qc_tier("disagree", 0L, k)
     }
   }
+
+  consensus_status[tie_conflict] <- "disagree"
+  consensus_dtxsid[tie_conflict] <- NA_character_
+  consensus_source[tie_conflict] <- NA_character_
+  qc_tier[tie_conflict] <- compute_qc_tier("disagree", 0L, k)
 
   df$consensus_status <- consensus_status
   df$consensus_dtxsid <- consensus_dtxsid
@@ -423,6 +448,7 @@ get_resolution_options <- function(df, row_idx, dtxsid_cols, enrichment_cache = 
   # Source tier human-readable labels
   tier_labels <- c(
     "exact" = "Exact match",
+    "exact_tied" = "Exact match (tied)",
     "cas" = "CAS lookup",
     "starts_with" = "Starts-with",
     "miss" = "No match",

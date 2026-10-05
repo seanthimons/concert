@@ -283,6 +283,7 @@ pending_rows <- function(state) {
     resolver_dtxsid_candidate = candidate_field("resolver_dtxsid_candidate"),
     resolver_name = candidate_field("resolver_name"),
     resolver_lookup_status = candidate_field("resolver_lookup_status"),
+    tied_dtxsids = candidate_field(if ("tied_dtxsids" %in% names(rs)) "tied_dtxsids" else paste0("tied_dtxsids_", name_col)),
     cleaning_flag = if ("cleaning_flag" %in% names(rs)) as.character(rs$cleaning_flag[idx]) else NA_character_
   )
 }
@@ -307,6 +308,7 @@ empty_pending <- function() {
     resolver_dtxsid_candidate = character(),
     resolver_name = character(),
     resolver_lookup_status = character(),
+    tied_dtxsids = character(),
     cleaning_flag = character()
   )
 }
