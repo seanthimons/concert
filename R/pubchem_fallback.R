@@ -153,8 +153,10 @@ empty_parent_cache <- function() {
                  parent_name = character(), parent_casrn = character(), parent_status = character())
 }
 
-# One cache row per DTXSID and workflow. Statuses: self (single component),
-# parent, stereo_lost, mixture, no_parent, not_registered, no_structure, error.
+# One cache row per DTXSID and workflow. Statuses: self (single unlabelled
+# component, or unchanged by the workflow), parent, isotope_parent, stereo_lost
+# (may combine with isotope_parent), mixture, no_parent, not_registered,
+# no_structure, error.
 # `rec` is the structure lookup row, or NULL when the lookup failed.
 structure_parent <- function(dtxsid, rec, workflow, stdize_fn) {
   row <- function(status, parent = NA_character_, name = NA_character_, casrn = NA_character_) {
@@ -164,7 +166,9 @@ structure_parent <- function(dtxsid, rec, workflow, stdize_fn) {
   if (is.null(rec)) return(row("error"))
   smiles <- rec$smiles
   if (is.na(smiles) || !nzchar(smiles)) return(row("no_structure"))
-  if (!grepl(".", smiles, fixed = TRUE)) return(row("self", dtxsid, rec$name, rec$casrn))
+  isotope <- "\\[[0-9]+[A-Z]"
+  labelled <- grepl(isotope, smiles)
+  if (!grepl(".", smiles, fixed = TRUE) && !labelled) return(row("self", dtxsid, rec$name, rec$casrn))
   res <- tryCatch(stdize_fn(smiles, workflow), error = function(e) e)
   if (inherits(res, "error")) return(row("error"))
   if (!length(res)) return(row("no_parent"))
@@ -178,9 +182,14 @@ structure_parent <- function(dtxsid, rec, workflow, stdize_fn) {
     return(row("mixture", join(ids), join(names), join(cas)))
   }
   if (is.na(ids)) return(row("not_registered"))
+  if (ids == dtxsid) return(row("self", dtxsid, rec$name, rec$casrn))
+  out_smiles <- res[[1]]$smiles %||% ""
   stereo <- "[@/\\\\]"
-  lost <- grepl(stereo, smiles) && !grepl(stereo, res[[1]]$smiles %||% "")
-  row(if (lost) "stereo_lost" else "parent", ids, names, cas)
+  flags <- c(
+    if (labelled && !grepl(isotope, out_smiles)) "isotope_parent",
+    if (grepl(stereo, smiles) && !grepl(stereo, out_smiles)) "stereo_lost"
+  )
+  row(if (length(flags)) paste(flags, collapse = "; ") else "parent", ids, names, cas)
 }
 
 #' Add structure-based parent DTXSIDs for resolved rows
