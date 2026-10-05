@@ -261,3 +261,16 @@ test_that("match_wqx resolves multiple names in single call across all tiers", {
   # Fuzzy distance within threshold
   expect_true(result$match_distance[3] <= 0.15)
 })
+
+test_that("match_wqx fuzzy tier never bridges isotope labels or congener codes", {
+  dict <- tibble::tibble(
+    name = c("Prochloraz", "PCB 138", "Diazepam-D5", "Progesterone-2,3,4-13C3"),
+    canonical_name = c("Prochloraz", "PCB 138", "Diazepam-D5", "Progesterone-2,3,4-13C3"),
+    type = "canonical"
+  )
+  inputs <- c("Prochloraz-d4", "PCB 153", "Diazepam d5", "Testosterone-2,3,4-13C3", "Diazepm-D5", "Prochloraze")
+  result <- match_wqx(inputs, dict)
+
+  expect_equal(result$match_tier, c("none", "none", "fuzzy", "none", "none", "fuzzy"))
+  expect_equal(result$wqx_name, c(NA, NA, "Diazepam-D5", NA, NA, "Prochloraz"))
+})

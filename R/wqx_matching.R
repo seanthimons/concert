@@ -56,6 +56,22 @@ normalize_wqx_key <- function(x) {
   x
 }
 
+# Isotope labels and congener codes are identity, so fuzzy similarity must not
+# bridge them: Prochloraz-d4 is not Prochloraz, PCB 153 is not PCB 138.
+identity_token_key <- function(x) {
+  tokens <- stringr::str_extract_all(x, IDENTITY_QUALIFIER_PATTERN)
+  vapply(tokens, function(t) paste(sort(unique(toupper(gsub("[^[:alnum:]]", "", t)))), collapse = "|"), character(1))
+}
+
+# A shared label inflates similarity (Testosterone-13C3 vs Progesterone-13C3),
+# so labelled names fuzzy-match only on case/punctuation differences.
+# ponytail: drops reordered synonyms like N-ethyl-d5 FOSAA; they go to review.
+fuzzy_identity_ok <- function(input, candidate) {
+  squash <- function(x) tolower(gsub("[^[:alnum:]]", "", x))
+  key <- identity_token_key(input)
+  key == identity_token_key(candidate) & (key == "" | squash(input) == squash(candidate))
+}
+
 #' Match chemical names against WQX Characteristic Name dictionary
 #'
 #' Runs a three-tier lookup: (1) exact canonical, (2) alias crosswalk,
@@ -168,7 +184,8 @@ match_wqx <- function(names, dictionary, threshold = 0.85, verbose = FALSE) {
     best_match <- canonical_name_vec[best_idx]
 
     # JW distance: 0=identical, cutoff = 1 - threshold
-    accepted <- best_dist <= (1 - threshold)
+    accepted <- best_dist <= (1 - threshold) &
+      fuzzy_identity_ok(names[still_unresolved_idx], best_match)
 
     # Vectorized assignment: all unresolved positions get distance and nearest candidate
     match_distance[still_unresolved_idx] <- best_dist
