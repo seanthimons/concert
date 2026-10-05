@@ -17,7 +17,8 @@ List with cleaned_data, audit_trail, and new_tags (empty list)
 \description{
 Removes terminal \code{(...)} and \verb{[...]} from Name-tagged columns, with protection
 for chemical names containing "yl" (except exception words), percentages,
-Roman oxidation states, and recognized identity tokens.
+Roman oxidation states, recognized identity tokens, and enclosures attached
+directly to the name with no preceding whitespace (e.g. \code{Cyclo(L-Phe-L-Pro)}).
 Preserves stripped content in \verb{formula_extract_\{source\}} columns.
 }
 \details{
