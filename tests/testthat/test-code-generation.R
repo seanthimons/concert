@@ -1236,3 +1236,11 @@ test_that("all-NA identity key columns drop from the curation map key", {
   expect_equal(names(spec$signature[[1]]), c("chemical", "cas_number"))
   expect_equal(apply_review_overrides(baseline, spec)$row_flag, final$row_flag)
 })
+
+test_that("generate_concert_script embeds non-default desalt workflows", {
+  gen <- function(...) {
+    generate_concert_script("in.csv", "out.xlsx", list(chemical = "Name"), 1L, desalt = TRUE, ...)
+  }
+  expect_match(gen(desalt_workflows = "ms-ready"), 'desalt_workflows = "ms-ready"', fixed = TRUE)
+  expect_no_match(gen(), "desalt_workflows", fixed = TRUE)
+})

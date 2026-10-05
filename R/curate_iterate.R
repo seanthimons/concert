@@ -16,6 +16,7 @@ decision_object_names <- function() {
     "starts_with",
     "pubchem",
     "desalt",
+    "desalt_workflows",
     "accept_suggestions",
     "review_picks",
     "row_flags",
@@ -55,6 +56,7 @@ read_decisions <- function(decisions_path) {
   d$starts_with <- isTRUE(d$starts_with)
   d$pubchem <- isTRUE(d$pubchem)
   d$desalt <- isTRUE(d$desalt)
+  d$desalt_workflows <- d$desalt_workflows %||% DESALT_WORKFLOWS
   d$accept_suggestions <- isTRUE(d$accept_suggestions)
   d$harmonize <- isTRUE(d$harmonize)
   d$format <- d$format %||% "parquet"
@@ -152,6 +154,8 @@ curate_decisions_template <- function(input_path, out_dir, harmonize = FALSE) {
     "# External lookups can take time on large datasets. Set either to FALSE when unnecessary.",
     "pubchem <- TRUE",
     "desalt <- TRUE",
+    "# Structure parents from the chemi standardizer: \"qsar-ready\", \"ms-ready\", or both.",
+    "desalt_workflows <- c(\"qsar-ready\", \"ms-ready\")",
     "",
     "# --- Review ---------------------------------------------------------------",
     "# Accept every row CONCERT scored as \"suggested\".",
@@ -280,6 +284,10 @@ pending_rows <- function(state) {
     parent_name_candidate = candidate_field("parent_name_candidate"),
     parent_dtxsid_candidates = candidate_field("parent_dtxsid_candidates"),
     parent_lookup_status = candidate_field("parent_lookup_status"),
+    resolver_dtxsid_candidate = candidate_field("resolver_dtxsid_candidate"),
+    resolver_name = candidate_field("resolver_name"),
+    resolver_lookup_status = candidate_field("resolver_lookup_status"),
+    tied_dtxsids = candidate_field(if ("tied_dtxsids" %in% names(rs)) "tied_dtxsids" else paste0("tied_dtxsids_", name_col)),
     cleaning_flag = if ("cleaning_flag" %in% names(rs)) as.character(rs$cleaning_flag[idx]) else NA_character_
   )
 }
@@ -301,6 +309,10 @@ empty_pending <- function() {
     parent_name_candidate = character(),
     parent_dtxsid_candidates = character(),
     parent_lookup_status = character(),
+    resolver_dtxsid_candidate = character(),
+    resolver_name = character(),
+    resolver_lookup_status = character(),
+    tied_dtxsids = character(),
     cleaning_flag = character()
   )
 }
@@ -472,6 +484,7 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
       starts_with = d$starts_with,
       pubchem = d$pubchem,
       desalt = d$desalt,
+      desalt_workflows = d$desalt_workflows,
       postprocess_candidates = TRUE,
       cache_dir = cache_dir
     )
@@ -513,6 +526,7 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
     starts_with = d$starts_with,
     pubchem = d$pubchem,
     desalt = d$desalt,
+    desalt_workflows = d$desalt_workflows,
     harmonize = d$harmonize,
     media = d$media,
     unit_map = if (d$harmonize) state$harmonization_refs$unit_map else NULL,

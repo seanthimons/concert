@@ -187,7 +187,8 @@ stage_curate <- function(
   postprocess_candidates = FALSE,
   cache_dir = NULL,
   pubchem = FALSE,
-  desalt = FALSE
+  desalt = FALSE,
+  desalt_workflows = c("qsar-ready", "ms-ready")
 ) {
   cleaned <- state$cleaning_result$cleaned_data
   search_cache_path <- NULL
@@ -259,6 +260,9 @@ stage_curate <- function(
   state$enrichment_cache <- enrichment_cache
   state$enrichment_failed <- enrichment_failed
   state$script_baseline_state <- resolution_state
+  state$desalt <- isTRUE(desalt)
+  state$desalt_workflows <- desalt_workflows
+  state$parent_cache_path <- if (!is.null(cache_dir)) file.path(cache_dir, "desalt_parents.rds")
   state
 }
 
@@ -356,6 +360,15 @@ stage_review <- function(
       rs <- set_row_flags(rs, which(mask), flags$flag[i], flags$reason[i])
     }
     changed <- TRUE
+  }
+
+  # Parents follow the final DTXSIDs, so they run after every review edit.
+  if (isTRUE(state$desalt)) {
+    path <- state$parent_cache_path
+    cache <- if (!is.null(path) && file.exists(path)) readRDS(path)
+    parents <- add_structure_parents(rs, cache, state$desalt_workflows)
+    rs <- parents$data
+    if (!is.null(path)) saveRDS(parents$cache, path)
   }
 
   state$resolution_state <- rs

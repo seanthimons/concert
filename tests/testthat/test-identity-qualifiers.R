@@ -308,3 +308,30 @@ test_that("semicolon synonyms split only outside balanced enclosures", {
     expect_equal(sum(full$audit_trail$step == "split_synonyms"), 2L)
   }
 })
+
+test_that("enclosures attached to the name are nomenclature, not annotations", {
+  names <- c(
+    "Perfluoro(2-propoxypropanoate)", "Cyclo(L-Phe-L-Pro)",
+    "Cyclo[L-Phe-L-Pro]", "Perfluoro(2-propoxypropanoate) (ACS reagent)"
+  )
+  expected <- c(names[1:3], "Perfluoro(2-propoxypropanoate)")
+  direct <- strip_terminal_enclosures(tibble::tibble(name = names), "name")
+  full <- run_cleaning_pipeline(tibble::tibble(name = names), list(name = "Name"))
+
+  expect_identical(direct$cleaned_data$name, expected)
+  expect_identical(full$cleaned_data$name, expected)
+  expect_identical(full$cleaned_data$formula_extract_name, c(rep(NA_character_, 3), "ACS reagent"))
+})
+
+test_that("glued acronyms and plural markers are still stripped", {
+  names <- c("Perfluoropentanoic acid(PFPeA)", "Perfluorohexanoic acid(PFHxA)",
+             "Sodium Xylenesulphonate(SXS)", "Acrylic Polymer(s)",
+             "4,4'-Methylene bis(2-chloroaniline)", "Poly(dimethoxysiloxane)")
+  out <- strip_terminal_enclosures(tibble::tibble(name = names), "name")
+
+  expect_identical(out$cleaned_data$name,
+                   c("Perfluoropentanoic acid", "Perfluorohexanoic acid",
+                     "Sodium Xylenesulphonate", "Acrylic Polymer", names[5:6]))
+  expect_identical(out$cleaned_data$formula_extract_name,
+                   c("PFPeA", "PFHxA", "SXS", "s", NA, NA))
+})
