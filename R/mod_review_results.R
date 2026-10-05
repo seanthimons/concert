@@ -2258,7 +2258,8 @@ mod_review_results_server <- function(id, data_store) {
       cas_cols <- names(data_store$column_tags)[data_store$column_tags == "CASRN"]
       group_cols <- c(name_cols, cas_cols, "consensus_dtxsid", "consensus_status", "match_type",
                       "pubchem_query", "pubchem_cid_candidates", "pubchem_dtxsid_candidates",
-                      "parent_name_candidate", "parent_dtxsid_candidates")
+                      "parent_name_candidate", "parent_dtxsid_candidates",
+                      "resolver_dtxsid_candidate", "resolver_lookup_status")
       deduped <- deduplicate_review_rows(df, original_indices, group_cols)
       data_store$dedup_group_map <- deduped$dedup_group_map
       data_store$display_row_map <- deduped$display_row_map
