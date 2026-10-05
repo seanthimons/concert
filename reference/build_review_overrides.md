@@ -1,0 +1,45 @@
+# Build content-matched review overrides
+
+Captures Review Results edits by comparing the automated baseline state
+against the final user-curated state. Overrides are matched by stable
+row contents, not by row position, when a replay script is generated.
+
+## Usage
+
+``` r
+build_review_overrides(baseline_state, final_state, tag_map = NULL)
+```
+
+## Arguments
+
+- baseline_state:
+
+  Resolution state immediately after automated curation and
+  postprocessing.
+
+- final_state:
+
+  Resolution state after Review Results edits.
+
+- tag_map:
+
+  Optional named list mapping source columns to tag types. When
+  supplied, edits to tagged input columns are captured and replayed in
+  workflow-specific blocks.
+
+## Value
+
+NULL when no overrides are needed, otherwise a content-match override
+spec with the edited column, edited scalar value, and a minimal stable
+row signature used as the key for each generated
+[`dplyr::rows_update()`](https://dplyr.tidyverse.org/reference/rows.html)
+override table.
+
+## Details
+
+When the tag map identifies chemical columns, Review Results edits are
+captured as a single compound-scoped curation map keyed on chemical
+identity (the review table is a deduplicated unique-compound set
+expanded back out, so per-compound values are uniform by construction).
+Tagged measurement, study, and metadata edits remain row-scoped and keep
+content-signature matching.

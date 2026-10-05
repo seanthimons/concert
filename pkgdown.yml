@@ -1,0 +1,12 @@
+pandoc: 3.8.3
+pkgdown: 2.2.1
+pkgdown_sha: ~
+articles:
+  cleaning-pipeline: cleaning-pipeline.html
+  concert: concert.html
+  harmonization: harmonization.html
+  headless-curation: headless-curation.html
+last_built: 2026-10-05T22:47Z
+urls:
+  reference: https://seanthimons.github.io/concert/reference
+  article: https://seanthimons.github.io/concert/articles
