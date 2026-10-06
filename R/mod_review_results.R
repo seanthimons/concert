@@ -3317,7 +3317,11 @@ mod_review_results_server <- function(id, data_store) {
           enrichment_cache = data_store$enrichment_cache,
           detected_data = data_store$clean,
           cleaned_data = data_store$cleaned_data,
-          toxval_output = data_store$toxval_output,
+          toxval_output = refresh_toxval_identity(
+            data_store$toxval_output,
+            data_store$resolution_state,
+            data_store$harmonize_results$harmonized
+          ),
           harmonize_audit = data_store$harmonize_audit,
           site_manifest = data_store$site_manifest,
           site_alias_map = data_store$site_alias_map,
@@ -3770,7 +3774,12 @@ mod_review_results_server <- function(id, data_store) {
       },
       content = function(file) {
         req(data_store$toxval_output)
-        write_curation_output(file, input$toxval_format, toxval_tibble = data_store$toxval_output)
+        toxval <- refresh_toxval_identity(
+          data_store$toxval_output,
+          data_store$resolution_state,
+          data_store$harmonize_results$harmonized
+        )
+        write_curation_output(file, input$toxval_format, toxval_tibble = toxval)
       }
     )
   })

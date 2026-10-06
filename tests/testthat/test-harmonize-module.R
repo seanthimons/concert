@@ -1110,3 +1110,48 @@ test_that("tagged all-blank unit columns handle NA and whitespace safely", {
 
   expect_equal(out$harmonized$unit_flag, c("absent", "absent"))
 })
+
+test_that("SSWQS Michigan: DTXSIDs from curation reach the dashboard and ToxVal export (#79)", {
+  curated <- readr::read_csv(
+    test_path("data", "sswqs_mi_curated.csv"),
+    col_types = readr::cols(.default = "c"),
+    na = ""
+  )
+  raw <- curated[c("analyte", "cas", "orig_result", "unit")]
+  refs <- concert:::load_all_reference_lists(concert:::resolve_reference_cache_dir())
+
+  data_store <- make_dispatch_store()
+  shiny::isolate({
+    data_store$clean <- raw
+    data_store$cleaned_data <- raw
+    data_store$resolution_state <- NULL
+    data_store$numeric_tags <- list(orig_result = "Result", unit = "Unit")
+    data_store$study_type_tags <- NULL
+    data_store$reference_lists <- refs
+    data_store$unit_map_working <- refs$unit_map
+    data_store$media_map_working <- refs$media_map
+  })
+
+  shiny::testServer(mod_harmonize_server, args = list(data_store = data_store), {
+    session$flushReact()
+    # App order: Clean Data triggers harmonization before curation runs
+    data_store$harmonize_run_nonce <- 1L
+    session$flushReact()
+    hr <- data_store$harmonize_results
+    expect_equal(nrow(data_store$toxval_output), nrow(hr$harmonized))
+    expect_true(all(is.na(data_store$toxval_output$dtxsid)))
+
+    # Curation lands afterwards; nothing re-runs harmonization
+    data_store$resolution_state <- curated
+    session$flushReact()
+
+    qc <- rendered_ui_text(output$qc_dashboard)
+    expect_match(qc, "With DTXSID</p>\\s*<p class=\"value-box-value\">73</p>")
+
+    toxval <- refresh_toxval_identity(data_store$toxval_output, curated, hr$harmonized)
+    expect_equal(toxval$dtxsid, curated$consensus_dtxsid[hr$harmonized$orig_row_id])
+    expect_equal(sum(!is.na(unique(toxval$dtxsid))), length(unique(na.omit(curated$consensus_dtxsid))))
+    gained <- !is.na(toxval$dtxsid)
+    expect_true(all(toxval$source_hash[gained] != data_store$toxval_output$source_hash[gained]))
+  })
+})
