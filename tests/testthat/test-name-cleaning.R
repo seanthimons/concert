@@ -738,18 +738,18 @@ test_that("run_cleaning_pipeline skips name cleaning when no Name columns", {
   expect_false(any(grepl("formula_extract", names(cleaned))))
 })
 
-test_that("run_cleaning_pipeline removes rows where all name columns are empty", {
+test_that("run_cleaning_pipeline removes rows with no name and no CAS", {
   df <- tibble::tibble(
-    cas_number = c("67-64-1", "108-88-3", "64-17-5"),
-    chemical_name = c("Acetone", "pure", "Water") # Row 2 will become empty after stripping
+    cas_number = c("67-64-1", "108-88-3", NA),
+    chemical_name = c("Acetone", "pure", "pure") # Rows 2-3 become empty after stripping
   )
   tag_map <- list(cas_number = "CASRN", chemical_name = "Name")
 
   result <- run_cleaning_pipeline(df, tag_map)
   cleaned <- result$cleaned_data
 
-  # Row 2 should be removed (name becomes empty after quality stripping)
-  expect_lt(nrow(cleaned), 3)
+  # Row 2 keeps its CAS for CAS search; row 3 has no identifier left
+  expect_equal(cleaned$original_row_id, 1:2)
 })
 
 test_that("run_cleaning_pipeline includes all name cleaning steps in audit trail", {

@@ -519,8 +519,11 @@ mod_harmonize_server <- function(id, data_store) {
 
       n_parsed <- nrow(hr$parsed)
       n_harmonized <- sum(unit_harmonization_succeeded(hr$harmonized$unit_flag))
-      n_dtxsid <- if ("consensus_dtxsid" %in% names(hr$input_data)) {
-        sum(!is.na(hr$input_data$consensus_dtxsid))
+      # Count from the current curated state: harmonization runs before
+      # curation in the app, so hr$input_data predates the DTXSIDs (#79).
+      dtxsid_src <- data_store$resolution_state %||% hr$input_data
+      n_dtxsid <- if ("consensus_dtxsid" %in% names(dtxsid_src)) {
+        sum(!is.na(dtxsid_src$consensus_dtxsid))
       } else {
         0L
       }
