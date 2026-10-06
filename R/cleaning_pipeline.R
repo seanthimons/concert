@@ -3344,6 +3344,16 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
     # Work only on eligible values
     work_vals <- vals[eligible]
 
+    # Alkyl chain lengths (C12-16, C12-C18, "alkyl (C14, 50%; C16 ...)") share
+    # the C12/C13/C14 shortcode form; never read them as carbon isotopes.
+    # ponytail: name-level heuristic; a labelled compound written "C14 alkyl"
+    # stays unexpanded.
+    is_chain_length <- grepl(
+      "(?i:alkyl)|\\bC\\d{1,2}\\s*-\\s*C?\\d{1,2}\\b|\\bC(?!1[234]\\b)\\d{1,2}\\b",
+      work_vals,
+      perl = TRUE
+    )
+
     # ---- Codex optimization: Prefilter lookup to symbols actually present ----
     # Instead of O(rows x lookup_size), filter lookup first then O(rows x matches)
     collapsed_text <- paste(tolower(work_vals), collapse = " ")
@@ -3372,7 +3382,8 @@ expand_isotope_shortcodes <- function(df, name_cols, isotope_lookup = NULL) {
           stringr::str_escape(mass_num),
           ")\\b(?![A-Z])"
         )
-        work_vals <- gsub(pattern, canonical, work_vals, perl = TRUE)
+        target <- if (toupper(sym) == "C") !is_chain_length else TRUE
+        work_vals[target] <- gsub(pattern, canonical, work_vals[target], perl = TRUE)
       }
     }
 
