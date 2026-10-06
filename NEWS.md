@@ -2,6 +2,33 @@
 
 # concert NEWS
 
+## v0.5.3 (2026-10-06)
+
+#### Bug fixes
+
+- stop reading alkyl chain lengths as carbon isotopes
+  ([7d25c46](https://github.com/seanthimons/concert/tree/7d25c468fd9906f2a5edbd00e2eaec6c3313e3d3))
+- keep CAS-only rows through name cleaning
+  ([f65614f](https://github.com/seanthimons/concert/tree/f65614febe7086f5426226043d22c9c980e4077b))
+- refresh harmonize DTXSID count and ToxVal identifiers after curation
+  (#79)
+  ([fa609c3](https://github.com/seanthimons/concert/tree/fa609c39ff674331230eb23abd81a3b91980605c))
+
+#### Docs
+
+- app walkthrough article and README installation cleanup (#80)
+  ([bb8cc3d](https://github.com/seanthimons/concert/tree/bb8cc3d9ced8b748d4b449dbc01e29052666c308))
+- merge pkgdown site and usage vignettes (#65)
+  ([6f75930](https://github.com/seanthimons/concert/tree/6f759307236a97447e499d25dc64bd2f852debe4))
+
+#### Other changes
+
+- bump version to 0.5.3 \[skip ci\]
+  ([5ebac77](https://github.com/seanthimons/concert/tree/5ebac77ff84715be101cb38662dda692b0ec22f0))
+
+Full set of changes:
+[`v0.5.2...v0.5.3`](https://github.com/seanthimons/concert/compare/v0.5.2...v0.5.3)
+
 ## v0.5.2 (2026-10-05)
 
 #### New features
@@ -29,6 +56,11 @@
   ([d5cfaab](https://github.com/seanthimons/concert/tree/d5cfaab6ad5f84daabfc1ea3b66c499a17e77012))
 - keep name-attached enclosures during terminal stripping
   ([4becc15](https://github.com/seanthimons/concert/tree/4becc1519f7ea59f76fced15cf8320389366b509))
+
+#### Docs
+
+- update NEWS.md for v0.5.2 \[skip ci\]
+  ([4d56a2f](https://github.com/seanthimons/concert/tree/4d56a2f110609c54c9d3b51918d63c5af83fbbf8))
 
 #### Other changes
 
@@ -130,6 +162,8 @@ Full set of changes:
 
 - update NEWS.md for v0.4.3 \[skip ci\]
   ([598fcfa](https://github.com/seanthimons/concert/tree/598fcfa3dece62dd0ec24049c44507d911f1301d))
+- add pkgdown site and usage vignettes
+  ([26780fd](https://github.com/seanthimons/concert/tree/26780fda346dc7f8ad3df5b2ffdb19fff04196d4))
 
 #### Other changes
 
