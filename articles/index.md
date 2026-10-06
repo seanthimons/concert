@@ -2,6 +2,8 @@
 
 ### All vignettes
 
+- [Curating a dataset in the
+  app](https://seanthimons.github.io/concert/articles/app-walkthrough.md):
 - [Cleaning
   pipeline](https://seanthimons.github.io/concert/articles/cleaning-pipeline.md):
 - [Get started with

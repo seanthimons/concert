@@ -1,6 +1,7 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>https://seanthimons.github.io/concert/404.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/LICENSE-text.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/articles/app-walkthrough.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/articles/cleaning-pipeline.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/articles/concert.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/articles/harmonization.html</loc></url>
@@ -173,6 +174,7 @@
 <url><loc>https://seanthimons.github.io/concert/reference/read_excel_robust.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/reference_list_help_text.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/refresh_isotope_cache.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/refresh_toxval_identity.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/refresh_wqx_cache.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/register_concert_units.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/remap_audit_to_parent.html</loc></url>

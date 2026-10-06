@@ -2,11 +2,12 @@ pandoc: 3.8.3
 pkgdown: 2.2.1
 pkgdown_sha: ~
 articles:
+  articles/app-walkthrough: app-walkthrough.html
   cleaning-pipeline: cleaning-pipeline.html
   concert: concert.html
   harmonization: harmonization.html
   headless-curation: headless-curation.html
-last_built: 2026-10-05T22:47Z
+last_built: 2026-10-06T16:02Z
 urls:
   reference: https://seanthimons.github.io/concert/reference
   article: https://seanthimons.github.io/concert/articles

@@ -75,6 +75,10 @@ Exports contain a `Pipeline Config` sheet. Uploading an exported
 workbook back into the app restores tags, overrides, and reference-list
 edits.
 
+For a step-by-step walkthrough with screenshots, see [Curating a dataset
+in the
+app](https://seanthimons.github.io/concert/articles/app-walkthrough.html).
+
 ## Headless in one call
 
 ``` r
