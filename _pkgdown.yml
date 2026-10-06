@@ -14,6 +14,8 @@ navbar:
     articles:
       text: Articles
       menu:
+        - text: Curating a dataset in the app
+          href: articles/app-walkthrough.html
         - text: Cleaning pipeline
           href: articles/cleaning-pipeline.html
         - text: Measurement harmonization

@@ -34,3 +34,4 @@
 ^data-raw$
 ^_pkgdown\.yml$
 ^pkgdown$
+^vignettes/articles$
