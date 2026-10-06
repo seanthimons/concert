@@ -144,3 +144,18 @@ test_that("run_cleaning_pipeline with dedup produces identical results to pre-de
   # Structure preserved
   expect_named(result, c("cleaned_data", "audit_trail", "new_tags"))
 })
+
+test_that("run_cleaning_pipeline keeps rows whose only identifier is a CAS", {
+  # AMOS gives a CAS as the name (rescued into a CAS column, leaving the name
+  # empty); other sources list a CAS with no name. Both must reach CAS search.
+  df <- tibble::tibble(
+    chemical_name = c("2468638-05-1", NA, "STARCH", NA),
+    cas_number = c(NA, "9005-25-8", "9005-25-8", NA)
+  )
+
+  result <- run_cleaning_pipeline(df, tag_map = list(chemical_name = "Name", cas_number = "CASRN"))
+
+  expect_equal(result$cleaned_data$original_row_id, 1:3)
+  expect_equal(result$cleaned_data$cas_extract_chemical_name[1], "2468638-05-1")
+  expect_equal(result$cleaned_data$cas_number[2], "9005-25-8")
+})

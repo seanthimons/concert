@@ -316,6 +316,37 @@ generate_source_hash <- function(result_tibble) {
   )
 }
 
+#' Refresh ToxVal identifiers from the current resolution state
+#'
+#' The app harmonizes before curation, and review edits change DTXSIDs after
+#' harmonization, so a stored ToxVal tibble can carry stale identifiers.
+#' Re-derives `dtxsid` and `name` from `resolution_state` via
+#' map_to_toxval_schema() and rehashes the rows.
+#'
+#' @param toxval_output Stored ToxVal tibble from the harmonization run.
+#' @param resolution_state Current curated data (same rows as harmonization input).
+#' @param harmonized_data Harmonized tibble the ToxVal rows were built from.
+#' @return `toxval_output` with refreshed identifiers, or unchanged when the
+#'   inputs do not line up.
+#' @keywords internal
+refresh_toxval_identity <- function(toxval_output, resolution_state, harmonized_data) {
+  if (is.null(toxval_output) || is.null(resolution_state) || is.null(harmonized_data) ||
+      nrow(toxval_output) != nrow(harmonized_data)) {
+    return(toxval_output)
+  }
+  fresh <- tryCatch(
+    map_to_toxval_schema(resolution_state, harmonized_data),
+    error = function(e) NULL
+  )
+  if (is.null(fresh)) {
+    return(toxval_output)
+  }
+  toxval_output$dtxsid <- fresh$dtxsid
+  toxval_output$name <- fresh$name
+  toxval_output$source_hash <- generate_source_hash(toxval_output)
+  toxval_output
+}
+
 #' Assert no bare NA values in tibble
 #'
 #' Verifies all columns have typed NA values (NA_character_, NA_real_, etc.)
