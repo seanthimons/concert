@@ -10,31 +10,13 @@ and export reviewable ToxVal-compatible outputs.
 
 ## Installation
 
-From a checkout, start R in the repository root and restore the locked environment
-(R 4.5.1). The first session bootstraps renv automatically.
-
 ```r
-renv::restore()
-devtools::install()
-library(concert)
+# install.packages("pak")
+pak::pak("seanthimons/concert")
 ```
 
-The lockfile includes development/test dependencies. After deliberately changing
-dependencies, run `renv::snapshot()` and commit `renv.lock`; `renv::status()` checks
-for drift. `DESCRIPTION` pins the experimental reactable server-paging revision
-and declares its V8 dependency. Review filters preload 100 choices and search the
-full server-held column; empty columns stay in exports but are omitted from the
-review table. Page size and column visibility update without rebuilding the table.
-The header checkbox selects the current page; selections are retained across pages
-for batch actions. Data edits refresh the server's table snapshot.
-
-To measure the 8,216-row review case or run it interactively:
-
-```r
-source("scripts/benchmark_review_results.R")
-benchmark_review_results()
-run_review_benchmark_app()
-```
+GitHub-only dependencies (ComptoxR and a pinned reactable revision) are
+installed automatically from `Remotes` in `DESCRIPTION`.
 
 ## Launch the App
 
@@ -83,3 +65,24 @@ system.file("skills/concert-curate/SKILL.md", package = "concert")
 CONCERT exports include a `Pipeline Config` sheet with a `concert_export`
 marker. Legacy export markers from the former package name are no longer
 accepted.
+
+## Development
+
+From a checkout, start R (4.5.1) in the repository root; renv bootstraps on
+first launch. Restore the locked environment, which includes test dependencies:
+
+```r
+renv::restore()
+devtools::load_all()
+```
+
+After deliberately changing dependencies, run `renv::snapshot()` and commit
+`renv.lock`. `renv::status()` checks for drift.
+
+To benchmark the review table on the 8,216-row case:
+
+```r
+source("scripts/benchmark_review_results.R")
+benchmark_review_results()
+run_review_benchmark_app()
+```
