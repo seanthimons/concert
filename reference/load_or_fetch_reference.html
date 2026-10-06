@@ -9,7 +9,7 @@ creates directory structure, saves result to disk, and returns result."><meta pr
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.3</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -38,7 +38,7 @@ creates directory structure, saves result to disk, and returns result."><meta pr
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Generic cache-or-fetch function</h1>
-      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/main/R/cleaning_reference.R" class="external-link"><code>R/cleaning_reference.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/v0.5.3/R/cleaning_reference.R" class="external-link"><code>R/cleaning_reference.R</code></a></small>
       <div class="d-none name"><code>load_or_fetch_reference.Rd</code></div>
     </div>
 
@@ -78,7 +78,7 @@ creates directory structure, saves result to disk, and returns result.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">cache_path</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">"data.rds"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">load_or_fetch_reference</span><span class="op">(</span><span class="va">cache_path</span>, <span class="kw">function</span><span class="op">(</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"a"</span>, <span class="st">"b"</span><span class="op">)</span>, <span class="st">"test_data"</span><span class="op">)</span></span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Fetching test_data (cache not found)...</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Cached test_data to: /tmp/RtmptLUZ7p/data.rds</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Cached test_data to: /tmp/RtmpAghFN0/data.rds</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] "a" "b"</span>
 </code></pre></div>
     </div>
