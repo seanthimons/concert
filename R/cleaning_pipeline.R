@@ -2888,7 +2888,10 @@ run_cleaning_pipeline_masked <- function(
             }
           ))
 
-        df_work <- df_work[!rows_all_empty(df_work, name_cols), , drop = FALSE]
+        # Keep CAS-only rows (including CAS rescued out of a name) for CAS search.
+        tag_vec <- unlist(tag_map_updated, use.names = TRUE)
+        id_cols <- intersect(c(name_cols, names(tag_vec)[tag_vec == "CASRN"]), names(df_work))
+        df_work <- df_work[!rows_all_empty(df_work, id_cols), , drop = FALSE]
       }
 
       run_isotope <- mask$isotopes
