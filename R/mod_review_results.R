@@ -579,6 +579,20 @@ derive_resolution_html <- function(df, row_indices) {
   manual_mask <- status == "manual" & !is.na(dtxsid)
   mpref <- manual_pref
   mpref[is.na(mpref)] <- pref_name[is.na(mpref)]
+  # A scoped decision may choose a different ID from the lookup result. Its
+  # lookup name must not be displayed as the name of the newly selected ID.
+  scoped <- manual_mask & identity_col(df, "consensus_source") == "identity_decision"
+  scoped[is.na(scoped)] <- FALSE
+  mpref[scoped] <- NA_character_
+  candidate_cols <- grep("^source_id_.*_source_candidate_id$", names(df), value = TRUE)
+  for (col in candidate_cols) {
+    stem <- sub("_source_candidate_id$", "", col)
+    source_name <- identity_col(df, paste0(stem, "_preferred_name"))
+    matching <- scoped & !is.na(df[[col]]) & df[[col]] == dtxsid &
+      identity_col(df, paste0(stem, "_validation_status")) == "validated" & !is.na(source_name)
+    matching[is.na(matching)] <- FALSE
+    mpref[matching] <- source_name[matching]
+  }
   manual_badge <- '<span class="badge bg-info ms-1" style="font-size:0.7em;">manual</span>'
   has_mp <- manual_mask & !is.na(mpref)
   result[has_mp] <- paste0(
@@ -1372,7 +1386,9 @@ review_internal_hidden_cols <- function(df_names, dtxsid_cols = character(0)) {
     ".review_row",
     ".pinned",
     ".manual_entry",
-    "manual_preferredName"
+    "manual_preferredName",
+    "identity_decision_record",
+    "identity_decision_fingerprint"
   ))
 }
 

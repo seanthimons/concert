@@ -19,6 +19,7 @@ gui_identity_context <- function(df, rows, column_tags) {
 
 identity_scope_review_controls <- function(session, context) {
   choices <- vapply(context, function(x) paste("Source row", x$selector$original_row_id,
+    if ("source_file" %in% names(x$snapshot)) paste0("[", x$snapshot$source_file[1], "]") else "",
     paste(unlist(x$selector[setdiff(names(x$selector), "original_row_id")]), collapse = " / ")), character(1))
   choices <- stats::setNames(names(context), choices)
   if (length(context) > 1L) choices <- c("Choose one source row" = "", choices)
