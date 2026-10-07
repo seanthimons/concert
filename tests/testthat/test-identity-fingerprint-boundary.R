@@ -41,7 +41,7 @@ test_that("scoped registered mixture remains accepted through actual harmonizati
   runtime$data$unrelated_plot_label <- "New display annotation"
   expect_true(identity_review_state(runtime$data)$identity_eligible)
   path <- tempfile(fileext = ".xlsx")
-  on.exit(unlink(path))
+  withr::defer(unlink(path))
   writexl::write_xlsx(runtime$data, path)
   restored <- readxl::read_xlsx(path)
   expect_true(identity_review_state(restored)$identity_eligible)
