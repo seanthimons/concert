@@ -12,9 +12,17 @@ identity_evidence_fingerprint <- function(df, row) {
   stopifnot(length(row) == 1L, row >= 1L, row <= nrow(df))
   excluded <- c("row_flag", "row_flag_reason", "needs_review", "identity_scope", "identity_conflict",
     "identity_scope_reviewed", "identity_decision_current", "identity_decision_fingerprint",
-    "identity_decision_record", "identity_status", "identity_blockers", "identity_eligible", "accepted_dtxsid")
+    "identity_decision_record", "identity_status", "identity_blockers", "identity_eligible", "accepted_dtxsid",
+    "consensus_casrn", "consensus_formula", "consensus_mw")
   cols <- sort(setdiff(names(df)[!grepl("^\\.", names(df))], excluded))
-  paste0("identity-v1:", digest::digest(lapply(as.list(df[row, cols, drop = FALSE]), as.character), algo = "sha256"))
+  # Export hydration adds blank optional fields; validation timestamps are audit
+  # metadata, rather than changed chemical evidence.
+  cols <- cols[!grepl("^source_id_.*_checked_at$", cols)]
+  values <- lapply(as.list(df[row, cols, drop = FALSE]), function(x) {
+    x <- trimws(as.character(x)); x[is.na(x) | !nzchar(x)] <- NA_character_; x
+  })
+  values <- values[!vapply(values, function(x) all(is.na(x)), logical(1))]
+  paste0("identity-v1:", digest::digest(values, algo = "sha256"))
 }
 
 identity_decision_current_rows <- function(df) {

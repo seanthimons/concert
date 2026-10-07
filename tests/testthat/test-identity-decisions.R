@@ -128,3 +128,22 @@ test_that("row and content scope survives reorder and requires exact component C
   expect_false(any(mapped$component_cas_unresolved))
   expect_equal(mapped$cas, spec$cas_parts)
 })
+
+test_that("scoped acceptance survives full export hydration without trusting derived fields", {
+  local_mocked_bindings(validate_manual_dtxsids = function(dtxsids, ...) {
+    tibble::tibble(dtxsid = dtxsids, is_valid = TRUE)
+  })
+  df <- scope_fixture()
+  reviewed <- apply_identity_decisions(list(resolution_state = df), list(scope_decision(df)))$resolution_state
+  empty <- tibble::tibble(term = character(), source = character(), active = logical())
+  refs <- list(stop_words = empty, functional_categories = empty,
+    block_patterns = empty, strip_terms = empty)
+  sheets <- build_export_sheets(df, reviewed, list(), NULL, refs,
+    list(name = "Name", cas = "CASRN"), list(), list())
+  path <- tempfile(fileext = ".xlsx")
+  writexl::write_xlsx(sheets, path)
+  restored <- hydrate_session_state(parse_concert_export(path))$state$resolution_state
+  expect_true(identity_review_state(restored)$identity_eligible)
+  restored$consensus_dtxsid <- "DTXSID999"
+  expect_false(identity_review_state(restored)$identity_eligible)
+})
