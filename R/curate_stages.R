@@ -24,7 +24,8 @@ stage_ingest <- function(
   reference_list_snapshot = NULL,
   activate_all_references = FALSE,
   site_manifest = NULL,
-  site_alias_map = NULL
+  site_alias_map = NULL,
+  ignored_identifier_cols = character()
 ) {
   if (!file.exists(input_path)) {
     stop(sprintf("curate_headless: file not found: %s", input_path))
@@ -110,6 +111,7 @@ stage_ingest <- function(
     detection = detection,
     clean_data = clean_data,
     tag_map = tag_map,
+    ignored_identifier_cols = ignored_identifier_cols,
     reference_lists = reference_lists,
     site_manifest = site_manifest_for_export,
     site_alias_map = site_alias_map_for_export,
@@ -125,8 +127,13 @@ stage_ingest <- function(
 #'   `merged_chemical_tags` added.
 #' @export
 stage_clean <- function(state, multi_analyte_resolutions = NULL, value_corrections = NULL, cleaning_steps = NULL) {
+  if (!is.null(cleaning_steps)) validate_portable_cleaning_steps(cleaning_steps)
+  state$cleaning_steps <- if (is.null(cleaning_steps)) NULL else normalize_cleaning_step_mask(cleaning_steps)
   tag_groups <- classify_tags(state$tag_map)
   chemical_tag_map <- tag_groups$chemical_tags
+  validate_source_identifier_config(state$clean_data, state$tag_map, state$ignored_identifier_cols %||% character())
+  source_tags <- chemical_tag_map[unlist(chemical_tag_map) %in% "DTXSID"]
+  chemical_tag_map <- chemical_tag_map[!unlist(chemical_tag_map) %in% "DTXSID"]
 
   input_data <- state$clean_data
   correction_audit <- empty_cleaning_audit()
@@ -138,14 +145,21 @@ stage_clean <- function(state, multi_analyte_resolutions = NULL, value_correctio
   }
 
   message("[headless] Running cleaning pipeline...")
-  cleaning_result <- run_cleaning_pipeline(
-    input_data,
-    chemical_tag_map,
-    state$reference_lists,
-    mask = cleaning_steps
-  )
+  if (!is.null(cleaning_steps) && !any(unlist(normalize_cleaning_step_mask(cleaning_steps)))) {
+    # The GUI permits curation without entering Clean Data. Replaying that
+    # path must not rescue embedded CAS or add cleaning-derived evidence.
+    if (!"original_row_id" %in% names(input_data)) input_data$original_row_id <- seq_len(nrow(input_data))
+    cleaning_result <- list(cleaned_data = input_data, audit_trail = empty_cleaning_audit(), new_tags = list())
+  } else {
+    cleaning_result <- run_cleaning_pipeline(
+      input_data,
+      chemical_tag_map,
+      state$reference_lists,
+      mask = cleaning_steps
+    )
+  }
   cleaning_result$audit_trail <- dplyr::bind_rows(correction_audit, cleaning_result$audit_trail)
-  merged_chemical_tags <- combine_tag_maps(chemical_tag_map, cleaning_result$new_tags)
+  merged_chemical_tags <- combine_tag_maps(combine_tag_maps(chemical_tag_map, cleaning_result$new_tags), source_tags)
   merged_tags <- combine_tag_maps(state$tag_map, cleaning_result$new_tags)
 
   if (!is.null(multi_analyte_resolutions) && length(multi_analyte_resolutions) > 0) {
@@ -201,12 +215,15 @@ stage_curate <- function(
       names(cleaned)
     )
     original_names <- if (isTRUE(pubchem) || isTRUE(desalt)) state$clean_data[intersect(names(state$merged_chemical_tags), names(state$clean_data))] else NULL
-    key <- digest::digest(list(cleaned[key_cols], original_names, wqx_threshold, starts_with, pubchem, desalt))
+    key <- digest::digest(list(cleaned[key_cols], state$merged_chemical_tags,
+      state$ignored_identifier_cols, "source-id-v1", identity_policy_version(),
+      as.character(utils::packageVersion("ComptoxR")), original_names, wqx_threshold, starts_with, pubchem, desalt))
     search_cache_path <- file.path(cache_dir, paste0("curation_", key, ".rds"))
     enrichment_cache_path <- file.path(cache_dir, "enrichment.rds")
     if (file.exists(search_cache_path)) {
       message("[headless] Curation search loaded from cache")
       pipeline_result <- readRDS(search_cache_path)
+      if (any(pipeline_result$source_identifier_evidence$validation_status %in% "unavailable")) pipeline_result <- NULL
     }
   }
 
@@ -219,13 +236,16 @@ stage_curate <- function(
       starts_with = starts_with,
       pubchem = pubchem,
       desalt = desalt,
-      original_data = state$clean_data
+      original_data = state$clean_data,
+      ignored_identifier_cols = state$ignored_identifier_cols %||% character()
     )
     if (!is.null(search_cache_path)) {
       saveRDS(pipeline_result, search_cache_path)
     }
   }
   resolution_state <- pipeline_result$results
+  state$source_identifier_evidence <- pipeline_result$source_identifier_evidence
+  state$identifier_diagnostics <- pipeline_result$identifier_diagnostics
   consensus_summary <- pipeline_result$consensus_summary
   enrichment_cache <- NULL
   enrichment_failed <- character(0)
@@ -279,9 +299,13 @@ stage_review <- function(
   review_overrides = NULL,
   accept_suggestions = FALSE,
   review_picks = NULL,
-  row_flags = NULL
+  row_flags = NULL,
+  review_decision_evidence = NULL,
+  candidate_validation = NULL,
+  identity_decisions = NULL
 ) {
   rs <- state$resolution_state
+  automated <- rs
   unmatched <- character(0)
   changed <- FALSE
 
@@ -312,7 +336,7 @@ stage_review <- function(
     invalid <- setdiff(unique(picks$dtxsid), validation$searchValue[validation$is_valid])
     if (length(invalid) > 0) {
       stop(
-        sprintf("review_picks contains DTXSIDs CompTox does not know: %s", paste(invalid, collapse = ", ")),
+        sprintf("review_picks membership invalid, ambiguous or unavailable: %s", paste(invalid, collapse = ", ")),
         call. = FALSE
       )
     }
@@ -362,6 +386,11 @@ stage_review <- function(
     changed <- TRUE
   }
 
+  state$resolution_state <- rs
+  state <- apply_identity_decisions(state, identity_decisions)
+  rs <- state$resolution_state
+  changed <- changed || length(identity_decisions) > 0L
+
   # Parents follow the final DTXSIDs, so they run after every review edit.
   if (isTRUE(state$desalt)) {
     path <- state$parent_cache_path
@@ -376,7 +405,38 @@ stage_review <- function(
     state$consensus_summary <- recalc_consensus_summary(rs)
   }
   state$unmatched_decisions <- unmatched
+  state$review_decision_evidence <- validate_review_evidence(review_decision_evidence)
+  state$candidate_validation <- normalize_review_validation(candidate_validation)
+  state$identity_decisions <- identity_decisions
+  if (!is.na(name_col)) row_flags <- effective_review_flags(rs, name_col, cas_col, row_flags)
+  state$review_row_flags <- row_flags
+  state$review_automated_state <- automated
+  cols <- review_scope_columns(state, automated)
+  source_cols <- names(state$merged_chemical_tags)[unlist(state$merged_chemical_tags) %in% "DTXSID"]
+  state$review_reconciliation <- empty_review_reconciliation()
+  state$candidate_review <- candidate_review_table()
+  if (!is.na(name_col)) {
+    args <- list(automated = automated, final = rs, row_flags = row_flags,
+      evidence = state$review_decision_evidence, name_col = name_col, cas_col = cas_col,
+      scope_data = automated, scope_cols = cols, validation = state$candidate_validation,
+      source_id_cols = unique(c("source_dtxsid", source_cols)))
+    state$review_reconciliation <- do.call(build_review_reconciliation, args)
+    state$candidate_review <- do.call(build_candidate_review, args)
+  }
+  state$accepted_identity_state <- identity_review_state(rs)
   state
+}
+
+# Scope uses retained input content, never transient output positions. Split
+# children retain their part lineage. Callers capture with these same columns.
+review_scope_columns <- function(state, df = state$resolution_state) {
+  raw <- names(state$clean_data %||% state$raw %||% data.frame())
+  source <- names(state$tag_map %||% state$merged_tags)
+  cols <- unique(c(raw, source, "multi_analyte_source_value", "multi_analyte_source_cas",
+    "multi_analyte_part_index", "multi_analyte_part_count"))
+  cols <- setdiff(intersect(cols, names(df)), "original_row_id")
+  if (!length(cols)) cols <- intersect(names(state$merged_chemical_tags), names(df))
+  cols
 }
 
 # Rows whose cleaned Name (and CAS, when given) equal the decision key.
@@ -397,7 +457,8 @@ content_row_mask <- function(rs, name_col, cas_col, name, casrn) {
 #' @inheritParams curate_headless
 #' @return The state with `harmonize`, `harmonization_refs`,
 #'   `harmonization_runtime_result`, `toxval_output`, `harmonize_audit`, and
-#'   `detection_results` added. When `harmonize = FALSE` only `harmonize` is set.
+#'   `detection_results` added. When `harmonize = FALSE`, the harmonization flag
+#'   and identity policy are retained.
 #' @export
 stage_harmonize <- function(
   state,
@@ -408,8 +469,11 @@ stage_harmonize <- function(
   media_map = NULL,
   media_map_snapshot = NULL,
   media = NULL,
-  source_name = NULL
+  source_name = NULL,
+  toxval_identity_mode = c("lookup", "accepted")
 ) {
+  toxval_identity_mode <- match.arg(toxval_identity_mode)
+  state$toxval_identity_mode <- toxval_identity_mode
   state$harmonize <- isTRUE(harmonize)
   if (!state$harmonize) {
     return(state)
@@ -444,7 +508,8 @@ stage_harmonize <- function(
     corrections = harmonization_refs$corrections,
     media_map = harmonization_refs$media_map,
     media = media,
-    source_name = source_name %||% tools::file_path_sans_ext(basename(state$input_path))
+    source_name = source_name %||% tools::file_path_sans_ext(basename(state$input_path)),
+    toxval_identity_mode = toxval_identity_mode
   )
 
   # Advance the replay baseline to the harmonized stage too, so an exported
@@ -504,7 +569,17 @@ stage_export <- function(state, output_path = NULL, format = "parquet", write_fi
       site_alias_map = state$site_alias_map,
       script_baseline_state = state$script_baseline_state,
       media_map = if (isTRUE(state$harmonize)) state$harmonization_refs$media_map else NULL,
-      media_results = state$harmonization_runtime_result$media_results
+      media_results = state$harmonization_runtime_result$media_results,
+      ignored_identifier_cols = state$ignored_identifier_cols %||% character(),
+      review_decision_evidence = state$review_decision_evidence,
+      identity_decisions = state$identity_decisions,
+      candidate_validation = state$candidate_validation,
+      review_reconciliation = state$review_reconciliation,
+      candidate_review = state$candidate_review,
+      source_identifier_evidence = state$source_identifier_evidence,
+      identifier_diagnostics = state$identifier_diagnostics,
+      toxval_identity_mode = state$toxval_identity_mode %||% "lookup",
+      cleaning_steps = state$cleaning_steps
     )
 
     fs::dir_create(dirname(output_path), recurse = TRUE)
@@ -538,9 +613,36 @@ stage_export <- function(state, output_path = NULL, format = "parquet", write_fi
       date_results = runtime$date_results,
       detection = state$detection_results,
       detection_results = state$detection_results,
-      row_data = state$resolution_state
+      row_data = state$resolution_state,
+      identity_state = identity_review_state(state$resolution_state),
+      review_reconciliation = state$review_reconciliation,
+      candidate_review = state$candidate_review,
+      review_decision_evidence = state$review_decision_evidence
     ))
   } else {
-    invisible(list(data = state$resolution_state, audit_trail = state$cleaning_result$audit_trail))
+    invisible(list(data = state$resolution_state, audit_trail = state$cleaning_result$audit_trail,
+      source_identifier_evidence = state$source_identifier_evidence,
+      identifier_diagnostics = state$identifier_diagnostics))
   }
+}
+
+
+# Existing imported/replayed flags still receive honest missing-baseline reports.
+effective_review_flags <- function(df, name_col, cas_col, explicit = NULL) {
+  flags <- init_resolution_state(df)
+  idx <- which(!is.na(flags$row_flag))
+  if (!length(idx)) return(explicit)
+  inferred <- data.frame(name = as.character(flags[[name_col]][idx]),
+    casrn = if (!is.na(cas_col)) as.character(flags[[cas_col]][idx]) else NA_character_,
+    flag = flags$row_flag[idx], reason = flags$row_flag_reason[idx], stringsAsFactors = FALSE)
+  if (!is.null(explicit) && NROW(explicit)) {
+    covered <- rep(FALSE, nrow(inferred))
+    for (i in seq_len(NROW(explicit))) {
+      cas <- if ("casrn" %in% names(explicit)) explicit$casrn[i] else NA_character_
+      covered <- covered | (!is.na(inferred$name) & inferred$name == explicit$name[i] &
+        (is.na(cas) | !nzchar(cas) | (!is.na(inferred$casrn) & inferred$casrn == cas)))
+    }
+    inferred <- inferred[!covered, , drop = FALSE]
+  }
+  dplyr::bind_rows(explicit, unique(inferred))
 }

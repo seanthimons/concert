@@ -22,7 +22,17 @@ build_export_sheets(
   site_alias_map = NULL,
   script_baseline_state = NULL,
   media_map = NULL,
-  media_results = NULL
+  media_results = NULL,
+  ignored_identifier_cols = character(),
+  review_decision_evidence = NULL,
+  identity_decisions = NULL,
+  candidate_validation = NULL,
+  review_reconciliation = NULL,
+  candidate_review = NULL,
+  source_identifier_evidence = NULL,
+  identifier_diagnostics = NULL,
+  toxval_identity_mode = c("lookup", "accepted"),
+  cleaning_steps = NULL
 )
 }
 \arguments{
@@ -75,6 +85,26 @@ State so re-imported sessions can regenerate replay review overrides.}
 \item{media_map}{Effective media map, including user overrides.}
 
 \item{media_results}{Row-level media identity, routing and original-value audit.}
+
+\item{ignored_identifier_cols}{Deliberately unused identifier metadata columns.}
+
+\item{review_decision_evidence}{Portable immutable decision evidence.}
+
+\item{identity_decisions}{Explicit structured source-identity decisions.}
+
+\item{candidate_validation}{Structured candidate-validation outcomes.}
+
+\item{review_reconciliation}{Optional reconciliation report.}
+
+\item{candidate_review}{Optional candidate-validation report.}
+
+\item{source_identifier_evidence}{Optional source-ID evidence report.}
+
+\item{identifier_diagnostics}{Optional unused/source-ID diagnostics.}
+
+\item{toxval_identity_mode}{Portable ToxVal identity policy, lookup or accepted.}
+
+\item{cleaning_steps}{Optional applied named logical cleaning-step mask.}
 }
 \value{
 Named list of data frames with sheet names as keys

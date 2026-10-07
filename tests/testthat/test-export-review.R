@@ -41,6 +41,7 @@ test_that("explicit WQX acceptance and verification resolve review, but FOLLOW-U
     name = c("accepted", "verified", "followup", "accepted followup", "identifier followup"),
     consensus_dtxsid = c(rep(NA_character_, 4), "DTXSID7020182"),
     consensus_status = c(rep("wqx", 4), "agree"),
+    consensus_name = c(rep("Carbon", 4), NA),
     consensus_source = "Name"
   )
   # The same overrides are used by headless review and replay of interactive edits.
@@ -75,6 +76,7 @@ test_that("headless workbook exports use the same review rules as interactive ex
     name = c("fuzzy", "exact", "alias", "accepted", "verified", "followup", "error"),
     consensus_dtxsid = NA_character_,
     consensus_status = c(rep("wqx", 6), "error"),
+    consensus_name = c(rep("Carbon", 6), NA),
     consensus_source = c(rep("Name", 3), "manual_wqx", rep("Name", 3)),
     source_tier = c("wqx_fuzzy", "wqx_exact", "wqx_alias", rep("wqx_exact", 3), "miss")
   )
@@ -100,4 +102,19 @@ test_that("headless workbook exports use the same review rules as interactive ex
 
   expect_equal(exported$needs_review, c(TRUE, TRUE, TRUE, FALSE, FALSE, TRUE, TRUE))
   expect_equal(exported$needs_review, review_export(reviewed$resolution_state)$needs_review)
+})
+
+test_that("exports retain review for contradictory VERIFIED decisions", {
+  state <- tibble::tibble(
+    name = c("Tie", "Unresolved pick", "Missing", "Reviewed vocabulary"),
+    consensus_status = c("error", "suggested", "manual", "wqx"),
+    consensus_dtxsid = c(NA, "DTXSID1", " ", NA),
+    consensus_name = c(NA, NA, NA, "Carbon"),
+    row_flag = "VERIFIED",
+    row_flag_reason = "Historical review"
+  )
+  out <- review_export(state)
+  expect_equal(out$needs_review, c(TRUE, TRUE, TRUE, FALSE))
+  expect_equal(out$row_flag_reason, state$row_flag_reason)
+  expect_equal(out$row_flag, state$row_flag)
 })

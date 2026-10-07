@@ -2,6 +2,34 @@
 
 # concert NEWS
 
+## Development
+
+- Validate complete PubChem CID/DTXSID pairs; empty or malformed synonyms retain
+  NA candidates and successful CID hits (#88).
+- Add one immutable scoped decision-evidence contract with revision-bound
+  acknowledgments, selected-identity reconciliation, candidate validation reports,
+  and lossless replay/workbook persistence (#84/#85). Legacy flags report missing
+  historical baselines; flags and reasons are never inferred or cleared.
+- Add accepted-identity views and an Accepted Identities workbook sheet (#87).
+  Explicit scope/conflict decisions support registered mixtures; split component
+  CAS values remain provisional until correspondence is reviewed. Headless ToxVal
+  supports `toxval_identity_mode = "accepted"` without raw-ID fallback and retains
+  measurement rows. Existing lookup export defaults remain compatible.
+- Add explicit Source DTXSID evidence, authoritative validation outcomes,
+  unused-column warnings and deliberate metadata ignores (#86). Raw `dtxsid_*`
+  input cannot vote in lookup consensus. Membership, source correspondence and
+  accepted identity remain distinct; source-only manual recovery requires a
+  current scoped decision. Transport failure is distinct from definitive absence.
+- Separate queue, reconciliation and identity-review completion diagnostics.
+  GUI flag actions record actual decision-time evidence and display source
+  validation and acceptance blockers. Row-review dialogs also record scoped
+  source correspondence or retained unresolved decisions, with exact source
+  targeting, membership checks, immutable evidence and portable replay.
+
+- Reopen VERIFIED rows whose current identity is unresolved (#83), retaining prior
+  flags, reasons, and tie evidence. Explicit FOLLOW-UP/BAD dispositions and reviewed
+  WQX canonical names remain outside the ordinary pending queue.
+
 ## v0.5.3 (2026-10-06)
 
 #### Bug fixes

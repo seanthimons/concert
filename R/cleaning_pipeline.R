@@ -556,10 +556,29 @@ multi_analyte_separator_pattern <- function() {
   "(?<!\\()\\s\\+\\s(?!\\))|(?i)\\s+and\\s+|\\s&\\s(?![^()]*\\))|\\s/\\s(?![^()]*\\))"
 }
 
+# Conservative extra detection for three or more unspaced chemical-name parts.
+# It only proposes review; units, ratios and parenthetical/chiral syntax stay intact.
+credible_unspaced_component_list <- function(x) {
+  vapply(as.character(x), function(value) {
+    if (is.na(value) || grepl("[()]", value) || !grepl("/", value, fixed = TRUE)) return(FALSE)
+    parts <- trimws(strsplit(value, "/", fixed = TRUE)[[1]])
+    qualifiers <- c("alpha", "beta", "gamma", "delta", "epsilon", "omega", "cis", "trans")
+    length(parts) >= 3L && all(nchar(parts) >= 5L) && !all(tolower(parts) %in% qualifiers) &&
+      all(grepl("^[[:alpha:]][[:alnum:] -]*[[:alpha:]]$", parts))
+  }, logical(1), USE.NAMES = FALSE)
+}
+
+has_multi_analyte_separator <- function(x) {
+  ordinary <- grepl(multi_analyte_separator_pattern(), x, perl = TRUE)
+  ordinary[is.na(x)] <- FALSE
+  ordinary | credible_unspaced_component_list(x)
+}
+
 #' Pre-check predicate for flag_multi_analyte step
 #'
 #' Checks for multi-analyte patterns: strings containing common separator
-#' tokens (\code{and}, \code{+}, \code{&}, \code{/}) flanked by whitespace.
+#' tokens (\code{and}, \code{+}, \code{&}, \code{/}) flanked by whitespace,
+#' and credible unspaced slash lists of three or more chemical-name parts.
 #'
 #' @param df Dataframe to check.
 #' @param name_cols Character vector of name column names.
@@ -572,7 +591,7 @@ precheck_multi_analyte <- function(df, name_cols) {
   pattern <- multi_analyte_separator_pattern()
   est_changes <- as.integer(sum(vapply(
     name_cols,
-    function(col) sum(stringr::str_detect(df[[col]], pattern), na.rm = TRUE),
+    function(col) sum(has_multi_analyte_separator(df[[col]]), na.rm = TRUE),
     integer(1)
   )))
   list(should_run = est_changes > 0L, est_changes = est_changes)
@@ -3558,7 +3577,7 @@ flag_multi_analyte <- function(df, name_cols) {
     col_values <- df_result[[col_name]]
 
     # Vectorized pattern detection
-    has_sep <- grepl(sep_pattern, col_values, perl = TRUE)
+    has_sep <- has_multi_analyte_separator(col_values)
     has_sep[is.na(has_sep)] <- FALSE
 
     # Find rows to flag (non-NA values that match any separator)
@@ -3712,7 +3731,8 @@ suggest_multi_analyte_parts <- function(value) {
     return(character(0))
   }
 
-  normalized <- gsub(multi_analyte_separator_pattern(), "\n", value, perl = TRUE)
+  normalized <- if (credible_unspaced_component_list(value)) gsub("/", "\n", value, fixed = TRUE) else
+    gsub(multi_analyte_separator_pattern(), "\n", value, perl = TRUE)
   parts <- trimws(unlist(strsplit(normalized, "\n", fixed = TRUE)))
   parts <- parts[nzchar(parts)]
 
@@ -3965,6 +3985,13 @@ resolve_review_row <- function(df, name_cols, row_index, spec, cas_cols = charac
   # --- expand into the resulting rows ---
   expanded <- df_result[rep(row_index, part_count), , drop = FALSE]
   expanded[[field]] <- name_vec
+  # A source CAS repeated across children is candidate evidence, not proof that
+  # it represents each component. Preserve it and require scoped correspondence.
+  source_cas <- if (length(cas_cols)) as.character(df_result[[cas_cols[1]]][row_index]) else NA_character_
+  expanded$multi_analyte_source_cas <- source_cas
+  exact_component_mapping <- assign_cas && length(cas_parts) == part_count && length(cas_parts) > 1L
+  expanded$component_cas_unresolved <- part_count > 1L && !is.na(source_cas) &&
+    nzchar(trimws(source_cas)) && !exact_component_mapping
   if (assign_cas) {
     expanded[[cas_cols[1]]] <- cas_vec
     for (extra_col in cas_cols[-1]) {

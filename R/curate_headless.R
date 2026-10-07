@@ -2,7 +2,7 @@
 #'
 #' Runs the complete CONCERT curation pipeline - file read, frontmatter
 #' detection, cleaning, CompTox API search, consensus classification, and
-#' 8-sheet XLSX export - from a single R script call with no Shiny session
+#' multi-sheet XLSX export - from a single R script call with no Shiny session
 #' required. When harmonize=TRUE, additionally runs the numeric parsing, unit
 #' harmonization, and ToxVal schema mapping pipeline, and writes parquet/CSV
 #' output alongside the XLSX.
@@ -38,6 +38,9 @@
 #'   the console. If FALSE, all messages are suppressed.
 #' @param harmonize Logical. If TRUE, runs numeric parsing, unit harmonization,
 #'   and ToxVal schema mapping after curation. Default FALSE for backward compat.
+#' @param toxval_identity_mode ToxVal identifier policy: "lookup" preserves
+#'   the existing audit export default; "accepted" gates IDs and preserves
+#'   every measurement row with NA IDs when blocked.
 #' @param format Character. Output format for ToxVal data when harmonize=TRUE.
 #'   One of "parquet", "csv", or "both". Default "parquet". Ignored when
 #'   harmonize=FALSE.
@@ -77,6 +80,13 @@
 #' @param row_flags Optional data frame with `name`, `flag`, and optional
 #'   `casrn` and `reason` columns. Matching rows get the row flag (one of
 #'   `valid_row_flags()`).
+#' @param review_decision_evidence Immutable portable decision snapshots and
+#'   scoped acknowledgments from [capture_review_decision()]. Legacy flags never
+#'   acquire a historical baseline implicitly.
+#' @param candidate_validation Structured saved validation outcomes from
+#'   [validate_review_candidates()]. Reporting makes no network requests.
+#' @param identity_decisions Explicit source-scoped decisions passed to
+#'   [apply_identity_decisions()]. Name-wide selectors cannot grant scope acceptance.
 #' @param site_manifest Optional curated Dataset Context site manifest to include
 #'   in the workbook export.
 #' @param site_alias_map Optional Dataset Context raw-label alias map to include
@@ -131,6 +141,8 @@
 #' @export
 #' @importFrom tools file_ext
 #' @importFrom arrow write_parquet
+#' @param ignored_identifier_cols Retained identifier columns deliberately
+#'   treated as metadata. These columns never supply identity evidence.
 curate_headless <- function(
   input_path,
   output_path,
@@ -154,6 +166,9 @@ curate_headless <- function(
   accept_suggestions = FALSE,
   review_picks = NULL,
   row_flags = NULL,
+  review_decision_evidence = NULL,
+  candidate_validation = NULL,
+  identity_decisions = NULL,
   site_manifest = NULL,
   site_alias_map = NULL,
   multi_analyte_resolutions = NULL,
@@ -165,7 +180,9 @@ curate_headless <- function(
   source_name = NULL,
   pubchem = FALSE,
   desalt = FALSE,
-  desalt_workflows = c("qsar-ready", "ms-ready")
+  desalt_workflows = c("qsar-ready", "ms-ready"),
+  ignored_identifier_cols = character(),
+  toxval_identity_mode = "lookup"
 ) {
   # skip_flags reserved for future use; isotope_match skip is handled internally by run_curation_pipeline()
 
@@ -188,7 +205,8 @@ curate_headless <- function(
       reference_list_snapshot = reference_list_snapshot,
       activate_all_references = activate_all_references,
       site_manifest = site_manifest,
-      site_alias_map = site_alias_map
+      site_alias_map = site_alias_map,
+      ignored_identifier_cols = ignored_identifier_cols
     )
     state <- stage_clean(
       state,
@@ -210,11 +228,15 @@ curate_headless <- function(
       review_overrides = review_overrides,
       accept_suggestions = accept_suggestions,
       review_picks = review_picks,
-      row_flags = row_flags
+      row_flags = row_flags,
+      review_decision_evidence = review_decision_evidence,
+      candidate_validation = candidate_validation,
+      identity_decisions = identity_decisions
     )
     state <- stage_harmonize(
       state,
       harmonize = harmonize,
+      toxval_identity_mode = toxval_identity_mode,
       unit_map = unit_map,
       unit_map_snapshot = unit_map_snapshot,
       corrections = corrections,

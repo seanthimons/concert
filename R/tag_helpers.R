@@ -36,7 +36,7 @@
 #' @export
 classify_tags <- function(tags) {
   # Define type membership vectors (single source of truth per D-03)
-  chemical_types <- c("Name", "CASRN", "Other")
+  chemical_types <- c("Name", "CASRN", "Other", "DTXSID")
   numeric_types <- c(
     "Result",
     "Numeric",
