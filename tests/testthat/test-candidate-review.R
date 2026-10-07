@@ -110,7 +110,7 @@ test_that("acknowledgments bind candidate work to decision revision and source c
   expect_true(candidate_report(current, evidence)$actionable)
   expect_identical(candidate_report(current, evidence)$change_reason, "scope_changed")
   path <- tempfile(fileext = ".R")
-  on.exit(unlink(path))
+  withr::defer(unlink(path))
   dput(evidence, path)
   expect_identical(candidate_report(current, dget(path)), candidate_report(current, evidence))
 })

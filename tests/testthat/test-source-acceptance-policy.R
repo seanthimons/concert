@@ -95,7 +95,7 @@ test_that("current source correspondence decisions survive workbook and reject c
   df <- source_policy_fixture(correspondence = "identity_conflict")
   out <- apply_identity_decisions(list(resolution_state = df), list(source_policy_decision(df)))$resolution_state
   path <- tempfile(fileext = ".xlsx")
-  on.exit(unlink(path))
+  withr::defer(unlink(path))
   writexl::write_xlsx(out, path)
   restored <- readxl::read_xlsx(path)
   expect_true(identity_review_state(restored)$identity_eligible)
