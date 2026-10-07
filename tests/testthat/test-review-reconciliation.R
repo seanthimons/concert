@@ -95,3 +95,20 @@ test_that("row-bound evidence detects swapped identities within multirow scopes"
   expect_false(identical(review_evidence_fingerprint(first),
     review_evidence_fingerprint(review_evidence_snapshot(df, scope_cols = columns))))
 })
+
+
+test_that("candidate evidence remains bound to source rows under a shared selector", {
+  df <- reconciliation_fixture()
+  columns <- c("name", "cas", "part")
+  df$resolver_dtxsid_candidate <- c("DTXSID1", "DTXSID2")
+  df$pubchem_query <- "Shared lookup query"
+  first <- review_evidence_snapshot(df, scope_cols = columns)
+  expect_identical(review_evidence_fingerprint(first),
+    review_evidence_fingerprint(review_evidence_snapshot(df[2:1, ], scope_cols = columns)))
+  df$resolver_dtxsid_candidate <- rev(df$resolver_dtxsid_candidate)
+  swapped <- review_evidence_snapshot(df, scope_cols = columns)
+  expect_identical(first$candidates, swapped$candidates)
+  expect_false(identical(review_evidence_fingerprint(first$candidate_scope),
+    review_evidence_fingerprint(swapped$candidate_scope)))
+  expect_false(identical(review_evidence_fingerprint(first), review_evidence_fingerprint(swapped)))
+})

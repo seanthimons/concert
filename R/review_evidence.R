@@ -130,7 +130,14 @@ review_evidence_snapshot <- function(automated, final = automated,
   }
   lookup_cols <- grep("^(dtxsid|preferredName|source_tier|match_tier|tied_dtxsids|resolver_lookup_status|pubchem_lookup_status|parent_lookup_status)($|_)",
     names(automated), value = TRUE)
+  candidate_scope <- lapply(row_indices, function(i) {
+    list(source_content = review_evidence_canonical(as.list(automated[i, intersect(scope_cols, names(automated)), drop = FALSE])),
+         candidates = normalize_review_candidates(automated, i, source_id_cols))
+  })
+  candidate_keys <- vapply(candidate_scope, review_evidence_fingerprint, character(1))
+  candidate_scope <- candidate_scope[order(candidate_keys)]
   list(schema_version = 1L, automated = selected(automated), final = selected(final),
+    candidate_scope = candidate_scope,
     candidates = normalize_review_candidates(automated, row_indices, source_id_cols),
     validation = normalize_review_validation(validation),
     lookup = review_evidence_canonical(automated[row_indices, unique(c(intersect(scope_cols, names(automated)), lookup_cols)), drop = FALSE]))
