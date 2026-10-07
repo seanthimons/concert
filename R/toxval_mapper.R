@@ -21,6 +21,9 @@
 #'   - harmonized_unit: Target canonical unit
 #'   - conversion_factor: Multiplier applied
 #'   - unit_flag: Conversion quality flag
+#' @param identity_mode "lookup" (compatibility default) retains provisional lookup
+#'   identifiers. "accepted" applies [identity_review_state()] and never falls
+#'   back to raw IDs for blocked rows. Measurements remain aligned.
 #' @param source_name Optional dataset identifier. Defaults to "user_upload".
 #'
 #' @return Tibble with 56 ToxVal columns including:
@@ -50,7 +53,8 @@
 #' @importFrom tibble tibble
 #' @importFrom digest digest
 #' @export
-map_to_toxval_schema <- function(curated_data, harmonized_data, source_name = NULL) {
+map_to_toxval_schema <- function(curated_data, harmonized_data, source_name = NULL, identity_mode = c("lookup", "accepted")) {
+  identity_mode <- match.arg(identity_mode)
   # Handle zero-row input
   n_rows <- nrow(harmonized_data)
   if (n_rows == 0) {
@@ -116,7 +120,11 @@ map_to_toxval_schema <- function(curated_data, harmonized_data, source_name = NU
   # Resolved identifiers. For rows with no DTXSID, promote the resolved WQX
   # canonical name (consensus_name) into `name` so it survives as a crosswalk
   # key; DTXSID rows keep the existing raw-text fallback unchanged.
-  dtxsid_vec <- pick_char("consensus_dtxsid", "dtxsid")
+  dtxsid_vec <- if (identity_mode == "accepted") {
+    identity_review_state(row_data)$accepted_dtxsid
+  } else {
+    pick_char("consensus_dtxsid", "dtxsid")
+  }
   name_raw <- pick_char(
     "name",
     c("analyte", "chemical", "chemical_name", names(row_data)[tag_values(row_data, c("Name"))])

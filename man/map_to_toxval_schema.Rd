@@ -4,7 +4,12 @@
 \alias{map_to_toxval_schema}
 \title{Map curated data to ToxVal schema}
 \usage{
-map_to_toxval_schema(curated_data, harmonized_data, source_name = NULL)
+map_to_toxval_schema(
+  curated_data,
+  harmonized_data,
+  source_name = NULL,
+  identity_mode = c("lookup", "accepted")
+)
 }
 \arguments{
 \item{curated_data}{Tibble from curation pipeline containing at minimum:
@@ -26,6 +31,10 @@ Optional columns: qualifier, orig_result, toxval_type, species_common, etc.
 }}
 
 \item{source_name}{Optional dataset identifier. Defaults to "user_upload".}
+
+\item{identity_mode}{"lookup" (compatibility default) retains provisional lookup
+identifiers. "accepted" applies \code{\link[=identity_review_state]{identity_review_state()}} and never falls
+back to raw IDs for blocked rows. Measurements remain aligned.}
 }
 \value{
 Tibble with 56 ToxVal columns including:

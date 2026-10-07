@@ -1419,3 +1419,9 @@ Full set of changes:
 
 Full set of changes:
 [`48a0046...v0.1.1`](https://github.com/seanthimons/concert/compare/48a0046...v0.1.1)
+
+- Add `identity_review_state()` and `accepted_identity_view()` plus an Accepted
+  Identities workbook sheet. Lookup consensus remains available for audit;
+  unresolved scope, conflicts, exclusions and review requirements block accepted
+  identifiers. ToxVal mapping offers explicit `identity_mode = "accepted"` without
+  raw-ID fallback; its existing lookup default is retained for compatibility.

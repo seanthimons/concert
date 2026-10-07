@@ -94,6 +94,9 @@ build_export_sheets <- function(
     # .pinned, .manual_entry, .suggested_column are internal state -- excluded from export.
     dplyr::select(-tidyselect::any_of(c(".pinned", ".manual_entry", ".suggested_column")))
 
+  acceptance <- identity_review_state(resolution_state)
+  curated_data_sheet[names(acceptance)] <- acceptance
+
   # Add enrichment columns (consensus_casrn, consensus_formula, consensus_mw)
   if (!is.null(enrichment_cache) && nrow(enrichment_cache) > 0) {
     enrich_lookup <- enrichment_cache[, c("dtxsid", "casrn", "molecular_formula", "molecular_weight")]
@@ -261,6 +264,7 @@ build_export_sheets <- function(
     sheets,
     list(
       "Curated Data" = curated_data_sheet,
+      "Accepted Identities" = accepted_identity_view(resolution_state),
       "Summary" = summary_sheet,
       "Cleaning Audit" = cleaning_audit_sheet,
       "Reference Lists" = reference_lists_sheet,
