@@ -199,11 +199,11 @@ suggest_column_tags <- function(col_names) {
       "smiles",
       "inchi",
       "inchikey",
-      "dtxsid",
       "structure",
       "synonym",
       "synonyms"
     ),
+    DTXSID = c("dtxsid", "source dtxsid"),
     Result = c("result value", "result", "concentration", "conc", "measurement", "measured value"),
     Numeric = c("numeric measurement", "numeric value", "numeric"),
     Unit = c("unit of measure", "units", "unit", "uom"),
@@ -249,6 +249,7 @@ suggest_column_tags <- function(col_names) {
   # Tie-break priority (lower = preferred) when two tags match at equal
   # specificity. More specific concepts win over generic Name/Other/Result.
   priority_order <- c(
+    "DTXSID",
     "CASRN",
     "DurationUnit",
     "UncertaintyCoverage",

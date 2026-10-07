@@ -579,6 +579,20 @@ derive_resolution_html <- function(df, row_indices) {
   manual_mask <- status == "manual" & !is.na(dtxsid)
   mpref <- manual_pref
   mpref[is.na(mpref)] <- pref_name[is.na(mpref)]
+  # A scoped decision may choose a different ID from the lookup result. Its
+  # lookup name must not be displayed as the name of the newly selected ID.
+  scoped <- manual_mask & identity_col(df, "consensus_source") == "identity_decision"
+  scoped[is.na(scoped)] <- FALSE
+  mpref[scoped] <- NA_character_
+  candidate_cols <- grep("^source_id_.*_source_candidate_id$", names(df), value = TRUE)
+  for (col in candidate_cols) {
+    stem <- sub("_source_candidate_id$", "", col)
+    source_name <- identity_col(df, paste0(stem, "_preferred_name"))
+    matching <- scoped & !is.na(df[[col]]) & df[[col]] == dtxsid &
+      identity_col(df, paste0(stem, "_validation_status")) == "validated" & !is.na(source_name)
+    matching[is.na(matching)] <- FALSE
+    mpref[matching] <- source_name[matching]
+  }
   manual_badge <- '<span class="badge bg-info ms-1" style="font-size:0.7em;">manual</span>'
   has_mp <- manual_mask & !is.na(mpref)
   result[has_mp] <- paste0(
@@ -1104,6 +1118,64 @@ apply_queued_review_overrides <- function(resolution_state, queue, validation_re
   )
 }
 
+gui_flag_review_evidence <- function(evidence, automated, final, rows, column_tags, disposition, flag, reason,
+                                     raw_data = NULL) {
+  if (is.null(automated) || nrow(automated) != nrow(final)) {
+    stop("Review baseline unavailable; re-run curation before capturing a new flag decision.", call. = FALSE)
+  }
+  columns <- setdiff(intersect(unique(c(names(raw_data), names(column_tags), "multi_analyte_source_value",
+    "multi_analyte_source_cas", "multi_analyte_part_index", "multi_analyte_part_count")), names(final)), "original_row_id")
+  source_cols <- names(column_tags)[unlist(column_tags) %in% "DTXSID"]
+  name_col <- names(column_tags)[unlist(column_tags) %in% "Name"][1]
+  cas_col <- names(column_tags)[unlist(column_tags) %in% "CASRN"][1]
+  if (is.na(name_col)) stop("Flag evidence requires a Name-tagged source column.", call. = FALSE)
+  names <- as.character(final[[name_col]][rows])
+  cas <- if (!is.na(cas_col)) as.character(final[[cas_col]][rows]) else rep(NA_character_, length(rows))
+  decision_keys <- mapply(review_decision_key, names, cas, USE.NAMES = FALSE)
+  result <- evidence
+  for (key in unique(decision_keys)) {
+    selected <- rows[decision_keys == key]
+    scope <- review_evidence_scope(automated, selected, columns)
+    if (isTRUE(scope$ambiguous)) stop("Review scope is ambiguous across source rows; preserve source lineage before recording a decision.", call. = FALSE)
+    current <- review_evidence_snapshot(automated, final, selected,
+      source_id_cols = unique(c("source_dtxsid", source_cols)), scope_cols = columns)
+    result <- capture_review_decision(result, decision_id = key,
+      scope = scope, current = current, disposition = disposition, flag = flag, reason = reason)
+  }
+  result
+}
+
+source_identifier_review_panel <- function(df, row, column_tags) {
+  cols <- names(column_tags)[unlist(column_tags) %in% "DTXSID"]
+  parts <- lapply(cols, function(col) {
+    fields <- paste0("source_id_", col, "_", c("source_raw_id", "source_candidate_id", "validation_status",
+      "identity_status", "preferred_name", "casrn", "authority", "checked_at", "validation_reason"))
+    fields <- intersect(fields, names(df))
+    if (!length(fields)) return(NULL)
+    tags$div(class = "border rounded p-2 mb-2", tags$strong(paste("Source DTXSID:", col)),
+      tags$dl(lapply(fields, function(field) tagList(tags$dt(sub(paste0("source_id_", col, "_"), "", field, fixed = TRUE)),
+        tags$dd(as.character(df[[field]][row]) %||% "Unknown")))))
+  })
+  state <- identity_review_state(df[row, , drop = FALSE])
+  tagList(parts, div(class = "text-muted small mb-2", paste("Identity:", state$identity_status,
+    if (nzchar(state$identity_blockers)) paste("—", state$identity_blockers) else "")))
+}
+
+gui_review_row_flags <- function(df, column_tags) {
+  name_col <- names(column_tags)[unlist(column_tags) %in% "Name"][1]
+  cas_col <- names(column_tags)[unlist(column_tags) %in% "CASRN"][1]
+  if (is.na(name_col)) return(NULL)
+  rows <- which(!is.na(df$row_flag) & nzchar(df$row_flag))
+  names <- as.character(df[[name_col]][rows])
+  cas <- if (!is.na(cas_col)) as.character(df[[cas_col]][rows]) else rep(NA_character_, length(rows))
+  unique(tibble::tibble(name = names, casrn = cas, flag = df$row_flag[rows], reason = df$row_flag_reason[rows],
+    decision_id = mapply(review_decision_key, names, cas, USE.NAMES = FALSE)))
+}
+
+review_disposition_choices <- function() c("Other / unspecified" = "other", "Deferred" = "deferred",
+  "No identity hit" = "no_hit", "Candidate rejected" = "rejected", "Scope conflict" = "scope_conflict",
+  "Identity reviewed" = "accepted")
+
 row_flag_review_controls <- function(session, current_flag = "", current_reason = "") {
   current_flag <- if (!is.na(current_flag) && nzchar(current_flag)) current_flag else ""
   current_reason <- if (!is.na(current_reason) && nzchar(current_reason)) current_reason else ""
@@ -1124,6 +1196,8 @@ row_flag_review_controls <- function(session, current_flag = "", current_reason 
       rows = 2,
       placeholder = "Reason for BAD or FOLLOW-UP"
     ),
+    selectInput(session$ns("modal_review_disposition"), "Decision basis",
+      choices = review_disposition_choices(), selected = "other"),
     actionButton(
       session$ns("modal_apply_row_flag"),
       "Apply Flag",
@@ -1312,7 +1386,9 @@ review_internal_hidden_cols <- function(df_names, dtxsid_cols = character(0)) {
     ".review_row",
     ".pinned",
     ".manual_entry",
-    "manual_preferredName"
+    "manual_preferredName",
+    "identity_decision_record",
+    "identity_decision_fingerprint"
   ))
 }
 
@@ -1729,6 +1805,8 @@ mod_review_results_ui <- function(id) {
               placeholder = "Reason",
               width = "220px"
             ),
+            selectInput(ns("batch_review_disposition"), "Decision basis", choices = review_disposition_choices(),
+              selected = "other", width = "180px"),
             actionButton(
               ns("apply_batch_row_flag"),
               "Apply Flag",
@@ -1892,6 +1970,53 @@ mod_review_results_server <- function(id, data_store) {
       invisible(choices)
     }
 
+    prepare_identity_scope_review <- function(row_idx) {
+      tryCatch({
+        rows <- get_group_rows(row_idx, isolate(data_store$dedup_group_map))
+        data_store$identity_modal_context <- gui_identity_context(data_store$resolution_state, rows, data_store$column_tags)
+        identity_scope_review_controls(session, data_store$identity_modal_context)
+      }, error = function(e) {
+        data_store$identity_modal_context <- NULL
+        div(class = "text-muted", conditionMessage(e))
+      })
+    }
+
+    output$identity_scope_evidence <- renderUI({
+      context <- data_store$identity_modal_context[[input$identity_scope_target %||% ""]]
+      req(context)
+      tagList(tagged_row_summary(context$snapshot, 1L, data_store$column_tags),
+        source_identifier_review_panel(context$snapshot, 1L, data_store$column_tags))
+    })
+
+    output$identity_scope_result <- renderUI({
+      context <- data_store$identity_modal_context[[input$identity_scope_target %||% ""]]
+      req(context, data_store$resolution_state)
+      row <- tryCatch(gui_identity_row(data_store$resolution_state, context$selector), error = function(e) NULL)
+      req(row)
+      source_identifier_review_panel(data_store$resolution_state, row, data_store$column_tags)
+    })
+
+    observeEvent(input$identity_scope_save, {
+      tryCatch({
+        context <- data_store$identity_modal_context[[input$identity_scope_target %||% ""]]
+        if (is.null(context)) stop("Choose one source row first.", call. = FALSE)
+        result <- gui_apply_identity_decision(data_store$resolution_state, data_store$identity_decisions,
+          data_store$review_decision_evidence, data_store$script_baseline_state, context,
+          input$identity_scope_action, input$identity_scope_kind, input$identity_scope_conflict,
+          input$identity_scope_id, input$identity_scope_correspondence, input$identity_scope_reason,
+          input$identity_scope_reference)
+        data_store$resolution_state <- result$resolution_state
+        data_store$identity_decisions <- result$identity_decisions
+        data_store$review_decision_evidence <- result$review_decision_evidence
+        data_store$consensus_summary <- recalc_consensus_summary(result$resolution_state)
+        state <- identity_review_state(result$resolution_state[result$row, , drop = FALSE])
+        notify_user(paste("Source decision saved. Identity:", state$identity_status,
+          if (nzchar(state$identity_blockers)) paste("—", state$identity_blockers) else ""), type = "message")
+        data_store$identity_modal_context <- NULL
+        removeModal()
+      }, error = function(e) notify_user(conditionMessage(e), type = "error"))
+    }, ignoreInit = TRUE)
+
     show_expert_override_modal <- function(row_idx) {
       req(data_store$resolution_state)
 
@@ -1924,8 +2049,10 @@ mod_review_results_server <- function(id, data_store) {
         tagList(
           div(class = "text-muted small mb-2", sprintf("Row %d - %s", row_idx, row_status)),
           tagged_summary,
+          source_identifier_review_panel(data_store$resolution_state, row_idx, data_store$column_tags),
           row_flag_review_controls(session, current_flag, current_reason),
-          review_override_controls(session)
+          review_override_controls(session),
+          prepare_identity_scope_review(row_idx)
         ),
         footer = modalButton("Close"),
         size = "l",
@@ -2777,7 +2904,8 @@ mod_review_results_server <- function(id, data_store) {
       # Show modal
       showModal(modalDialog(
         title = "Compare Candidates",
-        tagList(tagged_summary, flag_controls, cards_container, review_override_controls(session)),
+        tagList(tagged_summary, source_identifier_review_panel(data_store$resolution_state, row_idx, data_store$column_tags),
+          flag_controls, cards_container, review_override_controls(session), prepare_identity_scope_review(row_idx)),
         footer = footer,
         size = "l",
         easyClose = TRUE
@@ -2803,6 +2931,12 @@ mod_review_results_server <- function(id, data_store) {
               input$modal_row_flag,
               reason = input$modal_row_flag_reason
             )
+            evidence <- gui_flag_review_evidence(data_store$review_decision_evidence,
+              data_store$script_baseline_state, updated_df, group_rows, data_store$column_tags,
+              input$modal_review_disposition %||% "other", normalize_row_flag(input$modal_row_flag), input$modal_row_flag_reason,
+              raw_data = data_store$clean)
+            data_store$review_decision_evidence <- evidence
+            data_store$review_row_flags <- gui_review_row_flags(updated_df, data_store$column_tags)
             data_store$resolution_state <- updated_df
 
             flag <- normalize_row_flag(input$modal_row_flag)
@@ -3164,7 +3298,7 @@ mod_review_results_server <- function(id, data_store) {
       baseline_state <- data_store$script_baseline_state %||% data_store$resolution_state
       review_overrides <- build_review_overrides(
         baseline_state,
-        data_store$resolution_state,
+        gui_identity_replay_state(data_store$resolution_state, data_store$identity_decisions),
         tag_map = full_tag_map
       )
       should_harmonize <- !is.null(data_store$harmonize_results) || !is.null(data_store$toxval_output)
@@ -3184,10 +3318,19 @@ mod_review_results_server <- function(id, data_store) {
         corrections = data_store$corrections_working,
         media_map = data_store$media_map_working,
         source_name = file_name,
+        cleaning_steps = data_store$cleaning_steps %||% if (is.null(data_store$cleaned_data)) {
+          lapply(default_cleaning_step_mask(), function(x) FALSE)
+        } else NULL,
         reference_lists = data_store$reference_lists,
         activate_all_references = isTRUE(data_store$activate_all_references),
         site_manifest = data_store$site_manifest,
-        site_alias_map = data_store$site_alias_map
+        site_alias_map = data_store$site_alias_map,
+        ignored_identifier_cols = data_store$ignored_identifier_cols %||% character(),
+        review_decision_evidence = data_store$review_decision_evidence,
+        identity_decisions = data_store$identity_decisions,
+        candidate_validation = data_store$candidate_validation,
+        toxval_identity_mode = data_store$toxval_identity_mode %||% "lookup",
+        row_flags = data_store$review_row_flags
       )
     }
 
@@ -3320,14 +3463,25 @@ mod_review_results_server <- function(id, data_store) {
           toxval_output = refresh_toxval_identity(
             data_store$toxval_output,
             data_store$resolution_state,
-            data_store$harmonize_results$harmonized
+            data_store$harmonize_results$harmonized,
+            identity_mode = data_store$toxval_identity_mode %||% "lookup"
           ),
           harmonize_audit = data_store$harmonize_audit,
           site_manifest = data_store$site_manifest,
           site_alias_map = data_store$site_alias_map,
           script_baseline_state = data_store$script_baseline_state,
           media_map = data_store$media_map_working,
-          media_results = data_store$media_results
+          media_results = data_store$media_results,
+          ignored_identifier_cols = data_store$ignored_identifier_cols %||% character(),
+          cleaning_steps = data_store$cleaning_steps %||% if (is.null(data_store$cleaned_data)) {
+            lapply(default_cleaning_step_mask(), function(x) FALSE)
+          } else NULL,
+          review_decision_evidence = data_store$review_decision_evidence,
+          identity_decisions = data_store$identity_decisions,
+          candidate_validation = data_store$candidate_validation,
+          toxval_identity_mode = data_store$toxval_identity_mode %||% "lookup",
+          source_identifier_evidence = data_store$source_identifier_evidence,
+          identifier_diagnostics = data_store$identifier_diagnostics
         )
 
         # Write to Excel
@@ -3421,6 +3575,12 @@ mod_review_results_server <- function(id, data_store) {
             input$batch_row_flag,
             reason = input$batch_row_flag_reason
           )
+          evidence <- gui_flag_review_evidence(data_store$review_decision_evidence,
+            data_store$script_baseline_state, updated_df, selected_rows, data_store$column_tags,
+            input$batch_review_disposition %||% "other", normalize_row_flag(input$batch_row_flag), input$batch_row_flag_reason,
+            raw_data = data_store$clean)
+          data_store$review_decision_evidence <- evidence
+          data_store$review_row_flags <- gui_review_row_flags(updated_df, data_store$column_tags)
           data_store$resolution_state <- updated_df
 
           flag <- normalize_row_flag(input$batch_row_flag)
@@ -3539,6 +3699,7 @@ mod_review_results_server <- function(id, data_store) {
               pubchem = isTRUE(data_store$pubchem),
               desalt = isTRUE(data_store$desalt),
               original_data = subset_data,
+              ignored_identifier_cols = intersect(data_store$ignored_identifier_cols %||% character(), names(subset_data)),
               progress_callback = function(stage, msg) {
                 incProgress(0.2, detail = msg)
               }
@@ -3777,7 +3938,8 @@ mod_review_results_server <- function(id, data_store) {
         toxval <- refresh_toxval_identity(
           data_store$toxval_output,
           data_store$resolution_state,
-          data_store$harmonize_results$harmonized
+          data_store$harmonize_results$harmonized,
+            identity_mode = data_store$toxval_identity_mode %||% "lookup"
         )
         write_curation_output(file, input$toxval_format, toxval_tibble = toxval)
       }

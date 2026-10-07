@@ -13,7 +13,8 @@ stage_harmonize(
   media_map = NULL,
   media_map_snapshot = NULL,
   media = NULL,
-  source_name = NULL
+  source_name = NULL,
+  toxval_identity_mode = c("lookup", "accepted")
 )
 }
 \arguments{
@@ -44,11 +45,16 @@ or "solid". NULL (default) uses aqueous assumption.}
 
 \item{source_name}{Optional dataset identifier for ToxVal \code{source}. Defaults
 to the input filename stem.}
+
+\item{toxval_identity_mode}{ToxVal identifier policy: "lookup" preserves
+the existing audit export default; "accepted" gates IDs and preserves
+every measurement row with NA IDs when blocked.}
 }
 \value{
 The state with \code{harmonize}, \code{harmonization_refs},
 \code{harmonization_runtime_result}, \code{toxval_output}, \code{harmonize_audit}, and
-\code{detection_results} added. When \code{harmonize = FALSE} only \code{harmonize} is set.
+\code{detection_results} added. When \code{harmonize = FALSE}, the harmonization flag
+and identity policy are retained.
 }
 \description{
 Stage 5: run numeric, unit, media, and ToxVal harmonization

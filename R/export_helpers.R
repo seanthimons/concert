@@ -40,6 +40,7 @@
 #'   State so re-imported sessions can regenerate replay review overrides.
 #' @param media_map Effective media map, including user overrides.
 #' @param media_results Row-level media identity, routing and original-value audit.
+#' @param ignored_identifier_cols Deliberately unused identifier metadata columns.
 #'
 #' @return Named list of data frames with sheet names as keys
 #' @details
@@ -52,6 +53,15 @@
 #' outcomes resolve the WQX requirement, but do not clear a separate incoming
 #' review requirement, pending `FOLLOW-UP`, or error/unresolvable status.
 #' `BAD` alone does not create or clear a review requirement.
+#' @param review_decision_evidence Portable immutable decision evidence.
+#' @param identity_decisions Explicit structured source-identity decisions.
+#' @param candidate_validation Structured candidate-validation outcomes.
+#' @param review_reconciliation Optional reconciliation report.
+#' @param candidate_review Optional candidate-validation report.
+#' @param source_identifier_evidence Optional source-ID evidence report.
+#' @param identifier_diagnostics Optional unused/source-ID diagnostics.
+#' @param toxval_identity_mode Portable ToxVal identity policy, lookup or accepted.
+#' @param cleaning_steps Optional applied named logical cleaning-step mask.
 #' @export
 build_export_sheets <- function(
   raw,
@@ -71,8 +81,20 @@ build_export_sheets <- function(
   site_alias_map = NULL,
   script_baseline_state = NULL,
   media_map = NULL,
-  media_results = NULL
+  media_results = NULL,
+  ignored_identifier_cols = character(),
+  review_decision_evidence = NULL,
+  identity_decisions = NULL,
+  candidate_validation = NULL,
+  review_reconciliation = NULL,
+  candidate_review = NULL,
+  source_identifier_evidence = NULL,
+  identifier_diagnostics = NULL,
+  toxval_identity_mode = c("lookup", "accepted"),
+  cleaning_steps = NULL
 ) {
+  toxval_identity_mode <- match.arg(toxval_identity_mode)
+  if (!is.null(cleaning_steps)) validate_portable_cleaning_steps(cleaning_steps)
   # Sheet 1: Raw Data (detected table with user-facing column names)
   raw_data_sheet <- detected_data %||% raw
 
@@ -88,11 +110,15 @@ build_export_sheets <- function(
         c("error", "unresolvable") |
         row_flag %in% "FOLLOW-UP" |
         incoming_review |
+        verified_unresolved_rows(resolution_state) |
         (consensus_status %in% "wqx" & !wqx_reviewed)
     ) %>%
     # Note: similarity_score, .resolution_method, .resolution_reason flow through automatically.
     # .pinned, .manual_entry, .suggested_column are internal state -- excluded from export.
     dplyr::select(-tidyselect::any_of(c(".pinned", ".manual_entry", ".suggested_column")))
+
+  acceptance <- identity_review_state(resolution_state)
+  curated_data_sheet[names(acceptance)] <- acceptance
 
   # Add enrichment columns (consensus_casrn, consensus_formula, consensus_mw)
   if (!is.null(enrichment_cache) && nrow(enrichment_cache) > 0) {
@@ -227,12 +253,18 @@ build_export_sheets <- function(
       tibble::tibble(key = "baseline_cells", value = as.character(nrow(baseline_diff_rows)))
     )
   }
+  config_sheet <- dplyr::bind_rows(config_sheet, tibble::tibble(
+    key = "ignored_identifier_cols",
+    value = as.character(jsonlite::toJSON(ignored_identifier_cols, auto_unbox = FALSE))))
 
   # Sheet 8: Session State (internal review state + serialized summary)
   session_state_sheet <- build_session_state_sheet(
     resolution_state,
     consensus_summary,
-    baseline_diff_rows
+    baseline_diff_rows,
+    portable_inputs = list(review_decision_evidence = review_decision_evidence,
+      identity_decisions = identity_decisions, candidate_validation = candidate_validation,
+      toxval_identity_mode = toxval_identity_mode, cleaning_steps = cleaning_steps)
   )
 
   # Sheet 9: ToxVal Output (always present per D-09)
@@ -261,6 +293,7 @@ build_export_sheets <- function(
     sheets,
     list(
       "Curated Data" = curated_data_sheet,
+      "Accepted Identities" = accepted_identity_view(resolution_state),
       "Summary" = summary_sheet,
       "Cleaning Audit" = cleaning_audit_sheet,
       "Reference Lists" = reference_lists_sheet,
@@ -281,6 +314,10 @@ build_export_sheets <- function(
   if (!is.null(harmonize_audit)) {
     sheets[["Harmonization Audit"]] <- harmonize_audit
   }
+
+  reports <- list("Review Reconciliation" = review_reconciliation, "Candidate Review" = candidate_review,
+    "Source ID Evidence" = source_identifier_evidence, "Identifier Diagnostics" = identifier_diagnostics)
+  for (name in names(reports)) if (!is.null(reports[[name]])) sheets[[name]] <- reports[[name]]
 
   media_map <- media_map %||% reference_lists$media_map
   if (!is.null(media_map)) {
@@ -414,7 +451,8 @@ build_baseline_diff_rows <- function(script_baseline_state, resolution_state) {
   )
 }
 
-build_session_state_sheet <- function(resolution_state, consensus_summary, baseline_diff_rows = NULL) {
+build_session_state_sheet <- function(resolution_state, consensus_summary, baseline_diff_rows = NULL,
+                                      portable_inputs = list()) {
   state_cols <- c(
     ".pinned",
     ".manual_entry",
@@ -481,7 +519,34 @@ build_session_state_sheet <- function(resolution_state, consensus_summary, basel
   if (!is.null(baseline_diff_rows) && nrow(baseline_diff_rows) > 0) {
     sheet <- dplyr::bind_rows(sheet, baseline_diff_rows)
   }
+  if (length(portable_inputs)) {
+    sheet <- dplyr::bind_rows(sheet, serialize_session_inputs(portable_inputs))
+  }
   sheet
+}
+
+serialize_session_inputs <- function(inputs, chunk_size = 30000L) {
+  rows <- lapply(names(inputs), function(key) {
+    value <- inputs[[key]]
+    if (is.null(value)) return(NULL)
+    if (key == "review_decision_evidence") validate_review_evidence(value)
+    if (key == "cleaning_steps") validate_portable_cleaning_steps(value)
+    payload <- as.character(jsonlite::serializeJSON(value, digits = NA))
+    starts <- seq.int(1L, nchar(payload), by = chunk_size)
+    tibble::tibble(record_type = "portable_input_v1", row_index = seq_along(starts),
+      key = key, value = substring(payload, starts, pmin(starts + chunk_size - 1L, nchar(payload))))
+  })
+  dplyr::bind_rows(rows)
+}
+
+validate_portable_cleaning_steps <- function(mask) {
+  allowed <- names(default_cleaning_step_mask())
+  if (!is.list(mask) || !length(mask) || is.null(names(mask)) || anyNA(names(mask)) ||
+      any(!nzchar(names(mask))) || anyDuplicated(names(mask)) || any(!names(mask) %in% allowed) ||
+      any(!vapply(mask, function(x) is.logical(x) && length(x) == 1L && !is.na(x), logical(1)))) {
+    stop("Unsupported portable cleaning steps: expected named logical cleaning switches.", call. = FALSE)
+  }
+  invisible(mask)
 }
 
 #' Validate Excel Size Limits

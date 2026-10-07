@@ -4,7 +4,12 @@
 \alias{validate_manual_dtxsids}
 \title{Validate manually-entered DTXSIDs via CompTox bulk API}
 \usage{
-validate_manual_dtxsids(dtxsids, batch_size = 20, delay_sec = 1)
+validate_manual_dtxsids(
+  dtxsids,
+  batch_size = 20,
+  delay_sec = 1,
+  lookup_fn = ComptoxR::ct_chemical_search_equal_bulk
+)
 }
 \arguments{
 \item{dtxsids}{Character vector of DTXSID strings (e.g., "DTXSID7020182")}
@@ -12,9 +17,13 @@ validate_manual_dtxsids(dtxsids, batch_size = 20, delay_sec = 1)
 \item{batch_size}{Integer batch size for API calls (default 20)}
 
 \item{delay_sec}{Numeric delay in seconds between batches (default 1)}
+
+\item{lookup_fn}{Injectable authoritative equality lookup.}
 }
 \value{
-Tibble with columns: searchValue, dtxsid, preferredName, rank, is_valid
+Tibble with searchValue, dtxsid, preferredName, rank, is_valid and
+validation_status. Unavailable, not_found, ambiguous and returned_id_mismatch
+remain distinct; only an exact unique requested/returned ID is valid.
 }
 \description{
 Validate manually-entered DTXSIDs via CompTox bulk API
