@@ -202,10 +202,17 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
 
             # Run the new pipeline
             # Use cleaned_data if available (after cleaning workflow), fallback to clean (raw data)
+            # The cleaning pipeline normally supplies lineage. Direct curation
+            # must use the same stable source-row numbering, including for the
+            # original-content lookup; preserve IDs already supplied by import.
+            original_data <- data_store$clean
+            if (!"original_row_id" %in% names(original_data)) {
+              original_data$original_row_id <- seq_len(nrow(original_data))
+            }
             input_data <- if (!is.null(data_store$cleaned_data)) {
               data_store$cleaned_data
             } else {
-              data_store$clean
+              original_data
             }
 
             # Guard against clobbering imported/manual review corrections on a
@@ -268,7 +275,7 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
               starts_with = isTRUE(data_store$starts_with),
               pubchem = isTRUE(data_store$pubchem),
               desalt = isTRUE(data_store$desalt),
-              original_data = data_store$clean,
+              original_data = original_data,
               ignored_identifier_cols = data_store$ignored_identifier_cols %||% character()
             )
 
