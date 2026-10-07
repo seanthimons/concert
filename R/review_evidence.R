@@ -117,14 +117,15 @@ normalize_review_validation <- function(validation = NULL) {
 #' @param row_indices Explicit reviewed rows.
 #' @param validation Structured validation data with dtxsid/outcome and optional authority/version/reason.
 #' @param source_id_cols Source DTXSID metadata column names, never promoted to consensus.
+#' @param scope_cols Source/content columns binding evidence to each source row.
 #' @return Versioned snapshot for capture_review_decision().
 #' @export
 review_evidence_snapshot <- function(automated, final = automated,
                                      row_indices = seq_len(nrow(automated)), validation = NULL,
-                                     source_id_cols = "source_dtxsid") {
+                                     source_id_cols = "source_dtxsid", scope_cols = character()) {
   selected <- function(df) {
     cols <- intersect(c("consensus_dtxsid", "consensus_status", "consensus_source", "consensus_name",
-      "manual_preferredName", ".pinned", ".manual_entry", ".resolution_method"), names(df))
+      "manual_preferredName", ".pinned", ".manual_entry", ".resolution_method", scope_cols), names(df))
     review_evidence_canonical(df[row_indices, cols, drop = FALSE])
   }
   lookup_cols <- grep("^(dtxsid|preferredName|source_tier|match_tier|tied_dtxsids|resolver_lookup_status|pubchem_lookup_status|parent_lookup_status)($|_)",
@@ -132,7 +133,7 @@ review_evidence_snapshot <- function(automated, final = automated,
   list(schema_version = 1L, automated = selected(automated), final = selected(final),
     candidates = normalize_review_candidates(automated, row_indices, source_id_cols),
     validation = normalize_review_validation(validation),
-    lookup = review_evidence_canonical(automated[row_indices, lookup_cols, drop = FALSE]))
+    lookup = review_evidence_canonical(automated[row_indices, unique(c(intersect(scope_cols, names(automated)), lookup_cols)), drop = FALSE]))
 }
 
 validate_review_evidence <- function(evidence) {

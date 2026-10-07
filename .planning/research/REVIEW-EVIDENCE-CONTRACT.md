@@ -55,3 +55,26 @@ Persistence consumers must embed this exact object in replay and supported
 workbook session state, retain schema/revision/time, and validate integrity on
 import. `dput`/`dget` and RDS are deterministic tested round trips. This foundational
 increment does not yet wire stage, iteration, workbook or UI consumers.
+
+## Selected-identity consumer (#84)
+
+`build_review_reconciliation()` is a read-only consumer. It expands each applied
+flag selector to its matched source rows and compares one explicit scoped decision
+against current automated/final evidence. `row_flags$decision_id` can supply a
+stable explicit ID; otherwise `review_decision_key(name, casrn)` provides a stable
+selector ID suitable for explicit capture. A supplied CAS without a CAS-tagged
+column is a scope diagnostic, never a name-only acknowledgment fallback.
+
+The flat report preserves flags/reasons and exposes baseline_missing,
+legacy_flag_with_selected_identity, no_identity_to_selected,
+selected_identity_changed, candidate_evidence_changed,
+validation_or_lookup_changed, scope_changed and target_missing. Unchanged or
+exactly acknowledged evidence is nonactionable. Legacy baselines remain actionable
+reconciliation work without claiming a historical no-hit transition. The consumer
+does not alter ordinary pending rows or identity fields.
+
+Snapshot `scope_cols` binds source content to each evidence row. Callers must
+supply the same source/content columns used by scope construction. Reordering rows
+then leaves the fingerprint stable, while swapping IDs between distinct source
+rows changes it. Stage/iteration/persistence integration remains owned by the
+orchestrator; this consumer alone does not deliver those entry points.

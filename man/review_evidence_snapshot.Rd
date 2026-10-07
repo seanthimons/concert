@@ -9,7 +9,8 @@ review_evidence_snapshot(
   final = automated,
   row_indices = seq_len(nrow(automated)),
   validation = NULL,
-  source_id_cols = "source_dtxsid"
+  source_id_cols = "source_dtxsid",
+  scope_cols = character()
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ review_evidence_snapshot(
 \item{validation}{Structured validation data with dtxsid/outcome and optional authority/version/reason.}
 
 \item{source_id_cols}{Source DTXSID metadata column names, never promoted to consensus.}
+
+\item{scope_cols}{Source/content columns binding evidence to each source row.}
 }
 \value{
 Versioned snapshot for capture_review_decision().
