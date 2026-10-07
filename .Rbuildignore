@@ -35,3 +35,7 @@
 ^_pkgdown\.yml$
 ^pkgdown$
 ^vignettes/articles$
+
+^\.git$
+^CONTEXT\.md$
+^media-curation-acceptance_replay\.R$

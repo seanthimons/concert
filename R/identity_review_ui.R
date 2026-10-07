@@ -35,7 +35,7 @@ identity_scope_review_controls <- function(session, context) {
         "Aggregate" = "aggregate", "Chemical class" = "class"), selected = "unknown"),
     selectInput(session$ns("identity_scope_conflict"), "Remaining conflict",
       c("Scope unresolved" = "scope", "Source name / CAS" = "source_name_cas",
-        "Source identifier" = "source_identifier", "None — resolved" = "none"), selected = "scope"),
+        "Source identifier" = "source_identifier", "None \u2014 resolved" = "none"), selected = "scope"),
     textInput(session$ns("identity_scope_id"), "Selected DTXSID", value = ""),
     checkboxInput(session$ns("identity_scope_correspondence"), "I reviewed evidence that this ID represents this source", FALSE),
     textAreaInput(session$ns("identity_scope_reason"), "Decision reason", rows = 2),
