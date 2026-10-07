@@ -114,3 +114,23 @@ test_that("unrelated candidate validation cannot change another decision snapsho
   expect_identical(review_evidence_fingerprint(before),
     review_evidence_fingerprint(review_evidence_snapshot(df, row_indices = 1, validation = validation)))
 })
+
+test_that("snapshots observe current source validation and ignore audit timestamps", {
+  df <- evidence_fixture()[1, ]
+  df$source_dtxsid <- " dtxsid123 "
+  df$source_id_source_dtxsid_source_candidate_id <- "DTXSID123"
+  df$source_id_source_dtxsid_validation_status <- "validated"
+  df$source_id_source_dtxsid_validation_reason <- "fixture"
+  df$source_id_source_dtxsid_authority <- "fixture-authority"
+  df$source_id_source_dtxsid_authority_version <- "1"
+  df$source_id_source_dtxsid_checked_at <- "yesterday"
+  original <- review_evidence_snapshot(df)
+  expect_equal(original$candidates$dtxsid, "DTXSID123")
+  expect_equal(original$validation$outcome, "valid")
+  df$source_id_source_dtxsid_checked_at <- "today"
+  expect_identical(review_evidence_fingerprint(original), review_evidence_fingerprint(review_evidence_snapshot(df)))
+  df$source_id_source_dtxsid_validation_status <- "unavailable"
+  now <- review_evidence_snapshot(df, validation = original$validation)
+  expect_equal(now$validation$outcome, "unavailable")
+  expect_false(identical(review_evidence_fingerprint(original), review_evidence_fingerprint(now)))
+})

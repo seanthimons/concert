@@ -207,7 +207,8 @@ stage_curate <- function(
     )
     original_names <- if (isTRUE(pubchem) || isTRUE(desalt)) state$clean_data[intersect(names(state$merged_chemical_tags), names(state$clean_data))] else NULL
     key <- digest::digest(list(cleaned[key_cols], state$merged_chemical_tags,
-      state$ignored_identifier_cols, "source-id-v1", original_names, wqx_threshold, starts_with, pubchem, desalt))
+      state$ignored_identifier_cols, "source-id-v1", identity_policy_version(),
+      as.character(utils::packageVersion("ComptoxR")), original_names, wqx_threshold, starts_with, pubchem, desalt))
     search_cache_path <- file.path(cache_dir, paste0("curation_", key, ".rds"))
     enrichment_cache_path <- file.path(cache_dir, "enrichment.rds")
     if (file.exists(search_cache_path)) {

@@ -76,7 +76,7 @@ normalize_review_candidates <- function(df, row_indices = seq_len(nrow(df)), sou
     add("resolver", value("pubchem_query", i), value("resolver_dtxsid_candidate", i))
     add("pubchem", value("pubchem_query", i), value("pubchem_dtxsid_candidates", i), paired = TRUE)
     for (col in intersect(source_id_cols, names(df))) {
-      add(paste0("source:", col), NA_character_, value(col, i), role = "source_metadata")
+      add(paste0("source:", col), NA_character_, toupper(value(col, i)), role = "source_metadata")
     }
     add("parent", value("parent_name_candidate", i), value("parent_dtxsid_candidates", i), role = "parent_suggestion")
     for (col in grep("^tied_dtxsids($|_)", names(df), value = TRUE)) {
@@ -130,6 +130,9 @@ review_evidence_snapshot <- function(automated, final = automated,
   }
   lookup_cols <- grep("^(dtxsid|preferredName|source_tier|match_tier|tied_dtxsids|resolver_lookup_status|pubchem_lookup_status|parent_lookup_status)($|_)",
     names(automated), value = TRUE)
+  source_fields <- grep("^source_id_.*_(source_raw_id|source_candidate_id|validation_status|validation_reason|identity_status|authority|authority_version|preferred_name|casrn)$",
+    names(automated), value = TRUE)
+  lookup_cols <- unique(c(lookup_cols, source_fields))
   candidate_scope <- lapply(row_indices, function(i) {
     list(source_content = review_evidence_canonical(as.list(automated[i, intersect(scope_cols, names(automated)), drop = FALSE])),
          candidates = normalize_review_candidates(automated, i, source_id_cols))
@@ -137,6 +140,14 @@ review_evidence_snapshot <- function(automated, final = automated,
   candidate_keys <- vapply(candidate_scope, review_evidence_fingerprint, character(1))
   candidate_scope <- candidate_scope[order(candidate_keys)]
   validation <- normalize_review_validation(validation)
+  observed <- review_observed_validation(automated, row_indices, source_id_cols)
+  # Current observed source results take precedence over supplied same-authority
+  # history. An outage must not be concealed by replaying a prior valid table.
+  if (nrow(observed)) {
+    key <- function(x) paste(x$dtxsid, x$authority, x$version, sep = "|")
+    validation <- validation[!key(validation) %in% key(observed), , drop = FALSE]
+    validation <- normalize_review_validation(rbind(validation, observed))
+  }
   relevant <- unique(c(normalize_review_candidates(automated, row_indices, source_id_cols)$dtxsid,
     as.character(automated$consensus_dtxsid[row_indices]), as.character(final$consensus_dtxsid[row_indices])))
   validation <- validation[validation$dtxsid %in% relevant, , drop = FALSE]
@@ -251,4 +262,39 @@ compare_review_decision <- function(evidence, decision_id, scope, current) {
   status <- if (identical(record$evidence_fingerprint, current_key)) "unchanged" else if (acknowledged) "acknowledged" else "changed"
   list(status = status, decision = record, acknowledged = acknowledged,
     current_fingerprint = current_key, scope_fingerprint = scope_key)
+}
+
+
+# Preserve available observed validation without guessing legacy service builds.
+review_observed_validation <- function(df, rows, source_id_cols) {
+  pieces <- list()
+  stems <- sub("_validation_status$", "", grep("^source_id_.*_validation_status$", names(df), value = TRUE))
+  field <- function(stem, suffix) {
+    col <- paste0(stem, "_", suffix)
+    if (col %in% names(df)) as.character(df[[col]][rows]) else rep(NA_character_, length(rows))
+  }
+  outcomes <- c(validated = "valid", not_found = "rejected", invalid_format = "invalid",
+    returned_id_mismatch = "conflicting", ambiguous = "ambiguous", unavailable = "unavailable")
+  for (stem in stems) {
+    outcome <- unname(outcomes[field(stem, "validation_status")])
+    outcome[is.na(outcome)] <- "unknown"
+    pieces[[length(pieces) + 1L]] <- data.frame(dtxsid = field(stem, "source_candidate_id"),
+      outcome = outcome, authority = field(stem, "authority"), version = field(stem, "authority_version"),
+      reason = field(stem, "validation_reason"), stringsAsFactors = FALSE)
+  }
+  for (row in rows) {
+    candidates <- normalize_review_candidates(df, row, source_id_cols)
+    ids <- candidates$dtxsid[candidates$source == "resolver"]
+    status <- if ("resolver_lookup_status" %in% names(df)) as.character(df$resolver_lookup_status[row]) else NA_character_
+    if (!length(ids)) next
+    outcome <- if (status %in% c("unverified", "error")) "unavailable" else
+      if (status %in% "public") "valid" else "unknown"
+    pieces[[length(pieces) + 1L]] <- data.frame(dtxsid = ids, outcome = outcome,
+      authority = "Legacy resolver public-membership check", version = "unversioned",
+      reason = paste("Observed resolver status:", status), stringsAsFactors = FALSE)
+  }
+  if (!length(pieces)) return(normalize_review_validation())
+  out <- do.call(rbind, pieces)
+  out <- out[!is.na(out$dtxsid) & grepl("^DTXSID[0-9]+$", out$dtxsid), , drop = FALSE]
+  normalize_review_validation(out)
 }

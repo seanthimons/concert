@@ -59,6 +59,7 @@ source_identifier_evidence <- function(df, tags, lookup_fn = source_identifier_l
   evidence$preferred_name <- NA_character_
   evidence$casrn <- NA_character_
   evidence$authority <- "EPA CompTox chemical/detail/search/by-dtxsid (chemicaldetailall)"
+  evidence$authority_version <- paste0("source-id-v1/ComptoxR-", utils::packageVersion("ComptoxR"))
   evidence$checked_at <- checked_at
   evidence$identity_status <- "identity_unconfirmed"
   valid <- !is.na(evidence$source_candidate_id) & grepl("^DTXSID[0-9]+$", evidence$source_candidate_id)

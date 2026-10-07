@@ -164,7 +164,7 @@ test_that("stage_review rejects unknown DTXSIDs", {
   state <- suppressMessages(stage_curate(state))
   expect_error(
     suppressMessages(stage_review(state, review_picks = tibble::tibble(name = "Chromium", dtxsid = "bogus"))),
-    "does not know: bogus"
+    "invalid, ambiguous or unavailable: bogus"
   )
 })
 
