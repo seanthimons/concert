@@ -113,9 +113,9 @@ Candidate reports preserve old definitive validation and distinguish unavailable
 current checks. Only scoped changes against a captured disposition reopen the
 candidate queue; legacy missing baselines remain informational candidate work.
 Scope/source acceptance uses separate fingerprinted identity_decisions. Neither
-capture nor acknowledgment grants acceptance. Structured source correspondence
-acceptance currently uses the headless API; the GUI displays its blockers and
-retains source evidence.
+capture nor acknowledgment grants acceptance. Structured source correspondence acceptance uses the same backend in the
+headless API and GUI. The row-review dialogs expose explicit scope, conflict,
+correspondence, reason and evidence, with one source target per decision.
 
 
 Scoped identity-decision records use fingerprint version 2 independently of the
@@ -125,3 +125,14 @@ new nonchemical columns do not invalidate chemical correspondence. Original
 source content, lineage, names, CAS, IDs, candidates and validation remain bound.
 Version 1 records are verified conservatively; migration requires exact original
 evidence, and retains the historical fingerprint. Malformed versions fail closed.
+
+
+GUI scoped decisions retain the inspected lookup projection in gui_review_input
+and the pre-scope override projection in gui_replay_input. Replay reconstructs
+only the five owned lookup fields for the exact source selector before checking
+the original evidence fingerprint; source content, candidates and validation
+cannot be modified through this projection. Ordinary compound-wide overrides
+do not own the scoped ID change. Latest decisions replace prior executable
+inputs for that selector, while actual review evidence remains append-only with
+immutable revisions. Stale scoped decisions stop replay generation; neither
+export nor import silently refreshes their evidence.

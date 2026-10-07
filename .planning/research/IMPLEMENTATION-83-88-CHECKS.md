@@ -66,8 +66,8 @@ shared reports. Replay reconstructs exact portable inputs. Typed workbook Sessio
 State chunks preserve records and acknowledgments, while legacy imports remain
 compatible. GUI flag decisions capture actual inspected evidence; source roles,
 warnings, source validation and acceptance blockers are displayed. Structured
-scope/correspondence acceptance is currently available through the headless API;
-a dedicated GUI form is future interface work, not inferred acceptance.
+scope/correspondence acceptance was initially headless-only; the GUI follow-up
+below closes that interface gap.
 
 Deterministic focused tests cover all affected service boundaries, real generated
 replay, actual XLSX export/read/hydration, candidate reassignment between source
@@ -138,3 +138,36 @@ errors, then was stopped. renv::status() reports only the preserved R version
 difference (lockfile R 4.5.1; installed R 4.6.1). Fedora's site startup also loads
 CoprManager before renv, causing an informational namespace warning. These notices
 do not indicate missing locked packages; they were not silenced.
+
+
+## Scoped acceptance GUI follow-up
+
+Commit 65ae124 connects both Expert Override and Compare Candidates dialogs to
+the existing acceptance backend. The form records one explicit source target,
+scope, conflict, ID, correspondence, reason and evidence reference. Grouped rows
+require an explicit target; stale/ambiguous context, invalid/unavailable registry
+membership and unavailable source validation fail without modifying the store.
+Keep unresolved retains candidate evidence. Existing flags/reasons, source
+content and lineage remain intact. Successful decisions capture actual automated
+and final evidence in immutable review-history revisions.
+
+Scoped decisions own their ID changes rather than ordinary compound-wide
+overrides. A bounded lookup projection reconstructs the inspected state for the
+exact source row before fingerprint verification. Source/candidate/validation
+columns cannot be projected. Repeated revisions, source reorder, standalone
+generated replay and actual XLSX export/read/hydration are regression-tested.
+The new GUI test file passes 46 expectations; the focused integration suites
+passed without new warnings. The fresh ordinary-R full suite passes 4,826
+expectations, with five skips and the same five original baseline failures
+(one failing expectation, four errors), plus 16 existing warnings.
+
+Fresh full-app cold boot on port 63321: HTTP 200, 63,316 bytes, no startup errors.
+A lightweight development demo in inst/examples/identity-review-demo.R uses the
+actual Review Results module, four synthetic rows, mocked membership and disabled
+discovery. Collaborative-browser checks exercised native widget events and the
+save button: registered mixture accepted for only one of two grouped source
+rows; unavailable source promotion rejected with dialog still open; FOLLOW-UP
+preserved after correspondence with identity remaining provisional. No Shiny
+output errors occurred. Demo state is synthetic and session-local. The demo
+can be launched from the package root with source() then run_identity_review_demo().
+No user data, pilot assignments or pre-existing untracked files were changed.

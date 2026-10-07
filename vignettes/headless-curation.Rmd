@@ -242,7 +242,15 @@ original name/CAS and part lineage, with repeated component CAS blocked until
 explicit mapping or correspondence review.
 
 Structured acceptance is available through `identity_decisions` and
-`apply_identity_decisions()`; the GUI displays blockers and source evidence.
+`apply_identity_decisions()`. In Review Results, open **Override** or **Compare
+Candidates** and use **Source identity correspondence**. Select one source row
+when the table groups several rows. Choose its scope and remaining conflict,
+enter a selected ID, explicitly confirm correspondence, and supply a reason and
+evidence reference. **Save source decision** checks membership independently and
+records the scoped decision. **Keep unresolved** retains candidate evidence
+without granting acceptance. FOLLOW-UP/BAD flags stay in place; recording
+correspondence does not clear them. Reopen the review if evidence changes while
+the dialog is open.
 Each record requires a unique source/content selector plus original lineage,
 resolved scope/conflict, reason, evidence reference, selected ID, explicit
 `correspondence = TRUE`, and `identity_evidence_fingerprint()` from the inspected
@@ -258,3 +266,18 @@ is not an accepted-identity filter. The standalone mapper supports the equivalen
 `identity_mode = "accepted"`. Workbook import, GUI refresh and generated replay
 preserve the explicit mode; accepted-only refresh blanks IDs if current alignment
 cannot be verified.
+
+
+A small development demo uses the actual Review Results module with synthetic
+rows and mocked registry responses. From the repository root:
+
+```{r eval=FALSE}
+source("inst/examples/identity-review-demo.R")
+run_identity_review_demo()
+```
+
+Try a registered mixture, two grouped source rows, unavailable source membership,
+and a retained FOLLOW-UP. Only synthetic IDs DTXSID123, DTXSID456 and DTXSID789
+pass the mocked membership service; source validation and correspondence gates
+still apply. Discovery is disabled. These fixtures do not validate real chemical
+identities or change pilot assignments.

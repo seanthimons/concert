@@ -22,7 +22,9 @@
   current scoped decision. Transport failure is distinct from definitive absence.
 - Separate queue, reconciliation and identity-review completion diagnostics.
   GUI flag actions record actual decision-time evidence and display source
-  validation and acceptance blockers.
+  validation and acceptance blockers. Row-review dialogs also record scoped
+  source correspondence or retained unresolved decisions, with exact source
+  targeting, membership checks, immutable evidence and portable replay.
 
 - Reopen VERIFIED rows whose current identity is unresolved (#83), retaining prior
   flags, reasons, and tie evidence. Explicit FOLLOW-UP/BAD dispositions and reviewed
