@@ -134,6 +134,23 @@ reference:
       - normalize_row_flag
       - valid_row_flags
       - hydrate_session_state
+  - title: Review and accept source identities
+    desc: Capture decision evidence, reconcile changes, and explicitly accept a source identity.
+    contents:
+      - identity_review_state
+      - apply_identity_decisions
+      - accepted_identity_view
+      - source_identifier_evidence
+      - unused_source_identifier_diagnostics
+      - build_candidate_review
+      - validate_review_candidates
+      - capture_review_decision
+      - capture_review_state
+      - acknowledge_review_evidence
+      - review_decision_key
+      - review_evidence_scope
+      - review_evidence_snapshot
+      - identity_evidence_fingerprint
   - title: Harmonize measurements
     contents:
       - parse_numeric_results
