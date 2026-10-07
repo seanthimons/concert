@@ -27,6 +27,9 @@ curate_headless(
   accept_suggestions = FALSE,
   review_picks = NULL,
   row_flags = NULL,
+  review_decision_evidence = NULL,
+  candidate_validation = NULL,
+  identity_decisions = NULL,
   site_manifest = NULL,
   site_alias_map = NULL,
   multi_analyte_resolutions = NULL,
@@ -125,6 +128,16 @@ resolved to that DTXSID after validation against CompTox.}
 \item{row_flags}{Optional data frame with \code{name}, \code{flag}, and optional
 \code{casrn} and \code{reason} columns. Matching rows get the row flag (one of
 \code{valid_row_flags()}).}
+
+\item{review_decision_evidence}{Immutable portable decision snapshots and
+scoped acknowledgments from \code{\link[=capture_review_decision]{capture_review_decision()}}. Legacy flags never
+acquire a historical baseline implicitly.}
+
+\item{candidate_validation}{Structured saved validation outcomes from
+\code{\link[=validate_review_candidates]{validate_review_candidates()}}. Reporting makes no network requests.}
+
+\item{identity_decisions}{Explicit source-scoped decisions passed to
+\code{\link[=apply_identity_decisions]{apply_identity_decisions()}}. Name-wide selectors cannot grant scope acceptance.}
 
 \item{site_manifest}{Optional curated Dataset Context site manifest to include
 in the workbook export.}

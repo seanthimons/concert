@@ -281,3 +281,67 @@ test_that("iterated review keeps stale VERIFIED ties pending until an explicit d
   expect_true(deferred$done)
   expect_true(is.na(deferred$state$resolution_state$consensus_dtxsid[2]))
 })
+
+test_that("captured candidate work reopens iteration and exact acknowledgments survive replay", {
+  fx <- iterate_fixture()
+  discovered <- FALSE
+  fail <- FALSE
+  local_mocked_bindings(
+    run_curation_pipeline = function(cleaned_data, ...) {
+      if (fail) stop("fixture outage")
+      out <- mock_pipeline_result(cleaned_data)
+      rs <- out$results
+      rs$consensus_status <- c("single", "single", "unresolvable")
+      rs$consensus_dtxsid <- c("DTXSID8021482", "DTXSID1020322", NA)
+      rs$dtxsid_chemical_name[3] <- NA_character_
+      rs$resolver_dtxsid_candidate <- c(NA, NA, if (discovered) "DTXSID999" else NA_character_)
+      rs$resolver_lookup_status <- c(NA, NA, if (discovered) "unverified" else "no_hit")
+      out$results <- rs
+      out
+    }, postprocess_curation_candidates = mock_postprocess, validate_manual_dtxsids = mock_validate
+  )
+  decisions <- file.path(fx$dir, "decisions.R")
+  writeLines(c(sprintf("input_path <- %s", deparse(fx$input_path)),
+    "tag_map <- list(chemical_name = 'Name', cas_number = 'CASRN')",
+    "row_flags <- data.frame(name='Lead', flag='FOLLOW-UP', reason='Deliberate unresolved disposition')"), decisions)
+  first <- curate_iterate(decisions, verbose = FALSE)
+  expect_true(first$queue_complete)
+  expect_false(first$reconciliation_complete)
+  evidence <- capture_review_state(first$state, "Lead", disposition = "no_hit", flag = "FOLLOW-UP")
+  cat("\nreview_decision_evidence <- ", script_literal(evidence), "\n", file = decisions, append = TRUE)
+  discovered <- TRUE
+  unlink(list.files(file.path(fx$dir, "cache"), pattern = "^curation_", full.names = TRUE))
+  second <- curate_iterate(decisions, verbose = FALSE)
+  expect_false(second$done)
+  expect_equal(second$pending$pending_type, "candidate_validation")
+  expect_true(file.exists(file.path(fx$dir, "candidate_review.csv")))
+  expect_true(file.exists(file.path(fx$dir, "identity_review.csv")))
+  expect_identical(second$state$review_decision_evidence, evidence)
+  rs <- second$state$resolution_state
+  rows <- which(rs$chemical_name == "Lead")
+  cols <- review_scope_columns(second$state)
+  scope <- review_evidence_scope(second$state$review_automated_state, rows, cols)
+  current <- review_evidence_snapshot(second$state$review_automated_state, rs, rows,
+    second$state$candidate_validation, "source_dtxsid", cols)
+  ack <- acknowledge_review_evidence(evidence, review_decision_key("Lead"), 1L, scope, current)
+  cat("\nreview_decision_evidence <- ", script_literal(ack), "\n", file = decisions, append = TRUE)
+  third <- curate_iterate(decisions, verbose = FALSE)
+  expect_true(third$done)
+  expect_true(third$reconciliation_complete)
+  expect_false(third$identity_review_complete)
+  expect_equal(third$state$resolution_state$row_flag[3], "FOLLOW-UP")
+  env <- new.env(parent = globalenv())
+  replay_result <- NULL
+  suppressMessages(for (expr in parse(file.path(fx$dir, "replay.R"))) replay_result <- eval(expr, env))
+  expect_identical(env$review_decision_evidence, ack)
+  expect_equal(replay_result$data$row_flag[3], "FOLLOW-UP")
+  path <- file.path(fx$dir, "curated.xlsx")
+  restored <- hydrate_session_state(parse_concert_export(path))$state
+  expect_identical(restored$review_decision_evidence, ack)
+
+  fail <- TRUE
+  unlink(list.files(file.path(fx$dir, "cache"), pattern = "^curation_", full.names = TRUE))
+  expect_error(curate_iterate(decisions, verbose = FALSE), "fixture outage")
+  expect_equal(nrow(readr::read_csv(file.path(fx$dir, "candidate_review.csv"), show_col_types = FALSE)), 0)
+  expect_equal(nrow(readr::read_csv(file.path(fx$dir, "review_reconciliation.csv"), show_col_types = FALSE)), 0)
+})

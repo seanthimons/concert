@@ -77,6 +77,13 @@
 #' @param row_flags Optional data frame with `name`, `flag`, and optional
 #'   `casrn` and `reason` columns. Matching rows get the row flag (one of
 #'   `valid_row_flags()`).
+#' @param review_decision_evidence Immutable portable decision snapshots and
+#'   scoped acknowledgments from [capture_review_decision()]. Legacy flags never
+#'   acquire a historical baseline implicitly.
+#' @param candidate_validation Structured saved validation outcomes from
+#'   [validate_review_candidates()]. Reporting makes no network requests.
+#' @param identity_decisions Explicit source-scoped decisions passed to
+#'   [apply_identity_decisions()]. Name-wide selectors cannot grant scope acceptance.
 #' @param site_manifest Optional curated Dataset Context site manifest to include
 #'   in the workbook export.
 #' @param site_alias_map Optional Dataset Context raw-label alias map to include
@@ -156,6 +163,9 @@ curate_headless <- function(
   accept_suggestions = FALSE,
   review_picks = NULL,
   row_flags = NULL,
+  review_decision_evidence = NULL,
+  candidate_validation = NULL,
+  identity_decisions = NULL,
   site_manifest = NULL,
   site_alias_map = NULL,
   multi_analyte_resolutions = NULL,
@@ -214,7 +224,10 @@ curate_headless <- function(
       review_overrides = review_overrides,
       accept_suggestions = accept_suggestions,
       review_picks = review_picks,
-      row_flags = row_flags
+      row_flags = row_flags,
+      review_decision_evidence = review_decision_evidence,
+      candidate_validation = candidate_validation,
+      identity_decisions = identity_decisions
     )
     state <- stage_harmonize(
       state,

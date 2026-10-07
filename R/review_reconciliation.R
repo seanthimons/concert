@@ -105,3 +105,37 @@ build_review_reconciliation <- function(automated, final = automated, row_flags 
   rownames(result) <- NULL
   result
 }
+
+#' Capture evidence currently inspected in a staged review
+#'
+#' Call explicitly when making or revising a disposition. Merely replaying flags
+#' never captures a baseline. Source/content scope is retained separately from
+#' the automated evidence and final manual selection. Multiple source rows may
+#' share a flag decision; this does not grant scope-sensitive ID acceptance.
+#' @param state Staged curation state after review.
+#' @param name,casrn Content selector matching the reviewed flag decision.
+#' @param disposition,flag,reason Structured disposition and human decision.
+#' @param decision_id Optional stable ID; defaults to [review_decision_key()].
+#' @param evidence Existing immutable records; defaults to the state's records.
+#' @return Updated portable review_decision_evidence object.
+#' @export
+capture_review_state <- function(state, name, casrn = NA_character_, disposition,
+                                 flag = NA_character_, reason = NA_character_,
+                                 decision_id = review_decision_key(name, casrn),
+                                 evidence = state$review_decision_evidence) {
+  automated <- state$review_automated_state %||% state$script_baseline_state
+  if (is.null(automated)) stop("Capture requires actual pre-review evidence.", call. = FALSE)
+  final <- state$resolution_state
+  name_col <- first_tag_col(state$merged_chemical_tags, "Name")
+  cas_col <- first_tag_col(state$merged_chemical_tags, "CASRN")
+  if (!is.na(casrn) && nzchar(casrn) && is.na(cas_col)) {
+    stop("Capture CAS selector requires a CAS-tagged column.", call. = FALSE)
+  }
+  rows <- which(content_row_mask(final, name_col, cas_col, name, casrn))
+  cols <- review_scope_columns(state, automated)
+  source_cols <- names(state$merged_chemical_tags)[unlist(state$merged_chemical_tags) %in% "DTXSID"]
+  scope <- review_evidence_scope(automated, rows, cols)
+  current <- review_evidence_snapshot(automated, final, rows, state$candidate_validation,
+    unique(c("source_dtxsid", source_cols)), cols)
+  capture_review_decision(evidence, decision_id, scope, current, disposition, flag, reason)
+}

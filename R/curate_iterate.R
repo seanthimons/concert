@@ -20,6 +20,10 @@ decision_object_names <- function() {
     "accept_suggestions",
     "review_picks",
     "row_flags",
+    "review_decision_evidence",
+    "candidate_validation",
+    "identity_decisions",
+    "ignored_identifier_cols",
     "site_alias_map",
     "site_manifest",
     "harmonize",
@@ -103,7 +107,7 @@ curate_decisions_template <- function(input_path, out_dir, harmonize = FALSE) {
 
   lines <- c(
     "# CONCERT agent curation decisions. Edit, then run curate_iterate() again.",
-    "# Tag values: Name, CASRN, Other, Result, Numeric, Unit, Qualifier, ReportingLimit,",
+    "# Tag values: Name, CASRN, Other, DTXSID (source evidence), Result, Numeric, Unit, Qualifier, ReportingLimit,",
     "#   Uncertainty, UncertaintyCoverage, Duration, DurationUnit, Species, ExposureRoute, StudyDate, Media",
     "library(concert)",
     "",
@@ -157,6 +161,10 @@ curate_decisions_template <- function(input_path, out_dir, harmonize = FALSE) {
     "# Structure parents from the chemi standardizer: \"qsar-ready\", \"ms-ready\", or both.",
     "desalt_workflows <- c(\"qsar-ready\", \"ms-ready\")",
     "",
+    "# ignored_identifier_cols <- c(\"source_dtxsid\") # deliberate metadata-only use",
+    "# review_decision_evidence <- NULL # explicit capture_review_decision() snapshots/acknowledgments",
+    "# candidate_validation <- NULL # saved validate_review_candidates()$validation",
+    "# identity_decisions <- NULL # explicit scoped apply_identity_decisions() records",
     "# --- Review ---------------------------------------------------------------",
     "# Accept every row CONCERT scored as \"suggested\".",
     "accept_suggestions <- TRUE",
@@ -210,7 +218,14 @@ pending_rows <- function(state) {
   needs_pick <- !is_multi & !pinned & !flagged & status %in% c("disagree", "suggested")
   no_match <- !is_multi & !pinned & !flagged & status %in% c("error", "unresolvable")
   verified_unresolved <- verified_unresolved_rows(rs)
-  idx <- which(is_multi | needs_pick | no_match | verified_unresolved)
+  candidate_work <- state$candidate_review
+  candidate_idx <- if (!is.null(candidate_work)) candidate_work$row_id[candidate_work$actionable %in% TRUE] else integer()
+  candidate_validation <- seq_len(n) %in% candidate_idx
+  scope <- identity_scope_blockers(rs)
+  source <- source_identity_blockers(rs)
+  source_review <- Reduce(`|`, source)
+  scope_review <- !flagged & (scope$scope | scope$conflict | scope$stale | source_review)
+  idx <- which(is_multi | needs_pick | no_match | verified_unresolved | candidate_validation | scope_review)
   if (length(idx) == 0) {
     return(empty_pending())
   }
@@ -218,7 +233,9 @@ pending_rows <- function(state) {
   pending_type <- ifelse(
     is_multi[idx],
     "multi_analyte",
-    ifelse(verified_unresolved[idx], "verified_unresolved", ifelse(no_match[idx], "no_match", status[idx]))
+    ifelse(verified_unresolved[idx], "verified_unresolved",
+      ifelse(candidate_validation[idx], "candidate_validation",
+        ifelse(scope_review[idx], "identity_scope", ifelse(no_match[idx], "no_match", status[idx]))))
   )
   name_vals <- if (!is.na(name_col)) as.character(rs[[name_col]][idx]) else NA_character_
   cas_vals <- if (!is.na(cas_col)) as.character(rs[[cas_col]][idx]) else NA_character_
@@ -281,6 +298,7 @@ pending_rows <- function(state) {
     consensus_status = status[idx],
     row_flag = rs$row_flag[idx],
     row_flag_reason = rs$row_flag_reason[idx],
+    identity_blockers = identity_review_state(rs)$identity_blockers[idx],
     suggested_dtxsid = suggested_dtxsid,
     suggested_split = split_suggestion,
     candidates = candidates,
@@ -308,6 +326,7 @@ empty_pending <- function() {
     consensus_status = character(),
     row_flag = character(),
     row_flag_reason = character(),
+    identity_blockers = character(),
     suggested_dtxsid = character(),
     suggested_split = character(),
     candidates = character(),
@@ -416,6 +435,10 @@ write_status_md <- function(path, state, pending, done, decisions, error = NULL)
     paste0("- run at: ", format(Sys.time(), "%Y-%m-%d %H:%M:%S")),
     paste0("- rows: ", NROW(state$resolution_state)),
     paste0("- done: ", if (done) "TRUE" else "FALSE"),
+    paste0("- queue_complete: ", if (done) "TRUE" else "FALSE"),
+    if (length(state$completion)) paste0("- ", names(state$completion)[-1], ": ", unlist(state$completion[-1])),
+    "Queue completion records decisions and dispositions. Reconciliation completion",
+    "and accepted identity are separate; acknowledgments never clear flags.",
     "",
     if (!is.null(error)) c("## Error", "", "```", conditionMessage(error), "```", "") else character(0),
     "## Consensus",
@@ -487,6 +510,10 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
   d <- read_decisions(decisions_path)
   cache_dir <- file.path(out_dir, "cache")
   status_path <- file.path(out_dir, "status.md")
+  # Clear prior reports before running: a failure must not present old work as current.
+  readr::write_csv(empty_review_reconciliation(), file.path(out_dir, "review_reconciliation.csv"))
+  readr::write_csv(candidate_review_table(), file.path(out_dir, "candidate_review.csv"))
+  readr::write_csv(empty_pending(), file.path(out_dir, "pending.csv"))
 
   run <- function() {
     state <- stage_ingest(
@@ -496,7 +523,8 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
       reference_list_snapshot = d$reference_list_snapshot,
       activate_all_references = d$activate_all_references,
       site_manifest = d$site_manifest,
-      site_alias_map = d$site_alias_map
+      site_alias_map = d$site_alias_map,
+      ignored_identifier_cols = d$ignored_identifier_cols %||% character()
     )
     state <- stage_clean(
       state,
@@ -518,7 +546,10 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
       state,
       accept_suggestions = d$accept_suggestions,
       review_picks = d$review_picks,
-      row_flags = d$row_flags
+      row_flags = d$row_flags,
+      review_decision_evidence = d$review_decision_evidence,
+      candidate_validation = d$candidate_validation,
+      identity_decisions = d$identity_decisions
     )
     stage_harmonize(
       state,
@@ -541,6 +572,14 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
 
   pending <- pending_rows(state)
   done <- nrow(pending) == 0
+  state$completion <- review_completion(state, pending)
+  readr::write_csv(state$review_reconciliation, file.path(out_dir, "review_reconciliation.csv"), na = "")
+  readr::write_csv(state$candidate_review, file.path(out_dir, "candidate_review.csv"), na = "")
+  readr::write_csv(state$identifier_diagnostics %||% unused_source_identifier_diagnostics(data.frame()),
+    file.path(out_dir, "identifier_diagnostics.csv"), na = "")
+  identity_report <- state$resolution_state
+  identity_report[names(state$accepted_identity_state)] <- state$accepted_identity_state
+  readr::write_csv(identity_report, file.path(out_dir, "identity_review.csv"), na = "")
   readr::write_csv(pending, file.path(out_dir, "pending.csv"), na = "")
 
   replay <- generate_concert_script(
@@ -569,7 +608,11 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
     multi_analyte_resolutions = d$multi_analyte_resolutions,
     accept_suggestions = d$accept_suggestions,
     review_picks = d$review_picks,
-    row_flags = d$row_flags
+    row_flags = d$row_flags,
+    review_decision_evidence = d$review_decision_evidence,
+    candidate_validation = d$candidate_validation,
+    identity_decisions = d$identity_decisions,
+    ignored_identifier_cols = d$ignored_identifier_cols %||% character()
   )
   writeLines(replay, file.path(out_dir, "replay.R"))
 
@@ -594,5 +637,30 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
       "none"
     }
   ))
-  invisible(list(done = done, pending = pending, state = state))
+  invisible(c(list(done = done, pending = pending, state = state), state$completion))
+}
+
+
+review_completion <- function(state, pending) {
+  reconciliation <- state$review_reconciliation %||% empty_review_reconciliation()
+  candidate <- state$candidate_review %||% candidate_review_table()
+  identity <- identity_review_state(state$resolution_state)
+  flags <- identity_col(state$resolution_state, "row_flag")
+  rs <- state$resolution_state
+  canonical <- identity_col(rs, "consensus_name")
+  wqx_reviewed <- identity_col(rs, "consensus_status") %in% "wqx" &
+    !is.na(canonical) & nzchar(trimws(canonical)) &
+    (flags %in% "VERIFIED" | identity_col(rs, "consensus_source") %in% "manual_wqx") &
+    !flags %in% c("FOLLOW-UP", "BAD") & !identity_col(rs, "needs_review", FALSE) %in% TRUE
+  reviewed <- identity$identity_eligible | wqx_reviewed | flags %in% "BAD"
+  list(queue_complete = nrow(pending) == 0L,
+    reconciliation_complete = !any(reconciliation$actionable %in% TRUE),
+    reconciliation_items = sum(reconciliation$actionable %in% TRUE),
+    candidate_validation_items = sum(candidate$actionable %in% TRUE),
+    baseline_missing = sum(reconciliation$baseline_status %in% "baseline_missing"),
+    follow_up_rows = sum(flags %in% "FOLLOW-UP"),
+    accepted_identity_rows = sum(identity$identity_eligible),
+    identity_review_complete = all(reviewed),
+    review_complete = nrow(pending) == 0L && !any(reconciliation$actionable %in% TRUE) &&
+      !any(candidate$actionable %in% TRUE) && all(reviewed))
 }
