@@ -56,7 +56,7 @@ test_that("normalize_cas_fields converts placeholder text to NA (CAS-01)", {
   cleaned <- result$cleaned_data
 
   expect_true(all(is.na(cleaned$cas)))
-  expect_na(as_cas("NOCAS_1355346"))
+  expect_true(is.na(as_cas("NOCAS_1355346")))
   expect_equal(as_cas("CAS: 7732-18-5"), "7732-18-5")
 })
 
