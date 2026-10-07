@@ -139,6 +139,13 @@ server <- function(input, output, session) {
     file_info = NULL,
     selected_columns = NULL,
     column_tags = NULL,
+    ignored_identifier_cols = character(),
+    source_identifier_evidence = NULL,
+    identifier_diagnostics = NULL,
+    review_decision_evidence = NULL,
+    review_row_flags = NULL,
+    identity_decisions = NULL,
+    candidate_validation = NULL,
     suggested_column_tags = NULL,
     cleaning_audit = NULL,
     cleaned_data = NULL,
@@ -344,6 +351,13 @@ server <- function(input, output, session) {
     data_store$cleaning_audit <- NULL
     data_store$cleaned_data <- NULL
     data_store$column_tags <- NULL
+    data_store$ignored_identifier_cols <- character()
+    data_store$source_identifier_evidence <- NULL
+    data_store$identifier_diagnostics <- NULL
+    data_store$review_decision_evidence <- NULL
+    data_store$review_row_flags <- NULL
+    data_store$identity_decisions <- NULL
+    data_store$candidate_validation <- NULL
     data_store$suggested_column_tags <- NULL
     data_store$curation_results <- NULL
     data_store$curation_report <- NULL
@@ -398,6 +412,7 @@ server <- function(input, output, session) {
 
   # Phase 33: Granular cascade reset functions per D-09
   reset_chemical_downstream <- function() {
+    data_store$source_identifier_evidence <- NULL
     data_store$curation_results <- NULL
     data_store$curation_report <- NULL
     data_store$curation_status <- NULL

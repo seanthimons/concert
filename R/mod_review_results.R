@@ -1104,6 +1104,64 @@ apply_queued_review_overrides <- function(resolution_state, queue, validation_re
   )
 }
 
+gui_flag_review_evidence <- function(evidence, automated, final, rows, column_tags, disposition, flag, reason,
+                                     raw_data = NULL) {
+  if (is.null(automated) || nrow(automated) != nrow(final)) {
+    stop("Review baseline unavailable; re-run curation before capturing a new flag decision.", call. = FALSE)
+  }
+  columns <- setdiff(intersect(unique(c(names(raw_data), names(column_tags), "multi_analyte_source_value",
+    "multi_analyte_source_cas", "multi_analyte_part_index", "multi_analyte_part_count")), names(final)), "original_row_id")
+  source_cols <- names(column_tags)[unlist(column_tags) %in% "DTXSID"]
+  name_col <- names(column_tags)[unlist(column_tags) %in% "Name"][1]
+  cas_col <- names(column_tags)[unlist(column_tags) %in% "CASRN"][1]
+  if (is.na(name_col)) stop("Flag evidence requires a Name-tagged source column.", call. = FALSE)
+  names <- as.character(final[[name_col]][rows])
+  cas <- if (!is.na(cas_col)) as.character(final[[cas_col]][rows]) else rep(NA_character_, length(rows))
+  decision_keys <- mapply(review_decision_key, names, cas, USE.NAMES = FALSE)
+  result <- evidence
+  for (key in unique(decision_keys)) {
+    selected <- rows[decision_keys == key]
+    scope <- review_evidence_scope(automated, selected, columns)
+    if (isTRUE(scope$ambiguous)) stop("Review scope is ambiguous across source rows; preserve source lineage before recording a decision.", call. = FALSE)
+    current <- review_evidence_snapshot(automated, final, selected,
+      source_id_cols = unique(c("source_dtxsid", source_cols)), scope_cols = columns)
+    result <- capture_review_decision(result, decision_id = key,
+      scope = scope, current = current, disposition = disposition, flag = flag, reason = reason)
+  }
+  result
+}
+
+source_identifier_review_panel <- function(df, row, column_tags) {
+  cols <- names(column_tags)[unlist(column_tags) %in% "DTXSID"]
+  parts <- lapply(cols, function(col) {
+    fields <- paste0("source_id_", col, "_", c("source_raw_id", "source_candidate_id", "validation_status",
+      "identity_status", "preferred_name", "casrn", "authority", "checked_at", "validation_reason"))
+    fields <- intersect(fields, names(df))
+    if (!length(fields)) return(NULL)
+    tags$div(class = "border rounded p-2 mb-2", tags$strong(paste("Source DTXSID:", col)),
+      tags$dl(lapply(fields, function(field) tagList(tags$dt(sub(paste0("source_id_", col, "_"), "", field, fixed = TRUE)),
+        tags$dd(as.character(df[[field]][row]) %||% "Unknown")))))
+  })
+  state <- identity_review_state(df[row, , drop = FALSE])
+  tagList(parts, div(class = "text-muted small mb-2", paste("Identity:", state$identity_status,
+    if (nzchar(state$identity_blockers)) paste("—", state$identity_blockers) else "")))
+}
+
+gui_review_row_flags <- function(df, column_tags) {
+  name_col <- names(column_tags)[unlist(column_tags) %in% "Name"][1]
+  cas_col <- names(column_tags)[unlist(column_tags) %in% "CASRN"][1]
+  if (is.na(name_col)) return(NULL)
+  rows <- which(!is.na(df$row_flag) & nzchar(df$row_flag))
+  names <- as.character(df[[name_col]][rows])
+  cas <- if (!is.na(cas_col)) as.character(df[[cas_col]][rows]) else rep(NA_character_, length(rows))
+  unique(tibble::tibble(name = names, casrn = cas, flag = df$row_flag[rows], reason = df$row_flag_reason[rows],
+    decision_id = mapply(review_decision_key, names, cas, USE.NAMES = FALSE)))
+}
+
+review_disposition_choices <- function() c("Other / unspecified" = "other", "Deferred" = "deferred",
+  "No identity hit" = "no_hit", "Candidate rejected" = "rejected", "Scope conflict" = "scope_conflict",
+  "Identity reviewed" = "accepted")
+
 row_flag_review_controls <- function(session, current_flag = "", current_reason = "") {
   current_flag <- if (!is.na(current_flag) && nzchar(current_flag)) current_flag else ""
   current_reason <- if (!is.na(current_reason) && nzchar(current_reason)) current_reason else ""
@@ -1124,6 +1182,8 @@ row_flag_review_controls <- function(session, current_flag = "", current_reason 
       rows = 2,
       placeholder = "Reason for BAD or FOLLOW-UP"
     ),
+    selectInput(session$ns("modal_review_disposition"), "Decision basis",
+      choices = review_disposition_choices(), selected = "other"),
     actionButton(
       session$ns("modal_apply_row_flag"),
       "Apply Flag",
@@ -1729,6 +1789,8 @@ mod_review_results_ui <- function(id) {
               placeholder = "Reason",
               width = "220px"
             ),
+            selectInput(ns("batch_review_disposition"), "Decision basis", choices = review_disposition_choices(),
+              selected = "other", width = "180px"),
             actionButton(
               ns("apply_batch_row_flag"),
               "Apply Flag",
@@ -1924,6 +1986,7 @@ mod_review_results_server <- function(id, data_store) {
         tagList(
           div(class = "text-muted small mb-2", sprintf("Row %d - %s", row_idx, row_status)),
           tagged_summary,
+          source_identifier_review_panel(data_store$resolution_state, row_idx, data_store$column_tags),
           row_flag_review_controls(session, current_flag, current_reason),
           review_override_controls(session)
         ),
@@ -2777,7 +2840,8 @@ mod_review_results_server <- function(id, data_store) {
       # Show modal
       showModal(modalDialog(
         title = "Compare Candidates",
-        tagList(tagged_summary, flag_controls, cards_container, review_override_controls(session)),
+        tagList(tagged_summary, source_identifier_review_panel(data_store$resolution_state, row_idx, data_store$column_tags),
+          flag_controls, cards_container, review_override_controls(session)),
         footer = footer,
         size = "l",
         easyClose = TRUE
@@ -2803,6 +2867,12 @@ mod_review_results_server <- function(id, data_store) {
               input$modal_row_flag,
               reason = input$modal_row_flag_reason
             )
+            evidence <- gui_flag_review_evidence(data_store$review_decision_evidence,
+              data_store$script_baseline_state, updated_df, group_rows, data_store$column_tags,
+              input$modal_review_disposition %||% "other", normalize_row_flag(input$modal_row_flag), input$modal_row_flag_reason,
+              raw_data = data_store$clean)
+            data_store$review_decision_evidence <- evidence
+            data_store$review_row_flags <- gui_review_row_flags(updated_df, data_store$column_tags)
             data_store$resolution_state <- updated_df
 
             flag <- normalize_row_flag(input$modal_row_flag)
@@ -3187,7 +3257,12 @@ mod_review_results_server <- function(id, data_store) {
         reference_lists = data_store$reference_lists,
         activate_all_references = isTRUE(data_store$activate_all_references),
         site_manifest = data_store$site_manifest,
-        site_alias_map = data_store$site_alias_map
+        site_alias_map = data_store$site_alias_map,
+        ignored_identifier_cols = data_store$ignored_identifier_cols %||% character(),
+        review_decision_evidence = data_store$review_decision_evidence,
+        identity_decisions = data_store$identity_decisions,
+        candidate_validation = data_store$candidate_validation,
+        row_flags = data_store$review_row_flags
       )
     }
 
@@ -3327,7 +3402,13 @@ mod_review_results_server <- function(id, data_store) {
           site_alias_map = data_store$site_alias_map,
           script_baseline_state = data_store$script_baseline_state,
           media_map = data_store$media_map_working,
-          media_results = data_store$media_results
+          media_results = data_store$media_results,
+          ignored_identifier_cols = data_store$ignored_identifier_cols %||% character(),
+          review_decision_evidence = data_store$review_decision_evidence,
+          identity_decisions = data_store$identity_decisions,
+          candidate_validation = data_store$candidate_validation,
+          source_identifier_evidence = data_store$source_identifier_evidence,
+          identifier_diagnostics = data_store$identifier_diagnostics
         )
 
         # Write to Excel
@@ -3421,6 +3502,12 @@ mod_review_results_server <- function(id, data_store) {
             input$batch_row_flag,
             reason = input$batch_row_flag_reason
           )
+          evidence <- gui_flag_review_evidence(data_store$review_decision_evidence,
+            data_store$script_baseline_state, updated_df, selected_rows, data_store$column_tags,
+            input$batch_review_disposition %||% "other", normalize_row_flag(input$batch_row_flag), input$batch_row_flag_reason,
+            raw_data = data_store$clean)
+          data_store$review_decision_evidence <- evidence
+          data_store$review_row_flags <- gui_review_row_flags(updated_df, data_store$column_tags)
           data_store$resolution_state <- updated_df
 
           flag <- normalize_row_flag(input$batch_row_flag)
@@ -3539,6 +3626,7 @@ mod_review_results_server <- function(id, data_store) {
               pubchem = isTRUE(data_store$pubchem),
               desalt = isTRUE(data_store$desalt),
               original_data = subset_data,
+              ignored_identifier_cols = intersect(data_store$ignored_identifier_cols %||% character(), names(subset_data)),
               progress_callback = function(stage, msg) {
                 incProgress(0.2, detail = msg)
               }

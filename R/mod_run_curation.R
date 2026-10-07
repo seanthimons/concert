@@ -125,8 +125,9 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
       # Check if there are Name or CASRN columns tagged
       has_name <- any(data_store$column_tags == "Name")
       has_cas <- any(data_store$column_tags == "CASRN")
+      has_source <- any(data_store$column_tags == "DTXSID")
 
-      if (!has_name && !has_cas) {
+      if (!has_name && !has_cas && !has_source) {
         notify_user(
           "Please tag at least one column as 'Chemical Name' or 'CASRN' before running curation.",
           type = "warning",
@@ -183,11 +184,14 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
               starts_with = isTRUE(data_store$starts_with),
               pubchem = isTRUE(data_store$pubchem),
               desalt = isTRUE(data_store$desalt),
-              original_data = data_store$clean
+              original_data = data_store$clean,
+              ignored_identifier_cols = data_store$ignored_identifier_cols %||% character()
             )
 
             # Store results
             data_store$consensus_data <- pipeline_result$results
+            data_store$source_identifier_evidence <- pipeline_result$source_identifier_evidence
+            data_store$identifier_diagnostics <- pipeline_result$identifier_diagnostics
             data_store$consensus_summary <- pipeline_result$consensus_summary
             data_store$resolution_state <- pipeline_result$results
             data_store$dtxsid_cols <- find_dtxsid_cols(pipeline_result$results)
