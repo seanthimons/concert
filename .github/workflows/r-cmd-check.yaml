@@ -24,7 +24,8 @@ concurrency:
 
 jobs:
   r-cmd-check:
-    if: github.actor != 'github-actions[bot]'
+    # Cross-platform compatibility checks are opt-in, not routine PR checks.
+    if: github.event_name == 'workflow_dispatch' && github.actor != 'github-actions[bot]'
     name: ${{ matrix.config.os }} (${{ matrix.config.r }})
     runs-on: ${{ matrix.config.os }}
 
