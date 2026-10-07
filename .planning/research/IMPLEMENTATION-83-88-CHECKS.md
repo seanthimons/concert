@@ -82,8 +82,9 @@ launch.browser=FALSE). HTTP 200, 63,316 bytes; reference caches loaded and no
 startup errors. Process stopped after verification. Source UI regression tests
 also use shiny::testServer. No pilot files or pre-existing untracked work changed.
 
-Remaining environment limitations: optional documentation/graphics dependencies
-need system headers and the runtime R version differs from the lockfile. Fresh
+The initial environment limitations included optional documentation/graphics
+headers (resolved in the follow-up below) and an R version differing from the
+lockfile. Fresh
 chemical registry validation and pilot identity decisions remain outside these
 mocked package checks. #82 WQX research boundaries are retained, including reviewed
 name-only evidence without inventing accepted IDs. No PRs were created.
@@ -108,3 +109,32 @@ fixed both leaks; the ordered 364-expectation reproduction passed and the final
 full suite confirmed isolation. Full-suite green remains blocked by the five
 independent baseline failures; they were not hidden or rewritten. Runtime
 implementation and tested integration increments are committed separately.
+
+
+## Dependency follow-up
+
+At the user's request, installed the missing Fedora development libraries and
+Pandoc locally under /home/sxthi/.local/share/concert-r-sysdeps. System-wide
+installation required a sudo password unavailable to this session; no system RPM
+database changes were made. Downloaded from Fedora/updates, extracted 61 x86_64
+and noarch RPM payloads, repaired local pkg-config paths and linked existing
+runtime libraries. The local prefix includes packages.sha256 provenance,
+Makevars with runtime library paths, and env.sh for future native builds:
+
+    source /home/sxthi/.local/share/concert-r-sysdeps/env.sh
+
+Pandoc is available through /home/sxthi/.local/bin/pandoc. Full renv restore into
+the project library succeeded: all 156 locked package versions match. Previously
+missing devtools, pkgdown, git2r, systemfonts, textshaping, ragg, quarto and
+autonewsmd load successfully. The lockfile and repository configuration remain
+unchanged. Ordinary Rscript startup now activates the restored project without
+requiring --vanilla or bootstrap installation.
+
+Verification in ordinary Rscript sessions: 910 fonts discovered, text shaping
+succeeded, ragg rendered a 2,028-byte PNG, devtools::load_all() succeeded, and
+164 focused identity-review/PubChem/workbook-persistence expectations passed.
+Fresh Shiny cold boot on port 63319 served HTTP 200 (63,316 bytes), with no startup
+errors, then was stopped. renv::status() reports only the preserved R version
+difference (lockfile R 4.5.1; installed R 4.6.1). Fedora's site startup also loads
+CoprManager before renv, causing an informational namespace warning. These notices
+do not indicate missing locked packages; they were not silenced.
