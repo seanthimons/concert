@@ -78,3 +78,22 @@ supply the same source/content columns used by scope construction. Reordering ro
 then leaves the fingerprint stable, while swapping IDs between distinct source
 rows changes it. Stage/iteration/persistence integration remains owned by the
 orchestrator; this consumer alone does not deliver those entry points.
+
+## Portable replay and workbook persistence
+
+`generate_concert_script()` embeds `review_decision_evidence`,
+`identity_decisions`, and `candidate_validation` as lossless R objects and passes
+them into the headless call. Workbook Session State stores these same named
+objects as typed `jsonlite::serializeJSON` payloads, with schema-marked records and
+ordered chunks of at most 30,000 characters per cell. Hydration rejects missing or
+duplicate chunk indices and validates immutable evidence fingerprints before
+restoring the original object. No import operation adopts current evidence as a
+new historical baseline. Older workbooks without these records remain supported.
+
+Optional Review Reconciliation, Candidate Review, Source ID Evidence and
+Identifier Diagnostics sheets expose flat human-readable reports independently
+of the authoritative typed payload. The typed object—not report text—owns replay
+history. Real XLSX export/read/hydration tests preserve record/revision/time,
+acknowledgment scope, types and fingerprints; changed post-import evidence reopens
+comparison. Wiring additional stage and GUI entry points remains coordinated by
+the orchestrator.

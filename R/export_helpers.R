@@ -53,6 +53,13 @@
 #' outcomes resolve the WQX requirement, but do not clear a separate incoming
 #' review requirement, pending `FOLLOW-UP`, or error/unresolvable status.
 #' `BAD` alone does not create or clear a review requirement.
+#' @param review_decision_evidence Portable immutable decision evidence.
+#' @param identity_decisions Explicit structured source-identity decisions.
+#' @param candidate_validation Structured candidate-validation outcomes.
+#' @param review_reconciliation Optional reconciliation report.
+#' @param candidate_review Optional candidate-validation report.
+#' @param source_identifier_evidence Optional source-ID evidence report.
+#' @param identifier_diagnostics Optional unused/source-ID diagnostics.
 #' @export
 build_export_sheets <- function(
   raw,
@@ -73,7 +80,14 @@ build_export_sheets <- function(
   script_baseline_state = NULL,
   media_map = NULL,
   media_results = NULL,
-  ignored_identifier_cols = character()
+  ignored_identifier_cols = character(),
+  review_decision_evidence = NULL,
+  identity_decisions = NULL,
+  candidate_validation = NULL,
+  review_reconciliation = NULL,
+  candidate_review = NULL,
+  source_identifier_evidence = NULL,
+  identifier_diagnostics = NULL
 ) {
   # Sheet 1: Raw Data (detected table with user-facing column names)
   raw_data_sheet <- detected_data %||% raw
@@ -241,7 +255,9 @@ build_export_sheets <- function(
   session_state_sheet <- build_session_state_sheet(
     resolution_state,
     consensus_summary,
-    baseline_diff_rows
+    baseline_diff_rows,
+    portable_inputs = list(review_decision_evidence = review_decision_evidence,
+      identity_decisions = identity_decisions, candidate_validation = candidate_validation)
   )
 
   # Sheet 9: ToxVal Output (always present per D-09)
@@ -291,6 +307,10 @@ build_export_sheets <- function(
   if (!is.null(harmonize_audit)) {
     sheets[["Harmonization Audit"]] <- harmonize_audit
   }
+
+  reports <- list("Review Reconciliation" = review_reconciliation, "Candidate Review" = candidate_review,
+    "Source ID Evidence" = source_identifier_evidence, "Identifier Diagnostics" = identifier_diagnostics)
+  for (name in names(reports)) if (!is.null(reports[[name]])) sheets[[name]] <- reports[[name]]
 
   media_map <- media_map %||% reference_lists$media_map
   if (!is.null(media_map)) {
@@ -424,7 +444,8 @@ build_baseline_diff_rows <- function(script_baseline_state, resolution_state) {
   )
 }
 
-build_session_state_sheet <- function(resolution_state, consensus_summary, baseline_diff_rows = NULL) {
+build_session_state_sheet <- function(resolution_state, consensus_summary, baseline_diff_rows = NULL,
+                                      portable_inputs = list()) {
   state_cols <- c(
     ".pinned",
     ".manual_entry",
@@ -491,7 +512,23 @@ build_session_state_sheet <- function(resolution_state, consensus_summary, basel
   if (!is.null(baseline_diff_rows) && nrow(baseline_diff_rows) > 0) {
     sheet <- dplyr::bind_rows(sheet, baseline_diff_rows)
   }
+  if (length(portable_inputs)) {
+    sheet <- dplyr::bind_rows(sheet, serialize_session_inputs(portable_inputs))
+  }
   sheet
+}
+
+serialize_session_inputs <- function(inputs, chunk_size = 30000L) {
+  rows <- lapply(names(inputs), function(key) {
+    value <- inputs[[key]]
+    if (is.null(value)) return(NULL)
+    if (key == "review_decision_evidence") validate_review_evidence(value)
+    payload <- as.character(jsonlite::serializeJSON(value, digits = NA))
+    starts <- seq.int(1L, nchar(payload), by = chunk_size)
+    tibble::tibble(record_type = "portable_input_v1", row_index = seq_along(starts),
+      key = key, value = substring(payload, starts, pmin(starts + chunk_size - 1L, nchar(payload))))
+  })
+  dplyr::bind_rows(rows)
 }
 
 #' Validate Excel Size Limits

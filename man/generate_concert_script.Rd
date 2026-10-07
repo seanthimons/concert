@@ -32,7 +32,10 @@ generate_concert_script(
   pubchem = FALSE,
   desalt = FALSE,
   desalt_workflows = c("qsar-ready", "ms-ready"),
-  ignored_identifier_cols = character()
+  ignored_identifier_cols = character(),
+  review_decision_evidence = NULL,
+  identity_decisions = NULL,
+  candidate_validation = NULL
 )
 }
 \arguments{
@@ -106,6 +109,12 @@ embed.}
 
 \item{ignored_identifier_cols}{Retained identifier columns deliberately
 treated as metadata, persisted in the replay call.}
+
+\item{review_decision_evidence}{Portable immutable review evidence contract.}
+
+\item{identity_decisions}{Explicit structured source-identity decisions.}
+
+\item{candidate_validation}{Structured candidate validation outcomes.}
 }
 \value{
 Complete R script as a character scalar.
