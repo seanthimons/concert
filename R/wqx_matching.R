@@ -79,11 +79,19 @@ fuzzy_identity_ok <- function(input, candidate) {
 #' with one row per input name.
 #'
 #' @param names Character vector of analyte names to match
-#' @param dictionary Tibble from load_wqx_dictionary() with columns: name, canonical_name, type
+#' @param dictionary Tibble from load_wqx_dictionary() with columns: name, canonical_name, type,
+#'   and optionally cas_number. CAS evidence comes only from canonical entries.
 #' @param threshold Numeric similarity threshold for fuzzy acceptance (default 0.85).
 #'   Internally converted to JW distance cutoff: distance <= (1 - threshold).
 #' @param verbose Logical. If TRUE, emits per-name cli output (default FALSE).
-#' @return Tibble with columns: input_name, wqx_name, match_tier, match_distance, alias_type
+#' @return Tibble with columns: input_name, wqx_name, match_tier, match_distance, alias_type,
+#'   wqx_cas, wqx_cas_status, wqx_cas_raw, and wqx_cas_provenance.
+#'   wqx_cas contains a single format/checksum-valid canonical-entry CAS, never
+#'   an accepted input identity. Status is valid, missing, invalid, or ambiguous.
+#'   Distinct nonempty raw canonical values are retained in wqx_cas_raw, separated
+#'   by ` | `. Conflicting values yield ambiguous status and missing wqx_cas.
+#'   Provenance records `canonical:` followed by the normalized canonical key.
+#'   Unmatched inputs have missing CAS status and no provenance.
 #' @export
 match_wqx <- function(names, dictionary, threshold = 0.85, verbose = FALSE) {
   # --- Empty-input guard ---
@@ -93,7 +101,11 @@ match_wqx <- function(names, dictionary, threshold = 0.85, verbose = FALSE) {
       wqx_name = character(0),
       match_tier = character(0),
       match_distance = numeric(0),
-      alias_type = character(0)
+      alias_type = character(0),
+      wqx_cas = character(0),
+      wqx_cas_status = character(0),
+      wqx_cas_raw = character(0),
+      wqx_cas_provenance = character(0)
     ))
   }
 
@@ -167,7 +179,7 @@ match_wqx <- function(names, dictionary, threshold = 0.85, verbose = FALSE) {
   # For Phase 45 (production wiring), consider chunked batching. See RESEARCH.md Pitfall 4.
   nearest_candidate <- rep(NA_character_, n)
 
-  if (length(still_unresolved_idx) > 0) {
+  if (length(still_unresolved_idx) > 0 && nrow(canonical_rows) > 0) {
     canonical_name_vec <- canonical_rows$name
     canonical_key_vec <- normalize_wqx_key(canonical_name_vec)
 
@@ -183,8 +195,14 @@ match_wqx <- function(names, dictionary, threshold = 0.85, verbose = FALSE) {
     best_idx <- apply(dist_matrix, 1, which.min)
     best_match <- canonical_name_vec[best_idx]
 
+    # A distance tie between different canonical keys is unresolved evidence,
+    # not a reason to choose whichever dictionary row appears first.
+    tied_keys <- vapply(seq_along(best_dist), function(i) {
+      length(unique(canonical_key_vec[abs(dist_matrix[i, ] - best_dist[i]) <= 1e-12])) > 1L
+    }, logical(1))
+
     # JW distance: 0=identical, cutoff = 1 - threshold
-    accepted <- best_dist <= (1 - threshold) &
+    accepted <- best_dist <= (1 - threshold) & !tied_keys &
       fuzzy_identity_ok(names[still_unresolved_idx], best_match)
 
     # Vectorized assignment: all unresolved positions get distance and nearest candidate
@@ -198,6 +216,40 @@ match_wqx <- function(names, dictionary, threshold = 0.85, verbose = FALSE) {
       match_tier[fuzzy_pos] <- "fuzzy"
     }
     # Rejected positions: match_tier stays "none", wqx_name stays NA
+  }
+
+  # Canonical-entry CAS is lookup evidence only. Resolve aliases by the selected
+  # normalized canonical key, and inspect every canonical row for that key.
+  # Never take the first CAS from duplicated/conflicting dictionary entries.
+  wqx_cas <- rep(NA_character_, n)
+  wqx_cas_status <- rep("missing", n)
+  wqx_cas_raw <- rep(NA_character_, n)
+  wqx_cas_provenance <- rep(NA_character_, n)
+  matched_idx <- which(!is.na(wqx_name))
+  selected_keys <- normalize_wqx_key(wqx_name[matched_idx])
+  canonical_keys <- normalize_wqx_key(canonical_rows$name)
+  canonical_groups <- split(seq_len(nrow(canonical_rows)), canonical_keys)
+  canonical_cas <- if ("cas_number" %in% colnames(canonical_rows)) {
+    trimws(as.character(canonical_rows$cas_number))
+  } else {
+    rep(NA_character_, nrow(canonical_rows))
+  }
+  # Work once per selected key, then assign all matching inputs together.
+  for (key in unique(selected_keys)) {
+    positions <- matched_idx[selected_keys == key]
+    wqx_cas_provenance[positions] <- paste0("canonical:", key)
+    values <- canonical_cas[canonical_groups[[key]]]
+    values <- sort(unique(values[!is.na(values) & nzchar(values)]))
+    if (length(values) == 0) next
+    wqx_cas_raw[positions] <- paste(values, collapse = " | ")
+    if (length(values) > 1) {
+      wqx_cas_status[positions] <- "ambiguous"
+    } else if (isTRUE(is_cas(values))) {
+      wqx_cas[positions] <- values
+      wqx_cas_status[positions] <- "valid"
+    } else {
+      wqx_cas_status[positions] <- "invalid"
+    }
   }
 
   # --- Verbose per-name logging ---
@@ -265,6 +317,10 @@ match_wqx <- function(names, dictionary, threshold = 0.85, verbose = FALSE) {
     wqx_name = wqx_name,
     match_tier = match_tier,
     match_distance = match_distance,
-    alias_type = alias_type
+    alias_type = alias_type,
+    wqx_cas = wqx_cas,
+    wqx_cas_status = wqx_cas_status,
+    wqx_cas_raw = wqx_cas_raw,
+    wqx_cas_provenance = wqx_cas_provenance
   )
 }
