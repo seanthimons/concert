@@ -3,26 +3,70 @@
 #' This fingerprint binds an explicit decision to source content, lineage,
 #' candidates and lookup outcomes. Flags and derived acceptance fields are not
 #' evidence. Capture it after inspecting the row; a changed fingerprint requires
-#' another explicit review.
+#' another explicit review. Version 2 records retain the source columns actually
+#' reviewed and detect new chemical evidence. Unrelated new nonchemical columns
+#' and enumerated harmonization outputs do not invalidate that decision.
 #' @param df Current resolution data.
 #' @param row Integer row position.
 #' @return A versioned evidence fingerprint.
 #' @export
 identity_evidence_fingerprint <- function(df, row) {
   stopifnot(length(row) == 1L, row >= 1L, row <= nrow(df))
+  record <- tryCatch(jsonlite::fromJSON(identity_col(df, "identity_decision_record")[row]),
+                     error = function(e) NULL)
+  columns <- if (!is.null(record) && identical(record$version, "2") &&
+                 is.character(record$evidence_columns)) record$evidence_columns else NULL
+  identity_fingerprint_v2(df, row, columns)
+}
+
+identity_evidence_columns <- function(df) {
   excluded <- c("row_flag", "row_flag_reason", "needs_review", "identity_scope", "identity_conflict",
     "identity_scope_reviewed", "identity_decision_current", "identity_decision_fingerprint",
     "identity_decision_record", "identity_status", "identity_blockers", "identity_eligible", "accepted_dtxsid",
     "consensus_casrn", "consensus_formula", "consensus_mw")
-  cols <- sort(setdiff(names(df)[!grepl("^\\.", names(df))], excluded))
-  # Export hydration adds blank optional fields; validation timestamps are audit
-  # metadata, rather than changed chemical evidence.
-  cols <- cols[!grepl("^source_id_.*_checked_at$", cols)]
+  # These are established harmonization outputs, not changed chemical identity
+  # evidence. Preserve original source names/CAS/IDs, lineage and all captured
+  # source context outside this explicitly enumerated nonchemical boundary.
+  harmonized <- c("media", "media_original", "media_category", "media_envo_id", "media_flag",
+    paste0("media_", media_identity_fields()), "media_routing_status",
+    "study_duration_value", "study_duration_units", "year", DETECTION_GENERATED_COLUMNS)
+  cols <- setdiff(names(df)[!grepl("^\\.", names(df))], c(excluded, harmonized))
+  sort(cols[!grepl("^source_id_.*_checked_at$", cols)])
+}
+
+identity_new_chemical_columns <- function(df) {
+  names(df)[grepl(paste0("^(consensus_|dtxsid($|_)|preferredName($|_)|source_tier($|_)|",
+    "match_tier($|_)|tied_dtxsids($|_)|lookup_evidence_columns$|source_id_|",
+    "resolver_|pubchem_|parent_|multi_analyte_|component_|isotope_|wqx_)|",
+    "(^|_)(name|cas|casrn|dtxsid|smiles|inchi|inchikey|formula|chemical|compound|substance)(_|$)"), names(df))]
+}
+
+identity_fingerprint_values <- function(df, row, cols, version) {
+  cols <- sort(intersect(cols, names(df)))
   values <- lapply(as.list(df[row, cols, drop = FALSE]), function(x) {
     x <- trimws(as.character(x)); x[is.na(x) | !nzchar(x)] <- NA_character_; x
   })
   values <- values[!vapply(values, function(x) all(is.na(x)), logical(1))]
-  paste0("identity-v1:", digest::digest(values, algo = "sha256"))
+  paste0("identity-v", version, ":", digest::digest(values, algo = "sha256"))
+}
+
+identity_fingerprint_v2 <- function(df, row, columns = NULL) {
+  eligible <- identity_evidence_columns(df)
+  if (is.null(columns)) columns <- eligible
+  # Keep the source columns actually reviewed, and detect new semantic chemical
+  # evidence. New arbitrary nonchemical output columns cannot stale a decision.
+  columns <- intersect(unique(c(columns, identity_new_chemical_columns(df))), eligible)
+  identity_fingerprint_values(df, row, columns, "2")
+}
+
+identity_fingerprint_v1 <- function(df, row) {
+  excluded <- c("row_flag", "row_flag_reason", "needs_review", "identity_scope", "identity_conflict",
+    "identity_scope_reviewed", "identity_decision_current", "identity_decision_fingerprint",
+    "identity_decision_record", "identity_status", "identity_blockers", "identity_eligible", "accepted_dtxsid",
+    "consensus_casrn", "consensus_formula", "consensus_mw")
+  cols <- setdiff(names(df)[!grepl("^\\.", names(df))], excluded)
+  cols <- cols[!grepl("^source_id_.*_checked_at$", cols)]
+  identity_fingerprint_values(df, row, cols, "1")
 }
 
 identity_decision_current_rows <- function(df) {
@@ -31,13 +75,15 @@ identity_decision_current_rows <- function(df) {
   out <- rep(FALSE, nrow(df))
   for (i in which(!is.na(signature) & !is.na(recorded))) {
     record <- tryCatch(jsonlite::fromJSON(recorded[i]), error = function(e) NULL)
-    out[i] <- !is.null(record) && identical(record$version, "1") &&
+    out[i] <- !is.null(record) && record$version %in% c("1", "2") &&
+      (identical(record$version, "1") || is.character(record$evidence_columns)) &&
       identical(record$action, "accept") && identical(record$membership, "valid") &&
       isTRUE(record$correspondence) && identical(record$applied_fingerprint, signature[i]) &&
       identical(record$selected_dtxsid, as.character(identity_col(df, "consensus_dtxsid")[i])) &&
       identical(record$scope, as.character(identity_col(df, "identity_scope")[i])) &&
       identical(record$conflict, as.character(identity_col(df, "identity_conflict")[i])) &&
-      identical(signature[i], identity_evidence_fingerprint(df, i))
+      identical(signature[i], if (identical(record$version, "1")) identity_fingerprint_v1(df, i) else
+        identity_fingerprint_v2(df, i, record$evidence_columns))
   }
   out
 }
@@ -111,7 +157,11 @@ apply_identity_decisions <- function(state, identity_decisions) {
       stop("Invalid identity decision action, scope or conflict.", call. = FALSE)
     }
     before <- identity_evidence_fingerprint(df, i)
-    if (!identical(before, decision$evidence_fingerprint)) stop("Identity decision evidence changed.", call. = FALSE)
+    legacy_match <- startsWith(decision$evidence_fingerprint, "identity-v1:") &&
+      identical(identity_fingerprint_v1(df, i), decision$evidence_fingerprint)
+    if (!identical(before, decision$evidence_fingerprint) && !legacy_match) {
+      stop("Identity decision evidence changed.", call. = FALSE)
+    }
     membership <- "not_requested"
     if (decision$action == "accept") {
       id <- decision$selected_dtxsid
@@ -148,8 +198,10 @@ apply_identity_decisions <- function(state, identity_decisions) {
     df$identity_scope[i] <- decision$scope
     df$identity_conflict[i] <- decision$conflict
     df$identity_scope_reviewed[i] <- TRUE
-    applied <- identity_evidence_fingerprint(df, i)
-    record <- c(decision, list(version = "1", membership = membership, applied_fingerprint = applied))
+    evidence_columns <- identity_evidence_columns(df)
+    applied <- identity_fingerprint_v2(df, i, evidence_columns)
+    record <- c(decision, list(version = "2", evidence_columns = evidence_columns,
+                              membership = membership, applied_fingerprint = applied))
     df$identity_decision_fingerprint[i] <- applied
     df$identity_decision_record[i] <- as.character(jsonlite::toJSON(record, auto_unbox = TRUE, null = "null"))
   }
