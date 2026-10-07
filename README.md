@@ -89,6 +89,14 @@ devtools::load_all()
 After deliberately changing dependencies, run `renv::snapshot()` and commit
 `renv.lock`. `renv::status()` checks for drift.
 
+Routine CI runs the locked review and module-rendering tests on Windows with
+R 4.5.1 and the dependencies in `renv.lock`, plus commit and secret checks.
+The Linux, Windows, and macOS package-check matrix runs only when **R-CMD-check**
+is started manually in GitHub Actions. The release workflow independently runs
+`R CMD check` on Linux and rejects errors or warnings before publishing.
+Run `devtools::test()` locally for the full regression suite; package archives
+currently exclude `tests/`, so package checks do not run those tests.
+
 To benchmark the review table on the 8,216-row case:
 
 ```r
