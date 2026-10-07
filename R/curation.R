@@ -1061,7 +1061,7 @@ run_curation_pipeline <- function(
 
   # Stage 5: Initialize resolution state
   resolved_df <- init_resolution_state(classified_df)
-  source_result <- attach_source_identifier_evidence(resolved_df, source_tags, source_lookup_fn)
+  source_result <- attach_source_identifier_evidence(resolved_df, source_tags, source_lookup_fn, original_data)
   resolved_df <- source_result$data
   if (isTRUE(pubchem)) {
     name_cols <- names(column_tags)[column_tags == "Name"]

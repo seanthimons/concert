@@ -90,8 +90,17 @@ source_identifier_evidence <- function(df, tags, lookup_fn = source_identifier_l
   evidence
 }
 
-attach_source_identifier_evidence <- function(df, tags, lookup_fn = source_identifier_lookup) {
+attach_source_identifier_evidence <- function(df, tags, lookup_fn = source_identifier_lookup, original_data = NULL) {
   evidence <- source_identifier_evidence(df, tags, lookup_fn)
+  if (!is.null(original_data) && nrow(evidence)) {
+    lineage <- df$original_row_id %||% seq_len(nrow(df))
+    for (col in intersect(unique(evidence$source_column), names(original_data))) {
+      rows <- which(evidence$source_column == col)
+      input_rows <- lineage[evidence$row_index[rows]]
+      valid_rows <- !is.na(input_rows) & input_rows >= 1L & input_rows <= nrow(original_data)
+      evidence$source_raw_id[rows[valid_rows]] <- as.character(original_data[[col]][input_rows[valid_rows]])
+    }
+  }
   direct <- find_dtxsid_cols(df)
   multi <- is_multi_analyte_review_row(df)
   for (col in unique(evidence$source_column)) {

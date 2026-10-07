@@ -136,6 +136,10 @@ review_evidence_snapshot <- function(automated, final = automated,
   })
   candidate_keys <- vapply(candidate_scope, review_evidence_fingerprint, character(1))
   candidate_scope <- candidate_scope[order(candidate_keys)]
+  validation <- normalize_review_validation(validation)
+  relevant <- unique(c(normalize_review_candidates(automated, row_indices, source_id_cols)$dtxsid,
+    as.character(automated$consensus_dtxsid[row_indices]), as.character(final$consensus_dtxsid[row_indices])))
+  validation <- validation[validation$dtxsid %in% relevant, , drop = FALSE]
   list(schema_version = 1L, automated = selected(automated), final = selected(final),
     candidate_scope = candidate_scope,
     candidates = normalize_review_candidates(automated, row_indices, source_id_cols),

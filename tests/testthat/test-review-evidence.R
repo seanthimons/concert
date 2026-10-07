@@ -104,3 +104,13 @@ test_that("portable contract round trips through replay and RDS without rebasing
   saveRDS(original, path)
   expect_identical(validate_review_evidence(readRDS(path)), original)
 })
+
+test_that("unrelated candidate validation cannot change another decision snapshot", {
+  df <- evidence_fixture()
+  df$resolver_dtxsid_candidate[1] <- "DTXSID123"
+  validation <- data.frame(dtxsid = c("DTXSID123", "DTXSID999"), outcome = "valid")
+  before <- review_evidence_snapshot(df, row_indices = 1, validation = validation)
+  validation$outcome[2] <- "rejected"
+  expect_identical(review_evidence_fingerprint(before),
+    review_evidence_fingerprint(review_evidence_snapshot(df, row_indices = 1, validation = validation)))
+})

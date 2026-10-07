@@ -114,3 +114,12 @@ test_that("source-only pipeline validates candidates without consensus promotion
   expect_equal(nrow(unused$source_identifier_evidence), 0L)
   expect_length(find_dtxsid_cols(unused$results), 0L)
 })
+
+test_that("original source identifier text follows lineage through cleaning and split rows", {
+  df <- tibble::tibble(original_row_id = c(2L, 2L, 1L), source_dtxsid = c("DTXSID123", "DTXSID123", "DTXSID456"))
+  raw <- tibble::tibble(source_dtxsid = c(" dtxsid456 ", "  DTXSID123  "))
+  out <- attach_source_identifier_evidence(df, list(source_dtxsid = "DTXSID"),
+    lookup_fn = function(ids) tibble::tibble(dtxsid = ids), original_data = raw)
+  expect_equal(out$evidence$source_raw_id, c("  DTXSID123  ", "  DTXSID123  ", " dtxsid456 "))
+  expect_equal(out$data$source_id_source_dtxsid_source_raw_id, out$evidence$source_raw_id)
+})
