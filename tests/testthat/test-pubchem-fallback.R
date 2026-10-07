@@ -27,6 +27,83 @@ test_that("PubChem fallback keeps all candidates separate from consensus", {
   expect_identical(out$consensus_dtxsid, df$consensus_dtxsid)
 })
 
+test_that("PubChem candidates require complete valid CID and DTXSID pairs", {
+  df <- tibble::tibble(
+    raw_name = c("Example", "Example", "Resolved"),
+    consensus_status = c("error", "unresolvable", "single"),
+    consensus_dtxsid = c(NA_character_, NA_character_, "DTXSID1")
+  )
+  responses <- list(
+    unrelated = tibble::tibble(cid = 1L, synonym = "Other synonym"),
+    empty = tibble::tibble(cid = integer(), synonym = character()),
+    missing_synonym = tibble::tibble(cid = 1L, synonym = NA_character_),
+    missing_cid_column = tibble::tibble(synonym = "DTXSID123"),
+    missing_synonym_column = tibble::tibble(cid = 1L),
+    unaligned = list(cid = c(1L, 2L), synonym = "DTXSID123"),
+    invalid_cids = tibble::tibble(
+      cid = c(NA, "", "junk", "0", "-1", "1.5", "01", " 1", "1 "),
+      synonym = "DTXSID123"
+    ),
+    invalid_synonyms = tibble::tibble(
+      cid = 1L, synonym = c(NA, "", "DTXSID", "dtxsid123", "DTXSID123x", " DTXSID123")
+    )
+  )
+  for (response in responses) {
+    calls <- character()
+    out <- add_pubchem_candidates(
+      df, "raw_name",
+      search_fn = function(name, type) {
+        calls <<- c(calls, name)
+        tibble::tibble(cid = 1L)
+      },
+      synonyms_fn = function(cid, tidy) response
+    )
+    expect_identical(calls, "Example")
+    expect_identical(out$pubchem_query, c("Example", "Example", NA_character_))
+    expect_identical(out$pubchem_cid_candidates, c("1", "1", NA_character_))
+    expect_identical(out$pubchem_dtxsid_candidates, rep(NA_character_, 3))
+    expect_identical(out$pubchem_lookup_status, c("hit", "hit", NA_character_))
+    expect_identical(out$consensus_dtxsid, df$consensus_dtxsid)
+    expect_identical(out$consensus_status, df$consensus_status)
+  }
+
+  valid <- add_pubchem_candidates(
+    df, "raw_name", search_fn = function(...) tibble::tibble(cid = c(1L, 2L)),
+    synonyms_fn = function(...) tibble::tibble(
+      cid = c("1", NA, "2", "1", "junk", "1", "2"),
+      synonym = c("DTXSID123", "DTXSID123", "DTXSID123", "DTXSID123",
+                  "DTXSID456", "DTXSID456", "unrelated")
+    )
+  )
+  expect_identical(valid$pubchem_dtxsid_candidates,
+                   c(rep("1:DTXSID123; 2:DTXSID123; 1:DTXSID456", 2), NA_character_))
+  expect_identical(valid$pubchem_cid_candidates, c("1; 2", "1; 2", NA_character_))
+  expect_identical(valid$pubchem_lookup_status, c("hit", "hit", NA_character_))
+  expect_identical(valid$consensus_dtxsid, df$consensus_dtxsid)
+  expect_identical(valid$consensus_status, df$consensus_status)
+})
+
+test_that("PubChem failures retain lookup status and available CID evidence", {
+  df <- tibble::tibble(raw_name = "Example", consensus_status = "error", consensus_dtxsid = NA_character_)
+  search_error <- add_pubchem_candidates(df, "raw_name", search_fn = function(...) stop("offline"))
+  expect_identical(search_error$pubchem_lookup_status, "error")
+  expect_identical(search_error$pubchem_dtxsid_candidates, NA_character_)
+  expect_identical(search_error$pubchem_cid_candidates, NA_character_)
+
+  no_hit <- add_pubchem_candidates(df, "raw_name", search_fn = function(...) tibble::tibble(cid = integer()))
+  expect_identical(no_hit$pubchem_lookup_status, "no_hit")
+  expect_identical(no_hit$pubchem_dtxsid_candidates, NA_character_)
+  expect_identical(no_hit$pubchem_cid_candidates, NA_character_)
+
+  synonym_error <- add_pubchem_candidates(
+    df, "raw_name", search_fn = function(...) tibble::tibble(cid = 1L),
+    synonyms_fn = function(...) stop("offline")
+  )
+  expect_identical(synonym_error$pubchem_lookup_status, "synonyms_error")
+  expect_identical(synonym_error$pubchem_dtxsid_candidates, NA_character_)
+  expect_identical(synonym_error$pubchem_cid_candidates, "1")
+})
+
 test_that("salt parent suggestions follow exact lookup and preserve identity", {
   df <- tibble::tibble(
     raw_name = c("Halofuginone lactate", "Tiamulin hydrogen fumarate",
