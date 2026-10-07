@@ -67,6 +67,10 @@ parse_concert_export <- function(file_path) {
         summary = read_export_sheet(file_path, sheets, "Summary", NULL),
         cleaning_audit = read_export_sheet(file_path, sheets, "Cleaning Audit", NULL),
         session_state = read_export_sheet(file_path, sheets, "Session State", NULL),
+        review_reconciliation = read_export_sheet(file_path, sheets, "Review Reconciliation", NULL),
+        candidate_review = read_export_sheet(file_path, sheets, "Candidate Review", NULL),
+        source_identifier_evidence = read_export_sheet(file_path, sheets, "Source ID Evidence", NULL),
+        identifier_diagnostics = read_export_sheet(file_path, sheets, "Identifier Diagnostics", NULL),
         toxval_output = read_export_sheet(file_path, sheets, "ToxVal Output", NULL),
         site_manifest = read_export_sheet(file_path, sheets, "Site Manifest", NULL),
         site_alias_map = read_export_sheet(file_path, sheets, "Site Alias Map", NULL),
@@ -102,6 +106,8 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
   }
 
   warnings <- character(0)
+  ignored_json <- parsed$config$value[parsed$config$key %in% "ignored_identifier_cols"]
+  ignored_identifier_cols <- if (length(ignored_json)) as.character(jsonlite::fromJSON(ignored_json[1])) else character()
   raw_data <- normalize_optional_sheet(parsed$raw_data)
   cleaned_data <- normalize_optional_sheet(parsed$cleaned_data)
   cleaning_audit <- parsed$cleaning_audit %||% tibble::tibble()
@@ -189,6 +195,7 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
     file_info = file_info,
     selected_columns = if (!is.null(raw_data)) names(raw_data) else NULL,
     column_tags = classified_tags$chemical_tags,
+    ignored_identifier_cols = ignored_identifier_cols,
     numeric_tags = classified_tags$numeric_tags,
     metadata_tags = classified_tags$metadata_tags,
     study_type_tags = classified_tags$study_type_tags,
@@ -196,6 +203,7 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
     prev_numeric_tags = classified_tags$numeric_tags,
     cleaning_audit = cleaning_audit,
     cleaned_data = cleaned_data,
+    cleaning_steps = NULL,
     reference_lists = reference_lists,
     curation_results = resolution_state,
     curation_report = NULL,
@@ -225,11 +233,17 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
     media_results = media_results,
     media_map_working = reference_lists$media_map,
     toxval_output = toxval_output,
+    toxval_identity_mode = "lookup",
     numeric_correction_queue = empty_numeric_correction_queue(),
     harmonize_results_stale = FALSE,
     changed_units = character(0)
   )
 
+  portable <- restore_session_inputs(parsed$session_state)
+  for (key in names(portable)) state[[key]] <- portable[[key]]
+  for (key in c("review_reconciliation", "candidate_review", "source_identifier_evidence", "identifier_diagnostics")) {
+    state[[key]] <- parsed[[key]]
+  }
   list(state = state, warnings = warnings)
 }
 
@@ -685,4 +699,32 @@ merge_reference_lists <- function(existing_lists, imported_ref_df) {
   )
 
   existing_lists
+}
+
+
+restore_session_inputs <- function(sheet) {
+  if (is.null(sheet) || !NROW(sheet)) return(list())
+  required <- c("record_type", "row_index", "key", "value")
+  if (!all(required %in% names(sheet))) return(list())
+  rows <- sheet[!is.na(sheet$record_type) & sheet$record_type == "portable_input_v1", required, drop = FALSE]
+  if (!nrow(rows)) return(list())
+  allowed <- c("review_decision_evidence", "identity_decisions", "candidate_validation", "toxval_identity_mode", "cleaning_steps")
+  if (anyNA(rows$key) || any(!rows$key %in% allowed)) stop("Unsupported portable session input.", call. = FALSE)
+  keys <- allowed[allowed %in% rows$key]
+  result <- lapply(keys, function(key) {
+    parts <- rows[rows$key == key, , drop = FALSE]
+    parts <- parts[order(parts$row_index), , drop = FALSE]
+    if (anyNA(parts$row_index) || !identical(as.numeric(parts$row_index), as.numeric(seq_len(nrow(parts)))) || anyNA(parts$value)) {
+      stop("Missing or duplicate portable input chunks; restore an intact workbook.", call. = FALSE)
+    }
+    value <- jsonlite::unserializeJSON(paste0(parts$value, collapse = ""))
+    if (key == "review_decision_evidence") validate_review_evidence(value)
+    if (key == "cleaning_steps") validate_portable_cleaning_steps(value)
+    if (key == "toxval_identity_mode" &&
+        (!is.character(value) || length(value) != 1L || is.na(value) || !value %in% c("lookup", "accepted"))) {
+      stop("Unsupported portable ToxVal identity mode.", call. = FALSE)
+    }
+    value
+  })
+  stats::setNames(result, keys)
 }

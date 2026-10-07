@@ -13,7 +13,9 @@ run_curation_pipeline(
   starts_with = FALSE,
   pubchem = FALSE,
   original_data = NULL,
-  desalt = FALSE
+  desalt = FALSE,
+  ignored_identifier_cols = character(),
+  source_lookup_fn = source_identifier_lookup
 )
 }
 \arguments{
@@ -37,6 +39,10 @@ unresolved rows without assigning DTXSIDs.}
 
 \item{desalt}{Logical. If TRUE, suggest parent names and DTXSIDs for
 unresolved salt names without assigning them. Independent of \code{pubchem}.}
+
+\item{ignored_identifier_cols}{Deliberately unused identifier metadata columns.}
+
+\item{source_lookup_fn}{Injectable authoritative source DTXSID details lookup.}
 }
 \value{
 List with results, dedup_summary, search_summary, consensus_summary

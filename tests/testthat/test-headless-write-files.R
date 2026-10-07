@@ -45,7 +45,11 @@ test_that("curate_headless can run harmonized output fully in memory", {
     "date_results",
     "detection",
     "detection_results",
-    "row_data"
+    "row_data",
+    "identity_state",
+    "review_reconciliation",
+    "candidate_review",
+    "review_decision_evidence"
   ))
   expect_s3_class(result$data, "tbl_df")
   expect_equal(result$data$source, "EPA SSWQS")

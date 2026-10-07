@@ -59,10 +59,18 @@ add_pubchem_candidates <- function(df, name_cols, original_data = NULL,
       df$pubchem_lookup_status[rows] <- "synonyms_error"
       next
     }
-    matches <- grepl("^DTXSID[0-9]+$", syns$synonym)
-    candidates <- unique(paste0(syns$cid[matches], ":", syns$synonym[matches]))
-    if (length(candidates)) {
-      df$pubchem_dtxsid_candidates[rows] <- paste(candidates, collapse = "; ")
+    if (all(c("cid", "synonym") %in% names(syns))) {
+      cid <- as.character(syns$cid)
+      synonym <- as.character(syns$synonym)
+      if (length(cid) == length(synonym)) {
+        matches <- !is.na(cid) & grepl("^[1-9][0-9]*$", cid) &
+          !is.na(synonym) & grepl("^DTXSID[0-9]+$", synonym)
+        # Format complete pairs only: paste0() manufactures ":" for empty vectors.
+        if (any(matches)) {
+          candidates <- unique(paste0(cid[matches], ":", synonym[matches]))
+          df$pubchem_dtxsid_candidates[rows] <- paste(candidates, collapse = "; ")
+        }
+      }
     }
     df$pubchem_lookup_status[rows] <- "hit"
   }

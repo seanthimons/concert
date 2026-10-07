@@ -1,0 +1,4 @@
+name,cas,source_dtxsid,source_file
+Mock registered mixture,1-23-4,DTXSID123,inventory A
+Mock registered mixture,1-23-4,DTXSID123,inventory B
+Mock rejected source,2-34-5,DTXSID456,inventory C

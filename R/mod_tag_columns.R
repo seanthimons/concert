@@ -84,7 +84,8 @@ mod_tag_columns_ui <- function(id) {
         )
       ),
       p("Categorize selected columns for curation and harmonization."),
-      uiOutput(ns("column_tagging_ui"))
+      uiOutput(ns("column_tagging_ui")),
+      uiOutput(ns("identifier_metadata_ui"))
     )
   )
 }
@@ -100,6 +101,7 @@ mod_tag_columns_ui <- function(id) {
 #' @export
 mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL, on_tags_cleared = NULL) {
   moduleServer(id, function(input, output, session) {
+    warned_identifier_configs <- character()
     tag_input_id <- function(col) {
       paste0("tag_", make.names(col))
     }
@@ -165,7 +167,7 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL, on_ta
                   label = NULL,
                   choices = list(
                     "Select type..." = c("Select type..." = ""),
-                    "Chemical" = c("Chemical Name" = "Name", "CASRN" = "CASRN", "Other" = "Other"),
+                    "Chemical" = c("Chemical Name" = "Name", "CASRN" = "CASRN", "Source DTXSID" = "DTXSID", "Other" = "Other"),
                     "Numeric" = c(
                       "Result Value" = "Result",
                       "Numeric Measurement" = "Numeric",
@@ -199,6 +201,16 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL, on_ta
             )
           })
         )
+      )
+    })
+
+    output$identifier_metadata_ui <- renderUI({
+      req(data_store$clean)
+      tagList(
+        p(class = "text-muted", "Source DTXSID validates registry membership as review evidence. It does not accept an identity."),
+        selectizeInput(session$ns("ignored_identifier_cols"), "Keep identifier columns as metadata",
+          choices = names(data_store$clean), selected = data_store$ignored_identifier_cols %||% character(), multiple = TRUE),
+        p(class = "text-muted small", "These columns remain in the data without source-ID lookup or unused-identifier warnings. Apply Tags saves this choice.")
       )
     })
 
@@ -259,6 +271,8 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL, on_ta
       data_store$metadata_tags <- NULL
       data_store$study_type_tags <- NULL
       data_store$suggested_column_tags <- NULL
+      data_store$ignored_identifier_cols <- character()
+      data_store$identifier_diagnostics <- NULL
       data_store$dedup_preview <- NULL
 
       update_tag_inputs(cols_to_clear, list())
@@ -301,6 +315,29 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL, on_ta
 
       # Classify tags into categories per D-03
       classified <- classify_tags(col_tag_map)
+      ignored <- input$ignored_identifier_cols %||% character()
+      config_error <- tryCatch({
+        validate_source_identifier_config(data_store$clean, col_tag_map, ignored)
+        NULL
+      }, error = function(e) conditionMessage(e))
+      if (!is.null(config_error)) {
+        notify_user(config_error, type = "error")
+        return()
+      }
+      diagnostics <- unused_source_identifier_diagnostics(data_store$clean, col_tag_map, ignored)
+      config_key <- digest::digest(list(col_tag_map, ignored, diagnostics))
+      if (nrow(diagnostics) && !config_key %in% warned_identifier_configs) {
+        notify_user(paste0("Unused source identifier columns: ", paste(diagnostics$column, collapse = ", "),
+          ". Choose Source DTXSID or Keep identifier columns as metadata."), type = "warning", duration = 8)
+        warned_identifier_configs <<- c(warned_identifier_configs, config_key)
+      }
+      if (!identical(data_store$ignored_identifier_cols %||% character(), ignored)) {
+        for (field in c("curation_results", "curation_report", "curation_status", "consensus_data",
+          "consensus_summary", "resolution_state", "script_baseline_state", "source_identifier_evidence",
+          "toxval_output", "harmonize_results")) data_store[[field]] <- NULL
+      }
+      data_store$ignored_identifier_cols <- ignored
+      data_store$identifier_diagnostics <- diagnostics
 
       # Validate Result/Unit pairing per D-12/D-13
       warning_msg <- validate_tag_pairing(col_tag_map)

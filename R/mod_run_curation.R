@@ -1,6 +1,56 @@
 # Run Curation Module
 # Curation execution with progress tracking and statistics
 
+# Replay scoped decisions only after comparing the fresh automated evidence.
+# The GUI lookup projection is safe to reconstruct only when that evidence is
+# unchanged; otherwise it could conceal a changed consensus from the reviewer.
+reapply_curation_identity_decisions <- function(df, prior_baseline, baseline, prior_state, decisions) {
+  messages <- character()
+  for (decision in decisions %||% list()) {
+    outcome <- tryCatch({
+      if (is.null(prior_baseline)) stop("The earlier automated baseline is missing.", call. = FALSE)
+      reviewed_row <- gui_identity_row(prior_state, decision$selector)
+      if (!identical(as.character(identity_col(prior_state, "identity_decision_fingerprint")[reviewed_row]),
+                     identity_evidence_fingerprint(prior_state, reviewed_row))) {
+        stop("The earlier source decision is stale.", call. = FALSE)
+      }
+      old_row <- gui_identity_row(prior_baseline, decision$selector)
+      new_row <- gui_identity_row(baseline, decision$selector)
+      if (!identical(identity_evidence_fingerprint(prior_baseline, old_row),
+                     identity_evidence_fingerprint(baseline, new_row))) {
+        stop("Automated source or identity evidence changed.", call. = FALSE)
+      }
+      apply_identity_decisions(list(resolution_state = df), list(decision))$resolution_state
+    }, error = function(e) e)
+    if (inherits(outcome, "error")) {
+      messages <- c(messages, paste("Source decision was not re-applied:", conditionMessage(outcome),
+                                    "Review the current evidence before accepting this source."))
+      # Keep the prior decision visible as stale, without copying source content,
+      # lookup results, candidates or validation over the fresh automated result.
+      old_row <- tryCatch(gui_identity_row(prior_state, decision$selector), error = function(e) NULL)
+      lineage <- decision$selector[intersect(c("original_row_id", "multi_analyte_part_index"), names(decision$selector))]
+      matches <- rep(length(lineage) > 0L, nrow(df))
+      for (col in names(lineage)) {
+        if (!col %in% names(df)) { matches[] <- FALSE; break }
+        value <- lineage[[col]]
+        matches <- matches & if (is.na(value)) is.na(df[[col]]) else !is.na(df[[col]]) & df[[col]] == value
+      }
+      if (!is.null(old_row)) {
+        for (col in intersect(c("identity_scope", "identity_conflict", "identity_scope_reviewed",
+                                "identity_decision_fingerprint", "identity_decision_record"), names(prior_state))) {
+          if (!col %in% names(df)) df[[col]] <- if (is.logical(prior_state[[col]])) FALSE else NA_character_
+          df[[col]][matches] <- prior_state[[col]][old_row]
+        }
+        df$identity_scope_reviewed[matches] <- TRUE
+        df$identity_decision_fingerprint[matches] <- NA_character_
+      }
+    } else {
+      df <- outcome
+    }
+  }
+  list(resolution_state = df, messages = messages)
+}
+
 #' Run Curation Module - UI
 #'
 #' @param id Module namespace ID
@@ -125,8 +175,9 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
       # Check if there are Name or CASRN columns tagged
       has_name <- any(data_store$column_tags == "Name")
       has_cas <- any(data_store$column_tags == "CASRN")
+      has_source <- any(data_store$column_tags == "DTXSID")
 
-      if (!has_name && !has_cas) {
+      if (!has_name && !has_cas && !has_source) {
         notify_user(
           "Please tag at least one column as 'Chemical Name' or 'CASRN' before running curation.",
           type = "warning",
@@ -151,19 +202,56 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
 
             # Run the new pipeline
             # Use cleaned_data if available (after cleaning workflow), fallback to clean (raw data)
+            # The cleaning pipeline normally supplies lineage. Direct curation
+            # must use the same stable source-row numbering, including for the
+            # original-content lookup; preserve IDs already supplied by import.
+            original_data <- data_store$clean
+            if (!"original_row_id" %in% names(original_data)) {
+              original_data$original_row_id <- seq_len(nrow(original_data))
+            }
             input_data <- if (!is.null(data_store$cleaned_data)) {
               data_store$cleaned_data
             } else {
-              data_store$clean
+              original_data
             }
 
             # Guard against clobbering imported/manual review corrections on a
             # re-run: capture them as content-matched overrides so they can be
             # re-applied to the fresh automated results below.
+            prior_baseline <- data_store$script_baseline_state
+            prior_state <- data_store$resolution_state
+            prior_decisions <- data_store$identity_decisions %||% list()
+            prior_flags <- list()
+            if (!is.null(prior_state) && !is.null(prior_baseline) &&
+                "original_row_id" %in% names(prior_state)) {
+              flagged <- which(!is.na(identity_col(prior_state, "row_flag")) |
+                                 !is.na(identity_col(prior_state, "row_flag_reason")))
+              prior_flags <- vector("list", length(flagged))
+              for (index in seq_along(flagged)) {
+                row <- flagged[index]
+                record <- tryCatch(list(selector = gui_identity_selector(prior_state, row, data_store$column_tags),
+                  values = as.list(prior_state[row, intersect(c("row_flag", "row_flag_reason"), names(prior_state)), drop = FALSE])),
+                  error = function(e) {
+                    notify_user(paste("Source flags could not be captured:", conditionMessage(e)),
+                                type = "warning", duration = NULL)
+                    NULL
+                  })
+                prior_flags[index] <- list(record)
+              }
+              prior_flags <- Filter(Negate(is.null), prior_flags)
+            }
             prior_overrides <- tryCatch(
               build_review_overrides(
-                data_store$script_baseline_state,
-                data_store$resolution_state,
+                prior_baseline,
+                {
+                  projected <- gui_identity_replay_state(prior_state, prior_decisions)
+                  # Flags are source-scoped when lineage is available. Avoid
+                  # turning them into conflicting compound-wide corrections.
+                  if (length(prior_flags)) for (col in c("row_flag", "row_flag_reason")) {
+                    if (col %in% names(projected)) projected[[col]] <- identity_col(prior_baseline, col)
+                  }
+                  projected
+                },
                 tag_map = combine_tag_maps(
                   data_store$column_tags,
                   data_store$numeric_tags,
@@ -171,7 +259,11 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
                   data_store$study_type_tags
                 )
               ),
-              error = function(e) NULL
+              error = function(e) {
+                notify_user(paste("Existing review corrections could not be captured:", conditionMessage(e),
+                                  "Review the new results before exporting replay."), type = "warning", duration = NULL)
+                NULL
+              }
             )
 
             pipeline_result <- run_curation_pipeline(
@@ -183,11 +275,14 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
               starts_with = isTRUE(data_store$starts_with),
               pubchem = isTRUE(data_store$pubchem),
               desalt = isTRUE(data_store$desalt),
-              original_data = data_store$clean
+              original_data = original_data,
+              ignored_identifier_cols = data_store$ignored_identifier_cols %||% character()
             )
 
             # Store results
             data_store$consensus_data <- pipeline_result$results
+            data_store$source_identifier_evidence <- pipeline_result$source_identifier_evidence
+            data_store$identifier_diagnostics <- pipeline_result$identifier_diagnostics
             data_store$consensus_summary <- pipeline_result$consensus_summary
             data_store$resolution_state <- pipeline_result$results
             data_store$dtxsid_cols <- find_dtxsid_cols(pipeline_result$results)
@@ -291,7 +386,11 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
             if (review_overrides_present(prior_overrides)) {
               reapplied <- tryCatch(
                 apply_review_overrides(data_store$script_baseline_state, prior_overrides),
-                error = function(e) NULL
+                error = function(e) {
+                  notify_user(paste("Review corrections could not be re-applied:", conditionMessage(e)),
+                              type = "warning", duration = NULL)
+                  NULL
+                }
               )
               if (!is.null(reapplied)) {
                 data_store$resolution_state <- reapplied
@@ -313,6 +412,30 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
                   duration = 10
                 )
               }
+            }
+
+            for (record in prior_flags) {
+              row <- tryCatch(gui_identity_row(data_store$resolution_state, record$selector), error = function(e) {
+                notify_user(paste("Source flags could not be re-applied:", conditionMessage(e)),
+                            type = "warning", duration = NULL)
+                NULL
+              })
+              if (!is.null(row)) for (col in names(record$values)) {
+                if (!col %in% names(data_store$resolution_state)) data_store$resolution_state[[col]] <- NA_character_
+                data_store$resolution_state[[col]][row] <- record$values[[col]]
+              }
+            }
+            data_store$consensus_data <- data_store$resolution_state
+            data_store$curation_results <- data_store$resolution_state
+
+            if (length(prior_decisions)) {
+              scoped <- reapply_curation_identity_decisions(data_store$resolution_state, prior_baseline,
+                data_store$script_baseline_state, prior_state, prior_decisions)
+              data_store$resolution_state <- scoped$resolution_state
+              data_store$consensus_data <- scoped$resolution_state
+              data_store$curation_results <- scoped$resolution_state
+              data_store$consensus_summary <- recalc_consensus_summary(scoped$resolution_state)
+              for (message in scoped$messages) notify_user(message, type = "warning", duration = NULL)
             }
 
             # Show tier breakdown notification
