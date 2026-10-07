@@ -38,7 +38,8 @@ curate_headless(
   source_name = NULL,
   pubchem = FALSE,
   desalt = FALSE,
-  desalt_workflows = c("qsar-ready", "ms-ready")
+  desalt_workflows = c("qsar-ready", "ms-ready"),
+  ignored_identifier_cols = character()
 )
 }
 \arguments{
@@ -170,6 +171,9 @@ rows via the chemi standardizer. Independent of \code{pubchem}.}
 
 \item{desalt_workflows}{Standardizer workflows used when \code{desalt = TRUE}:
 "qsar-ready", "ms-ready", or both (default).}
+
+\item{ignored_identifier_cols}{Retained identifier columns deliberately
+treated as metadata. These columns never supply identity evidence.}
 }
 \value{
 Invisibly returns a list:

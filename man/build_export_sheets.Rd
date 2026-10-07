@@ -22,7 +22,8 @@ build_export_sheets(
   site_alias_map = NULL,
   script_baseline_state = NULL,
   media_map = NULL,
-  media_results = NULL
+  media_results = NULL,
+  ignored_identifier_cols = character()
 )
 }
 \arguments{
@@ -75,6 +76,8 @@ State so re-imported sessions can regenerate replay review overrides.}
 \item{media_map}{Effective media map, including user overrides.}
 
 \item{media_results}{Row-level media identity, routing and original-value audit.}
+
+\item{ignored_identifier_cols}{Deliberately unused identifier metadata columns.}
 }
 \value{
 Named list of data frames with sheet names as keys

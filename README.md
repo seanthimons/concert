@@ -86,3 +86,18 @@ source("scripts/benchmark_review_results.R")
 benchmark_review_results()
 run_review_benchmark_app()
 ```
+
+Source identifiers can be configured explicitly in headless workflows with
+`tag_map = list(chemical_name = "Name", source_dtxsid = "DTXSID")`.
+The `DTXSID` role validates IDs through EPA CompTox chemical details and retains
+raw values, normalized candidates, validation status, authority, and timestamp
+as review evidence. Registry membership does not establish correspondence to the
+source name or chemical scope and does not automatically assign consensus.
+Unavailable validation remains distinct from a definitive missing record.
+
+Retained identifier columns without this role produce unused-column diagnostics.
+Use `ignored_identifier_cols = "dtxsid_metadata"` to deliberately keep an identifier
+column as metadata. This configuration is preserved in generated replay scripts
+and workbook Pipeline Config. Raw columns named `dtxsid` or `dtxsid_*` remain
+input data and cannot become lookup votes through their names. `Other` retains
+its generic name-search behavior; it does not provide source ID validation.

@@ -12,7 +12,8 @@ stage_ingest(
   reference_list_snapshot = NULL,
   activate_all_references = FALSE,
   site_manifest = NULL,
-  site_alias_map = NULL
+  site_alias_map = NULL,
+  ignored_identifier_cols = character()
 )
 }
 \arguments{
@@ -47,6 +48,9 @@ in the workbook export.}
 
 \item{site_alias_map}{Optional Dataset Context raw-label alias map to include
 in the workbook export.}
+
+\item{ignored_identifier_cols}{Retained identifier columns deliberately
+treated as metadata. These columns never supply identity evidence.}
 }
 \value{
 A curation state list. See \code{\link[=curate_headless]{curate_headless()}} for the composed run.

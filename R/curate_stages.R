@@ -24,7 +24,8 @@ stage_ingest <- function(
   reference_list_snapshot = NULL,
   activate_all_references = FALSE,
   site_manifest = NULL,
-  site_alias_map = NULL
+  site_alias_map = NULL,
+  ignored_identifier_cols = character()
 ) {
   if (!file.exists(input_path)) {
     stop(sprintf("curate_headless: file not found: %s", input_path))
@@ -110,6 +111,7 @@ stage_ingest <- function(
     detection = detection,
     clean_data = clean_data,
     tag_map = tag_map,
+    ignored_identifier_cols = ignored_identifier_cols,
     reference_lists = reference_lists,
     site_manifest = site_manifest_for_export,
     site_alias_map = site_alias_map_for_export,
@@ -127,6 +129,9 @@ stage_ingest <- function(
 stage_clean <- function(state, multi_analyte_resolutions = NULL, value_corrections = NULL, cleaning_steps = NULL) {
   tag_groups <- classify_tags(state$tag_map)
   chemical_tag_map <- tag_groups$chemical_tags
+  validate_source_identifier_config(state$clean_data, state$tag_map, state$ignored_identifier_cols %||% character())
+  source_tags <- chemical_tag_map[unlist(chemical_tag_map) %in% "DTXSID"]
+  chemical_tag_map <- chemical_tag_map[!unlist(chemical_tag_map) %in% "DTXSID"]
 
   input_data <- state$clean_data
   correction_audit <- empty_cleaning_audit()
@@ -145,7 +150,7 @@ stage_clean <- function(state, multi_analyte_resolutions = NULL, value_correctio
     mask = cleaning_steps
   )
   cleaning_result$audit_trail <- dplyr::bind_rows(correction_audit, cleaning_result$audit_trail)
-  merged_chemical_tags <- combine_tag_maps(chemical_tag_map, cleaning_result$new_tags)
+  merged_chemical_tags <- combine_tag_maps(combine_tag_maps(chemical_tag_map, cleaning_result$new_tags), source_tags)
   merged_tags <- combine_tag_maps(state$tag_map, cleaning_result$new_tags)
 
   if (!is.null(multi_analyte_resolutions) && length(multi_analyte_resolutions) > 0) {
@@ -201,12 +206,14 @@ stage_curate <- function(
       names(cleaned)
     )
     original_names <- if (isTRUE(pubchem) || isTRUE(desalt)) state$clean_data[intersect(names(state$merged_chemical_tags), names(state$clean_data))] else NULL
-    key <- digest::digest(list(cleaned[key_cols], original_names, wqx_threshold, starts_with, pubchem, desalt))
+    key <- digest::digest(list(cleaned[key_cols], state$merged_chemical_tags,
+      state$ignored_identifier_cols, "source-id-v1", original_names, wqx_threshold, starts_with, pubchem, desalt))
     search_cache_path <- file.path(cache_dir, paste0("curation_", key, ".rds"))
     enrichment_cache_path <- file.path(cache_dir, "enrichment.rds")
     if (file.exists(search_cache_path)) {
       message("[headless] Curation search loaded from cache")
       pipeline_result <- readRDS(search_cache_path)
+      if (any(pipeline_result$source_identifier_evidence$validation_status %in% "unavailable")) pipeline_result <- NULL
     }
   }
 
@@ -219,13 +226,16 @@ stage_curate <- function(
       starts_with = starts_with,
       pubchem = pubchem,
       desalt = desalt,
-      original_data = state$clean_data
+      original_data = state$clean_data,
+      ignored_identifier_cols = state$ignored_identifier_cols %||% character()
     )
     if (!is.null(search_cache_path)) {
       saveRDS(pipeline_result, search_cache_path)
     }
   }
   resolution_state <- pipeline_result$results
+  state$source_identifier_evidence <- pipeline_result$source_identifier_evidence
+  state$identifier_diagnostics <- pipeline_result$identifier_diagnostics
   consensus_summary <- pipeline_result$consensus_summary
   enrichment_cache <- NULL
   enrichment_failed <- character(0)
@@ -504,7 +514,8 @@ stage_export <- function(state, output_path = NULL, format = "parquet", write_fi
       site_alias_map = state$site_alias_map,
       script_baseline_state = state$script_baseline_state,
       media_map = if (isTRUE(state$harmonize)) state$harmonization_refs$media_map else NULL,
-      media_results = state$harmonization_runtime_result$media_results
+      media_results = state$harmonization_runtime_result$media_results,
+      ignored_identifier_cols = state$ignored_identifier_cols %||% character()
     )
 
     fs::dir_create(dirname(output_path), recurse = TRUE)
@@ -541,6 +552,8 @@ stage_export <- function(state, output_path = NULL, format = "parquet", write_fi
       row_data = state$resolution_state
     ))
   } else {
-    invisible(list(data = state$resolution_state, audit_trail = state$cleaning_result$audit_trail))
+    invisible(list(data = state$resolution_state, audit_trail = state$cleaning_result$audit_trail,
+      source_identifier_evidence = state$source_identifier_evidence,
+      identifier_diagnostics = state$identifier_diagnostics))
   }
 }

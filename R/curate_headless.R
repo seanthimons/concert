@@ -131,6 +131,8 @@
 #' @export
 #' @importFrom tools file_ext
 #' @importFrom arrow write_parquet
+#' @param ignored_identifier_cols Retained identifier columns deliberately
+#'   treated as metadata. These columns never supply identity evidence.
 curate_headless <- function(
   input_path,
   output_path,
@@ -165,7 +167,8 @@ curate_headless <- function(
   source_name = NULL,
   pubchem = FALSE,
   desalt = FALSE,
-  desalt_workflows = c("qsar-ready", "ms-ready")
+  desalt_workflows = c("qsar-ready", "ms-ready"),
+  ignored_identifier_cols = character()
 ) {
   # skip_flags reserved for future use; isotope_match skip is handled internally by run_curation_pipeline()
 
@@ -188,7 +191,8 @@ curate_headless <- function(
       reference_list_snapshot = reference_list_snapshot,
       activate_all_references = activate_all_references,
       site_manifest = site_manifest,
-      site_alias_map = site_alias_map
+      site_alias_map = site_alias_map,
+      ignored_identifier_cols = ignored_identifier_cols
     )
     state <- stage_clean(
       state,

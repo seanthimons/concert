@@ -102,6 +102,8 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
   }
 
   warnings <- character(0)
+  ignored_json <- parsed$config$value[parsed$config$key %in% "ignored_identifier_cols"]
+  ignored_identifier_cols <- if (length(ignored_json)) as.character(jsonlite::fromJSON(ignored_json[1])) else character()
   raw_data <- normalize_optional_sheet(parsed$raw_data)
   cleaned_data <- normalize_optional_sheet(parsed$cleaned_data)
   cleaning_audit <- parsed$cleaning_audit %||% tibble::tibble()
@@ -189,6 +191,7 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
     file_info = file_info,
     selected_columns = if (!is.null(raw_data)) names(raw_data) else NULL,
     column_tags = classified_tags$chemical_tags,
+    ignored_identifier_cols = ignored_identifier_cols,
     numeric_tags = classified_tags$numeric_tags,
     metadata_tags = classified_tags$metadata_tags,
     study_type_tags = classified_tags$study_type_tags,

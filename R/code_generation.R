@@ -1408,6 +1408,8 @@ append_optional_script_object <- function(lines, name, value) {
 #' @param accept_suggestions Logical. Embed the bulk-accept switch.
 #' @param review_picks Optional content-keyed DTXSID picks table to embed.
 #' @param row_flags Optional content-keyed row flag table to embed.
+#' @param ignored_identifier_cols Retained identifier columns deliberately
+#'   treated as metadata, persisted in the replay call.
 #'
 #' @return Complete R script as a character scalar.
 #' @export
@@ -1438,7 +1440,8 @@ generate_concert_script <- function(
   row_flags = NULL,
   pubchem = FALSE,
   desalt = FALSE,
-  desalt_workflows = c("qsar-ready", "ms-ready")
+  desalt_workflows = c("qsar-ready", "ms-ready"),
+  ignored_identifier_cols = character()
 ) {
   has_review_overrides <- review_overrides_present(review_overrides)
   if (!is.null(review_picks) && NROW(review_picks) == 0) {
@@ -1562,6 +1565,7 @@ generate_concert_script <- function(
   if (isTRUE(pubchem)) {
     call_args$pubchem <- "TRUE"
   }
+  if (length(ignored_identifier_cols)) call_args$ignored_identifier_cols <- script_literal(ignored_identifier_cols)
   if (isTRUE(desalt)) {
     call_args$desalt <- "TRUE"
     if (!setequal(desalt_workflows, DESALT_WORKFLOWS)) {

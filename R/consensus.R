@@ -13,6 +13,12 @@
 #' @return Character vector of column names matching "dtxsid" or "dtxsid_*"
 #' @export
 find_dtxsid_cols <- function(df) {
+  if ("lookup_evidence_columns" %in% names(df)) {
+    registry <- unique(as.character(df$lookup_evidence_columns))
+    registry <- registry[!is.na(registry) & nzchar(registry)]
+    cols <- unique(unlist(strsplit(registry, ";", fixed = TRUE), use.names = FALSE))
+    return(intersect(cols, names(df)))
+  }
   grep("^dtxsid$|^dtxsid_", names(df), value = TRUE)
 }
 

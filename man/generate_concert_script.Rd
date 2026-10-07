@@ -31,7 +31,8 @@ generate_concert_script(
   row_flags = NULL,
   pubchem = FALSE,
   desalt = FALSE,
-  desalt_workflows = c("qsar-ready", "ms-ready")
+  desalt_workflows = c("qsar-ready", "ms-ready"),
+  ignored_identifier_cols = character()
 )
 }
 \arguments{
@@ -102,6 +103,9 @@ embed.}
 
 \item{desalt_workflows}{Standardizer workflows used when \code{desalt = TRUE}:
 "qsar-ready", "ms-ready", or both (default).}
+
+\item{ignored_identifier_cols}{Retained identifier columns deliberately
+treated as metadata, persisted in the replay call.}
 }
 \value{
 Complete R script as a character scalar.

@@ -19,6 +19,7 @@
 #'   the search pool. When supplied, this takes precedence over skip_flags.
 #' @return List with unique_names, unique_cas, dedup_key_map, and skipped_rows (integer vector)
 deduplicate_tagged_columns <- function(df, tag_map, skip_flags = NULL, skip_rows = NULL) {
+  tag_map <- tag_map[unlist(tag_map) %in% c("Name", "CASRN", "Other")]
   name_cols <- names(tag_map)[tag_map == "Name"]
   cas_cols <- names(tag_map)[tag_map == "CASRN"]
   other_cols <- names(tag_map)[tag_map == "Other"]
@@ -640,6 +641,18 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
     dplyr::filter(!is.na(dedup_key) & dedup_key != "")
 
   tag_cols <- unique(dedup_key_map$column_name)
+  generated <- character()
+  generated_suffix <- stats::setNames(character(length(tag_cols)), tag_cols)
+  for (col in tag_cols) {
+    suffix <- if (length(tag_cols) == 1L) "" else paste0("_", col)
+    if (paste0("dtxsid", suffix) %in% names(df)) {
+      suffix <- paste0("_lookup_", col)
+      while (paste0("dtxsid", suffix) %in% names(df)) suffix <- paste0(suffix, "_lookup")
+    }
+    generated_suffix[[col]] <- suffix
+    generated <- c(generated, paste0("dtxsid", suffix))
+  }
+  df$lookup_evidence_columns <- rep(paste(generated, collapse = ";"), input_rows)
 
   # For each tagged column, populate result vectors by direct indexing (no joins)
   for (col in tag_cols) {
@@ -677,7 +690,7 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
     }
 
     # Assign columns to df (no joins - row count cannot change)
-    if (length(tag_cols) == 1) {
+    if (identical(generated_suffix[[col]], "")) {
       df$dtxsid <- dtxsid_vec
       df$preferredName <- pref_vec
       df$searchName <- search_vec
@@ -686,7 +699,7 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
       df$wqx_confidence <- wqx_conf_vec
       df$tied_dtxsids <- tied_vec
     } else {
-      suffix <- paste0("_", col)
+      suffix <- generated_suffix[[col]]
       df[[paste0("dtxsid", suffix)]] <- dtxsid_vec
       df[[paste0("preferredName", suffix)]] <- pref_vec
       df[[paste0("searchName", suffix)]] <- search_vec
@@ -708,7 +721,7 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
       pr_pref <- pre_resolved$preferredName[i]
       pr_tier <- pre_resolved$source_tier[i]
 
-      if (length(tag_cols) == 1) {
+      if (length(tag_cols) == 1 && identical(generated_suffix[[tag_cols[1]]], "")) {
         df$dtxsid[ridx] <- pr_dtxsid
         df$preferredName[ridx] <- pr_pref
         df$searchName[ridx] <- NA_character_
@@ -717,7 +730,7 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
       } else {
         # Apply to all tagged columns for this row
         for (col in tag_cols) {
-          suffix <- paste0("_", col)
+          suffix <- generated_suffix[[col]]
           df[[paste0("dtxsid", suffix)]][ridx] <- pr_dtxsid
           df[[paste0("preferredName", suffix)]][ridx] <- pr_pref
           df[[paste0("searchName", suffix)]][ridx] <- NA_character_
@@ -750,6 +763,8 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
 #' @param desalt Logical. If TRUE, suggest parent names and DTXSIDs for
 #'   unresolved salt names without assigning them. Independent of `pubchem`.
 #' @param original_data Optional input rows used for the original name lookup.
+#' @param ignored_identifier_cols Deliberately unused identifier metadata columns.
+#' @param source_lookup_fn Injectable authoritative source DTXSID details lookup.
 #' @return List with results, dedup_summary, search_summary, consensus_summary
 #' @export
 run_curation_pipeline <- function(
@@ -761,8 +776,17 @@ run_curation_pipeline <- function(
   starts_with = FALSE,
   pubchem = FALSE,
   original_data = NULL,
-  desalt = FALSE
+  desalt = FALSE,
+  ignored_identifier_cols = character(),
+  source_lookup_fn = source_identifier_lookup
 ) {
+  validate_source_identifier_config(clean_data, column_tags, ignored_identifier_cols)
+  source_tags <- column_tags
+  identifier_diagnostics <- unused_source_identifier_diagnostics(clean_data, column_tags, ignored_identifier_cols)
+  if (nrow(identifier_diagnostics)) warning("Unused source identifier columns: ",
+    paste(identifier_diagnostics$column, collapse = ", "),
+    ". Assign DTXSID role or configure ignored_identifier_cols.", call. = FALSE)
+  column_tags <- column_tags[unlist(column_tags) %in% c("Name", "CASRN", "Other")]
   # Build pre-resolved tibble for isotope-matched rows with known DTXSIDs.
   # Isotope matches without DTXSID must remain searchable so WQX can resolve
   # radiochemical canonical names such as Potassium-40, Lead-212, and Thallium-208.
@@ -1037,6 +1061,8 @@ run_curation_pipeline <- function(
 
   # Stage 5: Initialize resolution state
   resolved_df <- init_resolution_state(classified_df)
+  source_result <- attach_source_identifier_evidence(resolved_df, source_tags, source_lookup_fn)
+  resolved_df <- source_result$data
   if (isTRUE(pubchem)) {
     name_cols <- names(column_tags)[column_tags == "Name"]
     resolved_df <- add_pubchem_candidates(resolved_df, name_cols, original_data)
@@ -1053,6 +1079,8 @@ run_curation_pipeline <- function(
   # Return full pipeline result
   list(
     results = resolved_df,
+    source_identifier_evidence = source_result$evidence,
+    identifier_diagnostics = identifier_diagnostics,
     dedup_summary = list(
       n_names = length(dedup_result$unique_names),
       n_cas = length(dedup_result$unique_cas)

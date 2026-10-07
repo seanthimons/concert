@@ -40,6 +40,7 @@
 #'   State so re-imported sessions can regenerate replay review overrides.
 #' @param media_map Effective media map, including user overrides.
 #' @param media_results Row-level media identity, routing and original-value audit.
+#' @param ignored_identifier_cols Deliberately unused identifier metadata columns.
 #'
 #' @return Named list of data frames with sheet names as keys
 #' @details
@@ -71,7 +72,8 @@ build_export_sheets <- function(
   site_alias_map = NULL,
   script_baseline_state = NULL,
   media_map = NULL,
-  media_results = NULL
+  media_results = NULL,
+  ignored_identifier_cols = character()
 ) {
   # Sheet 1: Raw Data (detected table with user-facing column names)
   raw_data_sheet <- detected_data %||% raw
@@ -231,6 +233,9 @@ build_export_sheets <- function(
       tibble::tibble(key = "baseline_cells", value = as.character(nrow(baseline_diff_rows)))
     )
   }
+  config_sheet <- dplyr::bind_rows(config_sheet, tibble::tibble(
+    key = "ignored_identifier_cols",
+    value = as.character(jsonlite::toJSON(ignored_identifier_cols, auto_unbox = FALSE))))
 
   # Sheet 8: Session State (internal review state + serialized summary)
   session_state_sheet <- build_session_state_sheet(
