@@ -1664,124 +1664,57 @@ get_dedup_preview <- function(clean_data, column_tags) {
 #' @param dtxsids Character vector of DTXSID strings (e.g., "DTXSID7020182")
 #' @param batch_size Integer batch size for API calls (default 20)
 #' @param delay_sec Numeric delay in seconds between batches (default 1)
-#' @return Tibble with columns: searchValue, dtxsid, preferredName, rank, is_valid
+#' @param lookup_fn Injectable authoritative equality lookup.
+#' @return Tibble with searchValue, dtxsid, preferredName, rank, is_valid and
+#'   validation_status. Unavailable, not_found, ambiguous and returned_id_mismatch
+#'   remain distinct; only an exact unique requested/returned ID is valid.
 #' @export
-validate_manual_dtxsids <- function(dtxsids, batch_size = 20, delay_sec = 1) {
-  empty_result <- tibble::tibble(
-    searchValue = character(0),
-    dtxsid = character(0),
-    preferredName = character(0),
-    rank = integer(0),
-    is_valid = logical(0)
-  )
-
-  if (length(dtxsids) == 0) {
-    return(empty_result)
-  }
-
-  # Deduplicate input
-  unique_dtxsids <- unique(dtxsids[!is.na(dtxsids) & dtxsids != ""])
-
-  if (length(unique_dtxsids) == 0) {
-    return(empty_result)
-  }
-
-  message(sprintf("Validating %d unique DTXSIDs...", length(unique_dtxsids)))
-
-  # Split into batches
-  n_batches <- ceiling(length(unique_dtxsids) / batch_size)
-  all_results <- list()
-
-  for (batch_idx in seq_len(n_batches)) {
-    start_idx <- (batch_idx - 1) * batch_size + 1
-    end_idx <- min(batch_idx * batch_size, length(unique_dtxsids))
-    batch <- unique_dtxsids[start_idx:end_idx]
-
-    message(sprintf("  Batch %d/%d: %d DTXSIDs...", batch_idx, n_batches, length(batch)))
-
-    # Use purrr::safely for error handling
-    safe_lookup <- purrr::safely(ComptoxR::ct_chemical_search_equal_bulk)
-    api_result <- safe_lookup(batch)
-
-    if (!is.null(api_result$error)) {
-      warning(sprintf("API call failed for batch %d: %s", batch_idx, api_result$error$message))
-      # Mark all in this batch as invalid
-      batch_result <- tibble::tibble(
-        searchValue = batch,
-        dtxsid = NA_character_,
-        preferredName = NA_character_,
-        rank = NA_integer_,
-        is_valid = FALSE
-      )
+validate_manual_dtxsids <- function(dtxsids, batch_size = 20, delay_sec = 1,
+                                    lookup_fn = ComptoxR::ct_chemical_search_equal_bulk) {
+  ids <- unique(as.character(dtxsids[!is.na(dtxsids) & nzchar(dtxsids)]))
+  result <- tibble::tibble(searchValue = ids, dtxsid = rep(NA_character_, length(ids)),
+    preferredName = rep(NA_character_, length(ids)), rank = rep(NA_integer_, length(ids)),
+    is_valid = rep(FALSE, length(ids)), validation_status = rep("invalid_format", length(ids)))
+  if (!length(ids)) return(result)
+  if (length(batch_size) != 1L || is.na(batch_size) || batch_size < 1L) stop("batch_size must be positive.")
+  eligible <- which(grepl("^DTXSID[0-9]+$", ids))
+  batches <- split(eligible, ceiling(seq_along(eligible) / batch_size))
+  for (batch_idx in seq_along(batches)) {
+    rows <- batches[[batch_idx]]
+    raw <- tryCatch(lookup_fn(ids[rows]), error = function(e) e)
+    if (inherits(raw, "error") || is.null(raw) || !is.data.frame(raw)) {
+      result$validation_status[rows] <- "unavailable"
+    } else if (nrow(raw) == 0L) {
+      result$validation_status[rows] <- "not_found"
     } else {
-      raw <- api_result$result
-
-      if (is.null(raw) || nrow(raw) == 0) {
-        # No results found - mark all as invalid
-        batch_result <- tibble::tibble(
-          searchValue = batch,
-          dtxsid = NA_character_,
-          preferredName = NA_character_,
-          rank = NA_integer_,
-          is_valid = FALSE
-        )
+      column <- function(pattern) {
+        found <- grep(pattern, names(raw), ignore.case = TRUE, value = TRUE)
+        if (length(found) == 1L) found else NA_character_
+      }
+      search_col <- column("^search.?value$")
+      id_col <- column("^dtxsid$")
+      pref_col <- column("^preferred.?name$")
+      rank_col <- column("^rank$")
+      if (is.na(search_col) || is.na(id_col)) {
+        result$validation_status[rows] <- "unavailable"
       } else {
-        # Standardize column names
-        col_map <- list(
-          searchValue = grep("^search.?value$", names(raw), ignore.case = TRUE, value = TRUE),
-          dtxsid = grep("^dtxsid$", names(raw), ignore.case = TRUE, value = TRUE),
-          preferredName = grep("^preferred.?name$", names(raw), ignore.case = TRUE, value = TRUE),
-          rank = grep("^rank$", names(raw), ignore.case = TRUE, value = TRUE)
-        )
-
-        found_results <- tibble::tibble(
-          searchValue = if (length(col_map$searchValue) > 0) raw[[col_map$searchValue[1]]] else NA_character_,
-          dtxsid = if (length(col_map$dtxsid) > 0) raw[[col_map$dtxsid[1]]] else NA_character_,
-          preferredName = if (length(col_map$preferredName) > 0) raw[[col_map$preferredName[1]]] else NA_character_,
-          rank = if (length(col_map$rank) > 0) as.integer(raw[[col_map$rank[1]]]) else NA_integer_,
-          is_valid = !is.na(if (length(col_map$dtxsid) > 0) raw[[col_map$dtxsid[1]]] else NA_character_)
-        )
-
-        # Take lowest rank per searchValue
-        found_results <- found_results |>
-          dplyr::group_by(searchValue) |>
-          dplyr::slice_min(rank, n = 1, with_ties = FALSE) |>
-          dplyr::ungroup()
-
-        # Find DTXSIDs not in API response
-        found_values <- found_results$searchValue[found_results$is_valid]
-        missed_values <- setdiff(batch, found_values)
-
-        if (length(missed_values) > 0) {
-          missed_results <- tibble::tibble(
-            searchValue = missed_values,
-            dtxsid = NA_character_,
-            preferredName = NA_character_,
-            rank = NA_integer_,
-            is_valid = FALSE
-          )
-          batch_result <- dplyr::bind_rows(found_results, missed_results)
-        } else {
-          batch_result <- found_results
+        for (row in rows) {
+          hits <- which(!is.na(raw[[search_col]]) & as.character(raw[[search_col]]) == ids[row])
+          status <- if (!length(hits)) "not_found" else if (length(hits) != 1L) "ambiguous" else
+            if (is.na(raw[[id_col]][hits]) || as.character(raw[[id_col]][hits]) != ids[row]) "returned_id_mismatch" else "validated"
+          result$validation_status[row] <- status
+          if (status == "validated") {
+            result$dtxsid[row] <- ids[row]
+            result$is_valid[row] <- TRUE
+            if (!is.na(pref_col)) result$preferredName[row] <- as.character(raw[[pref_col]][hits])
+            if (!is.na(rank_col)) result$rank[row] <- suppressWarnings(as.integer(raw[[rank_col]][hits]))
+          }
         }
       }
     }
-
-    all_results[[batch_idx]] <- batch_result
-
-    # Delay between batches (except after last batch)
-    if (batch_idx < n_batches && delay_sec > 0) {
-      Sys.sleep(delay_sec)
-    }
+    if (batch_idx < length(batches) && delay_sec > 0) Sys.sleep(delay_sec)
   }
-
-  combined <- dplyr::bind_rows(all_results)
-
-  n_valid <- sum(combined$is_valid, na.rm = TRUE)
-  n_invalid <- sum(!combined$is_valid, na.rm = TRUE)
-  message(sprintf("Validation complete: %d valid, %d invalid", n_valid, n_invalid))
-
-  combined
+  result
 }
 
 # ============================================================================
