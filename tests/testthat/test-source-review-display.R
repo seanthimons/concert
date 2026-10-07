@@ -22,3 +22,23 @@ test_that("review table hides serialized decision internals and source choices s
   expect_match(controls, "inventory A")
   expect_match(controls, "inventory B")
 })
+
+test_that("the review module exports applied cleaning choices rather than draft defaults", {
+  captured <- NULL
+  local_mocked_bindings(generate_concert_script = function(...) {
+    captured <<- list(...)
+    "# synthetic replay"
+  })
+  df <- init_resolution_state(tibble::tibble(original_row_id = 1L, name = "Synthetic source",
+    consensus_dtxsid = NA_character_, consensus_status = "error"))
+  store <- shiny::reactiveValues(resolution_state = df, script_baseline_state = df,
+    clean = df[c("name")], column_tags = list(name = "Name"), file_info = list(name = "synthetic.csv"))
+  shiny::testServer(mod_review_results_server, args = list(data_store = store), {
+    replay_script_text()
+    expect_identical(captured$cleaning_steps, lapply(default_cleaning_step_mask(), function(x) FALSE))
+    store$cleaned_data <- df
+    store$cleaning_steps <- list(whitespace = TRUE, names = FALSE)
+    replay_script_text()
+    expect_identical(captured$cleaning_steps, store$cleaning_steps)
+  })
+})

@@ -5,6 +5,13 @@
 # not validated chemical assignments. No pilot data is loaded or changed.
 run_identity_review_app <- function(port = 63322L, launch.browser = interactive()) {
   devtools::load_all(quiet = TRUE)
+  with_identity_review_fixture_services(
+    concert::run_app(port = port, launch.browser = launch.browser)
+  )
+}
+
+# Also usable around an exported replay script. Bindings last only for `code`.
+with_identity_review_fixture_services <- function(code) {
   withr::local_envvar(ctx_api_key = "synthetic-service-key")
   testthat::local_mocked_bindings(
     search_exact = function(names, ...) tibble::tibble(
@@ -25,5 +32,5 @@ run_identity_review_app <- function(port = 63322L, launch.browser = interactive(
     find_related_parent_candidates = function(...) tibble::tibble(),
     .package = "concert")
   message("Synthetic registry services active; upload identity-review-upload.csv. No assignments are validated.")
-  concert::run_app(port = port, launch.browser = launch.browser)
+  force(code)
 }

@@ -186,6 +186,7 @@ server <- function(input, output, session) {
     duration_results = NULL,
     date_results = NULL,
     harmonize_step_mask = NULL,
+    cleaning_steps = NULL,
     harmonize_run_nonce = 0L,
     detection_results = NULL,
     toxval_output = NULL,
@@ -351,6 +352,7 @@ server <- function(input, output, session) {
   reset_all_downstream <- function() {
     data_store$cleaning_audit <- NULL
     data_store$cleaned_data <- NULL
+    data_store$cleaning_steps <- NULL
     data_store$column_tags <- NULL
     data_store$ignored_identifier_cols <- character()
     data_store$source_identifier_evidence <- NULL
@@ -416,6 +418,7 @@ server <- function(input, output, session) {
   reset_chemical_downstream <- function() {
     data_store$cleaning_audit <- NULL
     data_store$cleaned_data <- NULL
+    data_store$cleaning_steps <- NULL
     data_store$source_identifier_evidence <- NULL
     data_store$curation_results <- NULL
     data_store$curation_report <- NULL

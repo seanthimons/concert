@@ -3318,6 +3318,9 @@ mod_review_results_server <- function(id, data_store) {
         corrections = data_store$corrections_working,
         media_map = data_store$media_map_working,
         source_name = file_name,
+        cleaning_steps = data_store$cleaning_steps %||% if (is.null(data_store$cleaned_data)) {
+          lapply(default_cleaning_step_mask(), function(x) FALSE)
+        } else NULL,
         reference_lists = data_store$reference_lists,
         activate_all_references = isTRUE(data_store$activate_all_references),
         site_manifest = data_store$site_manifest,
@@ -3470,6 +3473,9 @@ mod_review_results_server <- function(id, data_store) {
           media_map = data_store$media_map_working,
           media_results = data_store$media_results,
           ignored_identifier_cols = data_store$ignored_identifier_cols %||% character(),
+          cleaning_steps = data_store$cleaning_steps %||% if (is.null(data_store$cleaned_data)) {
+            lapply(default_cleaning_step_mask(), function(x) FALSE)
+          } else NULL,
           review_decision_evidence = data_store$review_decision_evidence,
           identity_decisions = data_store$identity_decisions,
           candidate_validation = data_store$candidate_validation,
