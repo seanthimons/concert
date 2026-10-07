@@ -1158,7 +1158,7 @@ source_identifier_review_panel <- function(df, row, column_tags) {
   })
   state <- identity_review_state(df[row, , drop = FALSE])
   tagList(parts, div(class = "text-muted small mb-2", paste("Identity:", state$identity_status,
-    if (nzchar(state$identity_blockers)) paste("—", state$identity_blockers) else "")))
+    if (nzchar(state$identity_blockers)) paste("\u2014", state$identity_blockers) else "")))
 }
 
 gui_review_row_flags <- function(df, column_tags) {
@@ -2011,7 +2011,7 @@ mod_review_results_server <- function(id, data_store) {
         data_store$consensus_summary <- recalc_consensus_summary(result$resolution_state)
         state <- identity_review_state(result$resolution_state[result$row, , drop = FALSE])
         notify_user(paste("Source decision saved. Identity:", state$identity_status,
-          if (nzchar(state$identity_blockers)) paste("—", state$identity_blockers) else ""), type = "message")
+          if (nzchar(state$identity_blockers)) paste("\u2014", state$identity_blockers) else ""), type = "message")
         data_store$identity_modal_context <- NULL
         removeModal()
       }, error = function(e) notify_user(conditionMessage(e), type = "error"))
