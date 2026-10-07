@@ -171,3 +171,53 @@ preserved after correspondence with identity remaining provisional. No Shiny
 output errors occurred. Demo state is synthetic and session-local. The demo
 can be launched from the package root with source() then run_identity_review_demo().
 No user data, pilot assignments or pre-existing untracked files were changed.
+
+## Full-application integration follow-up
+
+The actual app now supports upload-to-review for source-DTXSID evidence, including
+files without the Name/CAS pair required by the optional cleaning workflow.
+Commit 5b56a32 exposes direct curation for partial chemical tags and clears stale
+cleaning output when those tags change. Commit af231a3 supplies stable original
+row lineage when cleaning is skipped, preserving existing imported IDs. An actual
+full-server regression exercises CSV upload, tag application, the real pipeline
+with mocked external services, scoped GUI save, and re-curation (19 expectations).
+
+Commit 0294a19 preserves source-scoped decisions and individual flags through
+re-curation. It compares fresh and previous automated evidence before replaying
+a decision, keeps changed evidence current, preserves immutable history, and
+reports stale decisions. Repeated runs cannot revive stale acceptance. Its
+regression covers timestamp-only changes, duplicate chemical rows, changed
+consensus, and unavailable membership (32 expectations).
+
+Commit d1bd1bf adds a mock-service entry point for the actual application, a CSV
+fixture, source-file labels in the target selector, and display fixes: selected
+source IDs cannot inherit an unrelated lookup name; serialized decision records
+and fingerprints stay hidden in the review table. Normal run_app remains on its
+normal services. These fixtures are synthetic and are not registry assignments.
+
+Commits ef405fd and 642c16b capture the applied cleaning mask, validate and persist
+it as an additive typed session input, and forward it to replay and workbook
+export. Explicitly disabled cleaning bypasses cleaning transformations, retains
+source text and existing IDs, and adds missing lineage only. Legacy workbooks
+retain the earlier unknown-mask fallback. Regression coverage includes actual
+workbook hydration, malformed masks, source names containing embedded CAS text,
+and executing a generated replay with a current scoped acceptance.
+
+Collaborative-browser verification used the actual native file input and widgets:
+CSV upload, tagging, cleaning, curation, source-row selection and acceptance;
+direct curation without CAS; negative invalid-source acceptance; unchanged
+re-curation; Excel download, file-input re-upload, and Resume Session. Only
+inventory A became accepted while inventory B remained provisional. A fresh
+process also ran the downloaded GUI replay script against the original uploaded
+CSV under process-local mocked services and reproduced that scoped result.
+The actual GUI workbook and replay output both retained one decision/history
+record and the skipped-cleaning mask. No pilot files were loaded or rewritten.
+
+Latest fresh-session actual-app cold boot on port 63322 returned HTTP 200. The
+full package suite passed 4,943 expectations with five skips, 16 existing warnings,
+and the same five baseline failures (one failing expectation, four errors):
+missing expect_na and the pinned media table-manifest hash mismatch. No new
+failures occurred. Detailed logs are /tmp/concert-final-app-tests.log and
+/tmp/concert-final-actual-boundaries.log. Usage instructions are in
+inst/examples/identity-review-app-README.md. Live external registry correspondence
+and pilot identities remain unvalidated; these tests establish app/backend wiring.
