@@ -123,3 +123,12 @@ test_that("original source identifier text follows lineage through cleaning and 
   expect_equal(out$evidence$source_raw_id, c("  DTXSID123  ", "  DTXSID123  ", " dtxsid456 "))
   expect_equal(out$data$source_id_source_dtxsid_source_raw_id, out$evidence$source_raw_id)
 })
+
+test_that("metadata ignore cannot remain configured as chemical evidence", {
+  df <- tibble::tibble(source_dtxsid = "DTXSID123")
+  for (role in c("Name", "CASRN", "Other", "DTXSID")) {
+    expect_error(validate_source_identifier_config(df, list(source_dtxsid = role), "source_dtxsid"),
+      "Chemical evidence columns cannot also be ignored")
+  }
+  expect_equal(nrow(unused_source_identifier_diagnostics(df, ignored_identifier_cols = "source_dtxsid")), 0)
+})
