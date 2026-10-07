@@ -168,7 +168,7 @@ curate_decisions_template <- function(input_path, out_dir, harmonize = FALSE) {
     "#   dtxsid = c(\"DTXSID1020322\")",
     "# )",
     "",
-    "# Rows you cannot resolve. flag: FOLLOW-UP, BAD, or VERIFIED. Flagged rows leave pending.csv.",
+    "# FOLLOW-UP/BAD disposition unresolved rows. VERIFIED requires a current identity or reviewed WQX name.",
     "# row_flags <- tibble::tibble(",
     "#   name = c(\"Unknown organic\"),",
     "#   casrn = c(NA),",
@@ -209,12 +209,17 @@ pending_rows <- function(state) {
   is_multi <- is_multi_analyte_review_row(rs)
   needs_pick <- !is_multi & !pinned & !flagged & status %in% c("disagree", "suggested")
   no_match <- !is_multi & !pinned & !flagged & status %in% c("error", "unresolvable")
-  idx <- which(is_multi | needs_pick | no_match)
+  verified_unresolved <- verified_unresolved_rows(rs)
+  idx <- which(is_multi | needs_pick | no_match | verified_unresolved)
   if (length(idx) == 0) {
     return(empty_pending())
   }
 
-  pending_type <- ifelse(is_multi[idx], "multi_analyte", ifelse(no_match[idx], "no_match", status[idx]))
+  pending_type <- ifelse(
+    is_multi[idx],
+    "multi_analyte",
+    ifelse(verified_unresolved[idx], "verified_unresolved", ifelse(no_match[idx], "no_match", status[idx]))
+  )
   name_vals <- if (!is.na(name_col)) as.character(rs[[name_col]][idx]) else NA_character_
   cas_vals <- if (!is.na(cas_col)) as.character(rs[[cas_col]][idx]) else NA_character_
   suggested_col <- if (".suggested_column" %in% names(rs)) {
@@ -274,6 +279,8 @@ pending_rows <- function(state) {
     name = name_vals,
     casrn = cas_vals,
     consensus_status = status[idx],
+    row_flag = rs$row_flag[idx],
+    row_flag_reason = rs$row_flag_reason[idx],
     suggested_dtxsid = suggested_dtxsid,
     suggested_split = split_suggestion,
     candidates = candidates,
@@ -299,6 +306,8 @@ empty_pending <- function() {
     name = character(),
     casrn = character(),
     consensus_status = character(),
+    row_flag = character(),
+    row_flag_reason = character(),
     suggested_dtxsid = character(),
     suggested_split = character(),
     candidates = character(),
@@ -422,11 +431,28 @@ write_status_md <- function(path, state, pending, done, decisions, error = NULL)
     pending_lines,
     "",
     if (length(unmatched)) c("## Unmatched decisions", "", paste0("- ", unmatched), "") else character(0),
+    if (NROW(state$resolution_state) && any(verified_unresolved_rows(state$resolution_state))) {
+      c(
+        "## Contradictory verification",
+        "",
+        paste0(
+          "VERIFIED rows with unresolved current identity: ",
+          sum(verified_unresolved_rows(state$resolution_state)), "."
+        ),
+        "Prior flags and reasons are preserved in pending.csv. An explicit validated pick or",
+        "FOLLOW-UP/BAD disposition is required; repeating VERIFIED alone does not resolve these rows.",
+        ""
+      )
+    } else character(0),
     low_sim_lines,
     "## Next",
     "",
     if (done) {
-      c("All rows resolved or flagged. Outputs written next to decisions.R; replay.R reproduces this run.")
+      c(
+        "The review queue is complete: rows have identities or explicit dispositions.",
+        "This does not mean every identity is accepted.",
+        "Outputs written next to decisions.R; replay.R reproduces this run."
+      )
     } else {
       c(
         "Open pending.csv. For each row: add a review_picks entry (dtxsid), a row_flags entry, or a",

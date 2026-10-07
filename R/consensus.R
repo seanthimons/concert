@@ -323,6 +323,21 @@ init_resolution_state <- function(df) {
   df
 }
 
+# A verification flag records a decision; it cannot supply a missing identity.
+# Reviewed WQX vocabulary names intentionally need not carry a DTXSID (#82).
+verified_unresolved_rows <- function(df) {
+  n <- nrow(df)
+  field <- function(name) {
+    if (name %in% names(df)) as.character(df[[name]]) else rep(NA_character_, n)
+  }
+  present <- function(x) !is.na(x) & nzchar(trimws(x))
+  status <- field("consensus_status")
+  reviewed_wqx <- !is.na(status) & status == "wqx" & present(field("consensus_name"))
+  verified <- !is.na(field("row_flag")) & field("row_flag") == "VERIFIED"
+  unresolved <- status %in% c("error", "unresolvable", "disagree", "suggested")
+  verified & (unresolved | (!present(field("consensus_dtxsid")) & !reviewed_wqx))
+}
+
 #' Valid row flag values
 #'
 #' @return Character vector of user-facing row flag values.

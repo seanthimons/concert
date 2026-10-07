@@ -2,6 +2,12 @@
 
 # concert NEWS
 
+## Development
+
+- Reopen VERIFIED rows whose current identity is unresolved (#83), retaining prior
+  flags, reasons, and tie evidence. Explicit FOLLOW-UP/BAD dispositions and reviewed
+  WQX canonical names remain outside the ordinary pending queue.
+
 ## v0.5.3 (2026-10-06)
 
 #### Bug fixes

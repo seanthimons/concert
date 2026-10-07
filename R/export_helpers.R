@@ -88,6 +88,7 @@ build_export_sheets <- function(
         c("error", "unresolvable") |
         row_flag %in% "FOLLOW-UP" |
         incoming_review |
+        verified_unresolved_rows(resolution_state) |
         (consensus_status %in% "wqx" & !wqx_reviewed)
     ) %>%
     # Note: similarity_score, .resolution_method, .resolution_reason flow through automatically.
