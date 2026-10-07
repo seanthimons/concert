@@ -110,3 +110,14 @@ test_that("explicit legacy replay decisions require their exact prior evidence a
   changed$source_context <- "Different source composition"
   expect_error(apply_identity_decisions(list(resolution_state = changed), list(decision)), "evidence changed")
 })
+
+
+test_that("malformed persisted identity versions fail closed", {
+  df <- tibble::tibble(consensus_dtxsid = "DTXSID123", consensus_status = "manual",
+    identity_scope = "registered_mixture", identity_decision_fingerprint = "identity-v2:invalid")
+  for (record in c('{}', '{"version":null}', '{"version":["1","2"]}')) {
+    df$identity_decision_record <- record
+    expect_false(identity_decision_current_rows(df))
+    expect_false(identity_review_state(df)$identity_eligible)
+  }
+})

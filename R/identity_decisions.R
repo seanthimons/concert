@@ -75,7 +75,8 @@ identity_decision_current_rows <- function(df) {
   out <- rep(FALSE, nrow(df))
   for (i in which(!is.na(signature) & !is.na(recorded))) {
     record <- tryCatch(jsonlite::fromJSON(recorded[i]), error = function(e) NULL)
-    out[i] <- !is.null(record) && record$version %in% c("1", "2") &&
+    out[i] <- !is.null(record) && length(record$version) == 1L && !is.na(record$version) &&
+      record$version %in% c("1", "2") &&
       (identical(record$version, "1") || is.character(record$evidence_columns)) &&
       identical(record$action, "accept") && identical(record$membership, "valid") &&
       isTRUE(record$correspondence) && identical(record$applied_fingerprint, signature[i]) &&
