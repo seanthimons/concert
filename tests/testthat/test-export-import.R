@@ -133,7 +133,7 @@ test_that("build_export_sheets returns list of length 9 without optional cleaned
   )
 
   expect_type(sheets, "list")
-  expect_length(sheets, 9)
+  expect_length(sheets, 10)
 })
 
 test_that("Sheet names match expected", {
@@ -153,6 +153,7 @@ test_that("Sheet names match expected", {
   expected_names <- c(
     "Raw Data",
     "Curated Data",
+    "Accepted Identities",
     "Summary",
     "Cleaning Audit",
     "Reference Lists",
@@ -227,7 +228,7 @@ test_that("Sheet 8 ToxVal Output contains placeholder when toxval_output is NULL
     file_info = td$file_info
   )
 
-  expect_equal(length(sheets), 9)
+  expect_equal(length(sheets), 10)
   expect_true("ToxVal Output" %in% names(sheets))
   expect_equal(names(sheets[["ToxVal Output"]]), "note")
   expect_true(grepl("Harmonization not run", sheets[["ToxVal Output"]]$note))
@@ -260,7 +261,7 @@ test_that("Sheet 8 ToxVal Output contains data when toxval_output provided", {
     toxval_output = toxval_data
   )
 
-  expect_equal(length(sheets), 9)
+  expect_equal(length(sheets), 10)
   expect_equal(ncol(sheets[["ToxVal Output"]]), 56)
   expect_equal(sheets[["ToxVal Output"]]$dtxsid, "DTXSID7020182")
 })
@@ -295,7 +296,7 @@ test_that("Harmonization Audit sheet is appended when harmonize_audit is provide
     harmonize_audit = harmonize_audit
   )
 
-  expect_length(sheets, 10)
+  expect_length(sheets, 11)
   expect_true("Harmonization Audit" %in% names(sheets))
   expect_equal(sheets[["Harmonization Audit"]], harmonize_audit)
 })
@@ -1234,4 +1235,18 @@ test_that("merge_reference_lists preserves all four reference list types", {
   expect_equal(nrow(result$stop_words), 2)
   expect_equal(nrow(result$block_patterns), 2)
   expect_equal(nrow(result$strip_terms), 2)
+})
+
+test_that("Accepted Identities sheet preserves audit consensus and source data", {
+  td <- create_test_data()
+  sheets <- build_export_sheets(td$raw, td$resolution_state, td$consensus_summary,
+    td$cleaning_audit, td$reference_lists, td$column_tags, td$detection, td$file_info)
+  expect_equal(sheets[["Curated Data"]]$consensus_dtxsid, td$resolution_state$consensus_dtxsid)
+  expect_equal(sheets[["Accepted Identities"]]$chemical_name, "Acetone")
+  expect_equal(sheets[["Accepted Identities"]]$accepted_dtxsid, "DTXSID3020001")
+  path <- tempfile(fileext = ".xlsx")
+  writexl::write_xlsx(sheets, path)
+  restored <- hydrate_session_state(parse_concert_export(path))
+  expect_equal(identity_review_state(restored$state$resolution_state)$accepted_dtxsid,
+    c("DTXSID3020001", NA_character_, NA_character_))
 })

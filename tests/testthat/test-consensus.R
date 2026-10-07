@@ -1522,3 +1522,23 @@ test_that("find_name_ties keeps only names with several top-rank DTXSIDs", {
   expect_equal(ties$tied_names, "Perfluorooctanoate; Perfluorooctanoic acid")
   expect_equal(nrow(find_name_ties("PFOA", get_fn = function(x) stop("down"))), 0)
 })
+
+test_that("VERIFIED decisions require a current identity and preserve reviewed WQX names", {
+  state <- tibble::tibble(
+    row_flag = c(rep("VERIFIED", 12), "FOLLOW-UP", "BAD"),
+    consensus_status = c("error", "unresolvable", "disagree", "suggested", "manual", "single",
+                         "agree", "wqx", "wqx", "error", NA, "manual", "error", "error"),
+    consensus_dtxsid = c(NA, "DTXSID1", "DTXSID1", "DTXSID1", "DTXSID1", "DTXSID1",
+                         "DTXSID1", NA, NA, NA, NA, "  ", NA, NA),
+    consensus_name = c(rep(NA_character_, 7), "Carbon", "  ", "Carbon", NA, NA, NA, NA),
+    .pinned = TRUE,
+    row_flag_reason = "Historical review"
+  )
+  before <- state
+  expect_equal(verified_unresolved_rows(state),
+               c(TRUE, TRUE, TRUE, TRUE, FALSE, FALSE, FALSE, FALSE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE))
+  expect_identical(state, before)
+  expect_identical(verified_unresolved_rows(data.frame()), logical())
+  expect_false(verified_unresolved_rows(data.frame(name = "Unknown")))
+  expect_true(verified_unresolved_rows(data.frame(row_flag = "VERIFIED")))
+})

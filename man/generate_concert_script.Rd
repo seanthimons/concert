@@ -31,7 +31,12 @@ generate_concert_script(
   row_flags = NULL,
   pubchem = FALSE,
   desalt = FALSE,
-  desalt_workflows = c("qsar-ready", "ms-ready")
+  desalt_workflows = c("qsar-ready", "ms-ready"),
+  ignored_identifier_cols = character(),
+  review_decision_evidence = NULL,
+  identity_decisions = NULL,
+  candidate_validation = NULL,
+  toxval_identity_mode = "lookup"
 )
 }
 \arguments{
@@ -102,6 +107,17 @@ embed.}
 
 \item{desalt_workflows}{Standardizer workflows used when \code{desalt = TRUE}:
 "qsar-ready", "ms-ready", or both (default).}
+
+\item{ignored_identifier_cols}{Retained identifier columns deliberately
+treated as metadata, persisted in the replay call.}
+
+\item{review_decision_evidence}{Portable immutable review evidence contract.}
+
+\item{identity_decisions}{Explicit structured source-identity decisions.}
+
+\item{candidate_validation}{Structured candidate validation outcomes.}
+
+\item{toxval_identity_mode}{ToxVal policy: lookup (compatibility default) or accepted.}
 }
 \value{
 Complete R script as a character scalar.

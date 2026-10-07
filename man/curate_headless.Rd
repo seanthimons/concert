@@ -27,6 +27,9 @@ curate_headless(
   accept_suggestions = FALSE,
   review_picks = NULL,
   row_flags = NULL,
+  review_decision_evidence = NULL,
+  candidate_validation = NULL,
+  identity_decisions = NULL,
   site_manifest = NULL,
   site_alias_map = NULL,
   multi_analyte_resolutions = NULL,
@@ -38,7 +41,9 @@ curate_headless(
   source_name = NULL,
   pubchem = FALSE,
   desalt = FALSE,
-  desalt_workflows = c("qsar-ready", "ms-ready")
+  desalt_workflows = c("qsar-ready", "ms-ready"),
+  ignored_identifier_cols = character(),
+  toxval_identity_mode = "lookup"
 )
 }
 \arguments{
@@ -125,6 +130,16 @@ resolved to that DTXSID after validation against CompTox.}
 \code{casrn} and \code{reason} columns. Matching rows get the row flag (one of
 \code{valid_row_flags()}).}
 
+\item{review_decision_evidence}{Immutable portable decision snapshots and
+scoped acknowledgments from \code{\link[=capture_review_decision]{capture_review_decision()}}. Legacy flags never
+acquire a historical baseline implicitly.}
+
+\item{candidate_validation}{Structured saved validation outcomes from
+\code{\link[=validate_review_candidates]{validate_review_candidates()}}. Reporting makes no network requests.}
+
+\item{identity_decisions}{Explicit source-scoped decisions passed to
+\code{\link[=apply_identity_decisions]{apply_identity_decisions()}}. Name-wide selectors cannot grant scope acceptance.}
+
 \item{site_manifest}{Optional curated Dataset Context site manifest to include
 in the workbook export.}
 
@@ -170,6 +185,13 @@ rows via the chemi standardizer. Independent of \code{pubchem}.}
 
 \item{desalt_workflows}{Standardizer workflows used when \code{desalt = TRUE}:
 "qsar-ready", "ms-ready", or both (default).}
+
+\item{ignored_identifier_cols}{Retained identifier columns deliberately
+treated as metadata. These columns never supply identity evidence.}
+
+\item{toxval_identity_mode}{ToxVal identifier policy: "lookup" preserves
+the existing audit export default; "accepted" gates IDs and preserves
+every measurement row with NA IDs when blocked.}
 }
 \value{
 Invisibly returns a list:
@@ -199,7 +221,7 @@ detection, media, duration, and date fields
 \description{
 Runs the complete CONCERT curation pipeline - file read, frontmatter
 detection, cleaning, CompTox API search, consensus classification, and
-8-sheet XLSX export - from a single R script call with no Shiny session
+multi-sheet XLSX export - from a single R script call with no Shiny session
 required. When harmonize=TRUE, additionally runs the numeric parsing, unit
 harmonization, and ToxVal schema mapping pipeline, and writes parquet/CSV
 output alongside the XLSX.

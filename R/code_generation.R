@@ -1380,6 +1380,7 @@ append_optional_script_object <- function(lines, name, value) {
 #' @param desalt Logical. Enables salt parent suggestions independently of PubChem.
 #' @param desalt_workflows Standardizer workflows used when `desalt = TRUE`:
 #'   "qsar-ready", "ms-ready", or both (default).
+#' @param toxval_identity_mode ToxVal policy: lookup (compatibility default) or accepted.
 #' @param harmonize Logical. Re-run harmonization during replay.
 #' @param media Optional dataset-wide media fallback.
 #' @param unit_map Optional effective unit harmonization map. When
@@ -1408,6 +1409,11 @@ append_optional_script_object <- function(lines, name, value) {
 #' @param accept_suggestions Logical. Embed the bulk-accept switch.
 #' @param review_picks Optional content-keyed DTXSID picks table to embed.
 #' @param row_flags Optional content-keyed row flag table to embed.
+#' @param review_decision_evidence Portable immutable review evidence contract.
+#' @param identity_decisions Explicit structured source-identity decisions.
+#' @param candidate_validation Structured candidate validation outcomes.
+#' @param ignored_identifier_cols Retained identifier columns deliberately
+#'   treated as metadata, persisted in the replay call.
 #'
 #' @return Complete R script as a character scalar.
 #' @export
@@ -1438,7 +1444,12 @@ generate_concert_script <- function(
   row_flags = NULL,
   pubchem = FALSE,
   desalt = FALSE,
-  desalt_workflows = c("qsar-ready", "ms-ready")
+  desalt_workflows = c("qsar-ready", "ms-ready"),
+  ignored_identifier_cols = character(),
+  review_decision_evidence = NULL,
+  identity_decisions = NULL,
+  candidate_validation = NULL,
+  toxval_identity_mode = "lookup"
 ) {
   has_review_overrides <- review_overrides_present(review_overrides)
   if (!is.null(review_picks) && NROW(review_picks) == 0) {
@@ -1525,6 +1536,10 @@ generate_concert_script <- function(
   setup_lines <- append_optional_script_object(setup_lines, "multi_analyte_resolutions", multi_analyte_resolutions)
   setup_lines <- append_optional_script_object(setup_lines, "review_picks", review_picks)
   setup_lines <- append_optional_script_object(setup_lines, "row_flags", row_flags)
+  if (!is.null(review_decision_evidence)) validate_review_evidence(review_decision_evidence)
+  setup_lines <- append_optional_script_object(setup_lines, "review_decision_evidence", review_decision_evidence)
+  setup_lines <- append_optional_script_object(setup_lines, "identity_decisions", identity_decisions)
+  setup_lines <- append_optional_script_object(setup_lines, "candidate_validation", candidate_validation)
 
   if (isTRUE(harmonize)) {
     if (!is.null(unit_map_snapshot)) {
@@ -1562,6 +1577,7 @@ generate_concert_script <- function(
   if (isTRUE(pubchem)) {
     call_args$pubchem <- "TRUE"
   }
+  if (length(ignored_identifier_cols)) call_args$ignored_identifier_cols <- script_literal(ignored_identifier_cols)
   if (isTRUE(desalt)) {
     call_args$desalt <- "TRUE"
     if (!setequal(desalt_workflows, DESALT_WORKFLOWS)) {
@@ -1606,8 +1622,13 @@ generate_concert_script <- function(
     call_args$row_flags <- "row_flags"
   }
 
+  for (key in c("review_decision_evidence", "identity_decisions", "candidate_validation")) {
+    if (!is.null(get(key))) call_args[[key]] <- key
+  }
+
   if (isTRUE(harmonize)) {
     call_args$harmonize <- "TRUE"
+    call_args$toxval_identity_mode <- script_literal(match.arg(toxval_identity_mode, c("lookup", "accepted")))
     call_args$format <- script_literal(format)
     if (!is.null(media)) {
       call_args$media <- script_literal(media)

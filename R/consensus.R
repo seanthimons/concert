@@ -13,6 +13,12 @@
 #' @return Character vector of column names matching "dtxsid" or "dtxsid_*"
 #' @export
 find_dtxsid_cols <- function(df) {
+  if ("lookup_evidence_columns" %in% names(df)) {
+    registry <- unique(as.character(df$lookup_evidence_columns))
+    registry <- registry[!is.na(registry) & nzchar(registry)]
+    cols <- unique(unlist(strsplit(registry, ";", fixed = TRUE), use.names = FALSE))
+    return(intersect(cols, names(df)))
+  }
   grep("^dtxsid$|^dtxsid_", names(df), value = TRUE)
 }
 
@@ -321,6 +327,21 @@ init_resolution_state <- function(df) {
     df$.resolution_reason <- NA_character_
   }
   df
+}
+
+# A verification flag records a decision; it cannot supply a missing identity.
+# Reviewed WQX vocabulary names intentionally need not carry a DTXSID (#82).
+verified_unresolved_rows <- function(df) {
+  n <- nrow(df)
+  field <- function(name) {
+    if (name %in% names(df)) as.character(df[[name]]) else rep(NA_character_, n)
+  }
+  present <- function(x) !is.na(x) & nzchar(trimws(x))
+  status <- field("consensus_status")
+  reviewed_wqx <- !is.na(status) & status == "wqx" & present(field("consensus_name"))
+  verified <- !is.na(field("row_flag")) & field("row_flag") == "VERIFIED"
+  unresolved <- status %in% c("error", "unresolvable", "disagree", "suggested")
+  verified & (unresolved | (!present(field("consensus_dtxsid")) & !reviewed_wqx))
 }
 
 #' Valid row flag values
@@ -904,8 +925,11 @@ classify_auto_resolve <- function(
 accept_all_suggestions <- function(df, dtxsid_cols) {
   df <- init_resolution_state(df)
 
+  scope <- identity_scope_blockers(df)
+  blocked <- scope$scope | scope$conflict | scope$stale |
+    identity_col(df, "row_flag") %in% c("BAD", "FOLLOW-UP")
   for (i in seq_len(nrow(df))) {
-    if (df$consensus_status[i] != "suggested") {
+    if (blocked[i] || is.na(df$consensus_status[i]) || df$consensus_status[i] != "suggested") {
       next
     }
     if (isTRUE(df$.pinned[i])) {

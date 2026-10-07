@@ -21,6 +21,9 @@
 #'   - harmonized_unit: Target canonical unit
 #'   - conversion_factor: Multiplier applied
 #'   - unit_flag: Conversion quality flag
+#' @param identity_mode "lookup" (compatibility default) retains provisional lookup
+#'   identifiers. "accepted" applies [identity_review_state()] and never falls
+#'   back to raw IDs for blocked rows. Measurements remain aligned.
 #' @param source_name Optional dataset identifier. Defaults to "user_upload".
 #'
 #' @return Tibble with 56 ToxVal columns including:
@@ -50,7 +53,8 @@
 #' @importFrom tibble tibble
 #' @importFrom digest digest
 #' @export
-map_to_toxval_schema <- function(curated_data, harmonized_data, source_name = NULL) {
+map_to_toxval_schema <- function(curated_data, harmonized_data, source_name = NULL, identity_mode = c("lookup", "accepted")) {
+  identity_mode <- match.arg(identity_mode)
   # Handle zero-row input
   n_rows <- nrow(harmonized_data)
   if (n_rows == 0) {
@@ -116,7 +120,11 @@ map_to_toxval_schema <- function(curated_data, harmonized_data, source_name = NU
   # Resolved identifiers. For rows with no DTXSID, promote the resolved WQX
   # canonical name (consensus_name) into `name` so it survives as a crosswalk
   # key; DTXSID rows keep the existing raw-text fallback unchanged.
-  dtxsid_vec <- pick_char("consensus_dtxsid", "dtxsid")
+  dtxsid_vec <- if (identity_mode == "accepted") {
+    identity_review_state(row_data)$accepted_dtxsid
+  } else {
+    pick_char("consensus_dtxsid", "dtxsid")
+  }
   name_raw <- pick_char(
     "name",
     c("analyte", "chemical", "chemical_name", names(row_data)[tag_values(row_data, c("Name"))])
@@ -326,21 +334,28 @@ generate_source_hash <- function(result_tibble) {
 #' @param toxval_output Stored ToxVal tibble from the harmonization run.
 #' @param resolution_state Current curated data (same rows as harmonization input).
 #' @param harmonized_data Harmonized tibble the ToxVal rows were built from.
-#' @return `toxval_output` with refreshed identifiers, or unchanged when the
-#'   inputs do not line up.
+#' @param identity_mode Lookup compatibility or accepted-only identity policy.
+#' @return Refreshed output. Accepted mode blanks IDs when refresh cannot be verified.
 #' @keywords internal
-refresh_toxval_identity <- function(toxval_output, resolution_state, harmonized_data) {
+refresh_toxval_identity <- function(toxval_output, resolution_state, harmonized_data,
+                                    identity_mode = c("lookup", "accepted")) {
+  identity_mode <- match.arg(identity_mode)
+  fail_closed <- function() {
+    if (identity_mode == "accepted" && !is.null(toxval_output)) {
+      toxval_output$dtxsid <- rep(NA_character_, nrow(toxval_output))
+      toxval_output$source_hash <- generate_source_hash(toxval_output)
+    }
+    toxval_output
+  }
   if (is.null(toxval_output) || is.null(resolution_state) || is.null(harmonized_data) ||
       nrow(toxval_output) != nrow(harmonized_data)) {
-    return(toxval_output)
+    return(fail_closed())
   }
   fresh <- tryCatch(
-    map_to_toxval_schema(resolution_state, harmonized_data),
+    map_to_toxval_schema(resolution_state, harmonized_data, identity_mode = identity_mode),
     error = function(e) NULL
   )
-  if (is.null(fresh)) {
-    return(toxval_output)
-  }
+  if (is.null(fresh)) return(fail_closed())
   toxval_output$dtxsid <- fresh$dtxsid
   toxval_output$name <- fresh$name
   toxval_output$source_hash <- generate_source_hash(toxval_output)

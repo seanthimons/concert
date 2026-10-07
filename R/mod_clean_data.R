@@ -455,6 +455,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
           withProgress(message = "Running pipeline...", value = 0, {
             df <- data_store$clean
             tag_map <- data_store$column_tags
+            tag_map <- tag_map[!unlist(tag_map) %in% "DTXSID"]
 
             incProgress(0.2, detail = "Running selected cleaning steps...")
             cleaning_mask <- mask
@@ -477,6 +478,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
 
             incProgress(0.8, detail = "Finalizing cleaning...")
             data_store$cleaned_data <- df
+            data_store$cleaning_steps <- normalize_cleaning_step_mask(cleaning_mask)
             data_store$cleaning_audit <- audit_combined
             if (length(new_tags) > 0) {
               data_store$column_tags <- c(data_store$column_tags, new_tags)

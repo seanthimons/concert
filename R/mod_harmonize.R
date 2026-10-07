@@ -406,7 +406,8 @@ mod_harmonize_server <- function(id, data_store) {
                 corrections = data_store$corrections_working,
                 media_map = data_store$media_map_working,
                 source_name = data_store$file_info$name,
-                step_mask = h_mask
+                step_mask = h_mask,
+                toxval_identity_mode = data_store$toxval_identity_mode %||% "lookup"
               )
 
               data_store$harmonize_results <- runtime_result$harmonize_results
