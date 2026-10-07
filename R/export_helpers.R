@@ -61,6 +61,7 @@
 #' @param source_identifier_evidence Optional source-ID evidence report.
 #' @param identifier_diagnostics Optional unused/source-ID diagnostics.
 #' @param toxval_identity_mode Portable ToxVal identity policy, lookup or accepted.
+#' @param cleaning_steps Optional applied named logical cleaning-step mask.
 #' @export
 build_export_sheets <- function(
   raw,
@@ -89,9 +90,11 @@ build_export_sheets <- function(
   candidate_review = NULL,
   source_identifier_evidence = NULL,
   identifier_diagnostics = NULL,
-  toxval_identity_mode = c("lookup", "accepted")
+  toxval_identity_mode = c("lookup", "accepted"),
+  cleaning_steps = NULL
 ) {
   toxval_identity_mode <- match.arg(toxval_identity_mode)
+  if (!is.null(cleaning_steps)) validate_portable_cleaning_steps(cleaning_steps)
   # Sheet 1: Raw Data (detected table with user-facing column names)
   raw_data_sheet <- detected_data %||% raw
 
@@ -261,7 +264,7 @@ build_export_sheets <- function(
     baseline_diff_rows,
     portable_inputs = list(review_decision_evidence = review_decision_evidence,
       identity_decisions = identity_decisions, candidate_validation = candidate_validation,
-      toxval_identity_mode = toxval_identity_mode)
+      toxval_identity_mode = toxval_identity_mode, cleaning_steps = cleaning_steps)
   )
 
   # Sheet 9: ToxVal Output (always present per D-09)
@@ -527,12 +530,23 @@ serialize_session_inputs <- function(inputs, chunk_size = 30000L) {
     value <- inputs[[key]]
     if (is.null(value)) return(NULL)
     if (key == "review_decision_evidence") validate_review_evidence(value)
+    if (key == "cleaning_steps") validate_portable_cleaning_steps(value)
     payload <- as.character(jsonlite::serializeJSON(value, digits = NA))
     starts <- seq.int(1L, nchar(payload), by = chunk_size)
     tibble::tibble(record_type = "portable_input_v1", row_index = seq_along(starts),
       key = key, value = substring(payload, starts, pmin(starts + chunk_size - 1L, nchar(payload))))
   })
   dplyr::bind_rows(rows)
+}
+
+validate_portable_cleaning_steps <- function(mask) {
+  allowed <- names(default_cleaning_step_mask())
+  if (!is.list(mask) || !length(mask) || is.null(names(mask)) || anyNA(names(mask)) ||
+      any(!nzchar(names(mask))) || anyDuplicated(names(mask)) || any(!names(mask) %in% allowed) ||
+      any(!vapply(mask, function(x) is.logical(x) && length(x) == 1L && !is.na(x), logical(1)))) {
+    stop("Unsupported portable cleaning steps: expected named logical cleaning switches.", call. = FALSE)
+  }
+  invisible(mask)
 }
 
 #' Validate Excel Size Limits

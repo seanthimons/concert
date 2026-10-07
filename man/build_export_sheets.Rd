@@ -31,7 +31,8 @@ build_export_sheets(
   candidate_review = NULL,
   source_identifier_evidence = NULL,
   identifier_diagnostics = NULL,
-  toxval_identity_mode = c("lookup", "accepted")
+  toxval_identity_mode = c("lookup", "accepted"),
+  cleaning_steps = NULL
 )
 }
 \arguments{
@@ -102,6 +103,8 @@ State so re-imported sessions can regenerate replay review overrides.}
 \item{identifier_diagnostics}{Optional unused/source-ID diagnostics.}
 
 \item{toxval_identity_mode}{Portable ToxVal identity policy, lookup or accepted.}
+
+\item{cleaning_steps}{Optional applied named logical cleaning-step mask.}
 }
 \value{
 Named list of data frames with sheet names as keys

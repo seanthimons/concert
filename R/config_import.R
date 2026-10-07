@@ -203,6 +203,7 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
     prev_numeric_tags = classified_tags$numeric_tags,
     cleaning_audit = cleaning_audit,
     cleaned_data = cleaned_data,
+    cleaning_steps = NULL,
     reference_lists = reference_lists,
     curation_results = resolution_state,
     curation_report = NULL,
@@ -707,7 +708,7 @@ restore_session_inputs <- function(sheet) {
   if (!all(required %in% names(sheet))) return(list())
   rows <- sheet[!is.na(sheet$record_type) & sheet$record_type == "portable_input_v1", required, drop = FALSE]
   if (!nrow(rows)) return(list())
-  allowed <- c("review_decision_evidence", "identity_decisions", "candidate_validation", "toxval_identity_mode")
+  allowed <- c("review_decision_evidence", "identity_decisions", "candidate_validation", "toxval_identity_mode", "cleaning_steps")
   if (anyNA(rows$key) || any(!rows$key %in% allowed)) stop("Unsupported portable session input.", call. = FALSE)
   keys <- allowed[allowed %in% rows$key]
   result <- lapply(keys, function(key) {
@@ -718,6 +719,7 @@ restore_session_inputs <- function(sheet) {
     }
     value <- jsonlite::unserializeJSON(paste0(parts$value, collapse = ""))
     if (key == "review_decision_evidence") validate_review_evidence(value)
+    if (key == "cleaning_steps") validate_portable_cleaning_steps(value)
     if (key == "toxval_identity_mode" &&
         (!is.character(value) || length(value) != 1L || is.na(value) || !value %in% c("lookup", "accepted"))) {
       stop("Unsupported portable ToxVal identity mode.", call. = FALSE)

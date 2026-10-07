@@ -127,6 +127,8 @@ stage_ingest <- function(
 #'   `merged_chemical_tags` added.
 #' @export
 stage_clean <- function(state, multi_analyte_resolutions = NULL, value_corrections = NULL, cleaning_steps = NULL) {
+  if (!is.null(cleaning_steps)) validate_portable_cleaning_steps(cleaning_steps)
+  state$cleaning_steps <- if (is.null(cleaning_steps)) NULL else normalize_cleaning_step_mask(cleaning_steps)
   tag_groups <- classify_tags(state$tag_map)
   chemical_tag_map <- tag_groups$chemical_tags
   validate_source_identifier_config(state$clean_data, state$tag_map, state$ignored_identifier_cols %||% character())
@@ -143,12 +145,19 @@ stage_clean <- function(state, multi_analyte_resolutions = NULL, value_correctio
   }
 
   message("[headless] Running cleaning pipeline...")
-  cleaning_result <- run_cleaning_pipeline(
-    input_data,
-    chemical_tag_map,
-    state$reference_lists,
-    mask = cleaning_steps
-  )
+  if (!is.null(cleaning_steps) && !any(unlist(normalize_cleaning_step_mask(cleaning_steps)))) {
+    # The GUI permits curation without entering Clean Data. Replaying that
+    # path must not rescue embedded CAS or add cleaning-derived evidence.
+    if (!"original_row_id" %in% names(input_data)) input_data$original_row_id <- seq_len(nrow(input_data))
+    cleaning_result <- list(cleaned_data = input_data, audit_trail = empty_cleaning_audit(), new_tags = list())
+  } else {
+    cleaning_result <- run_cleaning_pipeline(
+      input_data,
+      chemical_tag_map,
+      state$reference_lists,
+      mask = cleaning_steps
+    )
+  }
   cleaning_result$audit_trail <- dplyr::bind_rows(correction_audit, cleaning_result$audit_trail)
   merged_chemical_tags <- combine_tag_maps(combine_tag_maps(chemical_tag_map, cleaning_result$new_tags), source_tags)
   merged_tags <- combine_tag_maps(state$tag_map, cleaning_result$new_tags)
@@ -569,7 +578,8 @@ stage_export <- function(state, output_path = NULL, format = "parquet", write_fi
       candidate_review = state$candidate_review,
       source_identifier_evidence = state$source_identifier_evidence,
       identifier_diagnostics = state$identifier_diagnostics,
-      toxval_identity_mode = state$toxval_identity_mode %||% "lookup"
+      toxval_identity_mode = state$toxval_identity_mode %||% "lookup",
+      cleaning_steps = state$cleaning_steps
     )
 
     fs::dir_create(dirname(output_path), recurse = TRUE)
