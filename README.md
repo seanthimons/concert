@@ -30,6 +30,11 @@ For a fixed local port:
 concert::run_app(port = 3838, launch.browser = FALSE)
 ```
 
+For a visual guide to source DTXSID evidence, mixture correspondence, scoped
+acceptance, and session restore, read
+[Reviewing a source chemical identity](vignettes/articles/source-identity-review.Rmd).
+It includes the complete long Override dialog as overlapping screenshots.
+
 ## Headless Curation
 
 ```r
@@ -65,6 +70,11 @@ system.file("skills/concert-curate/SKILL.md", package = "concert")
 CONCERT exports include a `Pipeline Config` sheet with a `concert_export`
 marker. Legacy export markers from the former package name are no longer
 accepted.
+
+Upload an exported workbook through the ordinary file-upload control and choose
+**Resume Session** to restore its review decisions, source evidence and applied
+cleaning choices. **Treat as Raw Data** starts a new workflow. Sidebar **Import
+Configuration** restores selected configuration rather than the full session.
 
 ## Development
 

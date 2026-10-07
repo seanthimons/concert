@@ -16,6 +16,8 @@ navbar:
       menu:
         - text: Curating a dataset in the app
           href: articles/app-walkthrough.html
+        - text: Reviewing a source chemical identity
+          href: articles/source-identity-review.html
         - text: Cleaning pipeline
           href: articles/cleaning-pipeline.html
         - text: Measurement harmonization

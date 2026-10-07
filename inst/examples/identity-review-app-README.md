@@ -1,5 +1,9 @@
 # Test source correspondence in the full application
 
+The illustrated user guide is
+[Reviewing a source chemical identity](../../vignettes/articles/source-identity-review.Rmd).
+It includes every part of the long Override and pre-flight dialogs.
+
 From the package root, run:
 
 ```r
