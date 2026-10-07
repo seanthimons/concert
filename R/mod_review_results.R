@@ -1954,6 +1954,53 @@ mod_review_results_server <- function(id, data_store) {
       invisible(choices)
     }
 
+    prepare_identity_scope_review <- function(row_idx) {
+      tryCatch({
+        rows <- get_group_rows(row_idx, isolate(data_store$dedup_group_map))
+        data_store$identity_modal_context <- gui_identity_context(data_store$resolution_state, rows, data_store$column_tags)
+        identity_scope_review_controls(session, data_store$identity_modal_context)
+      }, error = function(e) {
+        data_store$identity_modal_context <- NULL
+        div(class = "text-muted", conditionMessage(e))
+      })
+    }
+
+    output$identity_scope_evidence <- renderUI({
+      context <- data_store$identity_modal_context[[input$identity_scope_target %||% ""]]
+      req(context)
+      tagList(tagged_row_summary(context$snapshot, 1L, data_store$column_tags),
+        source_identifier_review_panel(context$snapshot, 1L, data_store$column_tags))
+    })
+
+    output$identity_scope_result <- renderUI({
+      context <- data_store$identity_modal_context[[input$identity_scope_target %||% ""]]
+      req(context, data_store$resolution_state)
+      row <- tryCatch(gui_identity_row(data_store$resolution_state, context$selector), error = function(e) NULL)
+      req(row)
+      source_identifier_review_panel(data_store$resolution_state, row, data_store$column_tags)
+    })
+
+    observeEvent(input$identity_scope_save, {
+      tryCatch({
+        context <- data_store$identity_modal_context[[input$identity_scope_target %||% ""]]
+        if (is.null(context)) stop("Choose one source row first.", call. = FALSE)
+        result <- gui_apply_identity_decision(data_store$resolution_state, data_store$identity_decisions,
+          data_store$review_decision_evidence, data_store$script_baseline_state, context,
+          input$identity_scope_action, input$identity_scope_kind, input$identity_scope_conflict,
+          input$identity_scope_id, input$identity_scope_correspondence, input$identity_scope_reason,
+          input$identity_scope_reference)
+        data_store$resolution_state <- result$resolution_state
+        data_store$identity_decisions <- result$identity_decisions
+        data_store$review_decision_evidence <- result$review_decision_evidence
+        data_store$consensus_summary <- recalc_consensus_summary(result$resolution_state)
+        state <- identity_review_state(result$resolution_state[result$row, , drop = FALSE])
+        notify_user(paste("Source decision saved. Identity:", state$identity_status,
+          if (nzchar(state$identity_blockers)) paste("—", state$identity_blockers) else ""), type = "message")
+        data_store$identity_modal_context <- NULL
+        removeModal()
+      }, error = function(e) notify_user(conditionMessage(e), type = "error"))
+    }, ignoreInit = TRUE)
+
     show_expert_override_modal <- function(row_idx) {
       req(data_store$resolution_state)
 
@@ -1988,7 +2035,8 @@ mod_review_results_server <- function(id, data_store) {
           tagged_summary,
           source_identifier_review_panel(data_store$resolution_state, row_idx, data_store$column_tags),
           row_flag_review_controls(session, current_flag, current_reason),
-          review_override_controls(session)
+          review_override_controls(session),
+          prepare_identity_scope_review(row_idx)
         ),
         footer = modalButton("Close"),
         size = "l",
@@ -2841,7 +2889,7 @@ mod_review_results_server <- function(id, data_store) {
       showModal(modalDialog(
         title = "Compare Candidates",
         tagList(tagged_summary, source_identifier_review_panel(data_store$resolution_state, row_idx, data_store$column_tags),
-          flag_controls, cards_container, review_override_controls(session)),
+          flag_controls, cards_container, review_override_controls(session), prepare_identity_scope_review(row_idx)),
         footer = footer,
         size = "l",
         easyClose = TRUE
@@ -3234,7 +3282,7 @@ mod_review_results_server <- function(id, data_store) {
       baseline_state <- data_store$script_baseline_state %||% data_store$resolution_state
       review_overrides <- build_review_overrides(
         baseline_state,
-        data_store$resolution_state,
+        gui_identity_replay_state(data_store$resolution_state, data_store$identity_decisions),
         tag_map = full_tag_map
       )
       should_harmonize <- !is.null(data_store$harmonize_results) || !is.null(data_store$toxval_output)

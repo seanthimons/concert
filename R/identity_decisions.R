@@ -157,6 +157,22 @@ apply_identity_decisions <- function(state, identity_decisions) {
         !decision$conflict %in% c("none", "scope", "source_name_cas", "source_identifier")) {
       stop("Invalid identity decision action, scope or conflict.", call. = FALSE)
     }
+    # GUI replay reconstructs only the inspected lookup projection for this
+    # exact source row. Source content, candidates and validation cannot change.
+    if (!is.null(decision$gui_review_input)) {
+      input <- decision$gui_review_input
+      allowed <- c("consensus_status", "consensus_dtxsid", "consensus_source", ".resolution_method", ".pinned")
+      if (!is.list(input) || is.null(names(input)) || anyDuplicated(names(input)) ||
+          any(!names(input) %in% allowed) || any(lengths(input) != 1L) ||
+          any(!vapply(names(input), function(col) if (col == ".pinned") is.logical(input[[col]]) else
+            is.character(input[[col]]), logical(1)))) {
+        stop("Invalid GUI decision lookup projection.", call. = FALSE)
+      }
+      for (col in names(input)) {
+        if (!col %in% names(df)) df[[col]] <- if (col == ".pinned") rep(FALSE, nrow(df)) else rep(NA_character_, nrow(df))
+        df[[col]][i] <- input[[col]]
+      }
+    }
     before <- identity_evidence_fingerprint(df, i)
     legacy_match <- startsWith(decision$evidence_fingerprint, "identity-v1:") &&
       identical(identity_fingerprint_v1(df, i), decision$evidence_fingerprint)
