@@ -27,7 +27,7 @@ Original row numbers may be reported separately; they are not default identity k
 pre-override lookup evidence from final manual decisions. Candidate normalization
 retains resolver/PubChem/source/parent/tie attribution, query, and complete PubChem
 CID:DTXSID pairs. Malformed/empty pairs never become candidates. Parent candidates
-remain suggestions; source IDs remain metadata. Candidate order and duplicates
+remain suggestions; source IDs remain attributed provisional evidence. Candidate order and duplicates
 normalize. Audit timestamps are excluded from comparison.
 
 Validation outcomes are `valid`, `rejected`, `unavailable`, `unknown`, `invalid`,
@@ -53,8 +53,7 @@ prior no-hit/rejection from prose.
 
 Persistence consumers must embed this exact object in replay and supported
 workbook session state, retain schema/revision/time, and validate integrity on
-import. `dput`/`dget` and RDS are deterministic tested round trips. This foundational
-increment does not yet wire stage, iteration, workbook or UI consumers.
+import. `dput`/`dget` and RDS are deterministic tested round trips. Stage, iteration, workbook and GUI flag-decision consumers now use this contract.
 
 ## Selected-identity consumer (#84)
 
@@ -76,8 +75,7 @@ does not alter ordinary pending rows or identity fields.
 Snapshot `scope_cols` binds source content to each evidence row. Callers must
 supply the same source/content columns used by scope construction. Reordering rows
 then leaves the fingerprint stable, while swapping IDs between distinct source
-rows changes it. Stage/iteration/persistence integration remains owned by the
-orchestrator; this consumer alone does not deliver those entry points.
+rows changes it. Stage and iteration expose these reports separately from queue completion.
 
 ## Portable replay and workbook persistence
 
@@ -87,7 +85,9 @@ them into the headless call. Workbook Session State stores these same named
 objects as typed `jsonlite::serializeJSON` payloads, with schema-marked records and
 ordered chunks of at most 30,000 characters per cell. Hydration rejects missing or
 duplicate chunk indices and validates immutable evidence fingerprints before
-restoring the original object. No import operation adopts current evidence as a
+restoring the original object. The explicit ToxVal identity policy is also portable;
+older workbooks default to lookup compatibility. Accepted-only refresh fails closed
+when alignment or current identity evaluation cannot be verified. No import operation adopts current evidence as a
 new historical baseline. Older workbooks without these records remain supported.
 
 Optional Review Reconciliation, Candidate Review, Source ID Evidence and
@@ -95,5 +95,33 @@ Identifier Diagnostics sheets expose flat human-readable reports independently
 of the authoritative typed payload. The typed object—not report text—owns replay
 history. Real XLSX export/read/hydration tests preserve record/revision/time,
 acknowledgment scope, types and fingerprints; changed post-import evidence reopens
-comparison. Wiring additional stage and GUI entry points remains coordinated by
-the orchestrator.
+comparison. Stage and GUI flag-decision entry points use the same object.
+
+
+## Delivered boundaries
+
+`capture_review_state()` captures an explicit headless decision using the same
+retained input and split-lineage columns as stage comparison. GUI flag actions
+capture the actual automated and final evidence with an explicit decision basis.
+Current observed source validation overrides supplied same-authority history;
+source validation timestamps remain audit metadata, while schema/authority
+versions participate in comparison. Legacy resolver checks lacking build metadata
+remain explicitly unversioned; absence in that legacy public check is not treated
+as authoritative identity rejection.
+
+Candidate reports preserve old definitive validation and distinguish unavailable
+current checks. Only scoped changes against a captured disposition reopen the
+candidate queue; legacy missing baselines remain informational candidate work.
+Scope/source acceptance uses separate fingerprinted identity_decisions. Neither
+capture nor acknowledgment grants acceptance. Structured source correspondence
+acceptance currently uses the headless API; the GUI displays its blockers and
+retains source evidence.
+
+
+Scoped identity-decision records use fingerprint version 2 independently of the
+review-history schema. They persist the source columns actually reviewed, plus
+new semantic chemical evidence; enumerated harmonization outputs and unrelated
+new nonchemical columns do not invalidate chemical correspondence. Original
+source content, lineage, names, CAS, IDs, candidates and validation remain bound.
+Version 1 records are verified conservatively; migration requires exact original
+evidence, and retains the historical fingerprint. Malformed versions fail closed.
