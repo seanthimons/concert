@@ -156,3 +156,26 @@ test_that("explicit validators distinguish rejection from outages and cache by a
   expect_length(unavailable$cache$entries, 0L)
   expect_error(validate_review_candidates("DTXSID1", service, "mock", ""), "version")
 })
+
+test_that("candidate swaps across source records require review despite unchanged global set", {
+  df <- candidate_fixture()[c(1, 1), ]
+  df$source_file <- c("inventory-one", "inventory-two")
+  df$resolver_dtxsid_candidate <- c("DTXSID1", "DTXSID2")
+  flags <- data.frame(name = df$name[1], flag = "FOLLOW-UP", reason = "Group explicitly reviewed")
+  columns <- c("name", "cas", "source_file", "part")
+  evidence <- capture_review_decision(NULL, review_decision_key(df$name[1]),
+    review_evidence_scope(df, 1:2, columns),
+    review_evidence_snapshot(df, scope_cols = columns), "deferred", flags$flag, flags$reason)
+  report <- build_candidate_review(df, row_flags = flags, evidence = evidence,
+    name_col = "name", cas_col = "cas", scope_cols = columns)
+  expect_false(any(report$actionable))
+  swapped <- df
+  swapped$resolver_dtxsid_candidate <- rev(swapped$resolver_dtxsid_candidate)
+  changed <- build_candidate_review(swapped, row_flags = flags, evidence = evidence,
+    name_col = "name", cas_col = "cas", scope_cols = columns)
+  expect_true(all(changed$actionable))
+  expect_true(all(changed$change_reason == "candidate_scope_changed"))
+  reordered <- build_candidate_review(df[2:1, ], row_flags = flags, evidence = evidence,
+    name_col = "name", cas_col = "cas", scope_cols = columns)
+  expect_false(any(reordered$actionable))
+})

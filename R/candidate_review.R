@@ -23,6 +23,9 @@ candidate_review_validation_basis <- function(x) {
 candidate_review_delta <- function(prior, current) {
   if (!identical(review_evidence_fingerprint(prior$candidates),
                  review_evidence_fingerprint(current$candidates))) return("candidates_changed")
+  if (!is.null(prior$candidate_scope) && !is.null(current$candidate_scope) &&
+      !identical(review_evidence_fingerprint(prior$candidate_scope),
+                 review_evidence_fingerprint(current$candidate_scope))) return("candidate_scope_changed")
   old <- candidate_review_validation_basis(prior$validation)
   new <- candidate_review_validation_basis(current$validation)
   if (!NROW(new)) return("unchanged")
