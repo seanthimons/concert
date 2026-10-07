@@ -1,0 +1,2 @@
+# Preserve the exact published bytes used by the pinned artifact hash.
+inst/extdata/reference_sources/envharmonizer-0.1.1/table-manifest.json -text whitespace=cr-at-eol
