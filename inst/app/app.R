@@ -414,6 +414,8 @@ server <- function(input, output, session) {
 
   # Phase 33: Granular cascade reset functions per D-09
   reset_chemical_downstream <- function() {
+    data_store$cleaning_audit <- NULL
+    data_store$cleaned_data <- NULL
     data_store$source_identifier_evidence <- NULL
     data_store$curation_results <- NULL
     data_store$curation_report <- NULL
@@ -453,11 +455,22 @@ server <- function(input, output, session) {
     show_tab_with_pulse("dataset_context")
   })
 
-  # Show Clean Data tab after tagging
-  shiny::observe({
-    shiny::req(data_store$column_tags)
-    show_tab_with_pulse("clean_data")
-  })
+  # Cleaning needs Name and CASRN together. Other chemical tag combinations
+  # can use the curation pipeline directly, with the original extracted data.
+  update_tag_navigation <- function() {
+    chemical_tags <- data_store$column_tags
+    can_clean <- concert::has_required_chemical_tags(chemical_tags)
+    if (can_clean) {
+      show_tab_with_pulse("clean_data")
+    } else {
+      bslib::nav_hide("main_tabs", target = "clean_data", session = session)
+    }
+    if (length(chemical_tags) > 0L && !can_clean) {
+      show_tab_with_pulse("run_curation_tab")
+    } else if (is.null(data_store$cleaned_data)) {
+      bslib::nav_hide("main_tabs", target = "run_curation_tab", session = session)
+    }
+  }
 
   # Sidebar visibility based on active tab
   shiny::observeEvent(input$main_tabs, {
@@ -478,6 +491,10 @@ server <- function(input, output, session) {
     },
     ignoreNULL = FALSE
   )
+
+  shiny::observe({
+    update_tag_navigation()
+  })
 
   shiny::observeEvent(
     data_store$numeric_tags,
@@ -529,9 +546,9 @@ server <- function(input, output, session) {
     "tags",
     data_store,
     on_tags_applied = function() {
-      show_tab_with_pulse("clean_data")
       bslib::nav_hide("main_tabs", target = "run_curation_tab", session = session)
       bslib::nav_hide("main_tabs", target = "review_results", session = session)
+      update_tag_navigation()
     },
     on_tags_cleared = function() {
       bslib::nav_hide("main_tabs", target = "clean_data", session = session)
