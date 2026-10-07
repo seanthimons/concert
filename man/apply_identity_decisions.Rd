@@ -28,7 +28,12 @@ Keeping an aggregate unresolved records its scope but does not accept a
 representative component. A repeated source CAS on split children remains
 candidate evidence until component correspondence is explicitly reviewed.
 Flags, manual picks and bulk suggestion acceptance cannot resolve these
-scope conflicts. Existing flags and reasons are preserved by this function.
+scope conflicts. Selecting a configured source DTXSID also requires its exact
+source membership evidence to be validated; lookup agreement and a separate
+successful ID lookup cannot promote unavailable or rejected source evidence.
+A different validated identity can explicitly resolve conflicting source
+metadata while retaining its original validation outcomes and provenance.
+Existing flags and reasons are preserved by this function.
 The fingerprint row argument is the current row position, while the selector
 uses source lineage and content; these may differ after reordering.
 }

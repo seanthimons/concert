@@ -72,7 +72,12 @@ identity_decision_current_rows <- function(df) {
 #' representative component. A repeated source CAS on split children remains
 #' candidate evidence until component correspondence is explicitly reviewed.
 #' Flags, manual picks and bulk suggestion acceptance cannot resolve these
-#' scope conflicts. Existing flags and reasons are preserved by this function.
+#' scope conflicts. Selecting a configured source DTXSID also requires its exact
+#' source membership evidence to be validated; lookup agreement and a separate
+#' successful ID lookup cannot promote unavailable or rejected source evidence.
+#' A different validated identity can explicitly resolve conflicting source
+#' metadata while retaining its original validation outcomes and provenance.
+#' Existing flags and reasons are preserved by this function.
 #' The fingerprint row argument is the current row position, while the selector
 #' uses source lineage and content; these may differ after reordering.
 #' @export
@@ -102,7 +107,7 @@ apply_identity_decisions <- function(state, identity_decisions) {
     }
     if (!decision$action %in% c("accept", "retain_unresolved") ||
         !decision$scope %in% c("substance", "registered_mixture", "aggregate", "class", "unknown") ||
-        !decision$conflict %in% c("none", "scope", "source_name_cas")) {
+        !decision$conflict %in% c("none", "scope", "source_name_cas", "source_identifier")) {
       stop("Invalid identity decision action, scope or conflict.", call. = FALSE)
     }
     before <- identity_evidence_fingerprint(df, i)
@@ -113,6 +118,16 @@ apply_identity_decisions <- function(state, identity_decisions) {
       if (!decision$scope %in% c("substance", "registered_mixture") || decision$conflict != "none" ||
           !isTRUE(decision$correspondence) || length(id) != 1L || is.na(id) || !grepl("^DTXSID[0-9]+$", id)) {
         stop("Acceptance requires resolved scope/conflict, an ID and explicit source correspondence.", call. = FALSE)
+      }
+      source_candidates <- grep("^source_id_.*_source_candidate_id$", names(df), value = TRUE)
+      for (col in source_candidates) {
+        candidate <- normalize_source_dtxsid(df[[col]][i])
+        if (!is.na(candidate) && identical(candidate, id)) {
+          validation_col <- sub("_source_candidate_id$", "_validation_status", col)
+          if (!identical(as.character(identity_col(df, validation_col)[i]), "validated")) {
+            stop("Source-ID promotion requires validated exact source membership and explicit correspondence.", call. = FALSE)
+          }
+        }
       }
       validation <- validate_manual_dtxsids(id)
       if (nrow(validation) != 1L || !isTRUE(validation$is_valid[1]) ||

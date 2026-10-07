@@ -23,6 +23,32 @@ identity_scope_blockers <- function(df) {
   )
 }
 
+# Explicit source-ID roles retain validation and correspondence separately.
+# Missing source IDs do not invalidate otherwise legitimate Name/CAS lookups.
+source_identity_blockers <- function(df) {
+  n <- nrow(df)
+  out <- list(invalid = rep(FALSE, n), unavailable = rep(FALSE, n),
+              ambiguous = rep(FALSE, n), conflict = rep(FALSE, n), scope = rep(FALSE, n))
+  resolved <- identity_decision_current_rows(df)
+  stems <- unique(sub("_(validation_status|identity_status)$", "",
+    grep("^source_id_.*_(validation_status|identity_status)$", names(df), value = TRUE)))
+  for (stem in stems) {
+    status <- identity_col(df, paste0(stem, "_validation_status"))
+    identity <- identity_col(df, paste0(stem, "_identity_status"))
+    raw <- identity_col(df, paste0(stem, "_source_raw_id"))
+    candidate <- identity_col(df, paste0(stem, "_source_candidate_id"))
+    present <- (!is.na(raw) & nzchar(trimws(raw))) | (!is.na(candidate) & nzchar(trimws(candidate)))
+    active <- present & !resolved
+    out$invalid <- out$invalid | (active & status %in% c("invalid_format", "not_found", "returned_id_mismatch"))
+    out$ambiguous <- out$ambiguous | (active & status %in% "ambiguous")
+    out$unavailable <- out$unavailable | (active & (is.na(status) |
+      !status %in% c("validated", "invalid_format", "not_found", "returned_id_mismatch", "ambiguous")))
+    out$conflict <- out$conflict | (!resolved & identity %in% "identity_conflict")
+    out$scope <- out$scope | (!resolved & identity %in% "scope_review")
+  }
+  out
+}
+
 #' Derive accepted identity eligibility from current evidence
 #'
 #' Lookup consensus remains provisional when review, scope or source conflicts
@@ -38,6 +64,7 @@ identity_review_state <- function(df) {
   status <- identity_col(df, "consensus_status")
   flag <- identity_col(df, "row_flag")
   scope <- identity_scope_blockers(df)
+  source <- source_identity_blockers(df)
   accepted_suggestion <- status %in% "suggested" &
     identity_col(df, ".pinned", FALSE) %in% TRUE &
     identity_col(df, ".resolution_method") %in% c("bulk-accept", "manual", "user-pick")
@@ -50,7 +77,12 @@ identity_review_state <- function(df) {
     incoming_review = identity_col(df, "needs_review", FALSE) %in% TRUE,
     unresolved_scope = scope$scope,
     source_conflict = scope$conflict,
-    stale_scope_decision = scope$stale
+    stale_scope_decision = scope$stale,
+    source_identifier_invalid = source$invalid,
+    source_identifier_unavailable = source$unavailable,
+    source_identifier_ambiguous = source$ambiguous,
+    source_identity_conflict = source$conflict,
+    source_identity_scope = source$scope
   )
   text <- rep("", n)
   for (key in names(blockers)) {
