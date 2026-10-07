@@ -232,6 +232,7 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
     media_results = media_results,
     media_map_working = reference_lists$media_map,
     toxval_output = toxval_output,
+    toxval_identity_mode = "lookup",
     numeric_correction_queue = empty_numeric_correction_queue(),
     harmonize_results_stale = FALSE,
     changed_units = character(0)
@@ -706,7 +707,7 @@ restore_session_inputs <- function(sheet) {
   if (!all(required %in% names(sheet))) return(list())
   rows <- sheet[!is.na(sheet$record_type) & sheet$record_type == "portable_input_v1", required, drop = FALSE]
   if (!nrow(rows)) return(list())
-  allowed <- c("review_decision_evidence", "identity_decisions", "candidate_validation")
+  allowed <- c("review_decision_evidence", "identity_decisions", "candidate_validation", "toxval_identity_mode")
   if (anyNA(rows$key) || any(!rows$key %in% allowed)) stop("Unsupported portable session input.", call. = FALSE)
   keys <- allowed[allowed %in% rows$key]
   result <- lapply(keys, function(key) {
@@ -717,6 +718,10 @@ restore_session_inputs <- function(sheet) {
     }
     value <- jsonlite::unserializeJSON(paste0(parts$value, collapse = ""))
     if (key == "review_decision_evidence") validate_review_evidence(value)
+    if (key == "toxval_identity_mode" &&
+        (!is.character(value) || length(value) != 1L || is.na(value) || !value %in% c("lookup", "accepted"))) {
+      stop("Unsupported portable ToxVal identity mode.", call. = FALSE)
+    }
     value
   })
   stats::setNames(result, keys)

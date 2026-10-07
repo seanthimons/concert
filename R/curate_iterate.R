@@ -27,6 +27,7 @@ decision_object_names <- function() {
     "site_alias_map",
     "site_manifest",
     "harmonize",
+    "toxval_identity_mode",
     "format",
     "media",
     "source_name",
@@ -63,6 +64,7 @@ read_decisions <- function(decisions_path) {
   d$desalt_workflows <- d$desalt_workflows %||% DESALT_WORKFLOWS
   d$accept_suggestions <- isTRUE(d$accept_suggestions)
   d$harmonize <- isTRUE(d$harmonize)
+  d$toxval_identity_mode <- match.arg(d$toxval_identity_mode %||% "lookup", c("lookup", "accepted"))
   d$format <- d$format %||% "parquet"
   d
 }
@@ -554,6 +556,7 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
     stage_harmonize(
       state,
       harmonize = d$harmonize,
+      toxval_identity_mode = d$toxval_identity_mode,
       unit_map_snapshot = d$unit_map_snapshot,
       corrections = d$corrections,
       media_map_snapshot = d$media_map_snapshot,
@@ -593,6 +596,7 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
     desalt = d$desalt,
     desalt_workflows = d$desalt_workflows,
     harmonize = d$harmonize,
+    toxval_identity_mode = d$toxval_identity_mode,
     media = d$media,
     unit_map = if (d$harmonize) state$harmonization_refs$unit_map else NULL,
     corrections = d$corrections,

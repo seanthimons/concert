@@ -35,7 +35,8 @@ generate_concert_script(
   ignored_identifier_cols = character(),
   review_decision_evidence = NULL,
   identity_decisions = NULL,
-  candidate_validation = NULL
+  candidate_validation = NULL,
+  toxval_identity_mode = "lookup"
 )
 }
 \arguments{
@@ -115,6 +116,8 @@ treated as metadata, persisted in the replay call.}
 \item{identity_decisions}{Explicit structured source-identity decisions.}
 
 \item{candidate_validation}{Structured candidate validation outcomes.}
+
+\item{toxval_identity_mode}{ToxVal policy: lookup (compatibility default) or accepted.}
 }
 \value{
 Complete R script as a character scalar.

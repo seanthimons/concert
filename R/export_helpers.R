@@ -60,6 +60,7 @@
 #' @param candidate_review Optional candidate-validation report.
 #' @param source_identifier_evidence Optional source-ID evidence report.
 #' @param identifier_diagnostics Optional unused/source-ID diagnostics.
+#' @param toxval_identity_mode Portable ToxVal identity policy, lookup or accepted.
 #' @export
 build_export_sheets <- function(
   raw,
@@ -87,8 +88,10 @@ build_export_sheets <- function(
   review_reconciliation = NULL,
   candidate_review = NULL,
   source_identifier_evidence = NULL,
-  identifier_diagnostics = NULL
+  identifier_diagnostics = NULL,
+  toxval_identity_mode = c("lookup", "accepted")
 ) {
+  toxval_identity_mode <- match.arg(toxval_identity_mode)
   # Sheet 1: Raw Data (detected table with user-facing column names)
   raw_data_sheet <- detected_data %||% raw
 
@@ -257,7 +260,8 @@ build_export_sheets <- function(
     consensus_summary,
     baseline_diff_rows,
     portable_inputs = list(review_decision_evidence = review_decision_evidence,
-      identity_decisions = identity_decisions, candidate_validation = candidate_validation)
+      identity_decisions = identity_decisions, candidate_validation = candidate_validation,
+      toxval_identity_mode = toxval_identity_mode)
   )
 
   # Sheet 9: ToxVal Output (always present per D-09)

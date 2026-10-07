@@ -334,21 +334,28 @@ generate_source_hash <- function(result_tibble) {
 #' @param toxval_output Stored ToxVal tibble from the harmonization run.
 #' @param resolution_state Current curated data (same rows as harmonization input).
 #' @param harmonized_data Harmonized tibble the ToxVal rows were built from.
-#' @return `toxval_output` with refreshed identifiers, or unchanged when the
-#'   inputs do not line up.
+#' @param identity_mode Lookup compatibility or accepted-only identity policy.
+#' @return Refreshed output. Accepted mode blanks IDs when refresh cannot be verified.
 #' @keywords internal
-refresh_toxval_identity <- function(toxval_output, resolution_state, harmonized_data) {
+refresh_toxval_identity <- function(toxval_output, resolution_state, harmonized_data,
+                                    identity_mode = c("lookup", "accepted")) {
+  identity_mode <- match.arg(identity_mode)
+  fail_closed <- function() {
+    if (identity_mode == "accepted" && !is.null(toxval_output)) {
+      toxval_output$dtxsid <- rep(NA_character_, nrow(toxval_output))
+      toxval_output$source_hash <- generate_source_hash(toxval_output)
+    }
+    toxval_output
+  }
   if (is.null(toxval_output) || is.null(resolution_state) || is.null(harmonized_data) ||
       nrow(toxval_output) != nrow(harmonized_data)) {
-    return(toxval_output)
+    return(fail_closed())
   }
   fresh <- tryCatch(
-    map_to_toxval_schema(resolution_state, harmonized_data),
+    map_to_toxval_schema(resolution_state, harmonized_data, identity_mode = identity_mode),
     error = function(e) NULL
   )
-  if (is.null(fresh)) {
-    return(toxval_output)
-  }
+  if (is.null(fresh)) return(fail_closed())
   toxval_output$dtxsid <- fresh$dtxsid
   toxval_output$name <- fresh$name
   toxval_output$source_hash <- generate_source_hash(toxval_output)

@@ -42,3 +42,17 @@ test_that("accepted ToxVal mapping preserves rows and blocks raw ID fallback", {
   expect_equal(out$toxval_numeric, c(1, 2))
   expect_equal(map_to_toxval_schema(df, h)$dtxsid, c("DTXSID123", "DTXSID456"))
 })
+
+test_that("headless accepted ToxVal mode keeps measurements and replays explicit compatibility choice", {
+  df <- tibble::tibble(original_row_id = 1:2, consensus_dtxsid = "DTXSID123",
+    consensus_status = "single", row_flag = c("FOLLOW-UP", NA), result = c("1", "2"), unit = "mg/L")
+  refs <- resolve_harmonization_references()
+  runtime <- run_harmonization_runtime(df, list(result = "Result", unit = "Unit"),
+    unit_map = refs$unit_map, corrections = refs$corrections, media_map = refs$media_map,
+    toxval_identity_mode = "accepted")
+  expect_identical(runtime$toxval_output$dtxsid, c(NA_character_, "DTXSID123"))
+  expect_equal(runtime$toxval_output$toxval_numeric, c(1, 2))
+  script <- generate_concert_script("input.csv", "output.xlsx", list(result = "Result", unit = "Unit"), 1L,
+    harmonize = TRUE, toxval_identity_mode = "accepted")
+  expect_match(script, 'toxval_identity_mode = "accepted"', fixed = TRUE)
+})

@@ -84,3 +84,36 @@ test_that("workbook export and hydration preserve immutable decisions and acknow
   legacy <- hydrate_session_state(parsed)$state
   expect_null(legacy$review_decision_evidence)
 })
+
+test_that("accepted export policy survives a real workbook and identity refresh", {
+  df <- tibble::tibble(name = c("A", "B"), consensus_dtxsid = "DTXSID123",
+    consensus_status = "single", row_flag = c("FOLLOW-UP", NA_character_))
+  h <- tibble::tibble(orig_row_id = 1:2, orig_unit = "mg/L", harmonized_value = c(1, 2),
+    harmonized_unit = "mg/L", conversion_factor = 1, unit_flag = "")
+  toxval <- map_to_toxval_schema(df, h, identity_mode = "accepted")
+  sheets <- build_export_sheets(raw = df, cleaned_data = df, resolution_state = df,
+    consensus_summary = list(), cleaning_audit = NULL, reference_lists = list(),
+    column_tags = list(name = "Name"), detection = list(method = "manual", header_row = 1L),
+    file_info = list(name = "input.csv", size = 1), toxval_output = toxval,
+    toxval_identity_mode = "accepted")
+  path <- tempfile(fileext = ".xlsx")
+  writexl::write_xlsx(sheets, path)
+  parsed <- parse_concert_export(path)
+  restored <- hydrate_session_state(parsed)$state
+  expect_identical(restored$toxval_identity_mode, "accepted")
+  refreshed <- refresh_toxval_identity(restored$toxval_output, restored$resolution_state, h,
+    identity_mode = restored$toxval_identity_mode)
+  expect_identical(refreshed$dtxsid, c(NA_character_, "DTXSID123"))
+  expect_equal(refreshed$toxval_numeric, c(1, 2))
+  stale <- map_to_toxval_schema(df, h)
+  closed <- refresh_toxval_identity(stale, df, h[1, ], identity_mode = "accepted")
+  expect_true(all(is.na(closed$dtxsid)))
+  expect_equal(closed$toxval_numeric, c(1, 2))
+  expect_false(identical(closed$source_hash, stale$source_hash))
+  expect_identical(refresh_toxval_identity(stale, df, NULL), stale)
+  expect_true(all(is.na(refresh_toxval_identity(stale, df, NULL, "accepted")$dtxsid)))
+  parsed$session_state <- parsed$session_state[parsed$session_state$record_type != "portable_input_v1", ]
+  expect_identical(hydrate_session_state(parsed)$state$toxval_identity_mode, "lookup")
+  invalid <- serialize_session_inputs(list(toxval_identity_mode = "unknown"))
+  expect_error(restore_session_inputs(invalid), "Unsupported portable ToxVal")
+})

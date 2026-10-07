@@ -146,6 +146,7 @@ server <- function(input, output, session) {
     review_row_flags = NULL,
     identity_decisions = NULL,
     candidate_validation = NULL,
+    toxval_identity_mode = "lookup",
     suggested_column_tags = NULL,
     cleaning_audit = NULL,
     cleaned_data = NULL,
@@ -358,6 +359,7 @@ server <- function(input, output, session) {
     data_store$review_row_flags <- NULL
     data_store$identity_decisions <- NULL
     data_store$candidate_validation <- NULL
+    data_store$toxval_identity_mode <- "lookup"
     data_store$suggested_column_tags <- NULL
     data_store$curation_results <- NULL
     data_store$curation_report <- NULL

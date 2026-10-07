@@ -2,7 +2,7 @@
 #'
 #' Runs the complete CONCERT curation pipeline - file read, frontmatter
 #' detection, cleaning, CompTox API search, consensus classification, and
-#' 8-sheet XLSX export - from a single R script call with no Shiny session
+#' multi-sheet XLSX export - from a single R script call with no Shiny session
 #' required. When harmonize=TRUE, additionally runs the numeric parsing, unit
 #' harmonization, and ToxVal schema mapping pipeline, and writes parquet/CSV
 #' output alongside the XLSX.
@@ -38,6 +38,9 @@
 #'   the console. If FALSE, all messages are suppressed.
 #' @param harmonize Logical. If TRUE, runs numeric parsing, unit harmonization,
 #'   and ToxVal schema mapping after curation. Default FALSE for backward compat.
+#' @param toxval_identity_mode ToxVal identifier policy: "lookup" preserves
+#'   the existing audit export default; "accepted" gates IDs and preserves
+#'   every measurement row with NA IDs when blocked.
 #' @param format Character. Output format for ToxVal data when harmonize=TRUE.
 #'   One of "parquet", "csv", or "both". Default "parquet". Ignored when
 #'   harmonize=FALSE.
@@ -178,7 +181,8 @@ curate_headless <- function(
   pubchem = FALSE,
   desalt = FALSE,
   desalt_workflows = c("qsar-ready", "ms-ready"),
-  ignored_identifier_cols = character()
+  ignored_identifier_cols = character(),
+  toxval_identity_mode = "lookup"
 ) {
   # skip_flags reserved for future use; isotope_match skip is handled internally by run_curation_pipeline()
 
@@ -232,6 +236,7 @@ curate_headless <- function(
     state <- stage_harmonize(
       state,
       harmonize = harmonize,
+      toxval_identity_mode = toxval_identity_mode,
       unit_map = unit_map,
       unit_map_snapshot = unit_map_snapshot,
       corrections = corrections,

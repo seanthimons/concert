@@ -108,8 +108,10 @@ run_harmonization_runtime <- function(
   media_map = NULL,
   media = NULL,
   source_name = NULL,
-  step_mask = NULL
+  step_mask = NULL,
+  toxval_identity_mode = c("lookup", "accepted")
 ) {
+  toxval_identity_mode <- match.arg(toxval_identity_mode)
   input_df <- tibble::as_tibble(input_data)
   input_df <- input_df[, setdiff(names(input_df), DETECTION_GENERATED_COLUMNS), drop = FALSE]
   tag_values <- as_harmonization_tag_values(tag_map)
@@ -257,7 +259,8 @@ run_harmonization_runtime <- function(
   toxval_output <- map_to_toxval_schema(
     curated_data = updated_data,
     harmonized_data = harmonize_tibble,
-    source_name = source_name
+    source_name = source_name,
+    identity_mode = toxval_identity_mode
   )
 
   list(

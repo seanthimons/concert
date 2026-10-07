@@ -42,7 +42,8 @@ curate_headless(
   pubchem = FALSE,
   desalt = FALSE,
   desalt_workflows = c("qsar-ready", "ms-ready"),
-  ignored_identifier_cols = character()
+  ignored_identifier_cols = character(),
+  toxval_identity_mode = "lookup"
 )
 }
 \arguments{
@@ -187,6 +188,10 @@ rows via the chemi standardizer. Independent of \code{pubchem}.}
 
 \item{ignored_identifier_cols}{Retained identifier columns deliberately
 treated as metadata. These columns never supply identity evidence.}
+
+\item{toxval_identity_mode}{ToxVal identifier policy: "lookup" preserves
+the existing audit export default; "accepted" gates IDs and preserves
+every measurement row with NA IDs when blocked.}
 }
 \value{
 Invisibly returns a list:
@@ -216,7 +221,7 @@ detection, media, duration, and date fields
 \description{
 Runs the complete CONCERT curation pipeline - file read, frontmatter
 detection, cleaning, CompTox API search, consensus classification, and
-8-sheet XLSX export - from a single R script call with no Shiny session
+multi-sheet XLSX export - from a single R script call with no Shiny session
 required. When harmonize=TRUE, additionally runs the numeric parsing, unit
 harmonization, and ToxVal schema mapping pipeline, and writes parquet/CSV
 output alongside the XLSX.

@@ -448,7 +448,8 @@ content_row_mask <- function(rs, name_col, cas_col, name, casrn) {
 #' @inheritParams curate_headless
 #' @return The state with `harmonize`, `harmonization_refs`,
 #'   `harmonization_runtime_result`, `toxval_output`, `harmonize_audit`, and
-#'   `detection_results` added. When `harmonize = FALSE` only `harmonize` is set.
+#'   `detection_results` added. When `harmonize = FALSE`, the harmonization flag
+#'   and identity policy are retained.
 #' @export
 stage_harmonize <- function(
   state,
@@ -459,8 +460,11 @@ stage_harmonize <- function(
   media_map = NULL,
   media_map_snapshot = NULL,
   media = NULL,
-  source_name = NULL
+  source_name = NULL,
+  toxval_identity_mode = c("lookup", "accepted")
 ) {
+  toxval_identity_mode <- match.arg(toxval_identity_mode)
+  state$toxval_identity_mode <- toxval_identity_mode
   state$harmonize <- isTRUE(harmonize)
   if (!state$harmonize) {
     return(state)
@@ -495,7 +499,8 @@ stage_harmonize <- function(
     corrections = harmonization_refs$corrections,
     media_map = harmonization_refs$media_map,
     media = media,
-    source_name = source_name %||% tools::file_path_sans_ext(basename(state$input_path))
+    source_name = source_name %||% tools::file_path_sans_ext(basename(state$input_path)),
+    toxval_identity_mode = toxval_identity_mode
   )
 
   # Advance the replay baseline to the harmonized stage too, so an exported
@@ -563,7 +568,8 @@ stage_export <- function(state, output_path = NULL, format = "parquet", write_fi
       review_reconciliation = state$review_reconciliation,
       candidate_review = state$candidate_review,
       source_identifier_evidence = state$source_identifier_evidence,
-      identifier_diagnostics = state$identifier_diagnostics
+      identifier_diagnostics = state$identifier_diagnostics,
+      toxval_identity_mode = state$toxval_identity_mode %||% "lookup"
     )
 
     fs::dir_create(dirname(output_path), recurse = TRUE)
@@ -597,7 +603,11 @@ stage_export <- function(state, output_path = NULL, format = "parquet", write_fi
       date_results = runtime$date_results,
       detection = state$detection_results,
       detection_results = state$detection_results,
-      row_data = state$resolution_state
+      row_data = state$resolution_state,
+      identity_state = identity_review_state(state$resolution_state),
+      review_reconciliation = state$review_reconciliation,
+      candidate_review = state$candidate_review,
+      review_decision_evidence = state$review_decision_evidence
     ))
   } else {
     invisible(list(data = state$resolution_state, audit_trail = state$cleaning_result$audit_trail,

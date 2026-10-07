@@ -1380,6 +1380,7 @@ append_optional_script_object <- function(lines, name, value) {
 #' @param desalt Logical. Enables salt parent suggestions independently of PubChem.
 #' @param desalt_workflows Standardizer workflows used when `desalt = TRUE`:
 #'   "qsar-ready", "ms-ready", or both (default).
+#' @param toxval_identity_mode ToxVal policy: lookup (compatibility default) or accepted.
 #' @param harmonize Logical. Re-run harmonization during replay.
 #' @param media Optional dataset-wide media fallback.
 #' @param unit_map Optional effective unit harmonization map. When
@@ -1447,7 +1448,8 @@ generate_concert_script <- function(
   ignored_identifier_cols = character(),
   review_decision_evidence = NULL,
   identity_decisions = NULL,
-  candidate_validation = NULL
+  candidate_validation = NULL,
+  toxval_identity_mode = "lookup"
 ) {
   has_review_overrides <- review_overrides_present(review_overrides)
   if (!is.null(review_picks) && NROW(review_picks) == 0) {
@@ -1626,6 +1628,7 @@ generate_concert_script <- function(
 
   if (isTRUE(harmonize)) {
     call_args$harmonize <- "TRUE"
+    call_args$toxval_identity_mode <- script_literal(match.arg(toxval_identity_mode, c("lookup", "accepted")))
     call_args$format <- script_literal(format)
     if (!is.null(media)) {
       call_args$media <- script_literal(media)

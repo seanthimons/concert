@@ -3262,6 +3262,7 @@ mod_review_results_server <- function(id, data_store) {
         review_decision_evidence = data_store$review_decision_evidence,
         identity_decisions = data_store$identity_decisions,
         candidate_validation = data_store$candidate_validation,
+        toxval_identity_mode = data_store$toxval_identity_mode %||% "lookup",
         row_flags = data_store$review_row_flags
       )
     }
@@ -3395,7 +3396,8 @@ mod_review_results_server <- function(id, data_store) {
           toxval_output = refresh_toxval_identity(
             data_store$toxval_output,
             data_store$resolution_state,
-            data_store$harmonize_results$harmonized
+            data_store$harmonize_results$harmonized,
+            identity_mode = data_store$toxval_identity_mode %||% "lookup"
           ),
           harmonize_audit = data_store$harmonize_audit,
           site_manifest = data_store$site_manifest,
@@ -3407,6 +3409,7 @@ mod_review_results_server <- function(id, data_store) {
           review_decision_evidence = data_store$review_decision_evidence,
           identity_decisions = data_store$identity_decisions,
           candidate_validation = data_store$candidate_validation,
+          toxval_identity_mode = data_store$toxval_identity_mode %||% "lookup",
           source_identifier_evidence = data_store$source_identifier_evidence,
           identifier_diagnostics = data_store$identifier_diagnostics
         )
@@ -3865,7 +3868,8 @@ mod_review_results_server <- function(id, data_store) {
         toxval <- refresh_toxval_identity(
           data_store$toxval_output,
           data_store$resolution_state,
-          data_store$harmonize_results$harmonized
+          data_store$harmonize_results$harmonized,
+            identity_mode = data_store$toxval_identity_mode %||% "lookup"
         )
         write_curation_output(file, input$toxval_format, toxval_tibble = toxval)
       }
