@@ -14,12 +14,12 @@ identity_scope_blockers <- function(df) {
   combined <- identity_col(df, "multi_analyte_resolution") %in% "keep_combined"
   scope_resolved <- identity_col(df, "identity_scope_reviewed", FALSE) %in% TRUE &
     scope %in% c("substance", "registered_mixture") &
-    identity_col(df, "identity_decision_current", FALSE) %in% TRUE
+    identity_decision_current_rows(df)
   list(
-    scope = (multi | component | combined | scope %in% c("unknown", "aggregate", "class")) & !scope_resolved,
+    scope = (multi | component | combined | scope %in% c("unknown", "aggregate", "class", "registered_mixture")) & !scope_resolved,
     conflict = !is.na(conflict) & nzchar(trimws(conflict)) & !conflict %in% "none",
     stale = identity_col(df, "identity_scope_reviewed", FALSE) %in% TRUE &
-      !identity_col(df, "identity_decision_current", FALSE) %in% TRUE
+      !identity_decision_current_rows(df)
   )
 }
 

@@ -27,7 +27,7 @@ test_that("registered mixtures require a current explicit scope decision", {
     identity_scope_reviewed = TRUE, identity_decision_current = FALSE)
   expect_false(identity_review_state(df)$identity_eligible)
   df$identity_decision_current <- TRUE
-  expect_true(identity_review_state(df)$identity_eligible)
+  expect_false(identity_review_state(df)$identity_eligible)
   df$identity_scope <- "aggregate"
   expect_false(identity_review_state(df)$identity_eligible)
 })

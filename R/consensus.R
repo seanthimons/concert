@@ -919,8 +919,11 @@ classify_auto_resolve <- function(
 accept_all_suggestions <- function(df, dtxsid_cols) {
   df <- init_resolution_state(df)
 
+  scope <- identity_scope_blockers(df)
+  blocked <- scope$scope | scope$conflict | scope$stale |
+    identity_col(df, "row_flag") %in% c("BAD", "FOLLOW-UP")
   for (i in seq_len(nrow(df))) {
-    if (df$consensus_status[i] != "suggested") {
+    if (blocked[i] || is.na(df$consensus_status[i]) || df$consensus_status[i] != "suggested") {
       next
     }
     if (isTRUE(df$.pinned[i])) {

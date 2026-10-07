@@ -1,0 +1,137 @@
+#' Capture current row evidence for a scoped identity decision
+#'
+#' This fingerprint binds an explicit decision to source content, lineage,
+#' candidates and lookup outcomes. Flags and derived acceptance fields are not
+#' evidence. Capture it after inspecting the row; a changed fingerprint requires
+#' another explicit review.
+#' @param df Current resolution data.
+#' @param row Integer row position.
+#' @return A versioned evidence fingerprint.
+#' @export
+identity_evidence_fingerprint <- function(df, row) {
+  stopifnot(length(row) == 1L, row >= 1L, row <= nrow(df))
+  excluded <- c("row_flag", "row_flag_reason", "needs_review", "identity_scope", "identity_conflict",
+    "identity_scope_reviewed", "identity_decision_current", "identity_decision_fingerprint",
+    "identity_decision_record", "identity_status", "identity_blockers", "identity_eligible", "accepted_dtxsid")
+  cols <- sort(setdiff(names(df)[!grepl("^\\.", names(df))], excluded))
+  paste0("identity-v1:", digest::digest(lapply(as.list(df[row, cols, drop = FALSE]), as.character), algo = "sha256"))
+}
+
+identity_decision_current_rows <- function(df) {
+  signature <- identity_col(df, "identity_decision_fingerprint")
+  recorded <- identity_col(df, "identity_decision_record")
+  out <- rep(FALSE, nrow(df))
+  for (i in which(!is.na(signature) & !is.na(recorded))) {
+    record <- tryCatch(jsonlite::fromJSON(recorded[i]), error = function(e) NULL)
+    out[i] <- !is.null(record) && identical(record$version, "1") &&
+      identical(record$action, "accept") && identical(record$membership, "valid") &&
+      isTRUE(record$correspondence) && identical(record$applied_fingerprint, signature[i]) &&
+      identical(record$selected_dtxsid, as.character(identity_col(df, "consensus_dtxsid")[i])) &&
+      identical(record$scope, as.character(identity_col(df, "identity_scope")[i])) &&
+      identical(record$conflict, as.character(identity_col(df, "identity_conflict")[i])) &&
+      identical(signature[i], identity_evidence_fingerprint(df, i))
+  }
+  out
+}
+
+#' Apply explicit row-scoped identity decisions
+#'
+#' Each list record needs a selector containing original_row_id and source
+#' content column values, action (accept or retain_unresolved), scope, conflict,
+#' reason, evidence_reference and evidence_fingerprint. Acceptance also needs
+#' selected_dtxsid and correspondence=TRUE. Authoritative registry membership
+#' is validated separately; unavailable validation cannot grant acceptance.
+#' Ambiguous selectors and changed evidence fail without applying decisions.
+#' @param state Curation state containing resolution_state.
+#' @param identity_decisions List of explicit decision records.
+#' @return State with preserved source evidence and recorded decisions.
+#' @examples
+#' \dontrun{
+#' decision <- list(
+#'   selector = list(original_row_id = 27L, chemical_name = "Registered combination"),
+#'   action = "accept", scope = "registered_mixture", conflict = "none",
+#'   selected_dtxsid = "DTXSID123", correspondence = TRUE,
+#'   reason = "Source composition matches the registered combined entity",
+#'   evidence_reference = "Reviewed source composition and authoritative registry record",
+#'   evidence_fingerprint = identity_evidence_fingerprint(state$resolution_state, 27L)
+#' )
+#' state <- apply_identity_decisions(state, list(decision))
+#' }
+#'
+#' @details
+#' A combined source may be accepted as a registered mixture without splitting.
+#' Keeping an aggregate unresolved records its scope but does not accept a
+#' representative component. A repeated source CAS on split children remains
+#' candidate evidence until component correspondence is explicitly reviewed.
+#' Flags, manual picks and bulk suggestion acceptance cannot resolve these
+#' scope conflicts. Existing flags and reasons are preserved by this function.
+#' The fingerprint row argument is the current row position, while the selector
+#' uses source lineage and content; these may differ after reordering.
+#' @export
+apply_identity_decisions <- function(state, identity_decisions) {
+  if (!length(identity_decisions)) return(state)
+  df <- init_resolution_state(state$resolution_state)
+  for (decision in identity_decisions) {
+    selector <- decision$selector
+    if (!is.list(selector) || is.null(names(selector)) || !"original_row_id" %in% names(selector) ||
+        length(selector) < 2L || any(!names(selector) %in% names(df)) ||
+        any(grepl("^(identity_|consensus_|dtxsid|row_flag|\\.)", names(selector)))) {
+      stop("Identity selector requires original_row_id and source content columns.", call. = FALSE)
+    }
+    matches <- rep(TRUE, nrow(df))
+    for (col in names(selector)) {
+      value <- selector[[col]]
+      if (length(value) != 1L) stop("Identity selector values must be scalar.", call. = FALSE)
+      matches <- matches & if (is.na(value)) is.na(df[[col]]) else !is.na(df[[col]]) & df[[col]] == value
+    }
+    rows <- which(matches)
+    if (length(rows) != 1L) stop("Identity selector must match exactly one source row.", call. = FALSE)
+    i <- rows[1]
+    required <- c("action", "scope", "conflict", "reason", "evidence_reference", "evidence_fingerprint")
+    if (any(vapply(required, function(key) length(decision[[key]]) != 1L ||
+                   is.na(decision[[key]]) || !nzchar(trimws(decision[[key]])), logical(1)))) {
+      stop("Identity decisions require action, scope, conflict, reason and evidence reference/fingerprint.", call. = FALSE)
+    }
+    if (!decision$action %in% c("accept", "retain_unresolved") ||
+        !decision$scope %in% c("substance", "registered_mixture", "aggregate", "class", "unknown") ||
+        !decision$conflict %in% c("none", "scope", "source_name_cas")) {
+      stop("Invalid identity decision action, scope or conflict.", call. = FALSE)
+    }
+    before <- identity_evidence_fingerprint(df, i)
+    if (!identical(before, decision$evidence_fingerprint)) stop("Identity decision evidence changed.", call. = FALSE)
+    membership <- "not_requested"
+    if (decision$action == "accept") {
+      id <- decision$selected_dtxsid
+      if (!decision$scope %in% c("substance", "registered_mixture") || decision$conflict != "none" ||
+          !isTRUE(decision$correspondence) || length(id) != 1L || is.na(id) || !grepl("^DTXSID[0-9]+$", id)) {
+        stop("Acceptance requires resolved scope/conflict, an ID and explicit source correspondence.", call. = FALSE)
+      }
+      validation <- validate_manual_dtxsids(id)
+      if (nrow(validation) != 1L || !isTRUE(validation$is_valid[1]) ||
+          !identical(as.character(validation$dtxsid[1]), id)) {
+        stop("Authoritative membership invalid or unavailable; identity remains provisional.", call. = FALSE)
+      }
+      membership <- "valid"
+      df$consensus_dtxsid[i] <- id
+      df$consensus_status[i] <- "manual"
+      df$consensus_source[i] <- "identity_decision"
+      df$.resolution_method[i] <- "manual"
+      df$.pinned[i] <- TRUE
+    }
+    for (col in c("identity_scope", "identity_conflict", "identity_decision_fingerprint", "identity_decision_record")) {
+      if (!col %in% names(df)) df[[col]] <- NA_character_
+    }
+    if (!"identity_scope_reviewed" %in% names(df)) df$identity_scope_reviewed <- FALSE
+    df$identity_scope[i] <- decision$scope
+    df$identity_conflict[i] <- decision$conflict
+    df$identity_scope_reviewed[i] <- TRUE
+    applied <- identity_evidence_fingerprint(df, i)
+    record <- c(decision, list(version = "1", membership = membership, applied_fingerprint = applied))
+    df$identity_decision_fingerprint[i] <- applied
+    df$identity_decision_record[i] <- as.character(jsonlite::toJSON(record, auto_unbox = TRUE, null = "null"))
+  }
+  df$identity_decision_current <- identity_decision_current_rows(df)
+  state$resolution_state <- df
+  state$identity_decisions <- identity_decisions
+  state
+}
