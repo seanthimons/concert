@@ -104,3 +104,50 @@ test_that("current source correspondence decisions survive workbook and reject c
   expect_false(identity_review_state(restored)$identity_eligible)
   expect_match(identity_review_state(restored)$identity_blockers, "source_identifier_unavailable")
 })
+
+test_that("generic manual source-ID recovery cannot replace scoped correspondence review", {
+  local_mocked_bindings(validate_manual_dtxsids = function(dtxsids, ...) {
+    tibble::tibble(dtxsid = dtxsids, is_valid = TRUE)
+  })
+  df <- source_policy_fixture()
+  df$dtxsid_name <- df$dtxsid_cas <- NA_character_
+  df$lookup_evidence_columns <- "dtxsid_name;dtxsid_cas"
+  df$consensus_status <- "manual"
+  df$consensus_source <- "manual_entry"
+  df$.manual_entry <- TRUE
+  df$.pinned <- TRUE
+  df$.resolution_method <- "manual"
+  expect_false(identity_review_state(df)$identity_eligible)
+  expect_match(identity_review_state(df)$identity_blockers, "source_correspondence_unconfirmed")
+  expect_identical(df$source_id_source_id_validation_status, "validated")
+  expect_identical(df$consensus_dtxsid, "DTXSID123")
+
+  # A user-entered raw column with the reserved ID prefix is not an owned lookup.
+  df$dtxsid_source_metadata <- "DTXSID123"
+  expect_false(identity_review_state(df)$identity_eligible)
+  unregistered <- df
+  unregistered$lookup_evidence_columns <- NULL
+  expect_false(identity_review_state(unregistered)$identity_eligible)
+  df$row_flag <- "VERIFIED"
+  expect_false(identity_review_state(df)$identity_eligible)
+  spoofed <- df
+  spoofed$source_id_source_id_identity_status <- "identity_confirmed"
+  expect_false(identity_review_state(spoofed)$identity_eligible)
+
+  resolved <- apply_identity_decisions(list(resolution_state = df), list(source_policy_decision(df)))$resolution_state
+  expect_true(identity_review_state(resolved)$identity_eligible)
+  expect_identical(resolved$source_id, df$source_id)
+  expect_identical(resolved$source_id_source_id_identity_status, "identity_unconfirmed")
+})
+
+test_that("manual selection preserves independent registered lookup support and provenance", {
+  df <- source_policy_fixture()
+  df$lookup_evidence_columns <- "dtxsid_name;dtxsid_cas"
+  df$consensus_status <- "manual"
+  df$consensus_source <- "manual_entry"
+  df$.manual_entry <- TRUE
+  expect_true(identity_review_state(df)$identity_eligible)
+  expect_identical(df$source_id_source_id_identity_status, "identity_unconfirmed")
+  df$source_tier_name <- df$source_tier_cas <- "manual_entry"
+  expect_false(identity_review_state(df)$identity_eligible)
+})

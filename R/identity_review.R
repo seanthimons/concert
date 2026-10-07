@@ -28,8 +28,30 @@ identity_scope_blockers <- function(df) {
 source_identity_blockers <- function(df) {
   n <- nrow(df)
   out <- list(invalid = rep(FALSE, n), unavailable = rep(FALSE, n),
-              ambiguous = rep(FALSE, n), conflict = rep(FALSE, n), scope = rep(FALSE, n))
+              ambiguous = rep(FALSE, n), conflict = rep(FALSE, n), scope = rep(FALSE, n),
+              correspondence = rep(FALSE, n))
   resolved <- identity_decision_current_rows(df)
+  selected <- identity_col(df, "consensus_dtxsid")
+  manual <- identity_col(df, ".manual_entry", FALSE) %in% TRUE |
+    identity_col(df, "consensus_status") %in% "manual" |
+    identity_col(df, "consensus_source") %in% c("manual_entry", "source_dtxsid") |
+    identity_col(df, ".resolution_method") %in% c("manual", "user-pick", "bulk-accept")
+  # A generic manual entry is not a source-correspondence decision. Only lookup
+  # columns owned by the pipeline can establish independent supporting evidence;
+  # generic dtxsid_* detection would let raw metadata bypass this gate.
+  supported <- rep(FALSE, n)
+  if ("lookup_evidence_columns" %in% names(df)) {
+    for (i in which(manual & !is.na(selected))) {
+      cols <- find_dtxsid_cols(df[i, , drop = FALSE])
+      cols <- setdiff(cols, find_wqx_evidence_only_cols(df, cols, i))
+      for (col in cols) {
+        tier <- identity_col(df, source_field_column(col, "source_tier"))[i]
+        if (!is.na(tier) && tier %in% c("manual", "manual_entry", "source_metadata")) next
+        value <- df[[col]][i]
+        if (!is.na(value) && identical(as.character(value), as.character(selected[i]))) supported[i] <- TRUE
+      }
+    }
+  }
   stems <- unique(sub("_(validation_status|identity_status)$", "",
     grep("^source_id_.*_(validation_status|identity_status)$", names(df), value = TRUE)))
   for (stem in stems) {
@@ -45,6 +67,9 @@ source_identity_blockers <- function(df) {
       !status %in% c("validated", "invalid_format", "not_found", "returned_id_mismatch", "ambiguous")))
     out$conflict <- out$conflict | (!resolved & identity %in% "identity_conflict")
     out$scope <- out$scope | (!resolved & identity %in% "scope_review")
+    matching_source <- !is.na(candidate) & !is.na(selected) &
+      normalize_source_dtxsid(candidate) == as.character(selected)
+    out$correspondence <- out$correspondence | (active & matching_source & manual & !supported)
   }
   out
 }
@@ -82,7 +107,8 @@ identity_review_state <- function(df) {
     source_identifier_unavailable = source$unavailable,
     source_identifier_ambiguous = source$ambiguous,
     source_identity_conflict = source$conflict,
-    source_identity_scope = source$scope
+    source_identity_scope = source$scope,
+    source_correspondence_unconfirmed = source$correspondence
   )
   text <- rep("", n)
   for (key in names(blockers)) {
