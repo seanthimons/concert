@@ -6,6 +6,10 @@ template:
 
 destination: docs/site
 
+news:
+  # Releases are published on GitHub; do not query CRAN for release dates.
+  cran_dates: false
+
 navbar:
   structure:
     left: [intro, articles, reference, news]
