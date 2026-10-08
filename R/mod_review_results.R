@@ -1438,7 +1438,10 @@ derive_default_visible_review_columns <- function(
   tagged_col_names <- clean_column_names(names(column_tags %||% character(0)))
 
   untagged_upload_cols <- setdiff(upload_col_names[upload_col_names %in% df_names], tagged_col_names)
-  unique(c(setdiff(choices, untagged_upload_cols), review_required_visible_cols(df_names)))
+  # Detailed query records remain available on demand and in exports. Showing
+  # long JSON records by default makes ordinary source rows difficult to read.
+  detail_cols <- intersect(c("resolver_query_details", "pubchem_query_details"), choices)
+  unique(c(setdiff(choices, c(untagged_upload_cols, detail_cols)), review_required_visible_cols(df_names)))
 }
 
 reconcile_visible_review_columns <- function(

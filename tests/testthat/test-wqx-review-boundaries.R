@@ -96,3 +96,12 @@ test_that("WQX evidence reaches source review controls without raw metadata prom
   df$dtxsid_lookup_chemical_name <- NA_character_
   expect_equal(nrow(normalize_review_candidates(df)), 0)
 })
+
+test_that("query records remain selectable without expanding default review rows", {
+  fields <- c("name", "wqx_cas", "resolver_query_details", "pubchem_query_details", "Resolution")
+  visible <- derive_default_visible_review_columns("name", c(name = "Name"), fields)
+  expect_false(any(c("resolver_query_details", "pubchem_query_details") %in% visible))
+  expect_true(all(c("name", "wqx_cas", "Resolution") %in% visible))
+  expect_true(all(c("resolver_query_details", "pubchem_query_details") %in%
+    derive_review_column_choices("name", fields)))
+})
