@@ -1,38 +1,66 @@
 
 
-## concert (development version)
 
-- Continue WQX canonical-name and dictionary-CAS lookups as attributed review
-  candidates, retaining original queries, lookup failures, ties and source lineage
-  (#82). Vocabulary matches require review; explicit scoped acceptance remains
-  separate from registry membership. Workbook import and replay preserve the
-  captured evidence and acknowledgments.
+## concert 0.6.0 (2026-10-08)
 
-- Validate complete PubChem CID/DTXSID pairs; empty or malformed synonyms retain
-  NA candidates and successful CID hits (#88).
-- Add one immutable scoped decision-evidence contract with revision-bound
-  acknowledgments, selected-identity reconciliation, candidate validation reports,
-  and lossless replay/workbook persistence (#84/#85). Legacy flags report missing
-  historical baselines; flags and reasons are never inferred or cleared.
-- Add accepted-identity views and an Accepted Identities workbook sheet (#87).
-  Explicit scope/conflict decisions support registered mixtures; split component
-  CAS values remain provisional until correspondence is reviewed. Headless ToxVal
-  supports `toxval_identity_mode = "accepted"` without raw-ID fallback and retains
-  measurement rows. Existing lookup export defaults remain compatible.
-- Add explicit Source DTXSID evidence, authoritative validation outcomes,
-  unused-column warnings and deliberate metadata ignores (#86). Raw `dtxsid_*`
-  input cannot vote in lookup consensus. Membership, source correspondence and
-  accepted identity remain distinct; source-only manual recovery requires a
-  current scoped decision. Transport failure is distinct from definitive absence.
-- Separate queue, reconciliation and identity-review completion diagnostics.
-  GUI flag actions record actual decision-time evidence and display source
-  validation and acceptance blockers. Row-review dialogs also record scoped
-  source correspondence or retained unresolved decisions, with exact source
-  targeting, membership checks, immutable evidence and portable replay.
+#### New features
 
-- Reopen VERIFIED rows whose current identity is unresolved (#83), retaining prior
-  flags, reasons, and tie evidence. Explicit FOLLOW-UP/BAD dispositions and reviewed
-  WQX canonical names remain outside the ordinary pending queue.
+- add scoped chemical identity review and acceptance
+  ([28c9435](https://github.com/seanthimons/concert/tree/28c94357562d18af226ecc1abf2c3181e4df618d))
+
+#### Bug fixes
+
+- leave conflicting WQX aliases unresolved
+  ([bca9279](https://github.com/seanthimons/concert/tree/bca927960fdd43e0b1f341a3a37d89c774d3eec5))
+- keep raw WQX metadata out of candidate queries
+  ([ba6dd25](https://github.com/seanthimons/concert/tree/ba6dd250222280cb573c8242b285fa646ca835d9))
+- keep detailed query records optional in the review table
+  ([5a477ad](https://github.com/seanthimons/concert/tree/5a477adb909b58787295349356d6177c35f41ae6))
+- require WQX review and preserve scoped evidence across replay
+  ([53ff65a](https://github.com/seanthimons/concert/tree/53ff65a27ec5ce86f3949c14467439185c7dddda))
+- continue original and canonical WQX candidate queries
+  ([faa5577](https://github.com/seanthimons/concert/tree/faa5577937899e78243a99d7015b0f53fd04bd6e))
+- continue WQX CAS lookup as attributed review candidates
+  ([dcc0161](https://github.com/seanthimons/concert/tree/dcc0161606007661cc64515c599d12fe3e822274))
+- retain canonical WQX CAS evidence without choosing ties
+  ([262cf7e](https://github.com/seanthimons/concert/tree/262cf7eb54a23e5f812f6498fda497c958193b0d))
+- make review UI strings and release archive portable
+  ([4028a86](https://github.com/seanthimons/concert/tree/4028a8663d662bfd7d1092ccf3c7794dd34ea952))
+- preserve pinned manifest bytes and repair CAS assertion
+  ([a3c3dad](https://github.com/seanthimons/concert/tree/a3c3dad560f6d4f5e502dcd4d9d7a7fb547148cc))
+
+#### Tests
+
+- cover WQX candidate boundaries in locked CI
+  ([7fb2b60](https://github.com/seanthimons/concert/tree/7fb2b60633610af5ea004dd73aa7e21640b719ec))
+- exercise WQX source decisions in the actual app
+  ([0d0b439](https://github.com/seanthimons/concert/tree/0d0b439821ab79548e14844cca1a5bf669263f75))
+
+#### CI
+
+- restore locked packages directly on disposable runners
+  ([3f6a9aa](https://github.com/seanthimons/concert/tree/3f6a9aa99b9efdc8edb139e61a9ae136d878a71a))
+- make cross-platform package checks opt-in
+  ([414a00d](https://github.com/seanthimons/concert/tree/414a00d9d6250e85a902185d4d94288b1effeb84))
+
+#### Docs
+
+- record audit regressions and crash recovery
+  ([9abd197](https://github.com/seanthimons/concert/tree/9abd19772fb5c410b1a1a8306115b1b9e2ce91a8))
+- record WQX implementation checks and release pause
+  ([aa5ef4a](https://github.com/seanthimons/concert/tree/aa5ef4ae3dc4ca2f12206e57bcd51a4712bd7a9a))
+- illustrate WQX evidence review and repair NEWS publishing
+  ([3788b86](https://github.com/seanthimons/concert/tree/3788b86be324695419c54c1bbc60f04b155c1b03))
+- index identity review APIs for pkgdown
+  ([8cee4b2](https://github.com/seanthimons/concert/tree/8cee4b23e720dc386e9d1028d8a47e6a491308df))
+
+#### Other changes
+
+- bump version to 0.6.0 \[skip ci\]
+  ([84516a5](https://github.com/seanthimons/concert/tree/84516a5b1b9798912790b780f83ddf5f44e736c1))
+
+Full set of changes:
+[`v0.5.3...v0.6.0`](https://github.com/seanthimons/concert/compare/v0.5.3...v0.6.0)
 
 ## concert 0.5.3 (2026-10-06)
 
@@ -48,6 +76,8 @@
 
 #### Docs
 
+- update NEWS.md for v0.5.3 \[skip ci\]
+  ([33c775e](https://github.com/seanthimons/concert/tree/33c775e843c7dbe85b2201ebe07ccd840487f8af))
 - app walkthrough article and README installation cleanup (#80)
   ([bb8cc3d](https://github.com/seanthimons/concert/tree/bb8cc3d9ced8b748d4b449dbc01e29052666c308))
 - merge pkgdown site and usage vignettes (#65)
