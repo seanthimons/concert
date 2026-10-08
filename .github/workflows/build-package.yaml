@@ -8,53 +8,5 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
-    env:
-      GITHUB_PAT: ${{ github.token }}
-      RENV_CONFIG_AUTOLOADER_ENABLED: 'false'
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-
-      - name: Set up R
-        uses: r-lib/actions/setup-r@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2
-        with:
-          r-version: release
-          use-public-rspm: true
-
-      - name: Set up pandoc
-        uses: r-lib/actions/setup-pandoc@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2
-
-      - name: Install package dependencies
-        uses: r-lib/actions/setup-r-dependencies@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2
-
-      - name: Read package metadata
-        id: metadata
-        shell: bash
-        run: |
-          package="$(Rscript -e "cat(read.dcf('DESCRIPTION', fields = 'Package')[1, 'Package'])")"
-          version="$(Rscript -e "cat(read.dcf('DESCRIPTION', fields = 'Version')[1, 'Version'])")"
-          echo "package=$package" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      - name: Build source package
-        id: build
-        env:
-          PACKAGE: ${{ steps.metadata.outputs.package }}
-          VERSION: ${{ steps.metadata.outputs.version }}
-        shell: bash
-        run: |
-          R CMD build .
-          tarball="${PACKAGE}_${VERSION}.tar.gz"
-          test -f "$tarball"
-          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
-
-      - name: Upload source package
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: ${{ steps.metadata.outputs.package }}-${{ steps.metadata.outputs.version }}-source
-          path: ${{ steps.build.outputs.tarball }}
-          if-no-files-found: error
-          retention-days: 14
+    name: Build package
+    uses: seanthimons/baseline/.github/workflows/build-package.yaml@733a6e4554870ab2fa8dd7495fa67bea029bb38c # v1.3.0

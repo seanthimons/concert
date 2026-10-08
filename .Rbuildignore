@@ -20,6 +20,7 @@
 ^PW_.*$
 ^tmp_.*$
 ^air\.toml$
+^\.gitleaks\.toml$
 ^uncurated_.*$
 ^comptoxr_sitrep.*$
 ^PRE_POST_CURATION_PLAN\.md$
