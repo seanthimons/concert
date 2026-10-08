@@ -1,29 +1,24 @@
-name: Gitleaks Secret Scan
+name: Gitleaks
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: "23 6 * * 1"
   workflow_dispatch:
 
 permissions:
   contents: read
-  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   gitleaks:
-    if: github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-    name: Detect secrets
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-        with:
-          fetch-depth: 0
-
-      - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    name: Gitleaks
+    uses: seanthimons/baseline/.github/workflows/gitleaks.yaml@733a6e4554870ab2fa8dd7495fa67bea029bb38c # v1.3.0
+    secrets:
+      GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
