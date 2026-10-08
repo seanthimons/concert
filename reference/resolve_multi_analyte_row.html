@@ -39,7 +39,7 @@ for the headless path and existing callers."><meta property="og:image" content="
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Resolve one flagged multi-analyte row</h1>
-      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/v0.6.0/R/cleaning_pipeline.R" class="external-link"><code>R/cleaning_pipeline.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/main/R/cleaning_pipeline.R" class="external-link"><code>R/cleaning_pipeline.R</code></a></small>
       <div class="d-none name"><code>resolve_multi_analyte_row.Rd</code></div>
     </div>
 
@@ -50,7 +50,14 @@ for the headless path and existing callers.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">resolve_multi_analyte_row</span><span class="op">(</span><span class="va">df</span>, <span class="va">name_cols</span>, <span class="va">row_index</span>, <span class="va">action</span>, values <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">resolve_multi_analyte_row</span><span class="op">(</span></span>
+<span>  <span class="va">df</span>,</span>
+<span>  <span class="va">name_cols</span>,</span>
+<span>  <span class="va">row_index</span>,</span>
+<span>  <span class="va">action</span>,</span>
+<span>  values <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  cas_cols <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="fl">0</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -76,6 +83,11 @@ for the headless path and existing callers.</p>
 <dt id="arg-values">values<a class="anchor" aria-label="anchor" href="#arg-values"></a></dt>
 <dd><p>Split parts or rename value. For split, NULL uses
 <code><a href="suggest_multi_analyte_parts.html">suggest_multi_analyte_parts()</a></code> on the selected Name value.</p></dd>
+
+
+<dt id="arg-cas-cols">cas_cols<a class="anchor" aria-label="anchor" href="#arg-cas-cols"></a></dt>
+<dd><p>CASRN-tagged column names. CAS values are left unchanged, but
+a repeated source CAS is recorded and requires component review.</p></dd>
 
 </dl></div>
     <div class="section level2">
