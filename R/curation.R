@@ -381,8 +381,10 @@ search_starts_with <- function(missed_names) {
 #' Validate CAS numbers and lookup DTXSID for valid ones
 #'
 #' @param unique_cas Character vector of CAS-like strings
+#' @param preserve_candidates Keep all lookup hits and explicit lookup outcomes
+#'   for provisional review evidence instead of choosing the best-ranked hit.
 #' @return Tibble with original_cas, validated_cas, is_valid, dtxsid, preferredName
-validate_and_lookup_cas <- function(unique_cas) {
+validate_and_lookup_cas <- function(unique_cas, preserve_candidates = FALSE) {
   empty_result <- tibble::tibble(
     original_cas = character(0),
     validated_cas = character(0),
@@ -415,6 +417,8 @@ validate_and_lookup_cas <- function(unique_cas) {
     rank = NA_integer_
   )
 
+  if (preserve_candidates) result$lookup_status <- ifelse(result$is_valid %in% TRUE, "not_found", "invalid")
+
   # Lookup DTXSID for valid CAS numbers
   valid_cas_values <- result$validated_cas[!is.na(result$validated_cas) & result$is_valid]
 
@@ -423,6 +427,11 @@ validate_and_lookup_cas <- function(unique_cas) {
       {
         message(sprintf("Looking up DTXSID for %d valid CAS numbers...", length(valid_cas_values)))
         cas_lookup <- ComptoxR::ct_chemical_search_equal_bulk(valid_cas_values)
+        if (preserve_candidates && (!is.data.frame(cas_lookup) ||
+          !any(grepl("^search.?value$", names(cas_lookup), ignore.case = TRUE)) ||
+          !any(grepl("^dtxsid$", names(cas_lookup), ignore.case = TRUE)))) {
+          result$lookup_status[result$is_valid %in% TRUE] <- "unavailable"
+        }
 
         if (!is.null(cas_lookup) && nrow(cas_lookup) > 0) {
           # Extract relevant columns
@@ -440,10 +449,11 @@ validate_and_lookup_cas <- function(unique_cas) {
               looked_up_rank = if (length(rk_col) > 0) as.integer(cas_lookup[[rk_col[1]]]) else NA_integer_
             )
 
-            # Keep lowest rank (top result) per CAS
-            lookup_map <- lookup_map |>
-              dplyr::arrange(looked_up_rank) |>
-              dplyr::distinct(validated_cas, .keep_all = TRUE)
+            # Primary lookup retains one best hit; WQX evidence retains every hit.
+            lookup_map <- lookup_map |> dplyr::arrange(looked_up_rank)
+            if (!preserve_candidates) {
+              lookup_map <- dplyr::distinct(lookup_map, validated_cas, .keep_all = TRUE)
+            }
 
             result <- result |>
               dplyr::left_join(lookup_map, by = "validated_cas") |>
@@ -453,10 +463,14 @@ validate_and_lookup_cas <- function(unique_cas) {
                 rank = looked_up_rank
               ) |>
               dplyr::select(-looked_up_dtxsid, -looked_up_name, -looked_up_rank)
+            if (preserve_candidates) result$lookup_status[!is.na(result$dtxsid)] <- "candidate"
+          } else if (preserve_candidates) {
+            result$lookup_status[result$is_valid %in% TRUE] <- "unavailable"
           }
         }
       },
       error = function(e) {
+        if (preserve_candidates) result$lookup_status[result$is_valid %in% TRUE] <<- "unavailable"
         message(sprintf("  Warning: CAS DTXSID lookup failed: %s", e$message))
       }
     )
@@ -616,6 +630,11 @@ run_tiered_search <- function(dedup_result) {
 #' @return Original df with lookup columns joined back
 map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved = NULL) {
   input_rows <- nrow(df)
+  wqx_fields <- intersect(wqx_candidate_fields(), names(lookup_results))
+  # Reserve the entire owned WQX namespace even when this run has no WQX
+  # matches. Otherwise raw input fields could share the generated ID suffix
+  # and be mistaken for attributed vocabulary evidence by downstream readers.
+  reserved_fields <- c("dtxsid", wqx_candidate_fields())
 
   # Build a fast lookup table: searchValue -> best result
   # Prefer resolved rows (non-NA dtxsid or preferredName) over unresolved, then lowest rank
@@ -645,9 +664,9 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
   generated_suffix <- stats::setNames(character(length(tag_cols)), tag_cols)
   for (col in tag_cols) {
     suffix <- if (length(tag_cols) == 1L) "" else paste0("_", col)
-    if (paste0("dtxsid", suffix) %in% names(df)) {
+    if (any(paste0(reserved_fields, suffix) %in% names(df))) {
       suffix <- paste0("_lookup_", col)
-      while (paste0("dtxsid", suffix) %in% names(df)) suffix <- paste0(suffix, "_lookup")
+      while (any(paste0(reserved_fields, suffix) %in% names(df))) suffix <- paste0(suffix, "_lookup")
     }
     generated_suffix[[col]] <- suffix
     generated <- c(generated, paste0("dtxsid", suffix))
@@ -667,6 +686,10 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
     tier_vec <- rep(NA_character_, input_rows)
     wqx_conf_vec <- rep(NA_real_, input_rows)
     tied_vec <- rep(NA_character_, input_rows)
+    wqx_vectors <- lapply(wqx_fields, function(field) {
+      if (is.numeric(lookup_deduped[[field]])) rep(NA_real_, input_rows) else rep(NA_character_, input_rows)
+    })
+    names(wqx_vectors) <- wqx_fields
 
     # Fill in results by direct index lookup
     for (i in seq_len(nrow(col_keys))) {
@@ -680,6 +703,7 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
         search_vec[ridx] <- lookup_deduped$searchName[match_pos]
         rank_vec[ridx] <- lookup_deduped$rank[match_pos]
         tier_vec[ridx] <- lookup_deduped$source_tier[match_pos]
+        for (field in wqx_fields) wqx_vectors[[field]][ridx] <- lookup_deduped[[field]][match_pos]
         if ("wqx_confidence" %in% names(lookup_deduped)) {
           wqx_conf_vec[ridx] <- lookup_deduped$wqx_confidence[match_pos]
         }
@@ -688,6 +712,8 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
         }
       }
     }
+
+    for (field in wqx_fields) df[[paste0(field, generated_suffix[[col]])]] <- wqx_vectors[[field]]
 
     # Assign columns to df (no joins - row count cannot change)
     if (identical(generated_suffix[[col]], "")) {
@@ -765,6 +791,14 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
 #' @param original_data Optional input rows used for the original name lookup.
 #' @param ignored_identifier_cols Deliberately unused identifier metadata columns.
 #' @param source_lookup_fn Injectable authoritative source DTXSID details lookup.
+#' @param wqx_cas_lookup_fn Injectable CAS lookup for canonical WQX dictionary
+#'   evidence. Receives deduplicated valid CAS values and returns original_cas
+#'   (or validated_cas), dtxsid, preferredName, and optional lookup_status. All
+#'   hits remain review candidates; no candidate is selected or accepted.
+#'   Statuses distinguish candidate, not_found, unavailable, missing, invalid,
+#'   and ambiguous dictionary evidence. Independent of `pubchem`. Mapped
+#'   `wqx_match_distance` is lossless 17-digit decimal text for portable evidence
+#'   fingerprints; the matcher's `match_distance` remains numeric.
 #' @return List with results, dedup_summary, search_summary, consensus_summary
 #' @export
 run_curation_pipeline <- function(
@@ -778,7 +812,8 @@ run_curation_pipeline <- function(
   original_data = NULL,
   desalt = FALSE,
   ignored_identifier_cols = character(),
-  source_lookup_fn = source_identifier_lookup
+  source_lookup_fn = source_identifier_lookup,
+  wqx_cas_lookup_fn = validate_and_lookup_cas
 ) {
   validate_source_identifier_config(clean_data, column_tags, ignored_identifier_cols)
   source_tags <- column_tags
@@ -919,6 +954,7 @@ run_curation_pipeline <- function(
               NA_real_
             )
           )
+          wqx_rows <- dplyr::bind_cols(wqx_rows, wqx_dictionary_candidates(wqx_resolved, wqx_cas_lookup_fn))
           all_results[[length(all_results) + 1]] <- wqx_rows
         }
 

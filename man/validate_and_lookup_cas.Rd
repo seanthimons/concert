@@ -4,10 +4,13 @@
 \alias{validate_and_lookup_cas}
 \title{Validate CAS numbers and lookup DTXSID for valid ones}
 \usage{
-validate_and_lookup_cas(unique_cas)
+validate_and_lookup_cas(unique_cas, preserve_candidates = FALSE)
 }
 \arguments{
 \item{unique_cas}{Character vector of CAS-like strings}
+
+\item{preserve_candidates}{Keep all lookup hits and explicit lookup outcomes
+for provisional review evidence instead of choosing the best-ranked hit.}
 }
 \value{
 Tibble with original_cas, validated_cas, is_valid, dtxsid, preferredName

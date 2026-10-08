@@ -100,6 +100,12 @@ jobs:
           )
           an$generate()
           an$write(force = TRUE)
+          # Use headings understood by pkgdown's NEWS parser.
+          news <- readLines("NEWS.md")
+          news <- news[news != "# concert NEWS"]
+          news[news == "## Development"] <- "## concert (development version)"
+          news <- sub("^## v([0-9])", "## concert \\1", news)
+          writeLines(news, "NEWS.md")
 
       - name: Commit NEWS.md and finalize tag
         env:
