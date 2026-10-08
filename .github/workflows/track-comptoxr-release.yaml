@@ -23,24 +23,35 @@ on:
     types: [comptoxr-release]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+
+concurrency:
+  group: track-comptoxr-release
+  cancel-in-progress: false
 
 jobs:
   track-release:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
     env:
-      GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
       UPSTREAM: seanthimons/ComptoxR
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Determine latest stable release and current pin
         id: check
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           latest="$(gh api "repos/${UPSTREAM}/releases/latest" --jq .tag_name)"
-          current="$(sed -nE 's#.*seanthimons/ComptoxR@([^[:space:]]+).*#\1#p' DESCRIPTION)"
+          current="$(sed -nE 's#.*seanthimons/ComptoxR@([^[:space:],]+).*#\1#p' DESCRIPTION)"
           echo "latest=${latest}" >> "$GITHUB_OUTPUT"
           echo "current=${current}" >> "$GITHUB_OUTPUT"
           if [ -n "${latest}" ] && [ "${latest}" != "${current}" ]; then
@@ -53,26 +64,28 @@ jobs:
       - name: Open bump PR
         if: steps.check.outputs.changed == 'true'
         env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
           LATEST: ${{ steps.check.outputs.latest }}
           CURRENT: ${{ steps.check.outputs.current }}
         run: |
           set -euo pipefail
           branch="chore/comptoxr-${LATEST}"
 
-          # Skip if a PR for this bump is already open.
-          if [ -n "$(gh pr list --head "${branch}" --state open --json number --jq '.[].number')" ]; then
-            echo "PR for ${branch} already open; nothing to do."
+          # Skip if a PR for this bump is open, or was closed without merging.
+          if [ -n "$(gh pr list --head "${branch}" --state all --json number --jq '.[].number')" ]; then
+            echo "PR for ${branch} already exists; nothing to do."
             exit 0
           fi
 
-          sed -i -E "s#(seanthimons/ComptoxR@)[^[:space:]]+#\1${LATEST}#" DESCRIPTION
+          sed -i -E "s#(seanthimons/ComptoxR@)[^[:space:],]+#\1${LATEST}#" DESCRIPTION
 
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "${branch}"
           git add DESCRIPTION
           git commit -m "build(deps): bump ComptoxR pin to ${LATEST}"
-          git push -f -u origin "${branch}"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force-with-lease -u origin "${branch}"
 
           body="$(printf 'Automated by `track-comptoxr-release`.\n\nComptoxR published stable release **%s** (current pin: `%s`).\nThis updates `Remotes: seanthimons/ComptoxR@%s` in DESCRIPTION.\n\nReview R-CMD-check, then merge to adopt. The `Imports` floor is left unchanged.' "${LATEST}" "${CURRENT}" "${LATEST}")"
 
