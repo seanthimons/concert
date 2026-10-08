@@ -131,15 +131,21 @@ match_wqx <- function(names, dictionary, threshold = 0.85, verbose = FALSE) {
   # Tier 2: alias rows (synonym, standardize, retired)
   alias_rows <- dictionary[dictionary$type %in% c("synonym", "standardize", "retired"), ]
 
-  # Deduplicate alias keys: prioritize standardize > synonym > retired,
-  # then keep first row per normalized name
+  # Alias type precedence remains standardize > synonym > retired. Equal
+  # highest-priority rows must agree on the normalized canonical target; an
+  # arbitrary first row must not choose either a vocabulary name or its CAS.
   alias_type_priority <- c("standardize" = 1L, "synonym" = 2L, "retired" = 3L)
-  alias_rows <- alias_rows[order(alias_type_priority[alias_rows$type]), ]
-  alias_rows <- dplyr::distinct(
-    dplyr::mutate(alias_rows, .lower_name = normalize_wqx_key(alias_rows$name)),
-    .lower_name,
-    .keep_all = TRUE
-  )
+  alias_rows$.lower_name <- normalize_wqx_key(alias_rows$name)
+  alias_priorities <- alias_type_priority[alias_rows$type]
+  alias_groups <- split(seq_len(nrow(alias_rows)), alias_rows$.lower_name)
+  ambiguous_aliases <- vapply(alias_groups, function(rows) {
+    highest <- rows[alias_priorities[rows] == min(alias_priorities[rows])]
+    length(unique(normalize_wqx_key(alias_rows$canonical_name[highest]))) > 1L
+  }, logical(1))
+  ambiguous_alias_keys <- names(alias_groups)[ambiguous_aliases]
+  alias_rows <- alias_rows[order(alias_priorities), ]
+  alias_rows <- alias_rows[!alias_rows$.lower_name %in% ambiguous_alias_keys, ]
+  alias_rows <- dplyr::distinct(alias_rows, .lower_name, .keep_all = TRUE)
 
   # O(1) named-vector maps
   tier1_map <- stats::setNames(canonical_rows$name, normalize_wqx_key(canonical_rows$name))
@@ -162,7 +168,10 @@ match_wqx <- function(names, dictionary, threshold = 0.85, verbose = FALSE) {
   tier2_hits <- tier2_map[names_clean[unresolved_idx]]
   tier2_types <- tier2_type_map[names_clean[unresolved_idx]]
   tier2_resolved <- unresolved_idx[!is.na(tier2_hits)]
-  still_unresolved_idx <- unresolved_idx[is.na(tier2_hits)]
+  # Ambiguous aliases remain unresolved rather than escaping their tie through
+  # a fuzzy match to one of the competing canonical names.
+  still_unresolved_idx <- unresolved_idx[is.na(tier2_hits) &
+    !names_clean[unresolved_idx] %in% ambiguous_alias_keys]
 
   if (length(tier2_resolved) > 0) {
     resolved_hits <- tier2_hits[!is.na(tier2_hits)]
