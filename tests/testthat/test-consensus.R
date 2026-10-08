@@ -1542,3 +1542,17 @@ test_that("VERIFIED decisions require a current identity and preserve reviewed W
   expect_false(verified_unresolved_rows(data.frame(name = "Unknown")))
   expect_true(verified_unresolved_rows(data.frame(row_flag = "VERIFIED")))
 })
+
+test_that("explicitly accepted suggestions are not reopened as verified_unresolved (#92)", {
+  methods <- c("bulk-accept", "manual", "user-pick", NA, "bulk-accept", "bulk-accept", "bulk-accept")
+  state <- tibble::tibble(
+    row_flag = "VERIFIED",
+    consensus_status = c(rep("suggested", 6), "disagree"),
+    consensus_dtxsid = c(rep("DTXSID4022315", 4), NA, "not-an-id", "DTXSID4022315"),
+    .pinned = c(TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE),
+    .resolution_method = methods
+  )
+  expect_equal(verified_unresolved_rows(state), c(FALSE, FALSE, FALSE, TRUE, TRUE, TRUE, TRUE))
+  state$.pinned <- FALSE
+  expect_true(all(verified_unresolved_rows(state)))
+})
