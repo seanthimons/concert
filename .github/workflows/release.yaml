@@ -1,6 +1,20 @@
 name: Release
 
 on:
+  # Merges to main cut a patch release unless they only touch docs, site or CI.
+  # The workflow's own bump/NEWS commits carry [skip ci], so they do not retrigger it.
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'pkgdown/**'
+      - '_pkgdown.yml'
+      - 'vignettes/articles/**'
+      - '.github/**'
+      - '.planning/**'
+      - '.beans/**'
+      - '.beans.yml'
+      - '**.md'
   workflow_dispatch:
     inputs:
       version_type:
@@ -23,6 +37,8 @@ jobs:
 
     env:
       GITHUB_PAT: ${{ github.token }}
+      # Push runs have no inputs; they default to a patch bump.
+      VERSION_TYPE: ${{ inputs.version_type || 'patch' }}
       RENV_CONFIG_AUTOLOADER_ENABLED: 'false'
 
     steps:
@@ -60,10 +76,10 @@ jobs:
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Bump version and document
-        if: inputs.version_type != 'none'
+        if: env.VERSION_TYPE != 'none'
         shell: Rscript {0}
         run: |
-          desc::desc_bump_version("${{ inputs.version_type }}")
+          desc::desc_bump_version(Sys.getenv("VERSION_TYPE"))
           devtools::document()
 
       - name: Read metadata and guard against existing tag
