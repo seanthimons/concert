@@ -255,3 +255,49 @@ test_that("fanning one spec to all siblings resolves each and preserves lineage"
   expect_equal(sort(cleaned$original_row_id[cleaned$analyte == "GenX Acid"]), c(1L, 2L, 3L))
   expect_equal(sort(cleaned$original_row_id[cleaned$analyte == "GenX Ammonium Salt"]), c(1L, 2L, 3L))
 })
+
+test_that("bulk staging uses per-row defaults and skips rows the action cannot apply to (#46)", {
+  df <- review_fixture()
+  cas_cols <- c("casrn", "cas_extract_casrn_2")
+
+  split <- bulk_review_specs(df, 1:2, "analyte", cas_cols, "split", "position")
+  expect_named(split$decisions, "1")
+  expect_equal(split$decisions[["1"]]$name_parts, c("HFPO Dimer Acid", "HFPO Dimer Acid Ammonium Salt"))
+  expect_equal(split$decisions[["1"]]$cas_parts, c("13252-13-6", "62037-80-3"))
+  expect_equal(split$skipped$row_index, 2L)
+  expect_match(split$skipped$reason, "at least two")
+
+  keep <- bulk_review_specs(df, 2L, "analyte", cas_cols, "keep", "position")
+  decisions <- c(split$decisions, keep$decisions)
+  out <- apply_review_resolutions(df, "analyte", decisions, cas_cols)$cleaned_data
+  expect_equal(nrow(out), 5L)
+  expect_equal(out$casrn, c("13252-13-6", "62037-80-3", "375-73-5", "45187-15-3", "67-64-1"))
+})
+
+test_that("rows without any CASRN stage and apply without error (#46)", {
+  df <- review_fixture()
+  df$casrn[1] <- NA
+  df$cas_extract_casrn_2[1] <- NA
+  for (pairing in c("position", "broadcast")) {
+    staged <- bulk_review_specs(df, 1L, "analyte", c("casrn", "cas_extract_casrn_2"), "split", pairing)
+    expect_equal(nrow(staged$skipped), 0L)
+    out <- apply_review_resolutions(df, "analyte", staged$decisions, c("casrn", "cas_extract_casrn_2"))$cleaned_data
+    expect_equal(nrow(out), 4L)
+    expect_true(all(is.na(out$casrn[1:2])))
+  }
+})
+
+test_that("Rows Needing Review stages one bulk action for every selected row (#46)", {
+  df <- review_fixture()
+  ds <- shiny::reactiveValues(clean = df, cleaned_data = df,
+    column_tags = list(analyte = "Name", casrn = "CASRN", cas_extract_casrn_2 = "CASRN"))
+  local_mocked_bindings(getReactableState = function(...) 1:2, .package = "reactable")
+  local_mocked_bindings(showNotification = function(...) invisible(), .package = "concert")
+  suppressMessages(shiny::testServer(mod_clean_data_server, args = list(data_store = ds), {
+    expect_match(as.character(output$review_editor$html), "2 rows selected", fixed = TRUE)
+    session$setInputs(bulk_name_action = "keep", bulk_pairing = "position", stage_bulk = 1)
+    expect_setequal(names(ds$review_decisions), c("1", "2"))
+    session$setInputs(apply_review = 1)
+    expect_equal(nrow(ds$cleaned_data), 5L)
+  }))
+})
