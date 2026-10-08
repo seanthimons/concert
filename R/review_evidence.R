@@ -26,6 +26,24 @@ review_evidence_fingerprint <- function(x) {
   digest::digest(review_evidence_canonical(x), algo = "sha256")
 }
 
+# Query records retain attribution/outcomes without treating response order,
+# duplicate candidates or a displayed row number as new chemical evidence.
+review_query_details <- function(raw) {
+  if (is.na(raw) || !nzchar(raw)) return(NULL)
+  records <- tryCatch(jsonlite::fromJSON(raw, simplifyVector = FALSE), error = function(e) NULL)
+  if (!is.list(records)) return(raw)
+  records <- lapply(records, function(record) {
+    if (!is.list(record)) return(record)
+    record$original_row_id <- NULL
+    for (field in intersect(c("candidates", "cids"), names(record))) {
+      record[[field]] <- sort(unique(as.character(unlist(record[[field]], use.names = FALSE))))
+    }
+    review_evidence_canonical(record)
+  })
+  keys <- vapply(records, review_evidence_fingerprint, character(1))
+  records[order(keys)]
+}
+
 #' Construct explicit source/content review scope
 #' @param df Source data frame.
 #' @param row_indices Explicit selected row indices.
@@ -57,7 +75,7 @@ normalize_review_candidates <- function(df, row_indices = seq_len(nrow(df)), sou
   add <- function(source, query, tokens, role = "candidate", paired = FALSE) {
     tokens <- review_evidence_text(tokens)
     tokens <- tokens[!is.na(tokens)]
-    tokens <- trimws(unlist(strsplit(tokens, ";", fixed = TRUE)))
+    tokens <- trimws(unlist(strsplit(tokens, "[;|]")))
     if (paired) {
       tokens <- tokens[grepl("^[1-9][0-9]*:DTXSID[0-9]+$", tokens)]
       cid <- sub(":.*$", "", tokens)
@@ -72,9 +90,32 @@ normalize_review_candidates <- function(df, row_indices = seq_len(nrow(df)), sou
     }
   }
   value <- function(col, i) if (col %in% names(df)) review_evidence_text(df[[col]][i]) else NA_character_
+  add_details <- function(source, i, paired = FALSE) {
+    raw <- value(paste0(source, "_query_details"), i)
+    details <- if (!is.na(raw)) tryCatch(jsonlite::fromJSON(raw, simplifyVector = FALSE),
+      error = function(e) NULL) else NULL
+    if (!is.list(details) || !length(details)) return(FALSE)
+    for (entry in details) {
+      if (!is.list(entry) || length(entry$query) != 1L) return(FALSE)
+      role <- if (isTRUE(entry$role == "wqx_canonical")) "vocabulary_name_candidate" else "candidate"
+      add(source, entry$query, unlist(entry$candidates, use.names = FALSE), role, paired)
+    }
+    TRUE
+  }
   for (i in row_indices) {
-    add("resolver", value("pubchem_query", i), value("resolver_dtxsid_candidate", i))
-    add("pubchem", value("pubchem_query", i), value("pubchem_dtxsid_candidates", i), paired = TRUE)
+    if (!add_details("resolver", i)) {
+      query <- value("resolver_query", i)
+      if (is.na(query)) query <- value("pubchem_query", i)
+      add("resolver", query, value("resolver_dtxsid_candidate", i))
+    }
+    if (!add_details("pubchem", i, paired = TRUE)) {
+      add("pubchem", value("pubchem_query", i), value("pubchem_dtxsid_candidates", i), paired = TRUE)
+    }
+    for (col in wqx_review_columns(df, "wqx_cas_dtxsid_candidates")) {
+      suffix <- sub("^wqx_cas_dtxsid_candidates", "", col)
+      add(paste0("wqx_cas", suffix), value(paste0("wqx_cas", suffix), i), value(col, i),
+        role = "vocabulary_cas_candidate")
+    }
     for (col in intersect(source_id_cols, names(df))) {
       add(paste0("source:", col), NA_character_, toupper(value(col, i)), role = "source_metadata")
     }
@@ -126,13 +167,26 @@ review_evidence_snapshot <- function(automated, final = automated,
   selected <- function(df) {
     cols <- intersect(c("consensus_dtxsid", "consensus_status", "consensus_source", "consensus_name",
       "manual_preferredName", ".pinned", ".manual_entry", ".resolution_method", scope_cols), names(df))
-    review_evidence_canonical(df[row_indices, cols, drop = FALSE])
+    # Workbook readers infer logical for an entirely blank column. Known review
+    # text fields retain their semantic type; an absent/empty manual label is the
+    # same lookup evidence. Source/content types are preserved separately.
+    values <- df[row_indices, cols, drop = FALSE]
+    for (col in intersect(c("consensus_dtxsid", "consensus_status", "consensus_source",
+      "consensus_name", "manual_preferredName", ".resolution_method"), names(values))) {
+      values[[col]] <- as.character(values[[col]])
+    }
+    if ("manual_preferredName" %in% names(values) && all(is.na(review_evidence_text(values$manual_preferredName)))) {
+      values$manual_preferredName <- NULL
+    }
+    review_evidence_canonical(values)
   }
   lookup_cols <- grep("^(dtxsid|preferredName|source_tier|match_tier|tied_dtxsids|resolver_lookup_status|pubchem_lookup_status|parent_lookup_status)($|_)",
     names(automated), value = TRUE)
   source_fields <- grep("^source_id_.*_(source_raw_id|source_candidate_id|validation_status|validation_reason|identity_status|authority|authority_version|preferred_name|casrn)$",
     names(automated), value = TRUE)
   lookup_cols <- unique(c(lookup_cols, source_fields))
+  lookup_cols <- unique(c(lookup_cols, wqx_review_columns(automated),
+    intersect(c("resolver_query", "resolver_query_details", "pubchem_query", "pubchem_query_details"), names(automated))))
   candidate_scope <- lapply(row_indices, function(i) {
     list(source_content = review_evidence_canonical(as.list(automated[i, intersect(scope_cols, names(automated)), drop = FALSE])),
          candidates = normalize_review_candidates(automated, i, source_id_cols))
@@ -151,11 +205,23 @@ review_evidence_snapshot <- function(automated, final = automated,
   relevant <- unique(c(normalize_review_candidates(automated, row_indices, source_id_cols)$dtxsid,
     as.character(automated$consensus_dtxsid[row_indices]), as.character(final$consensus_dtxsid[row_indices])))
   validation <- validation[validation$dtxsid %in% relevant, , drop = FALSE]
+  lookup <- automated[row_indices, unique(c(intersect(scope_cols, names(automated)), lookup_cols)), drop = FALSE]
+  for (col in setdiff(lookup_cols, scope_cols)) lookup[[col]] <- as.character(lookup[[col]])
+  for (col in intersect(c("resolver_query_details", "pubchem_query_details"), names(lookup))) {
+    lookup[[col]] <- I(lapply(as.character(lookup[[col]]), review_query_details))
+  }
+  for (col in intersect(wqx_review_columns(automated,
+    c("wqx_cas_dtxsid_candidates", "wqx_cas_candidate_names")), names(lookup))) {
+    lookup[[col]] <- vapply(as.character(lookup[[col]]), function(value) {
+      if (is.na(value)) return(NA_character_)
+      paste(sort(unique(trimws(strsplit(value, "|", fixed = TRUE)[[1]]))), collapse = "|")
+    }, character(1))
+  }
   list(schema_version = 1L, automated = selected(automated), final = selected(final),
     candidate_scope = candidate_scope,
     candidates = normalize_review_candidates(automated, row_indices, source_id_cols),
     validation = normalize_review_validation(validation),
-    lookup = review_evidence_canonical(automated[row_indices, unique(c(intersect(scope_cols, names(automated)), lookup_cols)), drop = FALSE]))
+    lookup = review_evidence_canonical(lookup))
 }
 
 validate_review_evidence <- function(evidence) {

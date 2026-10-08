@@ -23,8 +23,8 @@ wqx_cas, wqx_cas_status, wqx_cas_raw, and wqx_cas_provenance.
 wqx_cas contains a single format/checksum-valid canonical-entry CAS, never
 an accepted input identity. Status is valid, missing, invalid, or ambiguous.
 Distinct nonempty raw canonical values are retained in wqx_cas_raw, separated
-by \code{ | }. Conflicting values yield ambiguous status and missing wqx_cas.
-Provenance records \code{canonical:} followed by the normalized canonical key.
+by \code{|}. Conflicting values yield ambiguous status and missing wqx_cas.
+Provenance records \verb{canonical:} followed by the normalized canonical key.
 Unmatched inputs have missing CAS status and no provenance.
 }
 \description{

@@ -108,7 +108,8 @@ identity_review_state <- function(df) {
     source_identifier_ambiguous = source$ambiguous,
     source_identity_conflict = source$conflict,
     source_identity_scope = source$scope,
-    source_correspondence_unconfirmed = source$correspondence
+    source_correspondence_unconfirmed = source$correspondence,
+    wqx_correspondence_unconfirmed = wqx_correspondence_blockers(df)
   )
   text <- rep("", n)
   for (key in names(blockers)) {

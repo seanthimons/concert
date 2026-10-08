@@ -10,11 +10,15 @@ wqx_dictionary_candidates <- function(matches, lookup_fn = validate_and_lookup_c
   column <- function(name, default = NA_character_) {
     if (name %in% names(matches)) matches[[name]] else rep(default, n)
   }
+  distance <- column("match_distance", NA_real_)
+  distance_text <- rep(NA_character_, n)
+  present_distance <- !is.na(distance)
+  distance_text[present_distance] <- sprintf("%.17g", distance[present_distance])
   evidence <- tibble::tibble(
     wqx_input_name = column("input_name"),
     wqx_name = column("wqx_name"),
     wqx_match_tier = column("match_tier"),
-    wqx_match_distance = column("match_distance", NA_real_),
+    wqx_match_distance = distance_text,
     wqx_alias_type = column("alias_type"),
     wqx_cas = column("wqx_cas"),
     wqx_cas_status = column("wqx_cas_status", "missing"),

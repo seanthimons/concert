@@ -381,6 +381,8 @@ search_starts_with <- function(missed_names) {
 #' Validate CAS numbers and lookup DTXSID for valid ones
 #'
 #' @param unique_cas Character vector of CAS-like strings
+#' @param preserve_candidates Keep all lookup hits and explicit lookup outcomes
+#'   for provisional review evidence instead of choosing the best-ranked hit.
 #' @return Tibble with original_cas, validated_cas, is_valid, dtxsid, preferredName
 validate_and_lookup_cas <- function(unique_cas, preserve_candidates = FALSE) {
   empty_result <- tibble::tibble(
@@ -790,7 +792,9 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
 #'   (or validated_cas), dtxsid, preferredName, and optional lookup_status. All
 #'   hits remain review candidates; no candidate is selected or accepted.
 #'   Statuses distinguish candidate, not_found, unavailable, missing, invalid,
-#'   and ambiguous dictionary evidence. Independent of `pubchem`.
+#'   and ambiguous dictionary evidence. Independent of `pubchem`. Mapped
+#'   `wqx_match_distance` is lossless 17-digit decimal text for portable evidence
+#'   fingerprints; the matcher's `match_distance` remains numeric.
 #' @return List with results, dedup_summary, search_summary, consensus_summary
 #' @export
 run_curation_pipeline <- function(

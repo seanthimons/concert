@@ -219,6 +219,7 @@ pending_rows <- function(state) {
   is_multi <- is_multi_analyte_review_row(rs)
   needs_pick <- !is_multi & !pinned & !flagged & status %in% c("disagree", "suggested")
   no_match <- !is_multi & !pinned & !flagged & status %in% c("error", "unresolvable")
+  wqx_unresolved <- !is_multi & !flagged & status %in% "wqx" & !reviewed_wqx_rows(rs)
   verified_unresolved <- verified_unresolved_rows(rs)
   candidate_work <- state$candidate_review
   candidate_idx <- if (!is.null(candidate_work)) candidate_work$row_id[candidate_work$actionable %in% TRUE] else integer()
@@ -226,8 +227,9 @@ pending_rows <- function(state) {
   scope <- identity_scope_blockers(rs)
   source <- source_identity_blockers(rs)
   source_review <- Reduce(`|`, source)
-  scope_review <- !flagged & (scope$scope | scope$conflict | scope$stale | source_review)
-  idx <- which(is_multi | needs_pick | no_match | verified_unresolved | candidate_validation | scope_review)
+  scope_review <- !flagged & (scope$scope | scope$conflict | scope$stale | source_review |
+    wqx_correspondence_blockers(rs))
+  idx <- which(is_multi | needs_pick | no_match | wqx_unresolved | verified_unresolved | candidate_validation | scope_review)
   if (length(idx) == 0) {
     return(empty_pending())
   }
@@ -251,8 +253,10 @@ pending_rows <- function(state) {
     idx,
     function(i) {
       opts <- get_resolution_options(rs, i, dtxsid_cols, state$enrichment_cache)
+      wqx_candidates <- normalize_review_candidates(rs, i)
+      wqx_candidates <- wqx_candidates[grepl("^wqx_cas", wqx_candidates$source), , drop = FALSE]
       if (length(opts) == 0) {
-        return(NA_character_)
+        return(if (nrow(wqx_candidates)) candidate_review_text(wqx_candidates) else NA_character_)
       }
       paste(
         vapply(
@@ -304,14 +308,25 @@ pending_rows <- function(state) {
     suggested_dtxsid = suggested_dtxsid,
     suggested_split = split_suggestion,
     candidates = candidates,
+    wqx_name = wqx_pending_field(rs, idx, "wqx_name"),
+    wqx_cas = wqx_pending_field(rs, idx, "wqx_cas"),
+    wqx_cas_status = wqx_pending_field(rs, idx, "wqx_cas_status"),
+    wqx_cas_raw = wqx_pending_field(rs, idx, "wqx_cas_raw"),
+    wqx_cas_provenance = wqx_pending_field(rs, idx, "wqx_cas_provenance"),
+    wqx_cas_dtxsid_candidates = wqx_pending_field(rs, idx, "wqx_cas_dtxsid_candidates"),
+    wqx_cas_candidate_names = wqx_pending_field(rs, idx, "wqx_cas_candidate_names"),
+    wqx_cas_lookup_status = wqx_pending_field(rs, idx, "wqx_cas_lookup_status"),
     pubchem_query = candidate_field("pubchem_query"),
     pubchem_cid_candidates = candidate_field("pubchem_cid_candidates"),
     pubchem_dtxsid_candidates = candidate_field("pubchem_dtxsid_candidates"),
     pubchem_lookup_status = candidate_field("pubchem_lookup_status"),
+    pubchem_query_details = candidate_field("pubchem_query_details"),
     parent_name_candidate = candidate_field("parent_name_candidate"),
     parent_dtxsid_candidates = candidate_field("parent_dtxsid_candidates"),
     parent_lookup_status = candidate_field("parent_lookup_status"),
     resolver_dtxsid_candidate = candidate_field("resolver_dtxsid_candidate"),
+    resolver_query = candidate_field("resolver_query"),
+    resolver_query_details = candidate_field("resolver_query_details"),
     resolver_name = candidate_field("resolver_name"),
     resolver_lookup_status = candidate_field("resolver_lookup_status"),
     tied_dtxsids = candidate_field(if ("tied_dtxsids" %in% names(rs)) "tied_dtxsids" else paste0("tied_dtxsids_", name_col)),
@@ -332,14 +347,25 @@ empty_pending <- function() {
     suggested_dtxsid = character(),
     suggested_split = character(),
     candidates = character(),
+    wqx_name = character(),
+    wqx_cas = character(),
+    wqx_cas_status = character(),
+    wqx_cas_raw = character(),
+    wqx_cas_provenance = character(),
+    wqx_cas_dtxsid_candidates = character(),
+    wqx_cas_candidate_names = character(),
+    wqx_cas_lookup_status = character(),
     pubchem_query = character(),
     pubchem_cid_candidates = character(),
     pubchem_dtxsid_candidates = character(),
     pubchem_lookup_status = character(),
+    pubchem_query_details = character(),
     parent_name_candidate = character(),
     parent_dtxsid_candidates = character(),
     parent_lookup_status = character(),
     resolver_dtxsid_candidate = character(),
+    resolver_query = character(),
+    resolver_query_details = character(),
     resolver_name = character(),
     resolver_lookup_status = character(),
     tied_dtxsids = character(),
@@ -652,10 +678,7 @@ review_completion <- function(state, pending) {
   flags <- identity_col(state$resolution_state, "row_flag")
   rs <- state$resolution_state
   canonical <- identity_col(rs, "consensus_name")
-  wqx_reviewed <- identity_col(rs, "consensus_status") %in% "wqx" &
-    !is.na(canonical) & nzchar(trimws(canonical)) &
-    (flags %in% "VERIFIED" | identity_col(rs, "consensus_source") %in% "manual_wqx") &
-    !flags %in% c("FOLLOW-UP", "BAD") & !identity_col(rs, "needs_review", FALSE) %in% TRUE
+  wqx_reviewed <- reviewed_wqx_rows(rs)
   reviewed <- identity$identity_eligible | wqx_reviewed | flags %in% "BAD"
   list(queue_complete = nrow(pending) == 0L,
     reconciliation_complete = !any(reconciliation$actionable %in% TRUE),
