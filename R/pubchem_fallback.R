@@ -1,25 +1,75 @@
 unresolved_name_queries <- function(df, name_cols, original_data = NULL) {
   name_cols <- intersect(name_cols, names(df))
-  if (!length(name_cols) || !nrow(df)) return(list(rows = integer(), names = character()))
-
-  unresolved <- which(df$consensus_status %in% c("error", "unresolvable") &
-                        (is.na(df$consensus_dtxsid) | df$consensus_dtxsid == ""))
-  if (!length(unresolved)) return(list(rows = integer(), names = character()))
-
-  names_to_search <- as.character(df[[name_cols[1]]][unresolved])
-  if (!is.null(original_data) && name_cols[1] %in% names(original_data) &&
-      "original_row_id" %in% names(df)) {
-    ids <- suppressWarnings(as.integer(df$original_row_id[unresolved]))
-    valid <- !is.na(ids) & ids >= 1L & ids <= nrow(original_data)
-    if ("multi_analyte_part_count" %in% names(df)) {
-      valid <- valid & (is.na(df$multi_analyte_part_count[unresolved]) |
-                          df$multi_analyte_part_count[unresolved] <= 1L)
-    }
-    original_names <- as.character(original_data[[name_cols[1]]][ids[valid]])
-    valid[valid] <- !is.na(original_names) & nzchar(trimws(original_names))
-    names_to_search[valid] <- as.character(original_data[[name_cols[1]]][ids[valid]])
+  empty <- list(rows = integer(), names = character(), role = character(), source_column = character(),
+                original_row_id = character())
+  if (!length(name_cols) || !nrow(df)) return(empty)
+  ids <- df$consensus_dtxsid
+  unresolved <- which(df$consensus_status %in% c("error", "unresolvable", "wqx") &
+                        (is.na(ids) | !nzchar(trimws(ids))))
+  if (!length(unresolved)) return(empty)
+  result <- empty
+  append_query <- function(rows, query, role, column) {
+    result$rows <<- c(result$rows, rows)
+    result$names <<- c(result$names, trimws(as.character(query)))
+    result$role <<- c(result$role, rep(role, length(rows)))
+    result$source_column <<- c(result$source_column, rep(column, length(rows)))
+    lineage <- if ("original_row_id" %in% names(df)) as.character(df$original_row_id[rows]) else rep(NA_character_, length(rows))
+    result$original_row_id <<- c(result$original_row_id, lineage)
   }
-  list(rows = unresolved, names = trimws(names_to_search))
+  # Keep the original first-Name behavior. Canonical queries supplement this
+  # input; they never replace it or substitute an unsplit parent for a part.
+  column <- name_cols[1]
+  original <- as.character(df[[column]][unresolved])
+  if (!is.null(original_data) && column %in% names(original_data) && "original_row_id" %in% names(df)) {
+    input_rows <- if ("original_row_id" %in% names(original_data)) {
+      match(df$original_row_id[unresolved], original_data$original_row_id)
+    } else suppressWarnings(as.integer(df$original_row_id[unresolved]))
+    valid <- !is.na(input_rows) & input_rows >= 1L & input_rows <= nrow(original_data)
+    if ("multi_analyte_part_count" %in% names(df)) {
+      valid <- valid & (is.na(df$multi_analyte_part_count[unresolved]) | df$multi_analyte_part_count[unresolved] <= 1L)
+    }
+    values <- as.character(original_data[[column]][input_rows[valid]])
+    available <- !is.na(values) & nzchar(trimws(values))
+    original[which(valid)[available]] <- values[available]
+  }
+  append_query(unresolved, original, "original", column)
+  for (column in name_cols) {
+    suffixes <- c(paste0("_lookup_", column), paste0("_", column), if (length(name_cols) == 1L) "")
+    # A generated collision-safe field owns the evidence, even when empty;
+    # never fall back into the raw input column it was created to protect.
+    if (paste0("wqx_name_lookup_", column) %in% names(df)) suffixes <- suffixes[1L]
+    canonical <- rep(NA_character_, length(unresolved))
+    for (suffix in suffixes) {
+      canonical_col <- paste0("wqx_name", suffix)
+      if (canonical_col %in% names(df) && !canonical_col %in% name_cols) {
+        candidate <- as.character(df[[canonical_col]][unresolved])
+      } else {
+        preferred <- paste0("preferredName", suffix)
+        tier <- paste0("source_tier", suffix)
+        if (!all(c(preferred, tier) %in% names(df))) next
+        candidate <- ifelse(grepl("^wqx_", df[[tier]][unresolved]), as.character(df[[preferred]][unresolved]), NA_character_)
+      }
+      fill <- (is.na(canonical) | !nzchar(trimws(canonical))) & !is.na(candidate) & nzchar(trimws(candidate))
+      canonical[fill] <- candidate[fill]
+    }
+    keep <- !is.na(canonical) & nzchar(trimws(canonical)) &
+      (is.na(original) | tolower(trimws(canonical)) != tolower(trimws(original)))
+    append_query(unresolved[keep], canonical[keep], "wqx_canonical", column)
+  }
+  result
+}
+
+fallback_join <- function(values) {
+  values <- unique(values[!is.na(values) & nzchar(values)])
+  if (length(values)) paste(values, collapse = "; ") else NA_character_
+}
+
+fallback_query_details <- function(info, indices, statuses, candidates, cids = NULL) {
+  records <- lapply(indices, function(i) list(query = info$names[i], role = info$role[i],
+    source_column = info$source_column[i], original_row_id = info$original_row_id[i],
+    status = unname(statuses[info$names[i]]), candidates = candidates[[info$names[i]]] %||% character(),
+    cids = if (is.null(cids)) character() else cids[[info$names[i]]] %||% character()))
+  as.character(jsonlite::toJSON(records, auto_unbox = TRUE, na = "null", null = "null"))
 }
 
 # PubChem is a source of review candidates, not a source of accepted DTXSIDs.
@@ -31,48 +81,45 @@ add_pubchem_candidates <- function(df, name_cols, original_data = NULL,
   df$pubchem_dtxsid_candidates <- NA_character_
   df$pubchem_lookup_status <- NA_character_
 
-  queries_info <- unresolved_name_queries(df, name_cols, original_data)
-  unresolved <- queries_info$rows
-  names_to_search <- queries_info$names
-  if (!length(unresolved)) return(df)
-  df$pubchem_query[unresolved] <- names_to_search
-  queries <- unique(names_to_search[!is.na(names_to_search) & nzchar(names_to_search)])
-
-  for (name in queries) {
-    rows <- unresolved[!is.na(names_to_search) & names_to_search == name]
-    hits <- tryCatch(search_fn(name, type = "name"), error = function(e) e)
-    if (inherits(hits, "error")) {
-      df$pubchem_lookup_status[rows] <- "error"
-      next
-    }
-
+  df$pubchem_query_details <- NA_character_
+  info <- unresolved_name_queries(df, name_cols, original_data)
+  keep <- !is.na(info$names) & nzchar(info$names)
+  queries <- unique(info$names[keep])
+  if (!length(queries)) return(df)
+  statuses <- stats::setNames(rep("no_hit", length(queries)), queries)
+  cid_results <- candidate_results <- stats::setNames(vector("list", length(queries)), queries)
+  for (query in queries) {
+    hits <- tryCatch(search_fn(query, type = "name"), error = function(e) e)
+    if (inherits(hits, "error")) { statuses[query] <- "error"; next }
     cids <- unique(as.character(hits$cid))
     cids <- cids[!is.na(cids) & nzchar(cids)]
-    if (!length(cids)) {
-      df$pubchem_lookup_status[rows] <- "no_hit"
-      next
-    }
-
-    df$pubchem_cid_candidates[rows] <- paste(cids, collapse = "; ")
+    if (!length(cids)) next
+    cid_results[[query]] <- cids
     syns <- tryCatch(synonyms_fn(as.integer(cids), tidy = TRUE), error = function(e) e)
-    if (inherits(syns, "error")) {
-      df$pubchem_lookup_status[rows] <- "synonyms_error"
-      next
-    }
+    if (inherits(syns, "error")) { statuses[query] <- "synonyms_error"; next }
     if (all(c("cid", "synonym") %in% names(syns))) {
       cid <- as.character(syns$cid)
       synonym <- as.character(syns$synonym)
       if (length(cid) == length(synonym)) {
         matches <- !is.na(cid) & grepl("^[1-9][0-9]*$", cid) &
           !is.na(synonym) & grepl("^DTXSID[0-9]+$", synonym)
-        # Format complete pairs only: paste0() manufactures ":" for empty vectors.
-        if (any(matches)) {
-          candidates <- unique(paste0(cid[matches], ":", synonym[matches]))
-          df$pubchem_dtxsid_candidates[rows] <- paste(candidates, collapse = "; ")
-        }
+        if (any(matches)) candidate_results[[query]] <- unique(paste0(cid[matches], ":", synonym[matches]))
       }
     }
-    df$pubchem_lookup_status[rows] <- "hit"
+    statuses[query] <- "hit"
+  }
+  for (row in unique(info$rows[keep])) {
+    indices <- which(keep & info$rows == row)
+    query <- unique(info$names[indices])
+    df$pubchem_query[row] <- fallback_join(query)
+    df$pubchem_cid_candidates[row] <- fallback_join(unlist(cid_results[query], use.names = FALSE))
+    df$pubchem_dtxsid_candidates[row] <- fallback_join(unlist(candidate_results[query], use.names = FALSE))
+    # An empty alternate query never hides a successful query. Failures remain
+    # in the summary as well as in the exact attributed query records.
+    status <- unique(unname(statuses[query]))
+    if ("hit" %in% status) status <- status[status != "no_hit"]
+    df$pubchem_lookup_status[row] <- fallback_join(status)
+    df$pubchem_query_details[row] <- fallback_query_details(info, indices, statuses, candidate_results, cid_results)
   }
 
   df
@@ -85,6 +132,8 @@ add_salt_parent_candidates <- function(df, name_cols, original_data = NULL,
   df$parent_dtxsid_candidates <- NA_character_
   df$parent_lookup_status <- NA_character_
   queries_info <- unresolved_name_queries(df, name_cols, original_data)
+  original <- queries_info$role == "original"
+  queries_info <- lapply(queries_info, function(values) values[original])
   rows <- queries_info$rows
   if (!length(rows)) return(df)
 
@@ -260,50 +309,67 @@ add_resolver_candidates <- function(df, name_cols, original_data = NULL,
   df$resolver_dtxsid_candidate <- NA_character_
   df$resolver_name <- NA_character_
   df$resolver_lookup_status <- NA_character_
-  queries_info <- unresolved_name_queries(df, name_cols, original_data)
-  keep <- !is.na(queries_info$names) & nzchar(queries_info$names)
-  rows <- queries_info$rows[keep]
-  query <- queries_info$names[keep]
-  if (!length(rows)) return(df)
-
-  hits <- tryCatch(lookup_fn(unique(query), tidy = FALSE), error = function(e) e)
+  df$resolver_query <- NA_character_
+  df$resolver_query_details <- NA_character_
+  info <- unresolved_name_queries(df, name_cols, original_data)
+  keep <- !is.na(info$names) & nzchar(info$names)
+  queries <- unique(info$names[keep])
+  if (!length(queries)) return(df)
+  hits <- tryCatch(lookup_fn(queries, tidy = FALSE), error = function(e) e)
+  statuses <- stats::setNames(rep("no_hit", length(queries)), queries)
+  candidate_results <- name_results <- stats::setNames(vector("list", length(queries)), queries)
+  public <- character()
   if (inherits(hits, "error")) {
-    df$resolver_lookup_status[rows] <- "error"
-    return(df)
-  }
-  # DUPLICATE marks a chemical already returned in this batch or an extra hit
-  # for the same query, so both count. InChIKey hits come from parsing the name
-  # into a structure (PP -> Diphosphane), so only identifier matches are kept.
-  ok <- Filter(function(h) h$result %in% c("FOUND", "DUPLICATE") && !is.null(h$chemical$sid) &&
-                 isTRUE(h$resolvedBy %in% c("Name", "CAS", "DTXSID")), hits)
-  hit <- tibble::tibble(
-    query = vapply(ok, function(h) as.character(h$query), character(1)),
-    sid = vapply(ok, function(h) as.character(h$chemical$sid), character(1)),
-    name = vapply(ok, function(h) as.character(h$chemical$name %||% NA_character_), character(1))
-  )
-  hit <- hit[!duplicated(hit[c("query", "sid")]), ]
-
-  df$resolver_lookup_status[rows] <- "no_hit"
-  matched <- query %in% hit$query
-  if (!any(matched)) return(df)
-  rows <- rows[matched]
-  query <- query[matched]
-  by_query <- split(hit, hit$query)
-  df$resolver_dtxsid_candidate[rows] <- vapply(query, function(q) paste(by_query[[q]]$sid, collapse = "; "), character(1))
-  df$resolver_name[rows] <- vapply(query, function(q) paste(by_query[[q]]$name, collapse = "; "), character(1))
-
-  public <- tryCatch(public_fn(unique(hit$sid)), error = function(e) {
-    message("[resolver] Hits left unverified: ", conditionMessage(e))
-    e
-  })
-  df$resolver_lookup_status[rows] <- if (inherits(public, "error")) {
-    "unverified"
+    statuses[] <- "error"
   } else {
-    vapply(query, function(q) {
-      n <- sum(by_query[[q]]$sid %in% public)
-      if (n == nrow(by_query[[q]])) "public" else if (n == 0) "not_public" else "some_public"
-    }, character(1), USE.NAMES = FALSE)
+    # Identifier matches only; an InChIKey inferred from the name is not proof
+    # of source identity. DUPLICATE still carries an attributed candidate.
+    ok <- Filter(function(h) isTRUE(h$result %in% c("FOUND", "DUPLICATE")) &&
+      !is.null(h$chemical$sid) && isTRUE(h$resolvedBy %in% c("Name", "CAS", "DTXSID")), hits)
+    hit <- tibble::tibble(
+      query = vapply(ok, function(h) as.character(h$query), character(1)),
+      sid = vapply(ok, function(h) as.character(h$chemical$sid), character(1)),
+      name = vapply(ok, function(h) as.character(h$chemical$name %||% NA_character_), character(1)))
+    hit <- hit[!duplicated(hit[c("query", "sid")]), ]
+    if (nrow(hit)) {
+      public <- tryCatch(public_fn(unique(hit$sid)), error = function(e) {
+        message("[resolver] Hits left unverified: ", conditionMessage(e)); e
+      })
+    }
+    for (query in queries) {
+      selected <- hit[hit$query == query, ]
+      responses <- Filter(function(h) identical(as.character(h$query), query), hits)
+      failed <- any(vapply(responses, function(h) isTRUE(h$result %in% c("ERROR", "FAILED")), logical(1)))
+      if (nrow(selected)) {
+        candidate_results[[query]] <- selected$sid
+        name_results[[query]] <- selected$name
+        statuses[query] <- if (inherits(public, "error")) "unverified" else {
+          n <- sum(selected$sid %in% public)
+          if (n == nrow(selected)) "public" else if (n == 0L) "not_public" else "some_public"
+        }
+        if (failed) statuses[query] <- paste(statuses[query], "error", sep = "; ")
+      } else if (failed) statuses[query] <- "error"
+    }
   }
+  for (row in unique(info$rows[keep])) {
+    indices <- which(keep & info$rows == row)
+    query <- unique(info$names[indices])
+    candidates <- unique(unlist(candidate_results[query], use.names = FALSE))
+    df$resolver_query[row] <- fallback_join(query)
+    df$resolver_dtxsid_candidate[row] <- fallback_join(candidates)
+    df$resolver_name[row] <- fallback_join(unlist(name_results[query], use.names = FALSE))
+    status <- unique(unname(statuses[query]))
+    if (length(candidates)) {
+      status <- if (inherits(public, "error")) "unverified" else {
+        n <- sum(candidates %in% public)
+        if (n == length(candidates)) "public" else if (n == 0L) "not_public" else "some_public"
+      }
+      if (any(grepl("error", statuses[query], fixed = TRUE))) status <- c(status, "error")
+    }
+    df$resolver_lookup_status[row] <- fallback_join(status)
+    df$resolver_query_details[row] <- fallback_query_details(info, indices, statuses, candidate_results)
+  }
+
   df
 }
 

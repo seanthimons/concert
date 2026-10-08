@@ -289,3 +289,100 @@ test_that("DSSTox is only downloaded or refreshed when opted in", {
   ensure_dsstox()
   expect_equal(installs, 2L)
 })
+
+test_that("WQX continuation preserves source and canonical query attribution", {
+  df <- tibble::tibble(original_row_id = c(20L, 10L, 30L, 40L),
+    raw_name = c("Clean label", "Split part", "Resolved", "Clean label"),
+    wqx_name_raw_name = c("Canonical", "Part canonical", "Resolved canonical", "Canonical"),
+    consensus_status = c("wqx", "wqx", "single", "wqx"),
+    consensus_dtxsid = c(NA_character_, " ", "DTXSID1", ""), multi_analyte_part_count = c(1L, 2L, 1L, 1L))
+  original <- tibble::tibble(original_row_id = c(10L, 20L, 30L, 40L),
+    raw_name = c("Whole parent", "Original label", "Resolved", "Original label"))
+  info <- unresolved_name_queries(df, "raw_name", original)
+  expect_identical(info$names, c("Original label", "Split part", "Original label", "Canonical", "Part canonical", "Canonical"))
+  expect_identical(info$rows, c(1L, 2L, 4L, 1L, 2L, 4L))
+  expect_identical(info$role, c(rep("original", 3L), rep("wqx_canonical", 3L)))
+  queried <- character()
+  out <- add_pubchem_candidates(df, "raw_name", original,
+    search_fn = function(name, ...) {
+      queried <<- c(queried, name)
+      tibble::tibble(cid = if (name == "Original label") 10L else integer())
+    }, synonyms_fn = function(...) tibble::tibble(cid = 10L, synonym = "DTXSID123"))
+  expect_identical(queried, c("Original label", "Split part", "Canonical", "Part canonical"))
+  expect_identical(out$pubchem_query[c(1L, 4L)], rep("Original label; Canonical", 2L))
+  expect_identical(out$pubchem_dtxsid_candidates[c(1L, 4L)], rep("10:DTXSID123", 2L))
+  expect_identical(out$pubchem_lookup_status, c("hit", "no_hit", NA_character_, "hit"))
+  details <- jsonlite::fromJSON(out$pubchem_query_details[1L])
+  expect_identical(details$query, c("Original label", "Canonical"))
+  expect_identical(details$role, c("original", "wqx_canonical"))
+  expect_identical(details$original_row_id, rep("20", 2L))
+  expect_identical(details$source_column, rep("raw_name", 2L))
+  expect_identical(out$consensus_status, df$consensus_status)
+  expect_identical(out$consensus_dtxsid, df$consensus_dtxsid)
+})
+
+test_that("canonical and original PubChem hits aggregate without hiding failures", {
+  df <- tibble::tibble(raw_name = "Original", wqx_name = "Canonical", consensus_status = "wqx", consensus_dtxsid = NA_character_)
+  out <- add_pubchem_candidates(df, "raw_name", search_fn = function(name, ...) {
+    tibble::tibble(cid = if (name == "Original") c(10L, 11L) else c(11L, 12L))
+  }, synonyms_fn = function(ids, ...) tibble::tibble(cid = ids, synonym = paste0("DTXSID", ids)))
+  expect_identical(out$pubchem_cid_candidates, "10; 11; 12")
+  expect_identical(out$pubchem_dtxsid_candidates, "10:DTXSID10; 11:DTXSID11; 12:DTXSID12")
+  failed <- add_pubchem_candidates(df, "raw_name", search_fn = function(name, ...) {
+    if (name == "Canonical") stop("unavailable")
+    tibble::tibble(cid = 10L)
+  }, synonyms_fn = function(...) tibble::tibble(cid = 10L, synonym = "DTXSID10"))
+  expect_identical(failed$pubchem_dtxsid_candidates, "10:DTXSID10")
+  expect_identical(failed$pubchem_lookup_status, "hit; error")
+  expect_identical(jsonlite::fromJSON(failed$pubchem_query_details)$status, c("hit", "error"))
+})
+
+test_that("resolver canonical continuation retains multiple candidates and per-query failures", {
+  df <- tibble::tibble(raw_name = c("Original", "Original"), wqx_name_raw_name = "Canonical",
+    consensus_status = "wqx", consensus_dtxsid = c(NA_character_, ""))
+  queried <- NULL
+  hit <- function(query, id) list(query = query, result = "FOUND", resolvedBy = "Name",
+    chemical = list(sid = id, name = paste("Candidate", id)))
+  out <- add_resolver_candidates(df, "raw_name", lookup_fn = function(query, ...) {
+    queried <<- query
+    list(hit("Original", "DTXSID10"), hit("Canonical", "DTXSID11"), hit("Canonical", "DTXSID10"))
+  }, public_fn = function(ids) "DTXSID10")
+  expect_identical(queried, c("Original", "Canonical"))
+  expect_identical(out$resolver_query, rep("Original; Canonical", 2L))
+  expect_identical(out$resolver_dtxsid_candidate, rep("DTXSID10; DTXSID11", 2L))
+  expect_identical(out$resolver_lookup_status, rep("some_public", 2L))
+  expect_identical(jsonlite::fromJSON(out$resolver_query_details[1L])$role, c("original", "wqx_canonical"))
+  failed <- add_resolver_candidates(df, "raw_name", lookup_fn = function(...) {
+    list(hit("Canonical", "DTXSID11"), list(query = "Original", result = "ERROR"))
+  }, public_fn = function(ids) ids)
+  expect_identical(failed$resolver_dtxsid_candidate, rep("DTXSID11", 2L))
+  expect_identical(failed$resolver_lookup_status, rep("public; error", 2L))
+  expect_identical(jsonlite::fromJSON(failed$resolver_query_details[1L])$status, c("error", "public"))
+  expect_identical(failed$consensus_dtxsid, df$consensus_dtxsid)
+  expect_identical(failed$consensus_status, df$consensus_status)
+})
+
+test_that("canonical lookup column collisions and salt-parent semantics retain provenance", {
+  df <- tibble::tibble(raw_name = "Original hydrochloride", wqx_name_raw_name = "Unrelated raw metadata",
+    wqx_name_lookup_raw_name = "Canonical lactate", consensus_status = "wqx", consensus_dtxsid = NA_character_)
+  info <- unresolved_name_queries(df, "raw_name")
+  expect_identical(info$names, c("Original hydrochloride", "Canonical lactate"))
+  calls <- character()
+  parent <- add_salt_parent_candidates(df, "raw_name", search_fn = function(name) {
+    calls <<- c(calls, name)
+    tibble::tibble(searchValue = name, dtxsid = "DTXSID123")
+  })
+  expect_identical(calls, "Original")
+  expect_identical(parent$parent_name_candidate, "Original")
+  expect_identical(parent$consensus_dtxsid, df$consensus_dtxsid)
+  legacy <- df[c("raw_name", "consensus_status", "consensus_dtxsid")]
+  legacy$preferredName_raw_name <- "Canonical"
+  legacy$source_tier_raw_name <- "wqx_exact"
+  expect_identical(unresolved_name_queries(legacy, "raw_name")$names, c("Original hydrochloride", "Canonical"))
+})
+
+test_that("empty collision-safe WQX evidence cannot expose raw metadata as a query", {
+  df <- tibble::tibble(name = "Original", wqx_name_name = "Raw unrelated metadata",
+    wqx_name_lookup_name = NA_character_, consensus_status = "wqx", consensus_dtxsid = NA_character_)
+  expect_identical(unresolved_name_queries(df, "name")$names, "Original")
+})
