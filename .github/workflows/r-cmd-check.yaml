@@ -83,4 +83,4 @@ jobs:
         shell: Rscript {0}
         run: |
           stopifnot(renv::status()$synchronized)
-          testthat::test_local(filter = 'review|modules-render')
+          testthat::test_local(filter = 'review|modules-render|wqx|pubchem-fallback')
