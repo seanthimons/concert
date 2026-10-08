@@ -9,6 +9,8 @@ fix/82-wqx-identifier-review branch and its existing files remain unchanged.
 - Canonical WQX entries provide CAS evidence; aliases inherit their canonical
   entry's CAS. Missing, invalid and ambiguous values remain explicit. Equal best
   fuzzy matches across distinct canonical identities are never selected.
+  Equal-priority aliases with conflicting targets also stay unresolved; alias
+  type precedence and harmless equivalent-target duplicates remain supported.
 - Deduplicated canonical-CAS lookup retains all candidates and distinguishes
   no hits from unavailable/malformed responses. Candidate continuation retains
   both original and canonical name queries and their separate outcomes.
@@ -21,7 +23,9 @@ fix/82-wqx-identifier-review branch and its existing files remain unchanged.
   and BAD preserve their flags, reasons and dispositions. Queue completion,
   evidence reconciliation and accepted identity remain separate.
 - Pipeline-owned evidence is distinguished from raw similarly named input
-  columns. Original source names, metadata, row lineage and decisions survive
+  columns, including repeated suffix collisions and batches with no WQX hits.
+  Canonical queries use registered projections and WQX source tiers. Original
+  source names, metadata, row lineage and decisions survive
   mapping, rerun, workbook export/import and generated replay.
 - Candidate order/duplicates do not manufacture an evidence change. Chemical
   evidence changes reopen reconciliation; old acknowledgments do not cover them.
@@ -35,7 +39,7 @@ fix/82-wqx-identifier-review branch and its existing files remain unchanged.
 
 ## Checks
 
-- Full suite: 5,210 assertions passed (no failures/errors; five existing skips and
+- Full suite: 5,241 assertions passed (no failures/errors; five existing skips and
   sixteen existing fixture warnings).
 - Expanded locked regression selection: 1,017 assertions passed with no
   failures, errors, warnings or skips before the final table-display adjustment.
@@ -54,6 +58,17 @@ fix/82-wqx-identifier-review branch and its existing files remain unchanged.
   the manually dispatched OS matrix remains optional. NEWS headings now render
   in pkgdown; GitHub-only releases do not query CRAN release dates. The release
   workflow preserves that heading format when regenerating NEWS.
+
+## Crash recovery
+
+The host restart cleared /tmp. Committed work survived in the common Git
+repository. The delivery checkout was recovered to
+`/home/sxthi/Documents/concert-release-060`, and the uncommitted alias guard was
+recreated and retested (101 matcher assertions). The final full suite above and
+a fresh app cold boot ran after recovery. Persistent validation logs are in
+`/home/sxthi/Documents/concert-validation-82`. A browser upload with three raw
+canonical-name lookalike columns confirmed only original and actual dictionary
+canonical names were queried.
 
 ## Release and validation boundaries
 
