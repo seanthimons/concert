@@ -196,3 +196,37 @@ test_that("curate_headless applies multi-analyte resolutions before curation", {
   expect_equal(result$data$analyte, c("lead", "arsenic"))
   expect_true("multi_analyte_resolution" %in% result$audit_trail$step)
 })
+
+test_that("scripted splits record repeated source CAS and keep children provisional (#95)", {
+  input_path <- tempfile(fileext = ".csv")
+  readr::write_csv(tibble::tibble(
+    chemical = c("Cypermethrin and alpha-Cypermethrin", "Alpha + Beta"),
+    cas = c("52315-07-8", NA)
+  ), input_path)
+  withr::defer(unlink(input_path))
+
+  state <- stage_ingest(input_path, tag_map = list(chemical = "Name", cas = "CASRN"))
+  cleaned <- suppressMessages(stage_clean(state,
+    multi_analyte_resolutions = tibble::tibble(row_index = 1:2, action = "split")))
+  out <- cleaned$cleaning_result$cleaned_data
+  cas_rows <- out$original_row_id == 1L
+  expect_equal(sum(cas_rows), 2L)
+  expect_equal(out$multi_analyte_source_cas[cas_rows], rep("52315-07-8", 2))
+  expect_equal(out$component_cas_unresolved, c(TRUE, TRUE, FALSE, FALSE))
+
+  # Successful lookups cannot clear the correspondence obligation.
+  out$consensus_dtxsid <- c("DTXSID1023998", "DTXSID7041201", "DTXSID1", "DTXSID2")
+  out$consensus_status <- "single"
+  identity <- identity_review_state(out)
+  expect_equal(identity$identity_eligible[cas_rows], c(FALSE, FALSE))
+  expect_match(identity$identity_blockers[cas_rows], "unresolved_scope")
+
+  # The scripted and coordinated paths record the same scope provenance.
+  df <- flag_multi_analyte(tibble::tibble(original_row_id = 1L, Name = "Alpha + Beta", CASRN = "64-17-5"), "Name")$cleaned_data
+  scripted <- apply_multi_analyte_resolutions(df, "Name", tibble::tibble(row_index = 1L, action = "split"),
+    cas_cols = "CASRN")$cleaned_data
+  coordinated <- resolve_review_row(df, "Name", 1L, list(name_action = "split", pairing = "broadcast"),
+    cas_cols = "CASRN")$cleaned_data
+  cols <- c("Name", "CASRN", "multi_analyte_source_cas", "component_cas_unresolved")
+  expect_identical(scripted[cols], coordinated[cols])
+})

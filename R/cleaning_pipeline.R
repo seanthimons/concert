@@ -3887,6 +3887,45 @@ find_matching_review_rows <- function(df, target_row_index, candidate_row_indice
   candidate_row_indices[sigs == target]
 }
 
+#' Stage one bulk review action across many rows
+#'
+#' Builds a [resolve_review_row()] spec per row from that row's own defaults
+#' (suggested name parts and its CAS values), as the single-row editor does.
+#' Each spec is trial-resolved so rows the action cannot apply to are skipped
+#' with a reason instead of failing the whole batch at apply time.
+#'
+#' @param df Cleaned data frame.
+#' @param row_indices One-based row positions to stage.
+#' @param name_cols,cas_cols Name- and CASRN-tagged column names.
+#' @param name_action `"split"` or `"keep"`.
+#' @param pairing `"position"` or `"broadcast"`.
+#' @return List with `decisions` (specs keyed by row index) and `skipped`
+#'   (data frame of row_index and reason).
+#' @noRd
+bulk_review_specs <- function(df, row_indices, name_cols, cas_cols, name_action, pairing) {
+  decisions <- list()
+  skipped <- data.frame(row_index = integer(), reason = character())
+  for (ri in row_indices) {
+    field <- multi_analyte_field_for_row(df, ri, name_cols)
+    spec <- list(
+      name_action = name_action,
+      name_parts = suggest_multi_analyte_parts(df[[field]][ri]),
+      cas_parts = row_cas_values(df, ri, cas_cols),
+      pairing = pairing
+    )
+    trial <- tryCatch({
+      resolve_review_row(df[ri, , drop = FALSE], name_cols, 1L, spec, cas_cols)
+      NULL
+    }, error = conditionMessage)
+    if (is.null(trial)) {
+      decisions[[as.character(ri)]] <- spec
+    } else {
+      skipped[nrow(skipped) + 1L, ] <- list(ri, trial)
+    }
+  }
+  list(decisions = decisions, skipped = skipped)
+}
+
 #' Resolve one flagged review row (multi-analyte and/or multi-CAS)
 #'
 #' Single coordinated engine behind [resolve_multi_analyte_row()]. Splits the
@@ -4078,15 +4117,18 @@ resolve_review_row <- function(df, name_cols, row_index, spec, cas_cols = charac
 #' @param action One of `"split"`, `"keep"`, or `"rename"`.
 #' @param values Split parts or rename value. For split, NULL uses
 #'   `suggest_multi_analyte_parts()` on the selected Name value.
+#' @param cas_cols CASRN-tagged column names. CAS values are left unchanged, but
+#'   a repeated source CAS is recorded and requires component review.
 #' @return List with `cleaned_data` and `audit_trail`.
 #' @export
-resolve_multi_analyte_row <- function(df, name_cols, row_index, action, values = NULL) {
+resolve_multi_analyte_row <- function(df, name_cols, row_index, action, values = NULL,
+                                      cas_cols = character(0)) {
   resolve_review_row(
     df,
     name_cols = name_cols,
     row_index = row_index,
     spec = list(name_action = action, name_parts = values, pairing = "broadcast"),
-    cas_cols = character(0)
+    cas_cols = cas_cols
   )
 }
 
@@ -4098,9 +4140,10 @@ resolve_multi_analyte_row <- function(df, name_cols, row_index, action, values =
 #'   optional `value` or `values`. When `df` has an `original_row_id` column the
 #'   row key is matched against it (as written by `pending.csv`); otherwise it is
 #'   a 1-based row position.
+#' @inheritParams resolve_multi_analyte_row
 #' @return List with `cleaned_data` and `audit_trail`.
 #' @export
-apply_multi_analyte_resolutions <- function(df, name_cols, resolutions = NULL) {
+apply_multi_analyte_resolutions <- function(df, name_cols, resolutions = NULL, cas_cols = character(0)) {
   if (is.null(resolutions) || length(resolutions) == 0) {
     return(list(cleaned_data = df, audit_trail = empty_cleaning_audit()))
   }
@@ -4146,7 +4189,8 @@ apply_multi_analyte_resolutions <- function(df, name_cols, resolutions = NULL) {
       name_cols,
       row_index = spec[[row_col]][[i]],
       action = spec$action[[i]],
-      values = values
+      values = values,
+      cas_cols = cas_cols
     )
     df_result <- resolved$cleaned_data
     audit_parts[[length(audit_parts) + 1L]] <- resolved$audit_trail

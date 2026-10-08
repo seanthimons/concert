@@ -1231,10 +1231,33 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
           class = "card-body",
           p(
             "These rows are flagged as multi-analyte (name), multi-CAS, or both. ",
-            "Select a row, set how to split it, and stage the decision. ",
+            "Select one row to edit it, or select several (header checkbox selects all) ",
+            "and stage one action for each using its own suggested parts and CAS values. ",
             "Apply all staged decisions in one pass."
           ),
           reactable::reactableOutput(session$ns("review_table")),
+          div(
+            class = "d-flex gap-3 align-items-end flex-wrap mt-3",
+            radioButtons(
+              session$ns("bulk_name_action"),
+              "Bulk name action",
+              choices = c("Split" = "split", "Keep combined" = "keep"),
+              inline = TRUE
+            ),
+            radioButtons(
+              session$ns("bulk_pairing"),
+              "Bulk CAS handling",
+              choices = c("Pair by position" = "position", "Keep together" = "broadcast"),
+              selected = "broadcast",
+              inline = TRUE
+            ),
+            actionButton(
+              session$ns("stage_bulk"),
+              "Stage for selected rows",
+              icon = icon("layer-group"),
+              class = "btn-outline-primary btn-sm mb-3"
+            )
+          ),
           uiOutput(session$ns("review_editor")),
           div(
             class = "d-flex gap-2 align-items-center flex-wrap mt-3 pt-3 border-top",
@@ -1282,7 +1305,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       reactable::reactable(
         review_rows,
         columns = col_defs,
-        selection = "single",
+        selection = "multiple",
         onClick = "select",
         defaultPageSize = 10,
         resizable = TRUE,
@@ -1298,6 +1321,12 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       selected <- reactable::getReactableState("review_table", "selected")
       if (is.null(selected) || length(selected) == 0) {
         return(div(class = "text-muted mt-2", "Select a row above to stage a decision."))
+      }
+      if (length(selected) > 1) {
+        return(div(
+          class = "text-muted mt-2",
+          sprintf("%d rows selected. Use bulk staging above, or select one row to edit it.", length(selected))
+        ))
       }
 
       review_rows <- filter_review_rows(data_store$cleaned_data)
@@ -1378,12 +1407,10 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
             radioButtons(
               session$ns("review_pairing"),
               "CAS handling",
-              choices = c(
-                "Pair name to CAS by position" = "position",
-                "Keep CAS together" = "broadcast"
-              ),
+              # Inline like the Name choices so both text areas start on the same line.
+              choices = c("Pair by position" = "position", "Keep together" = "broadcast"),
               selected = pairing_value,
-              inline = FALSE
+              inline = TRUE
             ),
             textAreaInput(
               session$ns("review_cas_parts"),
@@ -1422,8 +1449,8 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
     observeEvent(input$stage_review, {
       req(data_store$cleaned_data)
       selected <- reactable::getReactableState("review_table", "selected")
-      if (is.null(selected) || length(selected) == 0) {
-        notify_user("Select a review row first.", type = "warning")
+      if (length(selected) != 1) {
+        notify_user("Select exactly one review row to stage from the editor.", type = "warning")
         return()
       }
 
@@ -1469,6 +1496,41 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         type = "message",
         duration = 3
       )
+    })
+
+    observeEvent(input$stage_bulk, {
+      req(data_store$cleaned_data)
+      selected <- reactable::getReactableState("review_table", "selected")
+      review_rows <- filter_review_rows(data_store$cleaned_data)
+      selected <- selected[selected <= nrow(review_rows)]
+      if (length(selected) == 0) {
+        notify_user("Select one or more review rows first.", type = "warning")
+        return()
+      }
+
+      result <- bulk_review_specs(
+        data_store$cleaned_data,
+        review_rows$.row_index[selected],
+        review_name_cols(),
+        review_cas_cols(),
+        name_action = input$bulk_name_action,
+        pairing = input$bulk_pairing
+      )
+      decisions <- data_store$review_decisions %||% list()
+      decisions[names(result$decisions)] <- result$decisions
+      data_store$review_decisions <- decisions
+
+      skipped <- result$skipped
+      msg <- sprintf("Staged %d row(s) (%d total).", length(result$decisions), length(decisions))
+      if (nrow(skipped) > 0) {
+        msg <- paste0(msg, sprintf(
+          " Skipped %d that this action cannot apply to (row %s): %s",
+          nrow(skipped),
+          paste(multi_analyte_row_id(data_store$cleaned_data, skipped$row_index), collapse = ", "),
+          paste(unique(skipped$reason), collapse = " ")
+        ))
+      }
+      showNotification(msg, type = if (nrow(skipped) > 0) "warning" else "message", duration = 8)
     })
 
     observeEvent(input$clear_review, {

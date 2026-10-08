@@ -5,6 +5,13 @@ identity_col <- function(df, name, default = NA_character_) {
   df[[name]] %||% rep(default, nrow(df))
 }
 
+# An explicit reviewer decision accepts a suggestion; shared with the pending queue (#92).
+accepted_suggestion_rows <- function(df) {
+  identity_col(df, "consensus_status") %in% "suggested" &
+    identity_col(df, ".pinned", FALSE) %in% TRUE &
+    identity_col(df, ".resolution_method") %in% c("bulk-accept", "manual", "user-pick")
+}
+
 identity_scope_blockers <- function(df) {
   n <- nrow(df)
   scope <- identity_col(df, "identity_scope")
@@ -90,9 +97,7 @@ identity_review_state <- function(df) {
   flag <- identity_col(df, "row_flag")
   scope <- identity_scope_blockers(df)
   source <- source_identity_blockers(df)
-  accepted_suggestion <- status %in% "suggested" &
-    identity_col(df, ".pinned", FALSE) %in% TRUE &
-    identity_col(df, ".resolution_method") %in% c("bulk-accept", "manual", "user-pick")
+  accepted_suggestion <- accepted_suggestion_rows(df)
   blockers <- list(
     missing_identity = is.na(id) | !grepl("^DTXSID[0-9]+$", id),
     unresolved_lookup = !status %in% c("agree", "agree_caveat", "single", "manual", "auto_resolved") &

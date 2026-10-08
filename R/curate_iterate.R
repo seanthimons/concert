@@ -227,7 +227,9 @@ pending_rows <- function(state) {
   scope <- identity_scope_blockers(rs)
   source <- source_identity_blockers(rs)
   source_review <- Reduce(`|`, source)
-  scope_review <- !flagged & (scope$scope | scope$conflict | scope$stale | source_review |
+  # VERIFIED is not a scope decision; only FOLLOW-UP/BAD disposition scope work (#110).
+  dispositioned <- rs$row_flag %in% c("FOLLOW-UP", "BAD")
+  scope_review <- !dispositioned & (scope$scope | scope$conflict | scope$stale | source_review |
     wqx_correspondence_blockers(rs))
   idx <- which(is_multi | needs_pick | no_match | wqx_unresolved | verified_unresolved | candidate_validation | scope_review)
   if (length(idx) == 0) {

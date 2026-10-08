@@ -26,6 +26,25 @@ review_evidence_fingerprint <- function(x) {
   digest::digest(review_evidence_canonical(x), algo = "sha256")
 }
 
+# An exact-match tie is an unordered set; order, duplicates and spacing are not evidence (#93).
+review_tie_text <- function(x) {
+  vapply(as.character(x), function(value) {
+    if (is.na(value)) return(NA_character_)
+    ids <- trimws(strsplit(value, ";", fixed = TRUE)[[1]])
+    ids <- sort(unique(ids[nzchar(ids)]))
+    if (length(ids)) paste(ids, collapse = "; ") else NA_character_
+  }, character(1), USE.NAMES = FALSE)
+}
+
+# Comparison-only view of a stored snapshot; the record itself stays immutable.
+review_snapshot_with_canonical_ties <- function(snapshot) {
+  snapshot$lookup <- lapply(snapshot$lookup, function(row) {
+    for (col in grep("^tied_dtxsids($|_)", names(row), value = TRUE)) row[[col]] <- review_tie_text(row[[col]])
+    row
+  })
+  snapshot
+}
+
 # Query records retain attribution/outcomes without treating response order,
 # duplicate candidates or a displayed row number as new chemical evidence.
 review_query_details <- function(raw) {
@@ -217,6 +236,9 @@ review_evidence_snapshot <- function(automated, final = automated,
       paste(sort(unique(trimws(strsplit(value, "|", fixed = TRUE)[[1]]))), collapse = "|")
     }, character(1))
   }
+  for (col in grep("^tied_dtxsids($|_)", names(lookup), value = TRUE)) {
+    lookup[[col]] <- review_tie_text(lookup[[col]])
+  }
   list(schema_version = 1L, automated = selected(automated), final = selected(final),
     candidate_scope = candidate_scope,
     candidates = normalize_review_candidates(automated, row_indices, source_id_cols),
@@ -325,7 +347,10 @@ compare_review_decision <- function(evidence, decision_id, scope, current) {
     identical(x$schema_version, 1L) && identical(x$decision_id, decision_id) && x$revision == record$revision &&
       identical(x$scope_fingerprint, scope_key) && identical(x$evidence_fingerprint, current_key)
   }, logical(1)))
-  status <- if (identical(record$evidence_fingerprint, current_key)) "unchanged" else if (acknowledged) "acknowledged" else "changed"
+  # Records captured before tie normalization still match their unchanged tie set.
+  same <- identical(record$evidence_fingerprint, current_key) ||
+    identical(review_evidence_fingerprint(review_snapshot_with_canonical_ties(record$current)), current_key)
+  status <- if (same) "unchanged" else if (acknowledged) "acknowledged" else "changed"
   list(status = status, decision = record, acknowledged = acknowledged,
     current_fingerprint = current_key, scope_fingerprint = scope_key)
 }
