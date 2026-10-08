@@ -4078,15 +4078,18 @@ resolve_review_row <- function(df, name_cols, row_index, spec, cas_cols = charac
 #' @param action One of `"split"`, `"keep"`, or `"rename"`.
 #' @param values Split parts or rename value. For split, NULL uses
 #'   `suggest_multi_analyte_parts()` on the selected Name value.
+#' @param cas_cols CASRN-tagged column names. CAS values are left unchanged, but
+#'   a repeated source CAS is recorded and requires component review.
 #' @return List with `cleaned_data` and `audit_trail`.
 #' @export
-resolve_multi_analyte_row <- function(df, name_cols, row_index, action, values = NULL) {
+resolve_multi_analyte_row <- function(df, name_cols, row_index, action, values = NULL,
+                                      cas_cols = character(0)) {
   resolve_review_row(
     df,
     name_cols = name_cols,
     row_index = row_index,
     spec = list(name_action = action, name_parts = values, pairing = "broadcast"),
-    cas_cols = character(0)
+    cas_cols = cas_cols
   )
 }
 
@@ -4098,9 +4101,10 @@ resolve_multi_analyte_row <- function(df, name_cols, row_index, action, values =
 #'   optional `value` or `values`. When `df` has an `original_row_id` column the
 #'   row key is matched against it (as written by `pending.csv`); otherwise it is
 #'   a 1-based row position.
+#' @inheritParams resolve_multi_analyte_row
 #' @return List with `cleaned_data` and `audit_trail`.
 #' @export
-apply_multi_analyte_resolutions <- function(df, name_cols, resolutions = NULL) {
+apply_multi_analyte_resolutions <- function(df, name_cols, resolutions = NULL, cas_cols = character(0)) {
   if (is.null(resolutions) || length(resolutions) == 0) {
     return(list(cleaned_data = df, audit_trail = empty_cleaning_audit()))
   }
@@ -4146,7 +4150,8 @@ apply_multi_analyte_resolutions <- function(df, name_cols, resolutions = NULL) {
       name_cols,
       row_index = spec[[row_col]][[i]],
       action = spec$action[[i]],
-      values = values
+      values = values,
+      cas_cols = cas_cols
     )
     df_result <- resolved$cleaned_data
     audit_parts[[length(audit_parts) + 1L]] <- resolved$audit_trail
