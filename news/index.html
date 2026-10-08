@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -37,19 +37,50 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/seanthimons/concert/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/seanthimons/concert/blob/v0.6.0/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
     <div class="section level2">
-<h2 class="pkg-version" data-toc-text="development version" id="concert-development-version">concert (development version)<a class="anchor" aria-label="anchor" href="#concert-development-version"></a></h2>
-<ul><li><p>Continue WQX canonical-name and dictionary-CAS lookups as attributed review candidates, retaining original queries, lookup failures, ties and source lineage (<a href="https://github.com/seanthimons/concert/issues/82" class="external-link">#82</a>). Vocabulary matches require review; explicit scoped acceptance remains separate from registry membership. Workbook import and replay preserve the captured evidence and acknowledgments.</p></li>
-<li><p>Validate complete PubChem CID/DTXSID pairs; empty or malformed synonyms retain NA candidates and successful CID hits (<a href="https://github.com/seanthimons/concert/issues/88" class="external-link">#88</a>).</p></li>
-<li><p>Add one immutable scoped decision-evidence contract with revision-bound acknowledgments, selected-identity reconciliation, candidate validation reports, and lossless replay/workbook persistence (<a href="https://github.com/seanthimons/concert/issues/84" class="external-link">#84</a>/#85). Legacy flags report missing historical baselines; flags and reasons are never inferred or cleared.</p></li>
-<li><p>Add accepted-identity views and an Accepted Identities workbook sheet (<a href="https://github.com/seanthimons/concert/issues/87" class="external-link">#87</a>). Explicit scope/conflict decisions support registered mixtures; split component CAS values remain provisional until correspondence is reviewed. Headless ToxVal supports <code>toxval_identity_mode = "accepted"</code> without raw-ID fallback and retains measurement rows. Existing lookup export defaults remain compatible.</p></li>
-<li><p>Add explicit Source DTXSID evidence, authoritative validation outcomes, unused-column warnings and deliberate metadata ignores (<a href="https://github.com/seanthimons/concert/issues/86" class="external-link">#86</a>). Raw <code>dtxsid_*</code> input cannot vote in lookup consensus. Membership, source correspondence and accepted identity remain distinct; source-only manual recovery requires a current scoped decision. Transport failure is distinct from definitive absence.</p></li>
-<li><p>Separate queue, reconciliation and identity-review completion diagnostics. GUI flag actions record actual decision-time evidence and display source validation and acceptance blockers. Row-review dialogs also record scoped source correspondence or retained unresolved decisions, with exact source targeting, membership checks, immutable evidence and portable replay.</p></li>
-<li><p>Reopen VERIFIED rows whose current identity is unresolved (<a href="https://github.com/seanthimons/concert/issues/83" class="external-link">#83</a>), retaining prior flags, reasons, and tie evidence. Explicit FOLLOW-UP/BAD dispositions and reviewed WQX canonical names remain outside the ordinary pending queue.</p></li>
+<h2 class="pkg-version" data-toc-text="0.6.0" id="concert-060-2026-10-08">concert 0.6.0 (2026-10-08)<a class="anchor" aria-label="anchor" href="#concert-060-2026-10-08"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-6-0">New features<a class="anchor" aria-label="anchor" href="#new-features-0-6-0"></a></h4>
+<ul><li>add scoped chemical identity review and acceptance (<a href="https://github.com/seanthimons/concert/tree/28c94357562d18af226ecc1abf2c3181e4df618d" class="external-link">28c9435</a>)</li>
 </ul></div>
+<div class="section level4">
+<h4 id="bug-fixes-0-6-0">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-6-0"></a></h4>
+<ul><li>leave conflicting WQX aliases unresolved (<a href="https://github.com/seanthimons/concert/tree/bca927960fdd43e0b1f341a3a37d89c774d3eec5" class="external-link">bca9279</a>)</li>
+<li>keep raw WQX metadata out of candidate queries (<a href="https://github.com/seanthimons/concert/tree/ba6dd250222280cb573c8242b285fa646ca835d9" class="external-link">ba6dd25</a>)</li>
+<li>keep detailed query records optional in the review table (<a href="https://github.com/seanthimons/concert/tree/5a477adb909b58787295349356d6177c35f41ae6" class="external-link">5a477ad</a>)</li>
+<li>require WQX review and preserve scoped evidence across replay (<a href="https://github.com/seanthimons/concert/tree/53ff65a27ec5ce86f3949c14467439185c7dddda" class="external-link">53ff65a</a>)</li>
+<li>continue original and canonical WQX candidate queries (<a href="https://github.com/seanthimons/concert/tree/faa5577937899e78243a99d7015b0f53fd04bd6e" class="external-link">faa5577</a>)</li>
+<li>continue WQX CAS lookup as attributed review candidates (<a href="https://github.com/seanthimons/concert/tree/dcc0161606007661cc64515c599d12fe3e822274" class="external-link">dcc0161</a>)</li>
+<li>retain canonical WQX CAS evidence without choosing ties (<a href="https://github.com/seanthimons/concert/tree/262cf7eb54a23e5f812f6498fda497c958193b0d" class="external-link">262cf7e</a>)</li>
+<li>make review UI strings and release archive portable (<a href="https://github.com/seanthimons/concert/tree/4028a8663d662bfd7d1092ccf3c7794dd34ea952" class="external-link">4028a86</a>)</li>
+<li>preserve pinned manifest bytes and repair CAS assertion (<a href="https://github.com/seanthimons/concert/tree/a3c3dad560f6d4f5e502dcd4d9d7a7fb547148cc" class="external-link">a3c3dad</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="tests-0-6-0">Tests<a class="anchor" aria-label="anchor" href="#tests-0-6-0"></a></h4>
+<ul><li>cover WQX candidate boundaries in locked CI (<a href="https://github.com/seanthimons/concert/tree/7fb2b60633610af5ea004dd73aa7e21640b719ec" class="external-link">7fb2b60</a>)</li>
+<li>exercise WQX source decisions in the actual app (<a href="https://github.com/seanthimons/concert/tree/0d0b439821ab79548e14844cca1a5bf669263f75" class="external-link">0d0b439</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="ci-0-6-0">CI<a class="anchor" aria-label="anchor" href="#ci-0-6-0"></a></h4>
+<ul><li>restore locked packages directly on disposable runners (<a href="https://github.com/seanthimons/concert/tree/3f6a9aa99b9efdc8edb139e61a9ae136d878a71a" class="external-link">3f6a9aa</a>)</li>
+<li>make cross-platform package checks opt-in (<a href="https://github.com/seanthimons/concert/tree/414a00d9d6250e85a902185d4d94288b1effeb84" class="external-link">414a00d</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="docs-0-6-0">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-0"></a></h4>
+<ul><li>record audit regressions and crash recovery (<a href="https://github.com/seanthimons/concert/tree/9abd19772fb5c410b1a1a8306115b1b9e2ce91a8" class="external-link">9abd197</a>)</li>
+<li>record WQX implementation checks and release pause (<a href="https://github.com/seanthimons/concert/tree/aa5ef4ae3dc4ca2f12206e57bcd51a4712bd7a9a" class="external-link">aa5ef4a</a>)</li>
+<li>illustrate WQX evidence review and repair NEWS publishing (<a href="https://github.com/seanthimons/concert/tree/3788b86be324695419c54c1bbc60f04b155c1b03" class="external-link">3788b86</a>)</li>
+<li>index identity review APIs for pkgdown (<a href="https://github.com/seanthimons/concert/tree/8cee4b23e720dc386e9d1028d8a47e6a491308df" class="external-link">8cee4b2</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="other-changes-0-6-0">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-0"></a></h4>
+<ul><li>bump version to 0.6.0 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/84516a5b1b9798912790b780f83ddf5f44e736c1" class="external-link">84516a5</a>)</li>
+</ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.5.3...v0.6.0" class="external-link"><code>v0.5.3...v0.6.0</code></a></p>
+</div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.5.3" id="concert-053-2026-10-06">concert 0.5.3 (2026-10-06)<a class="anchor" aria-label="anchor" href="#concert-053-2026-10-06"></a></h2>
 <div class="section level4">
@@ -60,7 +91,8 @@
 </ul></div>
 <div class="section level4">
 <h4 id="docs-0-5-3">Docs<a class="anchor" aria-label="anchor" href="#docs-0-5-3"></a></h4>
-<ul><li>app walkthrough article and README installation cleanup (<a href="https://github.com/seanthimons/concert/issues/80" class="external-link">#80</a>) (<a href="https://github.com/seanthimons/concert/tree/bb8cc3d9ced8b748d4b449dbc01e29052666c308" class="external-link">bb8cc3d</a>)</li>
+<ul><li>update NEWS.md for v0.5.3 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/33c775e843c7dbe85b2201ebe07ccd840487f8af" class="external-link">33c775e</a>)</li>
+<li>app walkthrough article and README installation cleanup (<a href="https://github.com/seanthimons/concert/issues/80" class="external-link">#80</a>) (<a href="https://github.com/seanthimons/concert/tree/bb8cc3d9ced8b748d4b449dbc01e29052666c308" class="external-link">bb8cc3d</a>)</li>
 <li>merge pkgdown site and usage vignettes (<a href="https://github.com/seanthimons/concert/issues/65" class="external-link">#65</a>) (<a href="https://github.com/seanthimons/concert/tree/6f759307236a97447e499d25dc64bd2f852debe4" class="external-link">6f75930</a>)</li>
 </ul></div>
 <div class="section level4">
