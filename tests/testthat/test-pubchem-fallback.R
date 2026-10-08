@@ -386,3 +386,41 @@ test_that("empty collision-safe WQX evidence cannot expose raw metadata as a que
     wqx_name_lookup_name = NA_character_, consensus_status = "wqx", consensus_dtxsid = NA_character_)
   expect_identical(unresolved_name_queries(df, "name")$names, "Original")
 })
+
+test_that("registered repeated collisions never query spoofed raw canonical columns", {
+  raw <- tibble::tibble(name = c("Arsenick", "DO"),
+    wqx_name = "Spoofed generic", wqx_name_lookup_name = "Spoofed canonical A",
+    wqx_name_lookup_name_lookup = "Spoofed canonical B")
+  dictionary_hits <- tibble::tibble(searchValue = raw$name, dtxsid = NA_character_,
+    preferredName = c("Arsenic", "Dissolved oxygen"), rank = NA_integer_, searchName = "WQX", source_tier = c("wqx_fuzzy", "wqx_alias"),
+    wqx_input_name = raw$name, wqx_name = c("Arsenic", "Dissolved oxygen"))
+  keys <- tibble::tibble(column_name = "name", dedup_key = raw$name, row_idx = 1:2)
+  mapped <- map_results_to_rows(raw, keys, dictionary_hits)
+  mapped$consensus_status <- "wqx"
+  mapped$consensus_dtxsid <- NA_character_
+  expect_identical(find_dtxsid_cols(mapped), "dtxsid_lookup_name_lookup_lookup")
+  info <- unresolved_name_queries(mapped, "name")
+  expect_identical(info$names, c("Arsenick", "DO", "Arsenic", "Dissolved oxygen"))
+  expect_false(any(grepl("Spoofed", info$names)))
+  calls <- character()
+  pubchem <- add_pubchem_candidates(mapped, "name", search_fn = function(name, ...) {
+    calls <<- c(calls, name)
+    tibble::tibble(cid = integer())
+  })
+  expect_identical(calls, info$names)
+  resolver_calls <- NULL
+  resolver <- add_resolver_candidates(mapped, "name", lookup_fn = function(query, ...) {
+    resolver_calls <<- query
+    list()
+  })
+  expect_identical(resolver_calls, info$names)
+  expect_identical(pubchem$wqx_name_lookup_name, raw$wqx_name_lookup_name)
+  expect_identical(resolver$wqx_name_lookup_name_lookup, raw$wqx_name_lookup_name_lookup)
+})
+
+test_that("registered misses cannot treat raw WQX-shaped metadata as canonical queries", {
+  df <- tibble::tibble(name = "Actual unresolved source", dtxsid = NA_character_,
+    source_tier = "miss", wqx_name = "Spoofed raw canonical", wqx_input_name = "Actual unresolved source",
+    lookup_evidence_columns = "dtxsid", consensus_status = "error", consensus_dtxsid = NA_character_)
+  expect_identical(unresolved_name_queries(df, "name")$names, "Actual unresolved source")
+})

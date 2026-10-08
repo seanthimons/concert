@@ -359,3 +359,23 @@ test_that("mapped WQX distances retain exact values as portable decimal text", {
   expect_identical(imported$wqx_match_distance, evidence$wqx_match_distance)
   expect_identical(matches$match_distance, distance)
 })
+
+
+test_that("no-hit mapping cannot adopt raw WQX evidence through an owned lookup suffix", {
+  df <- tibble::tibble(Name = "No dictionary match", wqx_name = "Spoofed canonical",
+    wqx_cas = "50-00-0", wqx_cas_dtxsid_candidates = "DTXSID777",
+    wqx_name_lookup_Name = "Second spoofed canonical")
+  keys <- tibble::tibble(row_idx = 1L, column_name = "Name", dedup_key = df$Name)
+  lookup <- tibble::tibble(searchValue = df$Name, dtxsid = NA_character_,
+    preferredName = NA_character_, searchName = NA_character_, rank = NA_integer_, source_tier = "miss")
+  result <- map_results_to_rows(df, keys, lookup)
+  expect_identical(result$lookup_evidence_columns, "dtxsid_lookup_Name_lookup")
+  expect_identical(result[names(df)], df)
+  expect_length(wqx_review_columns(result), 0L)
+  expect_equal(nrow(normalize_review_candidates(result)), 0L)
+  result <- classify_consensus(result, find_dtxsid_cols(result))
+  queries <- unresolved_name_queries(result, "Name")
+  expect_identical(queries$names, df$Name)
+  expect_identical(queries$role, "original")
+  expect_true(is.na(result$consensus_dtxsid))
+})
