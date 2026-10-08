@@ -24,7 +24,17 @@ build_export_sheets(
   site_alias_map = NULL,
   script_baseline_state = NULL,
   media_map = NULL,
-  media_results = NULL
+  media_results = NULL,
+  ignored_identifier_cols = character(),
+  review_decision_evidence = NULL,
+  identity_decisions = NULL,
+  candidate_validation = NULL,
+  review_reconciliation = NULL,
+  candidate_review = NULL,
+  source_identifier_evidence = NULL,
+  identifier_diagnostics = NULL,
+  toxval_identity_mode = c("lookup", "accepted"),
+  cleaning_steps = NULL
 )
 ```
 
@@ -114,6 +124,46 @@ build_export_sheets(
 - media_results:
 
   Row-level media identity, routing and original-value audit.
+
+- ignored_identifier_cols:
+
+  Deliberately unused identifier metadata columns.
+
+- review_decision_evidence:
+
+  Portable immutable decision evidence.
+
+- identity_decisions:
+
+  Explicit structured source-identity decisions.
+
+- candidate_validation:
+
+  Structured candidate-validation outcomes.
+
+- review_reconciliation:
+
+  Optional reconciliation report.
+
+- candidate_review:
+
+  Optional candidate-validation report.
+
+- source_identifier_evidence:
+
+  Optional source-ID evidence report.
+
+- identifier_diagnostics:
+
+  Optional unused/source-ID diagnostics.
+
+- toxval_identity_mode:
+
+  Portable ToxVal identity policy, lookup or accepted.
+
+- cleaning_steps:
+
+  Optional applied named logical cleaning-step mask.
 
 ## Value
 

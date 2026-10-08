@@ -262,6 +262,40 @@ CompTox and WQX matching, consensus, and review.
 - [`hydrate_session_state()`](https://seanthimons.github.io/concert/reference/hydrate_session_state.md)
   : Hydrate Session State
 
+## Review and accept source identities
+
+Capture decision evidence, reconcile changes, and explicitly accept a
+source identity.
+
+- [`identity_review_state()`](https://seanthimons.github.io/concert/reference/identity_review_state.md)
+  : Derive accepted identity eligibility from current evidence
+- [`apply_identity_decisions()`](https://seanthimons.github.io/concert/reference/apply_identity_decisions.md)
+  : Apply explicit row-scoped identity decisions
+- [`accepted_identity_view()`](https://seanthimons.github.io/concert/reference/accepted_identity_view.md)
+  : Return accepted identities with source lineage
+- [`source_identifier_evidence()`](https://seanthimons.github.io/concert/reference/source_identifier_evidence.md)
+  : Validate source DTXSID membership without accepting source identity
+- [`unused_source_identifier_diagnostics()`](https://seanthimons.github.io/concert/reference/unused_source_identifier_diagnostics.md)
+  : Diagnose retained identifier columns without a source evidence role
+- [`build_candidate_review()`](https://seanthimons.github.io/concert/reference/build_candidate_review.md)
+  : Report candidate validation work without changing identity or flags
+- [`validate_review_candidates()`](https://seanthimons.github.io/concert/reference/validate_review_candidates.md)
+  : Explicitly validate saved candidate IDs with an injected authority
+- [`capture_review_decision()`](https://seanthimons.github.io/concert/reference/capture_review_decision.md)
+  : Capture evidence from an explicit review decision
+- [`capture_review_state()`](https://seanthimons.github.io/concert/reference/capture_review_state.md)
+  : Capture evidence currently inspected in a staged review
+- [`acknowledge_review_evidence()`](https://seanthimons.github.io/concert/reference/acknowledge_review_evidence.md)
+  : Acknowledge current evidence for an existing decision revision
+- [`review_decision_key()`](https://seanthimons.github.io/concert/reference/review_decision_key.md)
+  : Construct a stable content-selector decision ID
+- [`review_evidence_scope()`](https://seanthimons.github.io/concert/reference/review_evidence_scope.md)
+  : Construct explicit source/content review scope
+- [`review_evidence_snapshot()`](https://seanthimons.github.io/concert/reference/review_evidence_snapshot.md)
+  : Construct evidence for an explicit review
+- [`identity_evidence_fingerprint()`](https://seanthimons.github.io/concert/reference/identity_evidence_fingerprint.md)
+  : Capture current row evidence for a scoped identity decision
+
 ## Harmonize measurements
 
 - [`parse_numeric_results()`](https://seanthimons.github.io/concert/reference/parse_numeric_results.md)

@@ -8,7 +8,12 @@ map_to_toxval_schema() and rehashes the rows.
 ## Usage
 
 ``` r
-refresh_toxval_identity(toxval_output, resolution_state, harmonized_data)
+refresh_toxval_identity(
+  toxval_output,
+  resolution_state,
+  harmonized_data,
+  identity_mode = c("lookup", "accepted")
+)
 ```
 
 ## Arguments
@@ -25,7 +30,11 @@ refresh_toxval_identity(toxval_output, resolution_state, harmonized_data)
 
   Harmonized tibble the ToxVal rows were built from.
 
+- identity_mode:
+
+  Lookup compatibility or accepted-only identity policy.
+
 ## Value
 
-`toxval_output` with refreshed identifiers, or unchanged when the inputs
-do not line up.
+Refreshed output. Accepted mode blanks IDs when refresh cannot be
+verified.

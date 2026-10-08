@@ -19,6 +19,7 @@
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/app-walkthrough.html">Curating a dataset in the app</a></li>
+    <li><a class="dropdown-item" href="../articles/source-identity-review.html">Reviewing a source chemical identity</a></li>
     <li><a class="dropdown-item" href="../articles/cleaning-pipeline.html">Cleaning pipeline</a></li>
     <li><a class="dropdown-item" href="../articles/harmonization.html">Measurement harmonization</a></li>
     <li><a class="dropdown-item" href="../articles/headless-curation.html">Headless curation</a></li>
@@ -36,7 +37,7 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Validate manually-entered DTXSIDs via CompTox bulk API</h1>
-      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/v0.5.3/R/curation.R" class="external-link"><code>R/curation.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/main/R/curation.R" class="external-link"><code>R/curation.R</code></a></small>
       <div class="d-none name"><code>validate_manual_dtxsids.Rd</code></div>
     </div>
 
@@ -46,7 +47,12 @@
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">validate_manual_dtxsids</span><span class="op">(</span><span class="va">dtxsids</span>, batch_size <span class="op">=</span> <span class="fl">20</span>, delay_sec <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">validate_manual_dtxsids</span><span class="op">(</span></span>
+<span>  <span class="va">dtxsids</span>,</span>
+<span>  batch_size <span class="op">=</span> <span class="fl">20</span>,</span>
+<span>  delay_sec <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  lookup_fn <span class="op">=</span> <span class="fu">ComptoxR</span><span class="fu">::</span><span class="va"><a href="https://seanthimons.github.io/ComptoxR/reference/ct_chemical_search_equal_bulk.html" class="external-link">ct_chemical_search_equal_bulk</a></span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -64,10 +70,16 @@
 <dt id="arg-delay-sec">delay_sec<a class="anchor" aria-label="anchor" href="#arg-delay-sec"></a></dt>
 <dd><p>Numeric delay in seconds between batches (default 1)</p></dd>
 
+
+<dt id="arg-lookup-fn">lookup_fn<a class="anchor" aria-label="anchor" href="#arg-lookup-fn"></a></dt>
+<dd><p>Injectable authoritative equality lookup.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>Tibble with columns: searchValue, dtxsid, preferredName, rank, is_valid</p>
+    <p>Tibble with searchValue, dtxsid, preferredName, rank, is_valid and
+validation_status. Unavailable, not_found, ambiguous and returned_id_mismatch
+remain distinct; only an exact unique requested/returned ID is valid.</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

@@ -1,7 +1,8 @@
 # Pre-check predicate for flag_multi_analyte step
 
 Checks for multi-analyte patterns: strings containing common separator
-tokens (`and`, `+`, `&`, `/`) flanked by whitespace.
+tokens (`and`, `+`, `&`, `/`) flanked by whitespace, and credible
+unspaced slash lists of three or more chemical-name parts.
 
 ## Usage
 

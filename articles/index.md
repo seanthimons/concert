@@ -12,3 +12,5 @@
   harmonization](https://seanthimons.github.io/concert/articles/harmonization.md):
 - [Headless
   curation](https://seanthimons.github.io/concert/articles/headless-curation.md):
+- [Reviewing a source chemical
+  identity](https://seanthimons.github.io/concert/articles/source-identity-review.md):

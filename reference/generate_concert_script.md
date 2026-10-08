@@ -32,7 +32,12 @@ generate_concert_script(
   row_flags = NULL,
   pubchem = FALSE,
   desalt = FALSE,
-  desalt_workflows = c("qsar-ready", "ms-ready")
+  desalt_workflows = c("qsar-ready", "ms-ready"),
+  ignored_identifier_cols = character(),
+  review_decision_evidence = NULL,
+  identity_decisions = NULL,
+  candidate_validation = NULL,
+  toxval_identity_mode = "lookup"
 )
 ```
 
@@ -160,6 +165,27 @@ generate_concert_script(
 
   Standardizer workflows used when `desalt = TRUE`: "qsar-ready",
   "ms-ready", or both (default).
+
+- ignored_identifier_cols:
+
+  Retained identifier columns deliberately treated as metadata,
+  persisted in the replay call.
+
+- review_decision_evidence:
+
+  Portable immutable review evidence contract.
+
+- identity_decisions:
+
+  Explicit structured source-identity decisions.
+
+- candidate_validation:
+
+  Structured candidate validation outcomes.
+
+- toxval_identity_mode:
+
+  ToxVal policy: lookup (compatibility default) or accepted.
 
 ## Value
 

@@ -35,6 +35,13 @@ For a fixed local port:
 concert::run_app(port = 3838, launch.browser = FALSE)
 ```
 
+For a visual guide to source DTXSID evidence, mixture correspondence,
+scoped acceptance, and session restore, read [Reviewing a source
+chemical
+identity](https://seanthimons.github.io/concert/vignettes/articles/source-identity-review.Rmd).
+It includes the complete long Override dialog as overlapping
+screenshots.
+
 ## Headless Curation
 
 ``` r
@@ -76,6 +83,12 @@ CONCERT exports include a `Pipeline Config` sheet with a
 `concert_export` marker. Legacy export markers from the former package
 name are no longer accepted.
 
+Upload an exported workbook through the ordinary file-upload control and
+choose **Resume Session** to restore its review decisions, source
+evidence and applied cleaning choices. **Treat as Raw Data** starts a
+new workflow. Sidebar **Import Configuration** restores selected
+configuration rather than the full session.
+
 ## Development
 
 From a checkout, start R (4.5.1) in the repository root; renv bootstraps
@@ -91,6 +104,16 @@ devtools::load_all()
 After deliberately changing dependencies, run `renv::snapshot()` and
 commit `renv.lock`. `renv::status()` checks for drift.
 
+Routine CI runs the locked review and module-rendering tests on Windows
+with R 4.5.1 and the dependencies in `renv.lock`, plus commit and secret
+checks. The Linux, Windows, and macOS package-check matrix runs only
+when **R-CMD-check** is started manually in GitHub Actions. The release
+workflow independently runs `R CMD check` on Linux and rejects errors or
+warnings before publishing. Run
+[`devtools::test()`](https://devtools.r-lib.org/reference/test.html)
+locally for the full regression suite; package archives currently
+exclude `tests/`, so package checks do not run those tests.
+
 To benchmark the review table on the 8,216-row case:
 
 ``` r
@@ -99,3 +122,20 @@ source("scripts/benchmark_review_results.R")
 benchmark_review_results()
 run_review_benchmark_app()
 ```
+
+Source identifiers can be configured explicitly in headless workflows
+with `tag_map = list(chemical_name = "Name", source_dtxsid = "DTXSID")`.
+The `DTXSID` role validates IDs through EPA CompTox chemical details and
+retains raw values, normalized candidates, validation status, authority,
+and timestamp as review evidence. Registry membership does not establish
+correspondence to the source name or chemical scope and does not
+automatically assign consensus. Unavailable validation remains distinct
+from a definitive missing record.
+
+Retained identifier columns without this role produce unused-column
+diagnostics. Use `ignored_identifier_cols = "dtxsid_metadata"` to
+deliberately keep an identifier column as metadata. This configuration
+is preserved in generated replay scripts and workbook Pipeline Config.
+Raw columns named `dtxsid` or `dtxsid_*` remain input data and cannot
+become lookup votes through their names. `Other` retains its generic
+name-search behavior; it does not provide source ID validation.

@@ -19,6 +19,7 @@
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/app-walkthrough.html">Curating a dataset in the app</a></li>
+    <li><a class="dropdown-item" href="../articles/source-identity-review.html">Reviewing a source chemical identity</a></li>
     <li><a class="dropdown-item" href="../articles/cleaning-pipeline.html">Cleaning pipeline</a></li>
     <li><a class="dropdown-item" href="../articles/harmonization.html">Measurement harmonization</a></li>
     <li><a class="dropdown-item" href="../articles/headless-curation.html">Headless curation</a></li>
@@ -36,7 +37,7 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Validate CAS numbers and lookup DTXSID for valid ones</h1>
-      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/v0.5.3/R/curation.R" class="external-link"><code>R/curation.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/main/R/curation.R" class="external-link"><code>R/curation.R</code></a></small>
       <div class="d-none name"><code>validate_and_lookup_cas.Rd</code></div>
     </div>
 
@@ -46,7 +47,7 @@
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">validate_and_lookup_cas</span><span class="op">(</span><span class="va">unique_cas</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">validate_and_lookup_cas</span><span class="op">(</span><span class="va">unique_cas</span>, preserve_candidates <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -55,6 +56,11 @@
 
 <dl><dt id="arg-unique-cas">unique_cas<a class="anchor" aria-label="anchor" href="#arg-unique-cas"></a></dt>
 <dd><p>Character vector of CAS-like strings</p></dd>
+
+
+<dt id="arg-preserve-candidates">preserve_candidates<a class="anchor" aria-label="anchor" href="#arg-preserve-candidates"></a></dt>
+<dd><p>Keep all lookup hits and explicit lookup outcomes
+for provisional review evidence instead of choosing the best-ranked hit.</p></dd>
 
 </dl></div>
     <div class="section level2">

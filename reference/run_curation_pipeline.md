@@ -15,7 +15,10 @@ run_curation_pipeline(
   starts_with = FALSE,
   pubchem = FALSE,
   original_data = NULL,
-  desalt = FALSE
+  desalt = FALSE,
+  ignored_identifier_cols = character(),
+  source_lookup_fn = source_identifier_lookup,
+  wqx_cas_lookup_fn = validate_and_lookup_cas
 )
 ```
 
@@ -59,6 +62,26 @@ run_curation_pipeline(
 
   Logical. If TRUE, suggest parent names and DTXSIDs for unresolved salt
   names without assigning them. Independent of `pubchem`.
+
+- ignored_identifier_cols:
+
+  Deliberately unused identifier metadata columns.
+
+- source_lookup_fn:
+
+  Injectable authoritative source DTXSID details lookup.
+
+- wqx_cas_lookup_fn:
+
+  Injectable CAS lookup for canonical WQX dictionary evidence. Receives
+  deduplicated valid CAS values and returns original_cas (or
+  validated_cas), dtxsid, preferredName, and optional lookup_status. All
+  hits remain review candidates; no candidate is selected or accepted.
+  Statuses distinguish candidate, not_found, unavailable, missing,
+  invalid, and ambiguous dictionary evidence. Independent of `pubchem`.
+  Mapped `wqx_match_distance` is lossless 17-digit decimal text for
+  portable evidence fingerprints; the matcher's `match_distance` remains
+  numeric.
 
 ## Value
 

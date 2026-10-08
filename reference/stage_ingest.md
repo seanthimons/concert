@@ -13,7 +13,8 @@ stage_ingest(
   reference_list_snapshot = NULL,
   activate_all_references = FALSE,
   site_manifest = NULL,
-  site_alias_map = NULL
+  site_alias_map = NULL,
+  ignored_identifier_cols = character()
 )
 ```
 
@@ -68,6 +69,11 @@ stage_ingest(
 
   Optional Dataset Context raw-label alias map to include in the
   workbook export.
+
+- ignored_identifier_cols:
+
+  Retained identifier columns deliberately treated as metadata. These
+  columns never supply identity evidence.
 
 ## Value
 

@@ -16,6 +16,13 @@ concert::run_app()
 Curation needs network access and a CompTox API key in the `ctx_api_key`
 environment variable.
 
+For the current source-DTXSID and mixture-review controls, including the
+entire long Override dialog, see [Reviewing a source chemical
+identity](https://seanthimons.github.io/concert/articles/source-identity-review.md).
+The SSWQS screenshots below illustrate the earlier dataset walkthrough;
+the linked guide uses current full-app captures and clearly labelled
+synthetic data.
+
 ## 1. Upload
 
 Choose a CSV or XLSX file in the sidebar. **Data Preview** shows the
@@ -65,6 +72,11 @@ detection. Click **Run Checked Steps**.
 
 Pre-flight check
 
+For the complete current pre-flight dialog, including the search
+settings and run/cancel buttons below this older capture, see the two
+overlapping pre-flight images in [Reviewing a source chemical
+identity](https://seanthimons.github.io/concert/articles/source-identity-review.md).
+
 The summary cards count what changed: 74 CAS numbers normalized
 (`105679` became `105-67-9`) and 18 parentheticals stripped from names.
 The cleaned table below them flags anything that needs a second look.
@@ -91,6 +103,12 @@ Run Curation after a successful run
 at the top count rows that resolved, rows where the name and CAS lookups
 disagree, errors, and rows that were resolved automatically or only
 suggested.
+
+These cards describe lookup consensus. A resolved lookup is provisional
+evidence; it does not establish accepted source identity. **Override**
+now also exposes **Source identity correspondence** for an explicit
+decision about one source entry. See the linked source-identity guide
+for validation, scope and flags.
 
 ![Review Results summary](figures/07-review.png)
 
@@ -135,9 +153,12 @@ workbook with audit sheets. **ToxVal** writes ToxVal-format rows as CSV
 or Parquet. **Code** shows an R script that replays the session
 headlessly.
 
-The workbook includes a `Pipeline Config` sheet. Load it with **Import
-Configuration** in the sidebar to restore your tags and reference-list
-edits in a later session.
+Upload the workbook using the ordinary file-upload control and choose
+**Resume Session** to restore the full review, including source
+decisions, evidence and applied cleaning choices. Choose **Treat as Raw
+Data** for a fresh workflow. The `Pipeline Config` sheet also supports
+sidebar **Import Configuration** when you only want to restore tags and
+reference-list edits.
 
 ## Updating these screenshots
 
@@ -150,3 +171,9 @@ reinstall the package and run:
 source("scripts/capture_app_screenshots.R")
 capture_app_screenshots()
 ```
+
+Current source-review screenshots were captured from the running full
+app with the collaborative browser and process-local mocked services.
+Long dialogs use overlapping scroll captures so their evidence, actions
+and footer are included. Capture details are in
+`figures/identity-screenshot-capture.md`.

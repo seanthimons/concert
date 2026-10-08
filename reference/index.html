@@ -19,6 +19,7 @@
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/app-walkthrough.html">Curating a dataset in the app</a></li>
+    <li><a class="dropdown-item" href="../articles/source-identity-review.html">Reviewing a source chemical identity</a></li>
     <li><a class="dropdown-item" href="../articles/cleaning-pipeline.html">Cleaning pipeline</a></li>
     <li><a class="dropdown-item" href="../articles/harmonization.html">Measurement harmonization</a></li>
     <li><a class="dropdown-item" href="../articles/headless-curation.html">Headless curation</a></li>
@@ -901,6 +902,113 @@
 
         </dt>
         <dd>Hydrate Session State</dd>
+      </dl></div><div class="section level2">
+      <h2 id="review-and-accept-source-identities">Review and accept source identities<a class="anchor" aria-label="anchor" href="#review-and-accept-source-identities"></a></h2>
+
+      <div class="section-desc"><p>Capture decision evidence, reconcile changes, and explicitly accept a source identity.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="identity_review_state.html">identity_review_state()</a></code>
+
+        </dt>
+        <dd>Derive accepted identity eligibility from current evidence</dd>
+
+        <dt>
+
+          <code><a href="apply_identity_decisions.html">apply_identity_decisions()</a></code>
+
+        </dt>
+        <dd>Apply explicit row-scoped identity decisions</dd>
+
+        <dt>
+
+          <code><a href="accepted_identity_view.html">accepted_identity_view()</a></code>
+
+        </dt>
+        <dd>Return accepted identities with source lineage</dd>
+
+        <dt>
+
+          <code><a href="source_identifier_evidence.html">source_identifier_evidence()</a></code>
+
+        </dt>
+        <dd>Validate source DTXSID membership without accepting source identity</dd>
+
+        <dt>
+
+          <code><a href="unused_source_identifier_diagnostics.html">unused_source_identifier_diagnostics()</a></code>
+
+        </dt>
+        <dd>Diagnose retained identifier columns without a source evidence role</dd>
+
+        <dt>
+
+          <code><a href="build_candidate_review.html">build_candidate_review()</a></code>
+
+        </dt>
+        <dd>Report candidate validation work without changing identity or flags</dd>
+
+        <dt>
+
+          <code><a href="validate_review_candidates.html">validate_review_candidates()</a></code>
+
+        </dt>
+        <dd>Explicitly validate saved candidate IDs with an injected authority</dd>
+
+        <dt>
+
+          <code><a href="capture_review_decision.html">capture_review_decision()</a></code>
+
+        </dt>
+        <dd>Capture evidence from an explicit review decision</dd>
+
+        <dt>
+
+          <code><a href="capture_review_state.html">capture_review_state()</a></code>
+
+        </dt>
+        <dd>Capture evidence currently inspected in a staged review</dd>
+
+        <dt>
+
+          <code><a href="acknowledge_review_evidence.html">acknowledge_review_evidence()</a></code>
+
+        </dt>
+        <dd>Acknowledge current evidence for an existing decision revision</dd>
+
+        <dt>
+
+          <code><a href="review_decision_key.html">review_decision_key()</a></code>
+
+        </dt>
+        <dd>Construct a stable content-selector decision ID</dd>
+
+        <dt>
+
+          <code><a href="review_evidence_scope.html">review_evidence_scope()</a></code>
+
+        </dt>
+        <dd>Construct explicit source/content review scope</dd>
+
+        <dt>
+
+          <code><a href="review_evidence_snapshot.html">review_evidence_snapshot()</a></code>
+
+        </dt>
+        <dd>Construct evidence for an explicit review</dd>
+
+        <dt>
+
+          <code><a href="identity_evidence_fingerprint.html">identity_evidence_fingerprint()</a></code>
+
+        </dt>
+        <dd>Capture current row evidence for a scoped identity decision</dd>
       </dl></div><div class="section level2">
       <h2 id="harmonize-measurements">Harmonize measurements<a class="anchor" aria-label="anchor" href="#harmonize-measurements"></a></h2>
 

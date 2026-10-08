@@ -10,7 +10,10 @@ stage_review(
   review_overrides = NULL,
   accept_suggestions = FALSE,
   review_picks = NULL,
-  row_flags = NULL
+  row_flags = NULL,
+  review_decision_evidence = NULL,
+  candidate_validation = NULL,
+  identity_decisions = NULL
 )
 ```
 
@@ -46,6 +49,24 @@ stage_review(
   Optional data frame with `name`, `flag`, and optional `casrn` and
   `reason` columns. Matching rows get the row flag (one of
   [`valid_row_flags()`](https://seanthimons.github.io/concert/reference/valid_row_flags.md)).
+
+- review_decision_evidence:
+
+  Immutable portable decision snapshots and scoped acknowledgments from
+  [`capture_review_decision()`](https://seanthimons.github.io/concert/reference/capture_review_decision.md).
+  Legacy flags never acquire a historical baseline implicitly.
+
+- candidate_validation:
+
+  Structured saved validation outcomes from
+  [`validate_review_candidates()`](https://seanthimons.github.io/concert/reference/validate_review_candidates.md).
+  Reporting makes no network requests.
+
+- identity_decisions:
+
+  Explicit source-scoped decisions passed to
+  [`apply_identity_decisions()`](https://seanthimons.github.io/concert/reference/apply_identity_decisions.md).
+  Name-wide selectors cannot grant scope acceptance.
 
 ## Value
 

@@ -2,10 +2,10 @@
 
 Runs the complete CONCERT curation pipeline - file read, frontmatter
 detection, cleaning, CompTox API search, consensus classification, and
-8-sheet XLSX export - from a single R script call with no Shiny session
-required. When harmonize=TRUE, additionally runs the numeric parsing,
-unit harmonization, and ToxVal schema mapping pipeline, and writes
-parquet/CSV output alongside the XLSX.
+multi-sheet XLSX export - from a single R script call with no Shiny
+session required. When harmonize=TRUE, additionally runs the numeric
+parsing, unit harmonization, and ToxVal schema mapping pipeline, and
+writes parquet/CSV output alongside the XLSX.
 
 ## Usage
 
@@ -33,6 +33,9 @@ curate_headless(
   accept_suggestions = FALSE,
   review_picks = NULL,
   row_flags = NULL,
+  review_decision_evidence = NULL,
+  candidate_validation = NULL,
+  identity_decisions = NULL,
   site_manifest = NULL,
   site_alias_map = NULL,
   multi_analyte_resolutions = NULL,
@@ -44,7 +47,9 @@ curate_headless(
   source_name = NULL,
   pubchem = FALSE,
   desalt = FALSE,
-  desalt_workflows = c("qsar-ready", "ms-ready")
+  desalt_workflows = c("qsar-ready", "ms-ready"),
+  ignored_identifier_cols = character(),
+  toxval_identity_mode = "lookup"
 )
 ```
 
@@ -182,6 +187,24 @@ curate_headless(
   `reason` columns. Matching rows get the row flag (one of
   [`valid_row_flags()`](https://seanthimons.github.io/concert/reference/valid_row_flags.md)).
 
+- review_decision_evidence:
+
+  Immutable portable decision snapshots and scoped acknowledgments from
+  [`capture_review_decision()`](https://seanthimons.github.io/concert/reference/capture_review_decision.md).
+  Legacy flags never acquire a historical baseline implicitly.
+
+- candidate_validation:
+
+  Structured saved validation outcomes from
+  [`validate_review_candidates()`](https://seanthimons.github.io/concert/reference/validate_review_candidates.md).
+  Reporting makes no network requests.
+
+- identity_decisions:
+
+  Explicit source-scoped decisions passed to
+  [`apply_identity_decisions()`](https://seanthimons.github.io/concert/reference/apply_identity_decisions.md).
+  Name-wide selectors cannot grant scope acceptance.
+
 - site_manifest:
 
   Optional curated Dataset Context site manifest to include in the
@@ -255,6 +278,17 @@ curate_headless(
 
   Standardizer workflows used when `desalt = TRUE`: "qsar-ready",
   "ms-ready", or both (default).
+
+- ignored_identifier_cols:
+
+  Retained identifier columns deliberately treated as metadata. These
+  columns never supply identity evidence.
+
+- toxval_identity_mode:
+
+  ToxVal identifier policy: "lookup" preserves the existing audit export
+  default; "accepted" gates IDs and preserves every measurement row with
+  NA IDs when blocked.
 
 ## Value
 

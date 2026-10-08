@@ -19,6 +19,7 @@
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/app-walkthrough.html">Curating a dataset in the app</a></li>
+    <li><a class="dropdown-item" href="../articles/source-identity-review.html">Reviewing a source chemical identity</a></li>
     <li><a class="dropdown-item" href="../articles/cleaning-pipeline.html">Cleaning pipeline</a></li>
     <li><a class="dropdown-item" href="../articles/harmonization.html">Measurement harmonization</a></li>
     <li><a class="dropdown-item" href="../articles/headless-curation.html">Headless curation</a></li>
@@ -36,7 +37,7 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Orchestrate the full curation pipeline: dedup -&gt; search -&gt; map -&gt; consensus -&gt; resolution</h1>
-      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/v0.5.3/R/curation.R" class="external-link"><code>R/curation.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/main/R/curation.R" class="external-link"><code>R/curation.R</code></a></small>
       <div class="d-none name"><code>run_curation_pipeline.Rd</code></div>
     </div>
 
@@ -55,7 +56,10 @@
 <span>  starts_with <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  pubchem <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  original_data <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  desalt <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  desalt <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  ignored_identifier_cols <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  source_lookup_fn <span class="op">=</span> <span class="va">source_identifier_lookup</span>,</span>
+<span>  wqx_cas_lookup_fn <span class="op">=</span> <span class="va">validate_and_lookup_cas</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -100,6 +104,25 @@ unresolved rows without assigning DTXSIDs.</p></dd>
 <dt id="arg-desalt">desalt<a class="anchor" aria-label="anchor" href="#arg-desalt"></a></dt>
 <dd><p>Logical. If TRUE, suggest parent names and DTXSIDs for
 unresolved salt names without assigning them. Independent of <code>pubchem</code>.</p></dd>
+
+
+<dt id="arg-ignored-identifier-cols">ignored_identifier_cols<a class="anchor" aria-label="anchor" href="#arg-ignored-identifier-cols"></a></dt>
+<dd><p>Deliberately unused identifier metadata columns.</p></dd>
+
+
+<dt id="arg-source-lookup-fn">source_lookup_fn<a class="anchor" aria-label="anchor" href="#arg-source-lookup-fn"></a></dt>
+<dd><p>Injectable authoritative source DTXSID details lookup.</p></dd>
+
+
+<dt id="arg-wqx-cas-lookup-fn">wqx_cas_lookup_fn<a class="anchor" aria-label="anchor" href="#arg-wqx-cas-lookup-fn"></a></dt>
+<dd><p>Injectable CAS lookup for canonical WQX dictionary
+evidence. Receives deduplicated valid CAS values and returns original_cas
+(or validated_cas), dtxsid, preferredName, and optional lookup_status. All
+hits remain review candidates; no candidate is selected or accepted.
+Statuses distinguish candidate, not_found, unavailable, missing, invalid,
+and ambiguous dictionary evidence. Independent of <code>pubchem</code>. Mapped
+<code>wqx_match_distance</code> is lossless 17-digit decimal text for portable evidence
+fingerprints; the matcher's <code>match_distance</code> remains numeric.</p></dd>
 
 </dl></div>
     <div class="section level2">

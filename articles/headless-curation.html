@@ -34,6 +34,7 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/app-walkthrough.html">Curating a dataset in the app</a></li>
+    <li><a class="dropdown-item" href="../articles/source-identity-review.html">Reviewing a source chemical identity</a></li>
     <li><a class="dropdown-item" href="../articles/cleaning-pipeline.html">Cleaning pipeline</a></li>
     <li><a class="dropdown-item" href="../articles/harmonization.html">Measurement harmonization</a></li>
     <li><a class="dropdown-item" href="../articles/headless-curation.html">Headless curation</a></li>
@@ -62,7 +63,7 @@
       <img src="../logo.png" class="logo" alt=""><h1>Headless curation</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/v0.5.3/vignettes/headless-curation.Rmd" class="external-link"><code>vignettes/headless-curation.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/main/vignettes/headless-curation.Rmd" class="external-link"><code>vignettes/headless-curation.Rmd</code></a></small>
       <div class="d-none name"><code>headless-curation.Rmd</code></div>
     </div>
 
@@ -259,8 +260,10 @@ look.</li>
 <li>
 <code>pending.csv</code>: one row per unresolved data row with a
 <code>pending_type</code> (<code>multi_analyte</code>,
-<code>disagree</code>, <code>suggested</code>, <code>no_match</code>),
-the suggested DTXSID or split, and the candidate list.</li>
+<code>verified_unresolved</code>, <code>candidate_validation</code>,
+<code>identity_scope</code>, <code>disagree</code>,
+<code>suggested</code>, <code>no_match</code>), the suggested DTXSID or
+split, and the candidate list.</li>
 <li>
 <code>replay.R</code>: the standalone reproduction script.</li>
 <li>
@@ -279,6 +282,112 @@ rows beat per-row picks.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"skills/concert-curate/SKILL.md"</span>, package <span class="op">=</span> <span class="st">"concert"</span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="ex">Rscript</span> <span class="op">&lt;</span>runner<span class="op">&gt;</span> --template input.csv output/loop</span>
 <span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a><span class="ex">Rscript</span> <span class="op">&lt;</span>runner<span class="op">&gt;</span> output/loop/decisions.R   <span class="co"># exit 0 = done, exit 2 = rows pending</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="review-evidence-and-accepted-identities">Review evidence and accepted identities<a class="anchor" aria-label="anchor" href="#review-evidence-and-accepted-identities"></a>
+</h2>
+<p><code>done</code> and <code>queue_complete</code> describe queue
+disposition. A retained FOLLOW-UP can complete that queue while
+<code>reconciliation_complete</code>,
+<code>identity_review_complete</code> or <code>review_complete</code>
+remain false. Each iteration writes
+<code>review_reconciliation.csv</code>,
+<code>candidate_review.csv</code>,
+<code>identifier_diagnostics.csv</code> and
+<code>identity_review.csv</code>. Changed evidence can reopen candidate
+validation; repeating a VERIFIED flag cannot resolve a blank/tied
+identity. Reviewed WQX canonical names retain their separate name-only
+contract and never manufacture a DTXSID.</p>
+<p>Historical flags have no decision snapshot. They report
+<code>baseline_missing</code>, regardless of the reason’s wording. To
+record evidence actually inspected at an explicit decision, use the
+shared portable object:</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">run</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/curate_iterate.html">curate_iterate</a></span><span class="op">(</span><span class="st">"output/loop/decisions.R"</span><span class="op">)</span></span>
+<span><span class="va">review_decision_evidence</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/capture_review_state.html">capture_review_state</a></span><span class="op">(</span></span>
+<span>  <span class="va">run</span><span class="op">$</span><span class="va">state</span>, name <span class="op">=</span> <span class="st">"Reviewed analyte"</span>, disposition <span class="op">=</span> <span class="st">"deferred"</span>,</span>
+<span>  flag <span class="op">=</span> <span class="st">"FOLLOW-UP"</span>, reason <span class="op">=</span> <span class="st">"Specific source-scope question remains"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Save that object in <code>decisions.R</code>; generated replay and
+workbook Session State preserve its immutable revisions.
+<code><a href="../reference/acknowledge_review_evidence.html">acknowledge_review_evidence()</a></code> binds an explicit
+acknowledgment to the decision revision, exact source/content scope and
+current evidence fingerprint. It resolves that reconciliation event,
+without clearing FOLLOW-UP or accepting an identity. A later evidence or
+scope change reopens work. Use <code><a href="../reference/validate_review_candidates.html">validate_review_candidates()</a></code>
+with an explicit configured validator to recheck saved candidates
+independently of name discovery. It returns structured outcomes and a
+versioned cache; outages are retryable, and no DSSTox download is
+triggered. Candidate ordering, duplicates and audit timestamps are not
+new evidence.</p>
+<p>The <code>DTXSID</code> tag supplies attributed source evidence.
+Registry membership is validated independently of source-identity
+correspondence; successful source, resolver and PubChem agreement does
+not promote a source ID. Untagged ID columns warn, while deliberate
+metadata can be retained without queries:</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/curate_headless.html">curate_headless</a></span><span class="op">(</span></span>
+<span>  input_path <span class="op">=</span> <span class="st">"input.csv"</span>, output_path <span class="op">=</span> <span class="st">"curated.xlsx"</span>,</span>
+<span>  tag_map <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>chemical_name <span class="op">=</span> <span class="st">"Name"</span>, source_dtxsid <span class="op">=</span> <span class="st">"DTXSID"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co"># Alternatively omit source_dtxsid from tag_map and retain it only as metadata:</span></span>
+<span><span class="co"># ignored_identifier_cols = "source_dtxsid"</span></span></code></pre></div>
+<p>Ignored columns must have no chemical evidence role. Existing
+unignored Other roles retain their generic-search behavior. Raw input
+columns named <code>dtxsid</code> or <code>dtxsid_*</code> cannot bypass
+the generated-evidence registry.</p>
+<p>Lookup consensus remains in Curated Data.
+<code><a href="../reference/identity_review_state.html">identity_review_state()</a></code> derives blockers and
+<code>accepted_dtxsid</code>; <code><a href="../reference/accepted_identity_view.html">accepted_identity_view()</a></code>
+retains eligible rows with all source lineage. The Accepted Identities
+sheet is additive. Registered mixtures can qualify through explicit
+correspondence review; aggregates may be kept unresolved without
+selecting a representative component. Split rows retain original
+name/CAS and part lineage, with repeated component CAS blocked until
+explicit mapping or correspondence review.</p>
+<p>Structured acceptance is available through
+<code>identity_decisions</code> and
+<code><a href="../reference/apply_identity_decisions.html">apply_identity_decisions()</a></code>. In Review Results, open
+<strong>Override</strong> or <strong>Compare Candidates</strong> and use
+<strong>Source identity correspondence</strong>. Select one source row
+when the table groups several rows. Choose its scope and remaining
+conflict, enter a selected ID, explicitly confirm correspondence, and
+supply a reason and evidence reference. <strong>Save source
+decision</strong> checks membership independently and records the scoped
+decision. <strong>Keep unresolved</strong> retains candidate evidence
+without granting acceptance. FOLLOW-UP/BAD flags stay in place;
+recording correspondence does not clear them. Reopen the review if
+evidence changes while the dialog is open. Each record requires a unique
+source/content selector plus original lineage, resolved scope/conflict,
+reason, evidence reference, selected ID, explicit
+<code>correspondence = TRUE</code>, and
+<code><a href="../reference/identity_evidence_fingerprint.html">identity_evidence_fingerprint()</a></code> from the inspected row.
+Registry membership is checked separately. Changed or ambiguous evidence
+fails closed. Name/CAS selectors may span many rows for flags and
+ordinary picks; they cannot express source-specific scope
+acceptance.</p>
+<p>For safe ToxVal output, opt in to
+<code>toxval_identity_mode = "accepted"</code> in headless or iteration
+decisions when <code>harmonize = TRUE</code>. Every measurement row
+remains, with NA identifiers for blocked identities and no raw-ID
+fallback. Existing lookup defaults are retained as an explicit
+compatibility choice; this audit mode is not an accepted-identity
+filter. The standalone mapper supports the equivalent
+<code>identity_mode = "accepted"</code>. Workbook import, GUI refresh
+and generated replay preserve the explicit mode; accepted-only refresh
+blanks IDs if current alignment cannot be verified.</p>
+<p>A small development demo uses the actual Review Results module with
+synthetic rows and mocked registry responses. From the repository
+root:</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/source.html" class="external-link">source</a></span><span class="op">(</span><span class="st">"inst/examples/identity-review-demo.R"</span><span class="op">)</span></span>
+<span><span class="fu">run_identity_review_demo</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<p>Try a registered mixture, two grouped source rows, unavailable source
+membership, and a retained FOLLOW-UP. Only synthetic IDs DTXSID123,
+DTXSID456 and DTXSID789 pass the mocked membership service; source
+validation and correspondence gates still apply. Discovery is disabled.
+These fixtures do not validate real chemical identities or change pilot
+assignments.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

@@ -6,7 +6,12 @@ ToxVal-compatible format with typed NAs and \*\_original audit columns.
 ## Usage
 
 ``` r
-map_to_toxval_schema(curated_data, harmonized_data, source_name = NULL)
+map_to_toxval_schema(
+  curated_data,
+  harmonized_data,
+  source_name = NULL,
+  identity_mode = c("lookup", "accepted")
+)
 ```
 
 ## Arguments
@@ -41,6 +46,14 @@ map_to_toxval_schema(curated_data, harmonized_data, source_name = NULL)
 - source_name:
 
   Optional dataset identifier. Defaults to "user_upload".
+
+- identity_mode:
+
+  "lookup" (compatibility default) retains provisional lookup
+  identifiers. "accepted" applies
+  [`identity_review_state()`](https://seanthimons.github.io/concert/reference/identity_review_state.md)
+  and never falls back to raw IDs for blocked rows. Measurements remain
+  aligned.
 
 ## Value
 

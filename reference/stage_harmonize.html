@@ -19,6 +19,7 @@
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/app-walkthrough.html">Curating a dataset in the app</a></li>
+    <li><a class="dropdown-item" href="../articles/source-identity-review.html">Reviewing a source chemical identity</a></li>
     <li><a class="dropdown-item" href="../articles/cleaning-pipeline.html">Cleaning pipeline</a></li>
     <li><a class="dropdown-item" href="../articles/harmonization.html">Measurement harmonization</a></li>
     <li><a class="dropdown-item" href="../articles/headless-curation.html">Headless curation</a></li>
@@ -36,7 +37,7 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Stage 5: run numeric, unit, media, and ToxVal harmonization</h1>
-      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/v0.5.3/R/curate_stages.R" class="external-link"><code>R/curate_stages.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/main/R/curate_stages.R" class="external-link"><code>R/curate_stages.R</code></a></small>
       <div class="d-none name"><code>stage_harmonize.Rd</code></div>
     </div>
 
@@ -55,7 +56,8 @@
 <span>  media_map <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  media_map_snapshot <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  media <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  source_name <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  source_name <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  toxval_identity_mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"lookup"</span>, <span class="st">"accepted"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -108,12 +110,19 @@ or "solid". NULL (default) uses aqueous assumption.</p></dd>
 <dd><p>Optional dataset identifier for ToxVal <code>source</code>. Defaults
 to the input filename stem.</p></dd>
 
+
+<dt id="arg-toxval-identity-mode">toxval_identity_mode<a class="anchor" aria-label="anchor" href="#arg-toxval-identity-mode"></a></dt>
+<dd><p>ToxVal identifier policy: "lookup" preserves
+the existing audit export default; "accepted" gates IDs and preserves
+every measurement row with NA IDs when blocked.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>The state with <code>harmonize</code>, <code>harmonization_refs</code>,
 <code>harmonization_runtime_result</code>, <code>toxval_output</code>, <code>harmonize_audit</code>, and
-<code>detection_results</code> added. When <code>harmonize = FALSE</code> only <code>harmonize</code> is set.</p>
+<code>detection_results</code> added. When <code>harmonize = FALSE</code>, the harmonization flag
+and identity policy are retained.</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

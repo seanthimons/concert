@@ -34,6 +34,7 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/app-walkthrough.html">Curating a dataset in the app</a></li>
+    <li><a class="dropdown-item" href="../articles/source-identity-review.html">Reviewing a source chemical identity</a></li>
     <li><a class="dropdown-item" href="../articles/cleaning-pipeline.html">Cleaning pipeline</a></li>
     <li><a class="dropdown-item" href="../articles/harmonization.html">Measurement harmonization</a></li>
     <li><a class="dropdown-item" href="../articles/headless-curation.html">Headless curation</a></li>
@@ -62,7 +63,7 @@
       <img src="../logo.png" class="logo" alt=""><h1>Curating a dataset in the app</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/v0.5.3/vignettes/articles/app-walkthrough.Rmd" class="external-link"><code>vignettes/articles/app-walkthrough.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/main/vignettes/articles/app-walkthrough.Rmd" class="external-link"><code>vignettes/articles/app-walkthrough.Rmd</code></a></small>
       <div class="d-none name"><code>app-walkthrough.Rmd</code></div>
     </div>
 
@@ -78,6 +79,11 @@ the app. Tabs appear as earlier steps finish.</p>
 <code class="sourceCode R"><span><span class="fu">concert</span><span class="fu">::</span><span class="fu"><a href="../reference/run_app.html">run_app</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>Curation needs network access and a CompTox API key in the
 <code>ctx_api_key</code> environment variable.</p>
+<p>For the current source-DTXSID and mixture-review controls, including
+the entire long Override dialog, see <a href="source-identity-review.html">Reviewing a source chemical
+identity</a>. The SSWQS screenshots below illustrate the earlier dataset
+walkthrough; the linked guide uses current full-app captures and clearly
+labelled synthetic data.</p>
 <div class="section level2">
 <h2 id="upload">1. Upload<a class="anchor" aria-label="anchor" href="#upload"></a>
 </h2>
@@ -131,6 +137,10 @@ normalization, name cleaning, and multi-analyte detection. Click
 <div class="float">
 <img src="figures/04-preflight.png" alt="Pre-flight check"><div class="figcaption">Pre-flight check</div>
 </div>
+<p>For the complete current pre-flight dialog, including the search
+settings and run/cancel buttons below this older capture, see the two
+overlapping pre-flight images in <a href="source-identity-review.html">Reviewing a source chemical
+identity</a>.</p>
 <p>The summary cards count what changed: 74 CAS numbers normalized
 (<code>105679</code> became <code>105-67-9</code>) and 18 parentheticals
 stripped from names. The cleaned table below them flags anything that
@@ -158,6 +168,12 @@ and scores the candidates. This dataset takes about 20 seconds.</p>
 identities. The cards at the top count rows that resolved, rows where
 the name and CAS lookups disagree, errors, and rows that were resolved
 automatically or only suggested.</p>
+<p>These cards describe lookup consensus. A resolved lookup is
+provisional evidence; it does not establish accepted source identity.
+<strong>Override</strong> now also exposes <strong>Source identity
+correspondence</strong> for an explicit decision about one source entry.
+See the linked source-identity guide for validation, scope and
+flags.</p>
 <div class="float">
 <img src="figures/07-review.png" alt="Review Results summary"><div class="figcaption">Review Results summary</div>
 </div>
@@ -207,9 +223,13 @@ Excel</strong> writes the curated workbook with audit sheets.
 <strong>ToxVal</strong> writes ToxVal-format rows as CSV or Parquet.
 <strong>Code</strong> shows an R script that replays the session
 headlessly.</p>
-<p>The workbook includes a <code>Pipeline Config</code> sheet. Load it
-with <strong>Import Configuration</strong> in the sidebar to restore
-your tags and reference-list edits in a later session.</p>
+<p>Upload the workbook using the ordinary file-upload control and choose
+<strong>Resume Session</strong> to restore the full review, including
+source decisions, evidence and applied cleaning choices. Choose
+<strong>Treat as Raw Data</strong> for a fresh workflow. The
+<code>Pipeline Config</code> sheet also supports sidebar <strong>Import
+Configuration</strong> when you only want to restore tags and
+reference-list edits.</p>
 </div>
 <div class="section level2">
 <h2 id="updating-these-screenshots">Updating these screenshots<a class="anchor" aria-label="anchor" href="#updating-these-screenshots"></a>
@@ -221,6 +241,11 @@ package and run:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/source.html" class="external-link">source</a></span><span class="op">(</span><span class="st">"scripts/capture_app_screenshots.R"</span><span class="op">)</span></span>
 <span><span class="fu">capture_app_screenshots</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<p>Current source-review screenshots were captured from the running full
+app with the collaborative browser and process-local mocked services.
+Long dialogs use overlapping scroll captures so their evidence, actions
+and footer are included. Capture details are in
+<code>figures/identity-screenshot-capture.md</code>.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

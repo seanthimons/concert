@@ -14,7 +14,8 @@ stage_harmonize(
   media_map = NULL,
   media_map_snapshot = NULL,
   media = NULL,
-  source_name = NULL
+  source_name = NULL,
+  toxval_identity_mode = c("lookup", "accepted")
 )
 ```
 
@@ -69,9 +70,15 @@ stage_harmonize(
   Optional dataset identifier for ToxVal `source`. Defaults to the input
   filename stem.
 
+- toxval_identity_mode:
+
+  ToxVal identifier policy: "lookup" preserves the existing audit export
+  default; "accepted" gates IDs and preserves every measurement row with
+  NA IDs when blocked.
+
 ## Value
 
 The state with `harmonize`, `harmonization_refs`,
 `harmonization_runtime_result`, `toxval_output`, `harmonize_audit`, and
-`detection_results` added. When `harmonize = FALSE` only `harmonize` is
-set.
+`detection_results` added. When `harmonize = FALSE`, the harmonization
+flag and identity policy are retained.

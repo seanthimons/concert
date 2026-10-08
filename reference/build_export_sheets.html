@@ -21,6 +21,7 @@ for Excel export via writexl::write_xlsx()."><meta property="og:image" content="
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/app-walkthrough.html">Curating a dataset in the app</a></li>
+    <li><a class="dropdown-item" href="../articles/source-identity-review.html">Reviewing a source chemical identity</a></li>
     <li><a class="dropdown-item" href="../articles/cleaning-pipeline.html">Cleaning pipeline</a></li>
     <li><a class="dropdown-item" href="../articles/harmonization.html">Measurement harmonization</a></li>
     <li><a class="dropdown-item" href="../articles/headless-curation.html">Headless curation</a></li>
@@ -38,7 +39,7 @@ for Excel export via writexl::write_xlsx()."><meta property="og:image" content="
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Build Export Sheets</h1>
-      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/v0.5.3/R/export_helpers.R" class="external-link"><code>R/export_helpers.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/main/R/export_helpers.R" class="external-link"><code>R/export_helpers.R</code></a></small>
       <div class="d-none name"><code>build_export_sheets.Rd</code></div>
     </div>
 
@@ -67,7 +68,17 @@ for Excel export via writexl::write_xlsx().</p>
 <span>  site_alias_map <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  script_baseline_state <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  media_map <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  media_results <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  media_results <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  ignored_identifier_cols <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  review_decision_evidence <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  identity_decisions <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  candidate_validation <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  review_reconciliation <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  candidate_review <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  source_identifier_evidence <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  identifier_diagnostics <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  toxval_identity_mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"lookup"</span>, <span class="st">"accepted"</span><span class="op">)</span>,</span>
+<span>  cleaning_steps <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -159,6 +170,46 @@ State so re-imported sessions can regenerate replay review overrides.</p></dd>
 
 <dt id="arg-media-results">media_results<a class="anchor" aria-label="anchor" href="#arg-media-results"></a></dt>
 <dd><p>Row-level media identity, routing and original-value audit.</p></dd>
+
+
+<dt id="arg-ignored-identifier-cols">ignored_identifier_cols<a class="anchor" aria-label="anchor" href="#arg-ignored-identifier-cols"></a></dt>
+<dd><p>Deliberately unused identifier metadata columns.</p></dd>
+
+
+<dt id="arg-review-decision-evidence">review_decision_evidence<a class="anchor" aria-label="anchor" href="#arg-review-decision-evidence"></a></dt>
+<dd><p>Portable immutable decision evidence.</p></dd>
+
+
+<dt id="arg-identity-decisions">identity_decisions<a class="anchor" aria-label="anchor" href="#arg-identity-decisions"></a></dt>
+<dd><p>Explicit structured source-identity decisions.</p></dd>
+
+
+<dt id="arg-candidate-validation">candidate_validation<a class="anchor" aria-label="anchor" href="#arg-candidate-validation"></a></dt>
+<dd><p>Structured candidate-validation outcomes.</p></dd>
+
+
+<dt id="arg-review-reconciliation">review_reconciliation<a class="anchor" aria-label="anchor" href="#arg-review-reconciliation"></a></dt>
+<dd><p>Optional reconciliation report.</p></dd>
+
+
+<dt id="arg-candidate-review">candidate_review<a class="anchor" aria-label="anchor" href="#arg-candidate-review"></a></dt>
+<dd><p>Optional candidate-validation report.</p></dd>
+
+
+<dt id="arg-source-identifier-evidence">source_identifier_evidence<a class="anchor" aria-label="anchor" href="#arg-source-identifier-evidence"></a></dt>
+<dd><p>Optional source-ID evidence report.</p></dd>
+
+
+<dt id="arg-identifier-diagnostics">identifier_diagnostics<a class="anchor" aria-label="anchor" href="#arg-identifier-diagnostics"></a></dt>
+<dd><p>Optional unused/source-ID diagnostics.</p></dd>
+
+
+<dt id="arg-toxval-identity-mode">toxval_identity_mode<a class="anchor" aria-label="anchor" href="#arg-toxval-identity-mode"></a></dt>
+<dd><p>Portable ToxVal identity policy, lookup or accepted.</p></dd>
+
+
+<dt id="arg-cleaning-steps">cleaning_steps<a class="anchor" aria-label="anchor" href="#arg-cleaning-steps"></a></dt>
+<dd><p>Optional applied named logical cleaning-step mask.</p></dd>
 
 </dl></div>
     <div class="section level2">

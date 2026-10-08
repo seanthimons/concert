@@ -19,6 +19,7 @@
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/app-walkthrough.html">Curating a dataset in the app</a></li>
+    <li><a class="dropdown-item" href="../articles/source-identity-review.html">Reviewing a source chemical identity</a></li>
     <li><a class="dropdown-item" href="../articles/cleaning-pipeline.html">Cleaning pipeline</a></li>
     <li><a class="dropdown-item" href="../articles/harmonization.html">Measurement harmonization</a></li>
     <li><a class="dropdown-item" href="../articles/headless-curation.html">Headless curation</a></li>
@@ -36,7 +37,7 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Stage 4: apply Review Results edits</h1>
-      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/v0.5.3/R/curate_stages.R" class="external-link"><code>R/curate_stages.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/main/R/curate_stages.R" class="external-link"><code>R/curate_stages.R</code></a></small>
       <div class="d-none name"><code>stage_review.Rd</code></div>
     </div>
 
@@ -51,7 +52,10 @@
 <span>  review_overrides <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  accept_suggestions <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  review_picks <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  row_flags <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  row_flags <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  review_decision_evidence <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  candidate_validation <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  identity_decisions <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -86,6 +90,22 @@ resolved to that DTXSID after validation against CompTox.</p></dd>
 <dd><p>Optional data frame with <code>name</code>, <code>flag</code>, and optional
 <code>casrn</code> and <code>reason</code> columns. Matching rows get the row flag (one of
 <code><a href="valid_row_flags.html">valid_row_flags()</a></code>).</p></dd>
+
+
+<dt id="arg-review-decision-evidence">review_decision_evidence<a class="anchor" aria-label="anchor" href="#arg-review-decision-evidence"></a></dt>
+<dd><p>Immutable portable decision snapshots and
+scoped acknowledgments from <code><a href="capture_review_decision.html">capture_review_decision()</a></code>. Legacy flags never
+acquire a historical baseline implicitly.</p></dd>
+
+
+<dt id="arg-candidate-validation">candidate_validation<a class="anchor" aria-label="anchor" href="#arg-candidate-validation"></a></dt>
+<dd><p>Structured saved validation outcomes from
+<code><a href="validate_review_candidates.html">validate_review_candidates()</a></code>. Reporting makes no network requests.</p></dd>
+
+
+<dt id="arg-identity-decisions">identity_decisions<a class="anchor" aria-label="anchor" href="#arg-identity-decisions"></a></dt>
+<dd><p>Explicit source-scoped decisions passed to
+<code><a href="apply_identity_decisions.html">apply_identity_decisions()</a></code>. Name-wide selectors cannot grant scope acceptance.</p></dd>
 
 </dl></div>
     <div class="section level2">

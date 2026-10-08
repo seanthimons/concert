@@ -1,5 +1,6 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>https://seanthimons.github.io/concert/404.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/CONTEXT.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/LICENSE-text.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/articles/app-walkthrough.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/articles/cleaning-pipeline.html</loc></url>
@@ -7,14 +8,18 @@
 <url><loc>https://seanthimons.github.io/concert/articles/harmonization.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/articles/headless-curation.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/articles/index.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/articles/source-identity-review.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/authors.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/index.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/news/index.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/CHIRAL_PLACEHOLDER_PREFIX.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/accept_all_suggestions.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/accepted_identity_view.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/acknowledge_review_evidence.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/add_structure_parents.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/analyze_coverage.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/append_detection_fields.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/apply_identity_decisions.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/apply_multi_analyte_resolutions.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/apply_priority_chain.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/apply_review_overrides.html</loc></url>
@@ -26,6 +31,7 @@
 <url><loc>https://seanthimons.github.io/concert/reference/assert_typed_nas.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/augment_radiological_unit_map.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/build_audit_trail.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/build_candidate_review.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/build_chorus_site_manifest.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/build_export_sheets.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/build_media_editor_rows.html</loc></url>
@@ -36,6 +42,8 @@
 <url><loc>https://seanthimons.github.io/concert/reference/build_skip_result.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/build_unit_conversion_table.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/calculate_smart_preview_rows.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/capture_review_decision.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/capture_review_state.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/check_unhandled.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/classify_auto_resolve.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/classify_consensus.html</loc></url>
@@ -97,6 +105,8 @@
 <url><loc>https://seanthimons.github.io/concert/reference/harmonize_units.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/has_required_chemical_tags.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/hydrate_session_state.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/identity_evidence_fingerprint.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/identity_review_state.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/index.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/init_resolution_state.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/inject_row_lineage.html</loc></url>
@@ -185,6 +195,9 @@
 <url><loc>https://seanthimons.github.io/concert/reference/resolve_review_row.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/resolve_row.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/restore_chiral_designations.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/review_decision_key.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/review_evidence_scope.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/review_evidence_snapshot.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/run_app.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/run_cleaning_pipeline.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/run_curation_pipeline.html</loc></url>
@@ -198,6 +211,7 @@
 <url><loc>https://seanthimons.github.io/concert/reference/search_starts_with.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/set_row_flag.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/set_row_flags.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/source_identifier_evidence.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/split_ranges.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/split_synonyms.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/stage_clean.html</loc></url>
@@ -214,6 +228,7 @@
 <url><loc>https://seanthimons.github.io/concert/reference/suggest_column_tags.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/suggest_multi_analyte_parts.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/transform_ecotox_to_ucum.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/unused_source_identifier_diagnostics.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/update_user_reference_list.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/valid_row_flags.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/validate_and_lookup_cas.html</loc></url>
@@ -221,6 +236,7 @@
 <url><loc>https://seanthimons.github.io/concert/reference/validate_file.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/validate_manual_dtxsids.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/validate_reference_list_patterns.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/validate_review_candidates.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/validate_tag_pairing.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/walk_parent.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/write_curation_output.html</loc></url>

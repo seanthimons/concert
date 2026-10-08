@@ -7,7 +7,8 @@ articles:
   concert: concert.html
   harmonization: harmonization.html
   headless-curation: headless-curation.html
-last_built: 2026-10-06T16:04Z
+  articles/source-identity-review: source-identity-review.html
+last_built: 2026-10-08T00:50Z
 urls:
   reference: https://seanthimons.github.io/concert/reference
   article: https://seanthimons.github.io/concert/articles

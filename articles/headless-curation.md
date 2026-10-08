@@ -165,7 +165,8 @@ Each run writes:
 - `status.md`: done or not, errors, unmatched decision keys, and a list
   of low-similarity matches that deserve a second look.
 - `pending.csv`: one row per unresolved data row with a `pending_type`
-  (`multi_analyte`, `disagree`, `suggested`, `no_match`), the suggested
+  (`multi_analyte`, `verified_unresolved`, `candidate_validation`,
+  `identity_scope`, `disagree`, `suggested`, `no_match`), the suggested
   DTXSID or split, and the candidate list.
 - `replay.R`: the standalone reproduction script.
 - `cache/`: CompTox search results, so re-runs only re-query changed
@@ -188,3 +189,120 @@ system.file("skills/concert-curate/SKILL.md", package = "concert")
 Rscript <runner> --template input.csv output/loop
 Rscript <runner> output/loop/decisions.R   # exit 0 = done, exit 2 = rows pending
 ```
+
+## Review evidence and accepted identities
+
+`done` and `queue_complete` describe queue disposition. A retained
+FOLLOW-UP can complete that queue while `reconciliation_complete`,
+`identity_review_complete` or `review_complete` remain false. Each
+iteration writes `review_reconciliation.csv`, `candidate_review.csv`,
+`identifier_diagnostics.csv` and `identity_review.csv`. Changed evidence
+can reopen candidate validation; repeating a VERIFIED flag cannot
+resolve a blank/tied identity. Reviewed WQX canonical names retain their
+separate name-only contract and never manufacture a DTXSID.
+
+Historical flags have no decision snapshot. They report
+`baseline_missing`, regardless of the reason’s wording. To record
+evidence actually inspected at an explicit decision, use the shared
+portable object:
+
+``` r
+
+run <- curate_iterate("output/loop/decisions.R")
+review_decision_evidence <- capture_review_state(
+  run$state, name = "Reviewed analyte", disposition = "deferred",
+  flag = "FOLLOW-UP", reason = "Specific source-scope question remains"
+)
+```
+
+Save that object in `decisions.R`; generated replay and workbook Session
+State preserve its immutable revisions.
+[`acknowledge_review_evidence()`](https://seanthimons.github.io/concert/reference/acknowledge_review_evidence.md)
+binds an explicit acknowledgment to the decision revision, exact
+source/content scope and current evidence fingerprint. It resolves that
+reconciliation event, without clearing FOLLOW-UP or accepting an
+identity. A later evidence or scope change reopens work. Use
+[`validate_review_candidates()`](https://seanthimons.github.io/concert/reference/validate_review_candidates.md)
+with an explicit configured validator to recheck saved candidates
+independently of name discovery. It returns structured outcomes and a
+versioned cache; outages are retryable, and no DSSTox download is
+triggered. Candidate ordering, duplicates and audit timestamps are not
+new evidence.
+
+The `DTXSID` tag supplies attributed source evidence. Registry
+membership is validated independently of source-identity correspondence;
+successful source, resolver and PubChem agreement does not promote a
+source ID. Untagged ID columns warn, while deliberate metadata can be
+retained without queries:
+
+``` r
+
+curate_headless(
+  input_path = "input.csv", output_path = "curated.xlsx",
+  tag_map = list(chemical_name = "Name", source_dtxsid = "DTXSID")
+)
+# Alternatively omit source_dtxsid from tag_map and retain it only as metadata:
+# ignored_identifier_cols = "source_dtxsid"
+```
+
+Ignored columns must have no chemical evidence role. Existing unignored
+Other roles retain their generic-search behavior. Raw input columns
+named `dtxsid` or `dtxsid_*` cannot bypass the generated-evidence
+registry.
+
+Lookup consensus remains in Curated Data.
+[`identity_review_state()`](https://seanthimons.github.io/concert/reference/identity_review_state.md)
+derives blockers and `accepted_dtxsid`;
+[`accepted_identity_view()`](https://seanthimons.github.io/concert/reference/accepted_identity_view.md)
+retains eligible rows with all source lineage. The Accepted Identities
+sheet is additive. Registered mixtures can qualify through explicit
+correspondence review; aggregates may be kept unresolved without
+selecting a representative component. Split rows retain original
+name/CAS and part lineage, with repeated component CAS blocked until
+explicit mapping or correspondence review.
+
+Structured acceptance is available through `identity_decisions` and
+[`apply_identity_decisions()`](https://seanthimons.github.io/concert/reference/apply_identity_decisions.md).
+In Review Results, open **Override** or **Compare Candidates** and use
+**Source identity correspondence**. Select one source row when the table
+groups several rows. Choose its scope and remaining conflict, enter a
+selected ID, explicitly confirm correspondence, and supply a reason and
+evidence reference. **Save source decision** checks membership
+independently and records the scoped decision. **Keep unresolved**
+retains candidate evidence without granting acceptance. FOLLOW-UP/BAD
+flags stay in place; recording correspondence does not clear them.
+Reopen the review if evidence changes while the dialog is open. Each
+record requires a unique source/content selector plus original lineage,
+resolved scope/conflict, reason, evidence reference, selected ID,
+explicit `correspondence = TRUE`, and
+[`identity_evidence_fingerprint()`](https://seanthimons.github.io/concert/reference/identity_evidence_fingerprint.md)
+from the inspected row. Registry membership is checked separately.
+Changed or ambiguous evidence fails closed. Name/CAS selectors may span
+many rows for flags and ordinary picks; they cannot express
+source-specific scope acceptance.
+
+For safe ToxVal output, opt in to `toxval_identity_mode = "accepted"` in
+headless or iteration decisions when `harmonize = TRUE`. Every
+measurement row remains, with NA identifiers for blocked identities and
+no raw-ID fallback. Existing lookup defaults are retained as an explicit
+compatibility choice; this audit mode is not an accepted-identity
+filter. The standalone mapper supports the equivalent
+`identity_mode = "accepted"`. Workbook import, GUI refresh and generated
+replay preserve the explicit mode; accepted-only refresh blanks IDs if
+current alignment cannot be verified.
+
+A small development demo uses the actual Review Results module with
+synthetic rows and mocked registry responses. From the repository root:
+
+``` r
+
+source("inst/examples/identity-review-demo.R")
+run_identity_review_demo()
+```
+
+Try a registered mixture, two grouped source rows, unavailable source
+membership, and a retained FOLLOW-UP. Only synthetic IDs DTXSID123,
+DTXSID456 and DTXSID789 pass the mocked membership service; source
+validation and correspondence gates still apply. Discovery is disabled.
+These fixtures do not validate real chemical identities or change pilot
+assignments.
