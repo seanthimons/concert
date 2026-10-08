@@ -87,6 +87,7 @@ jobs:
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force-with-lease -u origin "${branch}"
 
+          # shellcheck disable=SC2016 # backticks are Markdown, not command substitution
           body="$(printf 'Automated by `track-comptoxr-release`.\n\nComptoxR published stable release **%s** (current pin: `%s`).\nThis updates `Remotes: seanthimons/ComptoxR@%s` in DESCRIPTION.\n\nReview R-CMD-check, then merge to adopt. The `Imports` floor is left unchanged.' "${LATEST}" "${CURRENT}" "${LATEST}")"
 
           gh pr create --base main --head "${branch}" \
