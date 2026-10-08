@@ -28,6 +28,7 @@ Thumbs.db
 # Dot folders
 .*/
 !.beans/
+!.github/
 
 # Output/ Render files
 output/
