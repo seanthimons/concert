@@ -53,3 +53,32 @@ stale and requires another explicit review. Existing flags remain independent.
 
 For production services, launch `concert::run_app()` normally. The mock wrapper
 is an explicit development entry point and is not enabled by the normal app.
+
+## WQX continuation fixture
+
+To exercise WQX candidates in the same full application:
+
+```r
+source("inst/examples/wqx-review-app.R")
+run_wqx_review_app()
+```
+
+Upload `inst/examples/wqx-review-upload.csv`, tag `name` as Chemical Name, leave
+`source_file` untagged, and proceed directly to Run Curation. The three synthetic
+rows exercise fuzzy Arsenick→Arsenic with a dictionary-CAS candidate, DO→Dissolved
+oxygen as reviewed name-only vocabulary, and TETRACYCLINES→Tetracycline as a class
+whose singular candidate still needs source-scope review. Fixture IDs
+DTXSID999000001 and DTXSID999000003 are synthetic service outputs.
+
+Open Override to inspect the WQX input, canonical name, tier, dictionary CAS and
+provisional candidates. Explicitly accepting inventory A requires a Substance
+scope, No remaining conflict, correspondence confirmation, reason and reference.
+For inventory B, VERIFIED can retain reviewed name-only evidence without an ID.
+Leave inventory C unresolved or explicitly retain its class scope. Re-run to
+check that decisions and evidence persist. This fixture validates application
+connections; it does not validate any chemical identity. The same process-local
+services can wrap exported replay:
+
+```r
+with_wqx_review_fixture_services(source("path/to/downloaded_replay.R"))
+```
