@@ -374,3 +374,40 @@ test_that("fuzzy distance ties do not arbitrarily select canonical CAS evidence"
   expect_true(is.na(result$wqx_cas))
   expect_identical(result, reversed)
 })
+
+
+test_that("equal-priority conflicting aliases never choose a canonical identity", {
+  dict <- tibble::tibble(
+    name = c("Arsenic", "Water", "Arsenick", " ARSENICK "),
+    canonical_name = c("Arsenic", "Water", "Arsenic", "Water"),
+    type = c("canonical", "canonical", "synonym", "synonym"),
+    cas_number = c("7440-38-2", "7732-18-5", NA, NA)
+  )
+  # Arsenick would ordinarily fuzzy-match Arsenic. That must not conceal its
+  # explicit equal-priority alias conflict.
+  forward <- match_wqx("Arsenick", dict)
+  reversed <- match_wqx("Arsenick", dict[nrow(dict):1, ])
+  expect_identical(forward, reversed)
+  expect_equal(forward$match_tier, "none")
+  expect_true(is.na(forward$wqx_name))
+  expect_true(is.na(forward$wqx_cas))
+  expect_true(is.na(forward$wqx_cas_provenance))
+  expect_true(is.na(forward$match_distance))
+})
+
+test_that("alias precedence and duplicate normalized targets remain usable", {
+  dict <- tibble::tibble(
+    name = c("Arsenic", "Water", "Alias X", "Alias X", "Alias X", "Alias X"),
+    canonical_name = c("Arsenic", "Water", "Arsenic", "Water", "Water", " WATER "),
+    type = c("canonical", "canonical", "retired", "synonym", "standardize", "standardize"),
+    cas_number = c("7440-38-2", "7732-18-5", NA, NA, NA, NA)
+  )
+  for (rows in list(seq_len(nrow(dict)), nrow(dict):1)) {
+    result <- match_wqx("Alias X", dict[rows, ])
+    expect_equal(result$match_tier, "alias")
+    expect_equal(normalize_wqx_key(result$wqx_name), "water")
+    expect_equal(result$alias_type, "standardize")
+    expect_equal(result$wqx_cas, "7732-18-5")
+    expect_equal(result$wqx_cas_status, "valid")
+  }
+})
