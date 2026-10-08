@@ -50,7 +50,9 @@ evidence. Receives deduplicated valid CAS values and returns original_cas
 (or validated_cas), dtxsid, preferredName, and optional lookup_status. All
 hits remain review candidates; no candidate is selected or accepted.
 Statuses distinguish candidate, not_found, unavailable, missing, invalid,
-and ambiguous dictionary evidence. Independent of \code{pubchem}.}
+and ambiguous dictionary evidence. Independent of \code{pubchem}. Mapped
+\code{wqx_match_distance} is lossless 17-digit decimal text for portable evidence
+fingerprints; the matcher's \code{match_distance} remains numeric.}
 }
 \value{
 List with results, dedup_summary, search_summary, consensus_summary

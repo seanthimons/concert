@@ -342,3 +342,20 @@ test_that("empty and malformed WQX service output retains stable attribution", {
   expect_equal(nrow(empty), 0L)
   expect_named(empty, wqx_candidate_fields())
 })
+
+
+test_that("mapped WQX distances retain exact values as portable decimal text", {
+  distance <- c(1 / 11, 0, NA_real_)
+  matches <- tibble::tibble(input_name = letters[1:3], wqx_name = LETTERS[1:3],
+    match_tier = "fuzzy", match_distance = distance)
+  evidence <- wqx_dictionary_candidates(matches, function(...) stop("no CAS queries"))
+  expect_type(evidence$wqx_match_distance, "character")
+  expect_identical(as.numeric(evidence$wqx_match_distance), distance)
+  expect_true(is.na(evidence$wqx_match_distance[3]))
+  path <- tempfile(fileext = ".xlsx")
+  on.exit(unlink(path), add = TRUE)
+  writexl::write_xlsx(evidence, path)
+  imported <- readxl::read_xlsx(path)
+  expect_identical(imported$wqx_match_distance, evidence$wqx_match_distance)
+  expect_identical(matches$match_distance, distance)
+})

@@ -1156,8 +1156,31 @@ source_identifier_review_panel <- function(df, row, column_tags) {
       tags$dl(lapply(fields, function(field) tagList(tags$dt(sub(paste0("source_id_", col, "_"), "", field, fixed = TRUE)),
         tags$dd(as.character(df[[field]][row]) %||% "Unknown")))))
   })
+  wqx_fields <- wqx_review_columns(df)
+  wqx_labels <- c(wqx_input_name = "Lookup input", wqx_name = "Canonical WQX name",
+    wqx_match_tier = "Vocabulary match", wqx_match_distance = "Match distance",
+    wqx_alias_type = "Alias type", wqx_cas = "Canonical-entry CAS", wqx_cas_status = "CAS quality",
+    wqx_cas_raw = "Dictionary CAS values", wqx_cas_provenance = "Dictionary entry",
+    wqx_cas_dtxsid_candidates = "Candidate DTXSIDs", wqx_cas_candidate_names = "Candidate names",
+    wqx_cas_lookup_status = "CAS lookup outcome")
+  wqx_parts <- lapply(wqx_fields, function(field) {
+    value <- as.character(df[[field]][row])
+    if (is.na(value) || !nzchar(trimws(value))) return(NULL)
+    stems <- names(wqx_labels)[vapply(names(wqx_labels), function(stem) {
+      identical(field, stem) || startsWith(field, paste0(stem, "_"))
+    }, logical(1))]
+    stem <- stems[which.max(nchar(stems))]
+    suffix <- substring(field, nchar(stem) + 1L)
+    label <- paste0(wqx_labels[[stem]], if (nzchar(suffix)) paste0(" (", sub("^_lookup_|^_", "", suffix), ")") else "")
+    tagList(tags$dt(label), tags$dd(value))
+  })
+  wqx_panel <- if (any(vapply(wqx_parts, function(x) !is.null(x), logical(1)))) {
+    div(class = "border rounded p-2 mb-2", tags$strong("WQX vocabulary and identifier candidates"),
+      p(class = "small text-muted", "Dictionary CAS and lookup hits are review evidence. They do not establish the source identity."),
+      tags$dl(wqx_parts))
+  }
   state <- identity_review_state(df[row, , drop = FALSE])
-  tagList(parts, div(class = "text-muted small mb-2", paste("Identity:", state$identity_status,
+  tagList(parts, wqx_panel, div(class = "text-muted small mb-2", paste("Identity:", state$identity_status,
     if (nzchar(state$identity_blockers)) paste("\u2014", state$identity_blockers) else "")))
 }
 
@@ -2388,6 +2411,8 @@ mod_review_results_server <- function(id, data_store) {
                       "pubchem_query", "pubchem_cid_candidates", "pubchem_dtxsid_candidates",
                       "parent_name_candidate", "parent_dtxsid_candidates",
                       "resolver_dtxsid_candidate", "resolver_lookup_status",
+                      "resolver_query", "resolver_query_details", "pubchem_query_details",
+                      wqx_review_columns(df),
                       grep("^tied_dtxsids", names(df), value = TRUE))
       deduped <- deduplicate_review_rows(df, original_indices, group_cols)
       data_store$dedup_group_map <- deduped$dedup_group_map
@@ -3830,13 +3855,13 @@ mod_review_results_server <- function(id, data_store) {
 
       override_section <- review_override_controls(session)
 
-      # Modal footer: Accept Current, Reject Match
+      # Closing the dialog does not record a vocabulary or identity decision.
       footer <- tagList(
         tags$button(
           class = "btn btn-outline-secondary",
           `data-dismiss` = "modal",
           `data-bs-dismiss` = "modal",
-          "Accept Current"
+          "Close"
         ),
         tags$button(
           class = "btn btn-outline-danger",
@@ -3850,7 +3875,9 @@ mod_review_results_server <- function(id, data_store) {
 
       showModal(modalDialog(
         title = "Review WQX Match",
-        tagList(context_card, override_section),
+        tagList(context_card,
+          source_identifier_review_panel(data_store$resolution_state, row_idx, data_store$column_tags),
+          override_section),
         footer = footer,
         size = "l",
         easyClose = TRUE
