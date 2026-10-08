@@ -4,7 +4,14 @@
 \alias{resolve_multi_analyte_row}
 \title{Resolve one flagged multi-analyte row}
 \usage{
-resolve_multi_analyte_row(df, name_cols, row_index, action, values = NULL)
+resolve_multi_analyte_row(
+  df,
+  name_cols,
+  row_index,
+  action,
+  values = NULL,
+  cas_cols = character(0)
+)
 }
 \arguments{
 \item{df}{Cleaned data frame.}
@@ -17,6 +24,9 @@ resolve_multi_analyte_row(df, name_cols, row_index, action, values = NULL)
 
 \item{values}{Split parts or rename value. For split, NULL uses
 \code{suggest_multi_analyte_parts()} on the selected Name value.}
+
+\item{cas_cols}{CASRN-tagged column names. CAS values are left unchanged, but
+a repeated source CAS is recorded and requires component review.}
 }
 \value{
 List with \code{cleaned_data} and \code{audit_trail}.

@@ -345,3 +345,44 @@ test_that("captured candidate work reopens iteration and exact acknowledgments s
   expect_equal(nrow(readr::read_csv(file.path(fx$dir, "candidate_review.csv"), show_col_types = FALSE)), 0)
   expect_equal(nrow(readr::read_csv(file.path(fx$dir, "review_reconciliation.csv"), show_col_types = FALSE)), 0)
 })
+
+test_that("accepted suggestions leave the pending queue but keep other blockers (#92)", {
+  row <- tibble::tibble(
+    original_row_id = 5576L,
+    chemical_name = "Zeranol",
+    consensus_status = "suggested",
+    consensus_dtxsid = "DTXSID4022315",
+    consensus_name = "Zearalanol",
+    consensus_source = NA_character_,
+    row_flag = "VERIFIED",
+    row_flag_reason = "Low-similarity match confirmed",
+    .pinned = TRUE,
+    .resolution_method = "bulk-accept",
+    needs_review = FALSE
+  )
+  state <- list(resolution_state = row, merged_chemical_tags = list(chemical_name = "Name"))
+  expect_true(identity_review_state(row)$identity_eligible)
+  expect_equal(nrow(pending_rows(state)), 0)
+
+  state$resolution_state$identity_scope <- "aggregate"
+  expect_equal(pending_rows(state)$pending_type, "verified_unresolved")
+})
+
+test_that("only FOLLOW-UP/BAD dispositions hide scope blockers from pending (#110)", {
+  rs <- tibble::tibble(
+    original_row_id = 1:4,
+    chemical_name = c("Verified", "Unflagged", "Deferred", "Bad"),
+    consensus_status = "single",
+    consensus_dtxsid = "DTXSID1",
+    consensus_name = "X",
+    consensus_source = NA_character_,
+    row_flag = c("VERIFIED", NA, "FOLLOW-UP", "BAD"),
+    row_flag_reason = "Historical review",
+    .pinned = TRUE,
+    identity_scope = "aggregate"
+  )
+  pending <- pending_rows(list(resolution_state = rs, merged_chemical_tags = list(chemical_name = "Name")))
+  expect_equal(pending$row_index, 1:2)
+  expect_equal(pending$pending_type, rep("identity_scope", 2))
+  expect_equal(pending$row_flag, c("VERIFIED", NA))
+})

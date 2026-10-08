@@ -112,3 +112,41 @@ test_that("candidate evidence remains bound to source rows under a shared select
     review_evidence_fingerprint(swapped$candidate_scope)))
   expect_false(identical(review_evidence_fingerprint(first), review_evidence_fingerprint(swapped)))
 })
+
+test_that("reordered or duplicated exact-match ties do not reopen review (#93)", {
+  x <- tibble::tibble(name = "PFHxDA", source = "fixture", consensus_status = "error",
+    consensus_dtxsid = NA_character_, tied_dtxsids_name = "DTXSID1070800; DTXSID701026646")
+  scope_cols <- c("name", "source")
+  flags <- data.frame(name = "PFHxDA", flag = "FOLLOW-UP")
+  id <- review_decision_key("PFHxDA")
+  capture <- function(snapshot) capture_review_decision(decision_id = id,
+    scope = review_evidence_scope(x, 1L, scope_cols), current = snapshot,
+    disposition = "deferred", flag = "FOLLOW-UP", reason = "Review acid and anion")
+  reconcile <- function(ties, evidence) {
+    y <- x
+    y$tied_dtxsids_name <- ties
+    build_review_reconciliation(y, row_flags = flags, evidence = evidence,
+      name_col = "name", scope_cols = scope_cols)
+  }
+  evidence <- capture(review_evidence_snapshot(x, scope_cols = scope_cols))
+  for (ties in c("DTXSID701026646; DTXSID1070800", " DTXSID701026646 ;DTXSID1070800; DTXSID1070800")) {
+    result <- reconcile(ties, evidence)
+    expect_equal(result$baseline_status, "unchanged")
+    expect_false(result$actionable)
+  }
+  for (ties in c("DTXSID1070800; DTXSID9999999", "DTXSID1070800; DTXSID701026646; DTXSID9999999")) {
+    result <- reconcile(ties, evidence)
+    expect_equal(result$change_category, "candidate_evidence_changed")
+    expect_true(result$actionable)
+  }
+
+  # Records captured before normalization keep their raw order and still match.
+  legacy <- review_evidence_snapshot(x, scope_cols = scope_cols)
+  legacy$lookup[[1]]$tied_dtxsids_name <- "DTXSID701026646; DTXSID1070800"
+  legacy_evidence <- capture(legacy)
+  expect_equal(legacy_evidence$decisions[[1]]$current$lookup[[1]]$tied_dtxsids_name,
+    "DTXSID701026646; DTXSID1070800")
+  result <- reconcile("DTXSID1070800; DTXSID701026646", legacy_evidence)
+  expect_equal(result$baseline_status, "unchanged")
+  expect_false(result$actionable)
+})

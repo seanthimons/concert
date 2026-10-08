@@ -340,7 +340,9 @@ verified_unresolved_rows <- function(df) {
   status <- field("consensus_status")
   reviewed_wqx <- !is.na(status) & status == "wqx" & present(field("consensus_name"))
   verified <- !is.na(field("row_flag")) & field("row_flag") == "VERIFIED"
-  unresolved <- status %in% c("error", "unresolvable", "disagree", "suggested")
+  # Only a fully accepted suggestion leaves the queue; any remaining blocker keeps it (#92).
+  accepted <- if (n) accepted_suggestion_rows(df) & identity_review_state(df)$identity_eligible else logical()
+  unresolved <- status %in% c("error", "unresolvable", "disagree", "suggested") & !accepted
   verified & (unresolved | (!present(field("consensus_dtxsid")) & !reviewed_wqx))
 }
 
