@@ -367,3 +367,22 @@ test_that("accepted suggestions leave the pending queue but keep other blockers 
   state$resolution_state$identity_scope <- "aggregate"
   expect_equal(pending_rows(state)$pending_type, "verified_unresolved")
 })
+
+test_that("only FOLLOW-UP/BAD dispositions hide scope blockers from pending (#110)", {
+  rs <- tibble::tibble(
+    original_row_id = 1:4,
+    chemical_name = c("Verified", "Unflagged", "Deferred", "Bad"),
+    consensus_status = "single",
+    consensus_dtxsid = "DTXSID1",
+    consensus_name = "X",
+    consensus_source = NA_character_,
+    row_flag = c("VERIFIED", NA, "FOLLOW-UP", "BAD"),
+    row_flag_reason = "Historical review",
+    .pinned = TRUE,
+    identity_scope = "aggregate"
+  )
+  pending <- pending_rows(list(resolution_state = rs, merged_chemical_tags = list(chemical_name = "Name")))
+  expect_equal(pending$row_index, 1:2)
+  expect_equal(pending$pending_type, rep("identity_scope", 2))
+  expect_equal(pending$row_flag, c("VERIFIED", NA))
+})
