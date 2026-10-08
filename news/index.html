@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -37,9 +37,40 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/seanthimons/concert/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/seanthimons/concert/blob/v0.6.1/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.6.1" id="concert-061-2026-10-08">concert 0.6.1 (2026-10-08)<a class="anchor" aria-label="anchor" href="#concert-061-2026-10-08"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-6-1">New features<a class="anchor" aria-label="anchor" href="#new-features-0-6-1"></a></h4>
+<ul><li>bulk staging and aligned editor for Rows Needing Review (<a href="https://github.com/seanthimons/concert/issues/46" class="external-link">#46</a>) (<a href="https://github.com/seanthimons/concert/tree/b52e09f4a6b75fbc04c2a6ec29bca1b18e8468c0" class="external-link">b52e09f</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="bug-fixes-0-6-1">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-6-1"></a></h4>
+<ul><li>record repeated source CAS on scripted multi-analyte splits (<a href="https://github.com/seanthimons/concert/issues/95" class="external-link">#95</a>) (<a href="https://github.com/seanthimons/concert/tree/80c6e511bdb3d4b96bf2190ff8065d6bb3155396" class="external-link">80c6e51</a>)</li>
+<li>compare exact-match ties as unordered sets in review evidence (<a href="https://github.com/seanthimons/concert/issues/93" class="external-link">#93</a>) (<a href="https://github.com/seanthimons/concert/tree/7f06d60632fe5a20fd529cbcb21987964cba9946" class="external-link">7f06d60</a>)</li>
+<li>surface scope blockers on VERIFIED rows in pending review (<a href="https://github.com/seanthimons/concert/issues/110" class="external-link">#110</a>) (<a href="https://github.com/seanthimons/concert/tree/f43bd6dd1d7c0d19573ea47641544e8bb1993908" class="external-link">f43bd6d</a>)</li>
+<li>keep accepted suggestions out of the verified_unresolved queue (<a href="https://github.com/seanthimons/concert/issues/92" class="external-link">#92</a>) (<a href="https://github.com/seanthimons/concert/tree/b456d5efa023d941b5a3a17dfbaf2b6520e3cdf1" class="external-link">b456d5e</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="ci-0-6-1">CI<a class="anchor" aria-label="anchor" href="#ci-0-6-1"></a></h4>
+<ul><li>push release commit and tag atomically with a scoped token (<a href="https://github.com/seanthimons/concert/tree/c3ec0e736f7990c6370b1c4ef6cdc3844119b4ef" class="external-link">c3ec0e7</a>)</li>
+<li>stop ignoring .github so zizmor can collect workflows (<a href="https://github.com/seanthimons/concert/tree/87f14c676e8d352eb681346a8dfcc87e1a294f8a" class="external-link">87f14c6</a>)</li>
+<li>silence intentional SC2016 in the ComptoxR bump PR body (<a href="https://github.com/seanthimons/concert/tree/89975334031ef5d55731d9c8441e0fa81c5ae983" class="external-link">8997533</a>)</li>
+<li>make release.yaml version comments exact for zizmor (<a href="https://github.com/seanthimons/concert/tree/d7086665b3122cb6b772e3f3d7dad0f8ea5613d4" class="external-link">d708666</a>)</li>
+<li>serialize and scope tokens in track-comptoxr-release (<a href="https://github.com/seanthimons/concert/tree/90e59924690aa7be7cd377995518014ae35b3a85" class="external-link">90e5992</a>)</li>
+<li>call baseline R CMD check and harden locked-review (<a href="https://github.com/seanthimons/concert/tree/56804eaf77dff3069e0d6fe84912168e88a96fe4" class="external-link">56804ea</a>)</li>
+<li>call baseline gitleaks, commit-lint, lint-workflows and build-package (<a href="https://github.com/seanthimons/concert/tree/bc664ac9eefba3744e6709df89be17dddea4d4be" class="external-link">bc664ac</a>)</li>
+<li>skip automatic releases for tests- and tooling-only merges (<a href="https://github.com/seanthimons/concert/tree/9fb2801cffd9e32f6aa418129d1e001e04e73e68" class="external-link">9fb2801</a>)</li>
+<li>cut a patch release on merges to main except docs, site and CI changes (<a href="https://github.com/seanthimons/concert/tree/7ed3ff0bc7ce44cb4296c244dfa8bc0638273996" class="external-link">7ed3ff0</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="other-changes-0-6-1">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-1"></a></h4>
+<ul><li>bump version to 0.6.1 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/8e4ce121acbefcaf6c327b371f1ea40c36990bf8" class="external-link">8e4ce12</a>)</li>
+</ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.6.1...v0.6.1" class="external-link"><code>v0.6.1...v0.6.1</code></a></p>
+</div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.6.0" id="concert-060-2026-10-08">concert 0.6.0 (2026-10-08)<a class="anchor" aria-label="anchor" href="#concert-060-2026-10-08"></a></h2>
 <div class="section level4">
@@ -70,7 +101,8 @@
 </ul></div>
 <div class="section level4">
 <h4 id="docs-0-6-0">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-0"></a></h4>
-<ul><li>record audit regressions and crash recovery (<a href="https://github.com/seanthimons/concert/tree/9abd19772fb5c410b1a1a8306115b1b9e2ce91a8" class="external-link">9abd197</a>)</li>
+<ul><li>update NEWS.md for v0.6.0 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/93b88a94ace5f905de8fa905d9842053c710ef89" class="external-link">93b88a9</a>)</li>
+<li>record audit regressions and crash recovery (<a href="https://github.com/seanthimons/concert/tree/9abd19772fb5c410b1a1a8306115b1b9e2ce91a8" class="external-link">9abd197</a>)</li>
 <li>record WQX implementation checks and release pause (<a href="https://github.com/seanthimons/concert/tree/aa5ef4ae3dc4ca2f12206e57bcd51a4712bd7a9a" class="external-link">aa5ef4a</a>)</li>
 <li>illustrate WQX evidence review and repair NEWS publishing (<a href="https://github.com/seanthimons/concert/tree/3788b86be324695419c54c1bbc60f04b155c1b03" class="external-link">3788b86</a>)</li>
 <li>index identity review APIs for pkgdown (<a href="https://github.com/seanthimons/concert/tree/8cee4b23e720dc386e9d1028d8a47e6a491308df" class="external-link">8cee4b2</a>)</li>

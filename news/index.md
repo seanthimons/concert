@@ -1,5 +1,57 @@
 # Changelog
 
+## concert 0.6.1 (2026-10-08)
+
+#### New features
+
+- bulk staging and aligned editor for Rows Needing Review
+  ([\#46](https://github.com/seanthimons/concert/issues/46))
+  ([b52e09f](https://github.com/seanthimons/concert/tree/b52e09f4a6b75fbc04c2a6ec29bca1b18e8468c0))
+
+#### Bug fixes
+
+- record repeated source CAS on scripted multi-analyte splits
+  ([\#95](https://github.com/seanthimons/concert/issues/95))
+  ([80c6e51](https://github.com/seanthimons/concert/tree/80c6e511bdb3d4b96bf2190ff8065d6bb3155396))
+- compare exact-match ties as unordered sets in review evidence
+  ([\#93](https://github.com/seanthimons/concert/issues/93))
+  ([7f06d60](https://github.com/seanthimons/concert/tree/7f06d60632fe5a20fd529cbcb21987964cba9946))
+- surface scope blockers on VERIFIED rows in pending review
+  ([\#110](https://github.com/seanthimons/concert/issues/110))
+  ([f43bd6d](https://github.com/seanthimons/concert/tree/f43bd6dd1d7c0d19573ea47641544e8bb1993908))
+- keep accepted suggestions out of the verified_unresolved queue
+  ([\#92](https://github.com/seanthimons/concert/issues/92))
+  ([b456d5e](https://github.com/seanthimons/concert/tree/b456d5efa023d941b5a3a17dfbaf2b6520e3cdf1))
+
+#### CI
+
+- push release commit and tag atomically with a scoped token
+  ([c3ec0e7](https://github.com/seanthimons/concert/tree/c3ec0e736f7990c6370b1c4ef6cdc3844119b4ef))
+- stop ignoring .github so zizmor can collect workflows
+  ([87f14c6](https://github.com/seanthimons/concert/tree/87f14c676e8d352eb681346a8dfcc87e1a294f8a))
+- silence intentional SC2016 in the ComptoxR bump PR body
+  ([8997533](https://github.com/seanthimons/concert/tree/89975334031ef5d55731d9c8441e0fa81c5ae983))
+- make release.yaml version comments exact for zizmor
+  ([d708666](https://github.com/seanthimons/concert/tree/d7086665b3122cb6b772e3f3d7dad0f8ea5613d4))
+- serialize and scope tokens in track-comptoxr-release
+  ([90e5992](https://github.com/seanthimons/concert/tree/90e59924690aa7be7cd377995518014ae35b3a85))
+- call baseline R CMD check and harden locked-review
+  ([56804ea](https://github.com/seanthimons/concert/tree/56804eaf77dff3069e0d6fe84912168e88a96fe4))
+- call baseline gitleaks, commit-lint, lint-workflows and build-package
+  ([bc664ac](https://github.com/seanthimons/concert/tree/bc664ac9eefba3744e6709df89be17dddea4d4be))
+- skip automatic releases for tests- and tooling-only merges
+  ([9fb2801](https://github.com/seanthimons/concert/tree/9fb2801cffd9e32f6aa418129d1e001e04e73e68))
+- cut a patch release on merges to main except docs, site and CI changes
+  ([7ed3ff0](https://github.com/seanthimons/concert/tree/7ed3ff0bc7ce44cb4296c244dfa8bc0638273996))
+
+#### Other changes
+
+- bump version to 0.6.1 \[skip ci\]
+  ([8e4ce12](https://github.com/seanthimons/concert/tree/8e4ce121acbefcaf6c327b371f1ea40c36990bf8))
+
+Full set of changes:
+[`v0.6.1...v0.6.1`](https://github.com/seanthimons/concert/compare/v0.6.1...v0.6.1)
+
 ## concert 0.6.0 (2026-10-08)
 
 #### New features
@@ -44,6 +96,8 @@
 
 #### Docs
 
+- update NEWS.md for v0.6.0 \[skip ci\]
+  ([93b88a9](https://github.com/seanthimons/concert/tree/93b88a94ace5f905de8fa905d9842053c710ef89))
 - record audit regressions and crash recovery
   ([9abd197](https://github.com/seanthimons/concert/tree/9abd19772fb5c410b1a1a8306115b1b9e2ce91a8))
 - record WQX implementation checks and release pause
