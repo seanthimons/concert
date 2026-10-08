@@ -3887,6 +3887,45 @@ find_matching_review_rows <- function(df, target_row_index, candidate_row_indice
   candidate_row_indices[sigs == target]
 }
 
+#' Stage one bulk review action across many rows
+#'
+#' Builds a [resolve_review_row()] spec per row from that row's own defaults
+#' (suggested name parts and its CAS values), as the single-row editor does.
+#' Each spec is trial-resolved so rows the action cannot apply to are skipped
+#' with a reason instead of failing the whole batch at apply time.
+#'
+#' @param df Cleaned data frame.
+#' @param row_indices One-based row positions to stage.
+#' @param name_cols,cas_cols Name- and CASRN-tagged column names.
+#' @param name_action `"split"` or `"keep"`.
+#' @param pairing `"position"` or `"broadcast"`.
+#' @return List with `decisions` (specs keyed by row index) and `skipped`
+#'   (data frame of row_index and reason).
+#' @noRd
+bulk_review_specs <- function(df, row_indices, name_cols, cas_cols, name_action, pairing) {
+  decisions <- list()
+  skipped <- data.frame(row_index = integer(), reason = character())
+  for (ri in row_indices) {
+    field <- multi_analyte_field_for_row(df, ri, name_cols)
+    spec <- list(
+      name_action = name_action,
+      name_parts = suggest_multi_analyte_parts(df[[field]][ri]),
+      cas_parts = row_cas_values(df, ri, cas_cols),
+      pairing = pairing
+    )
+    trial <- tryCatch({
+      resolve_review_row(df[ri, , drop = FALSE], name_cols, 1L, spec, cas_cols)
+      NULL
+    }, error = conditionMessage)
+    if (is.null(trial)) {
+      decisions[[as.character(ri)]] <- spec
+    } else {
+      skipped[nrow(skipped) + 1L, ] <- list(ri, trial)
+    }
+  }
+  list(decisions = decisions, skipped = skipped)
+}
+
 #' Resolve one flagged review row (multi-analyte and/or multi-CAS)
 #'
 #' Single coordinated engine behind [resolve_multi_analyte_row()]. Splits the
