@@ -25,60 +25,30 @@ concurrency:
 jobs:
   r-cmd-check:
     # Cross-platform compatibility checks are opt-in, not routine PR checks.
-    if: github.event_name == 'workflow_dispatch' && github.actor != 'github-actions[bot]'
-    name: ${{ matrix.config.os }} (${{ matrix.config.r }})
-    runs-on: ${{ matrix.config.os }}
+    if: github.event_name == 'workflow_dispatch'
+    name: R CMD check
+    uses: seanthimons/baseline/.github/workflows/r-cmd-check.yaml@733a6e4554870ab2fa8dd7495fa67bea029bb38c # v1.3.0
 
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          - { os: ubuntu-latest,  r: release }
-          - { os: windows-latest, r: release }
-          - { os: macos-latest,   r: release }
-
-    env:
-      GITHUB_PAT: ${{ github.token }}
-      R_KEEP_PKG_SOURCE: yes
-      # Test current dependency compatibility independently of the locked job.
-      RENV_CONFIG_AUTOLOADER_ENABLED: 'false'
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-
-      - name: Set up R
-        uses: r-lib/actions/setup-r@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2
-        with:
-          r-version: ${{ matrix.config.r }}
-          use-public-rspm: true
-
-      - name: Set up pandoc
-        uses: r-lib/actions/setup-pandoc@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2
-
-      - name: Install package dependencies
-        uses: r-lib/actions/setup-r-dependencies@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2
-        with:
-          extra-packages: any::rcmdcheck
-          needs: check
-
-      - name: Check package
-        uses: r-lib/actions/check-r-package@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2
-        with:
-          upload-snapshots: true
-
+  # ponytail: stays local; baseline r-renv-tests runs test_dir() without loading
+  # the package, so concert's tests cannot find package functions there.
   locked-review:
     runs-on: windows-latest
+    timeout-minutes: 45
     env:
       GITHUB_PAT: ${{ github.token }}
       # Disposable runner: avoid the slow final staged-library move on Windows.
       RENV_CONFIG_INSTALL_STAGED: 'false'
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-      - uses: r-lib/actions/setup-r@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          r-version: '4.5.1'
-      - uses: r-lib/actions/setup-renv@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2
+          persist-credentials: false
+      - name: Set up R from renv.lock
+        uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          r-version: renv
+      - name: Restore renv environment
+        uses: r-lib/actions/setup-renv@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
       - name: Verify locked review environment
         shell: Rscript {0}
         run: |
