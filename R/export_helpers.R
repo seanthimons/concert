@@ -100,9 +100,7 @@ build_export_sheets <- function(
 
   # Sheet 2: Curated Data with public row_flag and computed needs_review flag
   resolution_state <- init_resolution_state(resolution_state)
-  wqx_reviewed <- resolution_state$row_flag %in%
-    "VERIFIED" |
-    (resolution_state[["consensus_source"]] %||% rep(NA_character_, nrow(resolution_state))) %in% "manual_wqx"
+  wqx_reviewed <- reviewed_wqx_rows(resolution_state)
   incoming_review <- (resolution_state[["needs_review"]] %||% rep(FALSE, nrow(resolution_state))) %in% TRUE
   curated_data_sheet <- resolution_state %>%
     dplyr::mutate(
@@ -531,7 +529,7 @@ serialize_session_inputs <- function(inputs, chunk_size = 30000L) {
     if (is.null(value)) return(NULL)
     if (key == "review_decision_evidence") validate_review_evidence(value)
     if (key == "cleaning_steps") validate_portable_cleaning_steps(value)
-    payload <- as.character(jsonlite::serializeJSON(value, digits = NA))
+    payload <- as.character(jsonlite::serializeJSON(value, digits = 17))
     starts <- seq.int(1L, nchar(payload), by = chunk_size)
     tibble::tibble(record_type = "portable_input_v1", row_index = seq_along(starts),
       key = key, value = substring(payload, starts, pmin(starts + chunk_size - 1L, nchar(payload))))

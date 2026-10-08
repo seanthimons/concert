@@ -344,6 +344,20 @@ verified_unresolved_rows <- function(df) {
   verified & (unresolved | (!present(field("consensus_dtxsid")) & !reviewed_wqx))
 }
 
+# Explicitly reviewed vocabulary evidence may legitimately remain identifier-free.
+reviewed_wqx_rows <- function(df) {
+  name <- identity_col(df, "consensus_name")
+  identity_col(df, "consensus_status") %in% "wqx" &
+    !is.na(name) & nzchar(trimws(name)) &
+    (identity_col(df, "row_flag") %in% "VERIFIED" |
+      identity_col(df, "consensus_source") %in% "manual_wqx" |
+      identity_col(df, ".resolution_method") %in% "manual_wqx" |
+      (identity_col(df, ".pinned", FALSE) %in% TRUE &
+        identity_col(df, ".resolution_method") %in% c("manual", "user-pick"))) &
+    !identity_col(df, "row_flag") %in% c("FOLLOW-UP", "BAD") &
+    !identity_col(df, "needs_review", FALSE) %in% TRUE
+}
+
 #' Valid row flag values
 #'
 #' @return Character vector of user-facing row flag values.

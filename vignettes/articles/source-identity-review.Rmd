@@ -60,6 +60,25 @@ lookup result. The third source has a definitive missing registry record for its
 supplied ID. An unavailable service response would instead be shown as
 `unavailable`; it is not a definitive rejection.
 
+A WQX vocabulary match may have a canonical dictionary CAS without identifying
+your source chemical. CONCERT now looks up that CAS and continues candidate
+searches using the original and canonical names. **Override** shows the canonical
+entry, CAS quality, lookup outcome and candidate IDs in **WQX vocabulary and
+identifier candidates**. Those hits remain provisional, including fuzzy matches
+from a class name to one substance. Review source correspondence before accepting
+an ID; a vocabulary-only VERIFIED decision may legitimately retain no DTXSID.
+Unreviewed WQX rows also appear in headless `pending.csv`, even when no CAS or
+candidate is available. FOLLOW-UP and BAD retain their explicit dispositions.
+
+For WQX rows, **Review** opens the vocabulary match and its candidate evidence.
+These two overlapping views include the complete dialog. **Close** dismisses it;
+use **Override** to record a flag or a scoped source decision. Detailed query
+records remain available through **Columns shown** and the exported workbook.
+
+[![WQX review, part 1 of 2: original name, fuzzy vocabulary match and canonical dictionary CAS](figures/wqx-01-review-top.png)](figures/wqx-01-review-top.png)
+
+[![WQX review, part 2 of 2: dictionary provenance, candidate IDs, provisional identity and all footer controls](figures/wqx-02-review-bottom.png)](figures/wqx-02-review-bottom.png)
+
 [![All three source rows: inventory A has a current registered-mixture decision; inventory B and the rejected source remain provisional](figures/identity-06-source-table.png)](figures/identity-06-source-table.png)
 
 ## Record correspondence for one source entry

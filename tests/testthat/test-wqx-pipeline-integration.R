@@ -150,7 +150,7 @@ test_that("wqx_rows tibble conforms to combined_results schema", {
 
 # --- Group 4: WQX tier final_missed narrowing ---
 
-test_that("WQX matching narrows final_missed to only truly unresolved names", {
+test_that("WQX matching narrows vocabulary misses without resolving identifiers", {
   mock_dict <- tibble::tibble(
     name = c("Arsenic", "Dissolved oxygen", "DO"),
     canonical_name = c("Arsenic", "Dissolved oxygen", "Dissolved oxygen"),
@@ -211,4 +211,171 @@ test_that("full pipeline produces WQX matches for unresolved names", {
 
   # At least the results df should exist
   expect_true(nrow(result$results) > 0)
+})
+
+wqx_pipeline_dictionary <- function() {
+  tibble::tibble(name = c("Arsenic", "Arsenic alias", "Class without CAS"),
+    canonical_name = c("Arsenic", "Arsenic", "Class without CAS"),
+    type = c("canonical", "synonym", "canonical"),
+    cas_number = c("7440-38-2", NA_character_, NA_character_),
+    group_name = NA_character_, description = NA_character_)
+}
+
+wqx_pipeline_mocks <- function(env = parent.frame()) {
+  testthat::local_mocked_bindings(
+    search_exact = function(names) tibble::tibble(searchValue = names, dtxsid = NA_character_,
+      preferredName = NA_character_, searchName = NA_character_, rank = NA_integer_),
+    load_wqx_dictionary = function(...) wqx_pipeline_dictionary(),
+    add_resolver_candidates = function(df, ...) df,
+    .env = env
+  )
+}
+
+test_that("dictionary CAS continuation deduplicates queries and retains all provisional hits", {
+  wqx_pipeline_mocks()
+  queries <- character()
+  df <- tibble::tibble(Chemical = c("Arsenic", "Arsenic alias", "Class without CAS"))
+  result <- run_curation_pipeline(df, list(Chemical = "Name"), pubchem = FALSE,
+    wqx_cas_lookup_fn = function(cas) {
+      queries <<- cas
+      tibble::tibble(original_cas = rep(cas, each = 3),
+        dtxsid = c("DTXSID123", "DTXSID456", "DTXSID123"),
+        preferredName = c("Different identity", "Another identity", "Different identity"))
+    })$results
+  expect_identical(queries, "7440-38-2")
+  expect_identical(result$wqx_input_name, df$Chemical)
+  expect_identical(result$wqx_name, c("Arsenic", "Arsenic", "Class without CAS"))
+  expect_identical(result$wqx_match_tier, c("exact", "alias", "exact"))
+  expect_identical(result$wqx_cas_dtxsid_candidates,
+    c("DTXSID123|DTXSID456", "DTXSID123|DTXSID456", NA_character_))
+  expect_identical(result$wqx_cas_lookup_status, c("candidate", "candidate", "missing"))
+  expect_true(all(is.na(result$dtxsid)))
+  expect_true(all(is.na(result$consensus_dtxsid)))
+  expect_true(all(result$consensus_status == "wqx"))
+  expect_identical(result$Chemical, df$Chemical)
+})
+
+test_that("WQX candidate lookup distinguishes missing, invalid, ambiguous, no-hit and outage", {
+  matches <- tibble::tibble(input_name = letters[1:5], wqx_name = LETTERS[1:5],
+    match_tier = "fuzzy", match_distance = .1, alias_type = NA_character_,
+    wqx_cas = c(NA, NA, NA, "7440-38-2", "7782-44-7"),
+    wqx_cas_status = c("missing", "invalid", "ambiguous", "valid", "valid"))
+  observed <- NULL
+  result <- wqx_dictionary_candidates(matches, function(cas) {
+    observed <<- cas
+    tibble::tibble(original_cas = cas, dtxsid = NA_character_, lookup_status = c("not_found", "unavailable"))
+  })
+  expect_identical(observed, c("7440-38-2", "7782-44-7"))
+  expect_identical(result$wqx_cas_lookup_status, c("missing", "invalid", "ambiguous", "not_found", "unavailable"))
+  failed <- wqx_dictionary_candidates(matches, function(...) stop("mock outage"))
+  expect_identical(failed$wqx_cas_lookup_status, c("missing", "invalid", "ambiguous", "unavailable", "unavailable"))
+  empty <- wqx_dictionary_candidates(matches, function(...) tibble::tibble(
+    original_cas = character(), dtxsid = character()))
+  expect_identical(empty$wqx_cas_lookup_status, c("missing", "invalid", "ambiguous", "not_found", "not_found"))
+})
+
+test_that("mapping preserves per-column WQX attribution and protects raw evidence columns", {
+  wqx_pipeline_mocks()
+  df <- tibble::tibble(A = c("Arsenic", "Class without CAS"), B = c("Arsenic alias", "Arsenic"),
+    dtxsid_A = "raw unvalidated ID", wqx_name_B = "raw vocabulary metadata")
+  expect_warning(result <- run_curation_pipeline(df, list(A = "Name", B = "Name"),
+    wqx_cas_lookup_fn = function(cas) tibble::tibble(original_cas = cas, dtxsid = "DTXSID123",
+      preferredName = "Candidate"))$results, "Unused source identifier")
+  expect_identical(result$dtxsid_A, df$dtxsid_A)
+  expect_identical(result$wqx_name_B, df$wqx_name_B)
+  expect_identical(result$wqx_name_lookup_A, c("Arsenic", "Class without CAS"))
+  expect_identical(result$wqx_name_lookup_B, c("Arsenic", "Arsenic"))
+  expect_identical(result$wqx_match_tier_lookup_B, c("alias", "exact"))
+  expect_true(all(is.na(result$dtxsid_lookup_A)))
+  expect_true(all(is.na(result$dtxsid_lookup_B)))
+  expect_true(all(is.na(result$consensus_dtxsid)))
+})
+
+test_that("default WQX CAS service preserves ties and marks lookup outages", {
+  local_mocked_bindings(ct_chemical_search_equal_bulk = function(cas) {
+    tibble::tibble(searchValue = rep(cas, 2), dtxsid = c("DTXSID456", "DTXSID123"),
+      preferredName = c("Second", "First"), rank = c(2L, 1L))
+  }, .package = "ComptoxR")
+  lookup <- validate_and_lookup_cas("7440-38-2", preserve_candidates = TRUE)
+  expect_setequal(lookup$dtxsid, c("DTXSID123", "DTXSID456"))
+  expect_true(all(lookup$lookup_status == "candidate"))
+  primary <- validate_and_lookup_cas("7440-38-2")
+  expect_identical(primary$dtxsid, "DTXSID123")
+  local_mocked_bindings(ct_chemical_search_equal_bulk = function(...) stop("mock service outage"),
+    .package = "ComptoxR")
+  failed <- validate_and_lookup_cas("7440-38-2", preserve_candidates = TRUE)
+  expect_identical(failed$lookup_status, "unavailable")
+  local_mocked_bindings(ct_chemical_search_equal_bulk = function(...) tibble::tibble(),
+    .package = "ComptoxR")
+  expect_identical(validate_and_lookup_cas("7440-38-2", preserve_candidates = TRUE)$lookup_status, "unavailable")
+  local_mocked_bindings(ct_chemical_search_equal_bulk = function(...) tibble::tibble(
+    searchValue = character(), dtxsid = character()), .package = "ComptoxR")
+  expect_identical(validate_and_lookup_cas("7440-38-2", preserve_candidates = TRUE)$lookup_status, "not_found")
+})
+
+
+test_that("fuzzy dictionary classes remain name-only despite a CAS candidate", {
+  wqx_pipeline_mocks()
+  result <- run_curation_pipeline(tibble::tibble(Chemical = "Arseni"), list(Chemical = "Name"),
+    wqx_cas_lookup_fn = function(cas) tibble::tibble(original_cas = cas, dtxsid = "DTXSID123",
+      preferredName = "A different chemical"))$results
+  expect_identical(result$wqx_match_tier, "fuzzy")
+  expect_identical(result$wqx_input_name, "Arseni")
+  expect_identical(result$wqx_name, "Arsenic")
+  expect_identical(result$wqx_cas_lookup_status, "candidate")
+  expect_true(is.na(result$dtxsid))
+  expect_true(is.na(result$consensus_dtxsid))
+  expect_identical(result$consensus_status, "wqx")
+})
+
+test_that("empty and malformed WQX service output retains stable attribution", {
+  matches <- match_wqx("Arsenic", wqx_pipeline_dictionary())
+  malformed <- wqx_dictionary_candidates(matches, function(cas) tibble::tibble(unexpected = cas))
+  expect_identical(malformed$wqx_cas_lookup_status, "unavailable")
+  malformed_empty <- wqx_dictionary_candidates(matches, function(...) tibble::tibble())
+  expect_identical(malformed_empty$wqx_cas_lookup_status, "unavailable")
+  invalid <- wqx_dictionary_candidates(matches, function(cas) tibble::tibble(original_cas = cas,
+    dtxsid = "malformed-ID"))
+  expect_identical(invalid$wqx_cas_lookup_status, "unavailable")
+  expect_true(is.na(invalid$wqx_cas_dtxsid_candidates))
+  empty <- wqx_dictionary_candidates(matches[FALSE, ], function(...) stop("must not query"))
+  expect_equal(nrow(empty), 0L)
+  expect_named(empty, wqx_candidate_fields())
+})
+
+
+test_that("mapped WQX distances retain exact values as portable decimal text", {
+  distance <- c(1 / 11, 0, NA_real_)
+  matches <- tibble::tibble(input_name = letters[1:3], wqx_name = LETTERS[1:3],
+    match_tier = "fuzzy", match_distance = distance)
+  evidence <- wqx_dictionary_candidates(matches, function(...) stop("no CAS queries"))
+  expect_type(evidence$wqx_match_distance, "character")
+  expect_identical(as.numeric(evidence$wqx_match_distance), distance)
+  expect_true(is.na(evidence$wqx_match_distance[3]))
+  path <- tempfile(fileext = ".xlsx")
+  on.exit(unlink(path), add = TRUE)
+  writexl::write_xlsx(evidence, path)
+  imported <- readxl::read_xlsx(path)
+  expect_identical(imported$wqx_match_distance, evidence$wqx_match_distance)
+  expect_identical(matches$match_distance, distance)
+})
+
+
+test_that("no-hit mapping cannot adopt raw WQX evidence through an owned lookup suffix", {
+  df <- tibble::tibble(Name = "No dictionary match", wqx_name = "Spoofed canonical",
+    wqx_cas = "50-00-0", wqx_cas_dtxsid_candidates = "DTXSID777",
+    wqx_name_lookup_Name = "Second spoofed canonical")
+  keys <- tibble::tibble(row_idx = 1L, column_name = "Name", dedup_key = df$Name)
+  lookup <- tibble::tibble(searchValue = df$Name, dtxsid = NA_character_,
+    preferredName = NA_character_, searchName = NA_character_, rank = NA_integer_, source_tier = "miss")
+  result <- map_results_to_rows(df, keys, lookup)
+  expect_identical(result$lookup_evidence_columns, "dtxsid_lookup_Name_lookup")
+  expect_identical(result[names(df)], df)
+  expect_length(wqx_review_columns(result), 0L)
+  expect_equal(nrow(normalize_review_candidates(result)), 0L)
+  result <- classify_consensus(result, find_dtxsid_cols(result))
+  queries <- unresolved_name_queries(result, "Name")
+  expect_identical(queries$names, df$Name)
+  expect_identical(queries$role, "original")
+  expect_true(is.na(result$consensus_dtxsid))
 })

@@ -104,8 +104,10 @@ combine_tag_maps <- function(...) {
   combined[!duplicated(names(combined), fromLast = TRUE)]
 }
 
-script_literal <- function(value) {
-  paste(utils::capture.output(dput(value)), collapse = "\n")
+script_literal <- function(value, exact = FALSE) {
+  control <- c("keepNA", "keepInteger", "niceNames", "showAttributes")
+  if (exact) control <- c(control, "hexNumeric")
+  paste(utils::capture.output(dput(value, control = control)), collapse = "\n")
 }
 
 # Compact tibble literal for embedded site manifests: drops columns that
@@ -1362,7 +1364,7 @@ append_optional_script_object <- function(lines, name, value) {
     return(lines)
   }
 
-  c(lines, "", paste0(name, " <- ", script_literal(value)))
+  c(lines, "", paste0(name, " <- ", script_literal(value, exact = TRUE)))
 }
 
 #' Generate a CONCERT replay script

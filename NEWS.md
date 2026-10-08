@@ -1,8 +1,12 @@
 
 
-# concert NEWS
+## concert (development version)
 
-## Development
+- Continue WQX canonical-name and dictionary-CAS lookups as attributed review
+  candidates, retaining original queries, lookup failures, ties and source lineage
+  (#82). Vocabulary matches require review; explicit scoped acceptance remains
+  separate from registry membership. Workbook import and replay preserve the
+  captured evidence and acknowledgments.
 
 - Validate complete PubChem CID/DTXSID pairs; empty or malformed synonyms retain
   NA candidates and successful CID hits (#88).
@@ -30,7 +34,7 @@
   flags, reasons, and tie evidence. Explicit FOLLOW-UP/BAD dispositions and reviewed
   WQX canonical names remain outside the ordinary pending queue.
 
-## v0.5.3 (2026-10-06)
+## concert 0.5.3 (2026-10-06)
 
 #### Bug fixes
 
@@ -57,7 +61,7 @@
 Full set of changes:
 [`v0.5.2...v0.5.3`](https://github.com/seanthimons/concert/compare/v0.5.2...v0.5.3)
 
-## v0.5.2 (2026-10-05)
+## concert 0.5.2 (2026-10-05)
 
 #### New features
 
@@ -98,7 +102,7 @@ Full set of changes:
 Full set of changes:
 [`v0.5.1...v0.5.2`](https://github.com/seanthimons/concert/compare/v0.5.1...v0.5.2)
 
-## v0.5.1 (2026-10-04)
+## concert 0.5.1 (2026-10-04)
 
 #### Bug fixes
 
@@ -131,7 +135,7 @@ Full set of changes:
 Full set of changes:
 [`v0.5.0...v0.5.1`](https://github.com/seanthimons/concert/compare/v0.5.0...v0.5.1)
 
-## v0.5.0 (2026-09-28)
+## concert 0.5.0 (2026-09-28)
 
 #### New features
 
@@ -151,7 +155,7 @@ Full set of changes:
 Full set of changes:
 [`v0.4.4...v0.5.0`](https://github.com/seanthimons/concert/compare/v0.4.4...v0.5.0)
 
-## v0.4.4 (2026-09-22)
+## concert 0.4.4 (2026-09-22)
 
 #### Bug fixes
 
@@ -177,7 +181,7 @@ Full set of changes:
 Full set of changes:
 [`v0.4.4...v0.4.4`](https://github.com/seanthimons/concert/compare/v0.4.4...v0.4.4)
 
-## v0.4.3 (2026-09-22)
+## concert 0.4.3 (2026-09-22)
 
 #### Bug fixes
 
@@ -201,7 +205,7 @@ Full set of changes:
 Full set of changes:
 [`v0.4.2...v0.4.3`](https://github.com/seanthimons/concert/compare/v0.4.2...v0.4.3)
 
-## v0.4.2 (2026-09-15)
+## concert 0.4.2 (2026-09-15)
 
 #### Docs
 
@@ -216,7 +220,7 @@ Full set of changes:
 Full set of changes:
 [`v0.4.1...v0.4.2`](https://github.com/seanthimons/concert/compare/v0.4.1...v0.4.2)
 
-## v0.4.1 (2026-09-15)
+## concert 0.4.1 (2026-09-15)
 
 #### New features
 
@@ -275,7 +279,7 @@ Full set of changes:
 Full set of changes:
 [`v0.4.0...v0.4.1`](https://github.com/seanthimons/concert/compare/v0.4.0...v0.4.1)
 
-## v0.4.0 (2026-09-11)
+## concert 0.4.0 (2026-09-11)
 
 #### Breaking changes
 
@@ -336,7 +340,7 @@ Full set of changes:
 Full set of changes:
 [`v0.3.2...v0.4.0`](https://github.com/seanthimons/concert/compare/v0.3.2...v0.4.0)
 
-## v0.3.2 (2026-08-12)
+## concert 0.3.2 (2026-08-12)
 
 #### Bug fixes
 
@@ -356,7 +360,7 @@ Full set of changes:
 Full set of changes:
 [`v0.3.1...v0.3.2`](https://github.com/seanthimons/concert/compare/v0.3.1...v0.3.2)
 
-## v0.3.1 (2026-07-21)
+## concert 0.3.1 (2026-07-21)
 
 #### Bug fixes
 
@@ -376,7 +380,7 @@ Full set of changes:
 Full set of changes:
 [`v0.3.0...v0.3.1`](https://github.com/seanthimons/concert/compare/v0.3.0...v0.3.1)
 
-## v0.3.0 (2026-07-21)
+## concert 0.3.0 (2026-07-21)
 
 #### New features
 
@@ -413,7 +417,7 @@ Full set of changes:
 Full set of changes:
 [`v0.2.0...v0.3.0`](https://github.com/seanthimons/concert/compare/v0.2.0...v0.3.0)
 
-## v0.2.0 (2026-07-20)
+## concert 0.2.0 (2026-07-20)
 
 #### New features
 
@@ -466,7 +470,7 @@ Full set of changes:
 Full set of changes:
 [`v0.1.4...v0.2.0`](https://github.com/seanthimons/concert/compare/v0.1.4...v0.2.0)
 
-## v0.1.4 (2026-07-14)
+## concert 0.1.4 (2026-07-14)
 
 #### New features
 
@@ -511,7 +515,7 @@ Full set of changes:
 Full set of changes:
 [`v0.1.3...v0.1.4`](https://github.com/seanthimons/concert/compare/v0.1.3...v0.1.4)
 
-## v0.1.3 (2026-07-10)
+## concert 0.1.3 (2026-07-10)
 
 #### Bug fixes
 
@@ -526,7 +530,7 @@ Full set of changes:
 Full set of changes:
 [`v0.1.2...v0.1.3`](https://github.com/seanthimons/concert/compare/v0.1.2...v0.1.3)
 
-## v0.1.2 (2026-07-09)
+## concert 0.1.2 (2026-07-09)
 
 #### New features
 
@@ -552,7 +556,7 @@ Full set of changes:
 Full set of changes:
 [`v0.1.1...v0.1.2`](https://github.com/seanthimons/concert/compare/v0.1.1...v0.1.2)
 
-## v0.1.1 (2026-07-09)
+## concert 0.1.1 (2026-07-09)
 
 #### New features
 
