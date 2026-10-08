@@ -631,6 +631,10 @@ run_tiered_search <- function(dedup_result) {
 map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved = NULL) {
   input_rows <- nrow(df)
   wqx_fields <- intersect(wqx_candidate_fields(), names(lookup_results))
+  # Reserve the entire owned WQX namespace even when this run has no WQX
+  # matches. Otherwise raw input fields could share the generated ID suffix
+  # and be mistaken for attributed vocabulary evidence by downstream readers.
+  reserved_fields <- c("dtxsid", wqx_candidate_fields())
 
   # Build a fast lookup table: searchValue -> best result
   # Prefer resolved rows (non-NA dtxsid or preferredName) over unresolved, then lowest rank
@@ -660,9 +664,9 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
   generated_suffix <- stats::setNames(character(length(tag_cols)), tag_cols)
   for (col in tag_cols) {
     suffix <- if (length(tag_cols) == 1L) "" else paste0("_", col)
-    if (any(paste0(c("dtxsid", wqx_fields), suffix) %in% names(df))) {
+    if (any(paste0(reserved_fields, suffix) %in% names(df))) {
       suffix <- paste0("_lookup_", col)
-      while (any(paste0(c("dtxsid", wqx_fields), suffix) %in% names(df))) suffix <- paste0(suffix, "_lookup")
+      while (any(paste0(reserved_fields, suffix) %in% names(df))) suffix <- paste0(suffix, "_lookup")
     }
     generated_suffix[[col]] <- suffix
     generated <- c(generated, paste0("dtxsid", suffix))

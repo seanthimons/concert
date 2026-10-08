@@ -34,23 +34,63 @@ unresolved_name_queries <- function(df, name_cols, original_data = NULL) {
   }
   append_query(unresolved, original, "original", column)
   for (column in name_cols) {
-    suffixes <- c(paste0("_lookup_", column), paste0("_", column), if (length(name_cols) == 1L) "")
-    # A generated collision-safe field owns the evidence, even when empty;
-    # never fall back into the raw input column it was created to protect.
-    if (paste0("wqx_name_lookup_", column) %in% names(df)) suffixes <- suffixes[1L]
     canonical <- rep(NA_character_, length(unresolved))
-    for (suffix in suffixes) {
-      canonical_col <- paste0("wqx_name", suffix)
-      if (canonical_col %in% names(df) && !canonical_col %in% name_cols) {
-        candidate <- as.character(df[[canonical_col]][unresolved])
-      } else {
-        preferred <- paste0("preferredName", suffix)
-        tier <- paste0("source_tier", suffix)
-        if (!all(c(preferred, tier) %in% names(df))) next
-        candidate <- ifelse(grepl("^wqx_", df[[tier]][unresolved]), as.character(df[[preferred]][unresolved]), NA_character_)
+    if ("lookup_evidence_columns" %in% names(df)) {
+      # The registry owns generated fields, including arbitrarily repeated
+      # collision suffixes. Raw columns that resemble lookup output are never
+      # evidence. Bind each generated WQX input back to its tagged source.
+      for (lookup_col in find_dtxsid_cols(df)) {
+        input_col <- source_field_column(lookup_col, "wqx_input_name")
+        if (input_col %in% names(df)) {
+          associated <- !is.na(df[[input_col]][unresolved]) &
+            !is.na(df[[column]][unresolved]) &
+            as.character(df[[input_col]][unresolved]) == as.character(df[[column]][unresolved])
+        } else {
+          # Older registered lookup records may lack WQX input attribution.
+          # Only an unambiguous generated suffix can identify their source.
+          belongs <- vapply(name_cols, function(name) {
+            base <- paste0("dtxsid_lookup_", name)
+            identical(lookup_col, paste0("dtxsid_", name)) ||
+              (startsWith(lookup_col, base) &&
+                 grepl("^(_lookup)*$", substring(lookup_col, nchar(base) + 1L))) ||
+              (identical(lookup_col, "dtxsid") && length(name_cols) == 1L)
+          }, logical(1))
+          associated <- rep(sum(belongs) == 1L && isTRUE(belongs[match(column, name_cols)]), length(unresolved))
+        }
+        tier_col <- source_field_column(lookup_col, "source_tier")
+        if (!tier_col %in% names(df)) next
+        associated <- associated & is_wqx_tier(df[[tier_col]][unresolved])
+        canonical_col <- source_field_column(lookup_col, "wqx_name")
+        if (canonical_col %in% names(df)) {
+          candidate <- as.character(df[[canonical_col]][unresolved])
+        } else {
+          preferred <- source_field_column(lookup_col, "preferredName")
+          tier <- source_field_column(lookup_col, "source_tier")
+          if (!all(c(preferred, tier) %in% names(df))) next
+          candidate <- ifelse(is_wqx_tier(df[[tier]][unresolved]), as.character(df[[preferred]][unresolved]), NA_character_)
+        }
+        fill <- associated & (is.na(canonical) | !nzchar(trimws(canonical))) &
+          !is.na(candidate) & nzchar(trimws(candidate))
+        canonical[fill] <- candidate[fill]
       }
-      fill <- (is.na(canonical) | !nzchar(trimws(canonical))) & !is.na(candidate) & nzchar(trimws(candidate))
-      canonical[fill] <- candidate[fill]
+    } else {
+      suffixes <- c(paste0("_lookup_", column), paste0("_", column), if (length(name_cols) == 1L) "")
+      # A generated collision-safe field owns the evidence, even when empty;
+      # never fall back into the raw input column it was created to protect.
+      if (paste0("wqx_name_lookup_", column) %in% names(df)) suffixes <- suffixes[1L]
+      for (suffix in suffixes) {
+        canonical_col <- paste0("wqx_name", suffix)
+        if (canonical_col %in% names(df) && !canonical_col %in% name_cols) {
+          candidate <- as.character(df[[canonical_col]][unresolved])
+        } else {
+          preferred <- paste0("preferredName", suffix)
+          tier <- paste0("source_tier", suffix)
+          if (!all(c(preferred, tier) %in% names(df))) next
+          candidate <- ifelse(grepl("^wqx_", df[[tier]][unresolved]), as.character(df[[preferred]][unresolved]), NA_character_)
+        }
+        fill <- (is.na(canonical) | !nzchar(trimws(canonical))) & !is.na(candidate) & nzchar(trimws(candidate))
+        canonical[fill] <- candidate[fill]
+      }
     }
     keep <- !is.na(canonical) & nzchar(trimws(canonical)) &
       (is.na(original) | tolower(trimws(canonical)) != tolower(trimws(original)))
