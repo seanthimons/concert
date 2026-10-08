@@ -168,7 +168,8 @@ stage_clean <- function(state, multi_analyte_resolutions = NULL, value_correctio
     multi_result <- apply_multi_analyte_resolutions(
       cleaning_result$cleaned_data,
       name_cols,
-      multi_analyte_resolutions
+      multi_analyte_resolutions,
+      cas_cols = names(merged_chemical_tags)[merged_chemical_tags == "CASRN"]
     )
     cleaning_result$cleaned_data <- multi_result$cleaned_data
     cleaning_result$audit_trail <- dplyr::bind_rows(

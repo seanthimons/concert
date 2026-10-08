@@ -4,7 +4,12 @@
 \alias{apply_multi_analyte_resolutions}
 \title{Apply multiple multi-analyte resolutions}
 \usage{
-apply_multi_analyte_resolutions(df, name_cols, resolutions = NULL)
+apply_multi_analyte_resolutions(
+  df,
+  name_cols,
+  resolutions = NULL,
+  cas_cols = character(0)
+)
 }
 \arguments{
 \item{df}{Cleaned data frame.}
@@ -15,6 +20,9 @@ apply_multi_analyte_resolutions(df, name_cols, resolutions = NULL)
 optional \code{value} or \code{values}. When \code{df} has an \code{original_row_id} column the
 row key is matched against it (as written by \code{pending.csv}); otherwise it is
 a 1-based row position.}
+
+\item{cas_cols}{CASRN-tagged column names. CAS values are left unchanged, but
+a repeated source CAS is recorded and requires component review.}
 }
 \value{
 List with \code{cleaned_data} and \code{audit_trail}.
