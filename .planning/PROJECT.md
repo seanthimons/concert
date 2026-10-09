@@ -246,7 +246,7 @@ Key files:
 | Compare button + modal over richer dropdown | Modal gives space for tabular metadata; dropdowns get too wide | ✓ Good — v1.5 |
 | Two-step Select + Confirm resolution | Prevents accidental resolution; progressive disclosure pattern | ✓ Good — v1.5 |
 | Repeat-until-stable loop for locant comma protection | Single-pass regex can't protect all commas in 3+ locant chains; loop converges in 1 pass for simple cases | ✓ Good — v1.6 |
-| Module-level ROMAN_NUMERAL_PATTERN constant | Anchored regex (I-XII) shared by both paren and bracket paths; avoids duplication | ✓ Good — v1.6 |
+| Module-level ROMAN_NUMERAL_PATTERN constant | Anchored regex (0, -IV..-I, I..IX; case-sensitive, lowercase kept + QC-flagged) shared by both paren and bracket paths; avoids duplication | ✓ Good — v1.6 |
 | Test alignment over pipeline changes for unicode | ComptoxR already handles α and ′ correctly; only tests needed updating | ✓ Good — v1.6 |
 | elementId removal from reactable is safe | session$ns("curation_table") produces same string Shiny auto-assigns; Reactable.setFilter calls unaffected | ✓ Good — v1.7 |
 | unname(unlist()) before Shiny output bindings | Prevents jsonlite 2.0.0 named vector deprecation warning from unlist() in reactive context | ✓ Good — v1.7 |

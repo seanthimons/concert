@@ -7,9 +7,14 @@
 # - build_audit_trail: Compare two dataframes and record changes
 # - run_cleaning_pipeline: Orchestrate cleaning steps with audit trail
 
-# Roman numeral pattern for oxidation states (I through XII, case-insensitive)
-# Matches: pure roman numeral like "III", or element symbol + roman numeral like "Cr III"
-ROMAN_NUMERAL_PATTERN <- "(?i)^\\s*([A-Z][a-z]?\\s+)?(I{1,3}|IV|V|VI{0,3}|IX|X|XI{0,2})\\s*$"
+# Stock-notation oxidation states (IUPAC Red Book IR-5.4.2.2): 0, -IV..-I, I..IX.
+# +IX ([IrO4]+) is the highest known; X+ is never an oxidation state. Minus may be
+# ASCII "-" or U+2212. Optional element prefix like "Cr III". Case-sensitive;
+# ROMAN_NUMERAL_PATTERN_ANY_CASE also matches lowercase ("iii"), which is kept
+# but flagged for QC since lowercase numerals are often list markers.
+ROMAN_NUMERAL_PATTERN <- "^\\s*([A-Z][a-z]?\\s+)?(0|[-\u2212]?(I{1,3}|IV)|VI{0,3}|IX)\\s*$"
+ROMAN_NUMERAL_PATTERN_ANY_CASE <- paste0("(?i)", ROMAN_NUMERAL_PATTERN)
+ROMAN_CASE_QC_FLAG <- "WARN: non-uppercase oxidation state"
 
 # Match whole tokens; prefix case and optional spaces affect recognition only.
 # Element symbols remain case-sensitive. Counts support one or two digits.
@@ -1084,6 +1089,7 @@ strip_terminal_enclosures <- function(df, name_cols) {
     n <- length(original_vals)
     stripped_vals <- original_vals
     extracted_vals <- rep(NA_character_, n)
+    roman_qc_idx <- integer()
 
     # ---- Pass 1: Strip terminal parentheticals (vectorized) ----
     parenth_match <- stringr::str_match(stripped_vals, "^(.*)\\(([^)]*)\\)\\s*$")
@@ -1112,7 +1118,8 @@ strip_terminal_enclosures <- function(df, name_cols) {
 
         has_yl <- stringr::str_detect(content_ne, "yl")
         has_pct <- stringr::str_detect(content_ne, "%")
-        has_roman <- stringr::str_detect(trimmed_ne, ROMAN_NUMERAL_PATTERN)
+        has_roman <- stringr::str_detect(trimmed_ne, ROMAN_NUMERAL_PATTERN_ANY_CASE)
+        roman_qc_idx <- c(roman_qc_idx, non_empty_idx[has_roman & !stringr::str_detect(trimmed_ne, ROMAN_NUMERAL_PATTERN)])
 
         # Vectorized exception check
         has_exception <- Reduce(
@@ -1160,7 +1167,8 @@ strip_terminal_enclosures <- function(df, name_cols) {
 
         has_yl <- stringr::str_detect(content_ne, "yl")
         has_pct <- stringr::str_detect(content_ne, "%")
-        has_roman <- stringr::str_detect(trimmed_ne, ROMAN_NUMERAL_PATTERN)
+        has_roman <- stringr::str_detect(trimmed_ne, ROMAN_NUMERAL_PATTERN_ANY_CASE)
+        roman_qc_idx <- c(roman_qc_idx, non_empty_idx[has_roman & !stringr::str_detect(trimmed_ne, ROMAN_NUMERAL_PATTERN)])
 
         has_exception <- Reduce(
           `|`,
@@ -1186,6 +1194,19 @@ strip_terminal_enclosures <- function(df, name_cols) {
           )
         }
       }
+    }
+
+    # Kept-but-lowercase oxidation states: flag once (this step runs twice per pipeline pass)
+    if (length(roman_qc_idx) > 0) {
+      if (!"cleaning_flag" %in% names(df_result)) {
+        df_result$cleaning_flag <- NA_character_
+      }
+      existing_flags <- df_result$cleaning_flag[roman_qc_idx]
+      df_result$cleaning_flag[roman_qc_idx] <- dplyr::case_when(
+        is.na(existing_flags) | existing_flags == "" ~ ROMAN_CASE_QC_FLAG,
+        grepl(ROMAN_CASE_QC_FLAG, existing_flags, fixed = TRUE) ~ existing_flags,
+        TRUE ~ paste0(existing_flags, "; ", ROMAN_CASE_QC_FLAG)
+      )
     }
 
     # ---- Batch update and audit ----
