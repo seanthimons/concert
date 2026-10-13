@@ -55,3 +55,6 @@ AGENTS.md
 CLAUDE.md
 docs/site/
 pkgdown/
+
+# testthat failure reproductions (regenerated on each failing run)
+tests/testthat/_problems/
