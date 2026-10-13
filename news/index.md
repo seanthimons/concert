@@ -1,5 +1,34 @@
 # Changelog
 
+## concert 0.6.2 (2026-10-13)
+
+#### Bug fixes
+
+- limit roman oxidation-state protection to real states and QC-flag
+  lowercase
+  ([831195c](https://github.com/seanthimons/concert/tree/831195c5bfd1e37446c08160c343f6a366a2ec1a))
+
+#### Tests
+
+- add extracted cleaning reference cases
+  ([93e63c0](https://github.com/seanthimons/concert/tree/93e63c0507bc6fee8f30386f19a6849be116ab09))
+- cover column selection, detection-mode reprocessing and tag
+  persistence
+  ([c7c4d49](https://github.com/seanthimons/concert/tree/c7c4d49847c9f28e082150acd16a08f206da2230))
+- run toxval_schema tests against the shipped cache and fix stale
+  assertions
+  ([b29b5f0](https://github.com/seanthimons/concert/tree/b29b5f02addd9016c945781c2c39f3edc6d805ba))
+
+#### Other changes
+
+- bump version to 0.6.2 \[skip ci\]
+  ([8befe88](https://github.com/seanthimons/concert/tree/8befe88a025c1180ebeedcd174411f7c80c66de1))
+- ignore testthat \_problems reproductions
+  ([8c13548](https://github.com/seanthimons/concert/tree/8c135481705e484a967a81b49de0b20209098ea4))
+
+Full set of changes:
+[`v0.6.1...v0.6.2`](https://github.com/seanthimons/concert/compare/v0.6.1...v0.6.2)
+
 ## concert 0.6.1 (2026-10-08)
 
 #### New features
@@ -43,6 +72,11 @@
   ([9fb2801](https://github.com/seanthimons/concert/tree/9fb2801cffd9e32f6aa418129d1e001e04e73e68))
 - cut a patch release on merges to main except docs, site and CI changes
   ([7ed3ff0](https://github.com/seanthimons/concert/tree/7ed3ff0bc7ce44cb4296c244dfa8bc0638273996))
+
+#### Docs
+
+- update NEWS.md for v0.6.1 \[skip ci\]
+  ([45cb6da](https://github.com/seanthimons/concert/tree/45cb6da5bc629241ec9be40fb0ad8b36b3545d3a))
 
 #### Other changes
 
