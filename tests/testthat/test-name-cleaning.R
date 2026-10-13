@@ -474,6 +474,9 @@ test_that("split_synonyms protects multi-locant IUPAC patterns (3+ locants)", {
   expect_equal(nrow(row4), 1)
   expect_equal(row4$chemical_name, "acetone, 2,4-dinitrophenylhydrazone")
 
+  # Protected rows keep single-synonym metadata, not just a single row
+  expect_equal(cleaned$synonym_count[cleaned$original_row_id %in% 1:4], rep(1L, 4))
+
   # Row 5: semicolon synonyms — SHOULD split into 2
   row5 <- cleaned[cleaned$original_row_id == 5L, ]
   expect_equal(nrow(row5), 2)
@@ -794,6 +797,126 @@ test_that("strip_terminal_enclosures preserves terminal roman numeral oxidation 
   expect_equal(cleaned$chemical_name[5], "Manganese (VII)")
 
   # formula_extract should be NA for all (nothing extracted)
+  expect_true(all(is.na(cleaned$formula_extract_chemical_name)))
+})
+
+test_that("strip_terminal_enclosures preserves every oxidation state I-IX, including bare V (#23)", {
+  numerals <- c("I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX")
+  names_in <- paste0("chromium (", numerals, ")")
+  result <- strip_terminal_enclosures(tibble::tibble(chemical_name = names_in), "chemical_name")
+
+  expect_equal(result$cleaned_data$chemical_name, names_in)
+  expect_false("cleaning_flag" %in% names(result$cleaned_data))
+})
+
+test_that("strip_terminal_enclosures preserves zero and negative oxidation states", {
+  names_in <- c(
+    "pentacarbonyliron (0)",
+    "nickel(0)",
+    "sodium pentacarbonylmanganate(-I)",
+    "sodium tetracarbonylferrate(-II)",
+    "tetracarbonylferrate (\u2212II)", # U+2212 minus sign, as printed by IUPAC
+    "carbonylchromate(-IV)"
+  )
+  result <- strip_terminal_enclosures(tibble::tibble(chemical_name = names_in), "chemical_name")
+
+  expect_equal(result$cleaned_data$chemical_name, names_in)
+})
+
+test_that("strip_terminal_enclosures does not protect X and above (no such oxidation state)", {
+  names_in <- c("chromium (X)", "chromium (XI)", "chromium (XII)", "chromium (XIII)", "chromium(XIII)", "chromium (-V)")
+  result <- strip_terminal_enclosures(tibble::tibble(chemical_name = names_in), "chemical_name")
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$chemical_name, rep("chromium", 6))
+  expect_equal(cleaned$formula_extract_chemical_name, c("X", "XI", "XII", "XIII", "XIII", "-V"))
+})
+
+test_that("strip_terminal_enclosures keeps element+numeral and charge-number forms", {
+  names_in <- c("Some compound (Fe II)", "Some compound (Cr VI)", "iron (2+)", "chloride (1-)")
+  result <- strip_terminal_enclosures(tibble::tibble(chemical_name = names_in), "chemical_name")
+
+  expect_equal(result$cleaned_data$chemical_name, names_in)
+})
+
+test_that("strip_terminal_enclosures keeps lowercase oxidation states but flags them for QC", {
+  df <- tibble::tibble(chemical_name = c("chromium (iii)", "iron(ii)", "manganese [vii]", "Iron (III)", "Acetone (ACS reagent)"))
+  result <- strip_terminal_enclosures(df, "chemical_name")
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$chemical_name, c("chromium (iii)", "iron(ii)", "manganese [vii]", "Iron (III)", "Acetone"))
+  expect_equal(
+    cleaned$cleaning_flag,
+    c(rep(ROMAN_CASE_QC_FLAG, 3), NA_character_, NA_character_)
+  )
+})
+
+test_that("roman QC flag appends to existing flags and is not duplicated on re-run", {
+  df <- tibble::tibble(
+    chemical_name = c("chromium (iii)", "iron (ii)"),
+    cleaning_flag = c(NA_character_, "WARNING: chiral designation")
+  )
+  once <- strip_terminal_enclosures(df, "chemical_name")$cleaned_data
+  twice <- strip_terminal_enclosures(once, "chemical_name")$cleaned_data
+
+  expected <- c(ROMAN_CASE_QC_FLAG, paste0("WARNING: chiral designation; ", ROMAN_CASE_QC_FLAG))
+  expect_equal(once$cleaning_flag, expected)
+  expect_equal(twice$cleaning_flag, expected)
+})
+
+test_that("strip_terminal_enclosures handles real DSSTox names with roman, zero, negative and charge enclosures", {
+  # Sampled from DSSTox PREFERRED_NAME/IDENTIFIER (2025-12 release) terminal enclosures.
+  kept <- c(
+    "Potassium tetranitroplatinate(II)", "Hexacyanocobaltate(III)", "Tetraazidolead(IV)",
+    "Diiodoisopropylantimony(V)", "Sodium vanadate(V)", "Lead molybdate(VI)",
+    "Chloro(dimethyl sulfide)gold(I)", "copper(0)", "Hydrogen pentacarbonylmanganate(-I)",
+    "Sodium tetracarbonylferrate(-II)", "Phosphorus(III) sulfide(IV)", "(2-Oxopropyl)pentafluorosulfur(VI)",
+    "Nikkomycin S(X)",
+    # Roman metabolite/isomer labels: kept, they distinguish substances
+    "Defluorinated flutriafol (I)", "Defluorinated flutriafol (II)", "480M26 (III)", "Myxol (II)",
+    # Charge numbers
+    "chromium (+3)", "Iron (Fe 2+)", "Ferrous ammonium sulfate (Fe +2)", "chromium ion (cr 3+)"
+  )
+  kept_flagged <- c(
+    "chromium (vi)", "copper oxide (i)", "barium chromate (vi)", "iron (iii) hexacyanoferrate (ii)",
+    "chromium oxide (cr ii)", "vanadium(v)",
+    # Reporting basis, not an oxidation state; kept, flag label is imprecise
+    "Vanadium, dissolved (as V)"
+  )
+  stripped <- c(
+    "2,3-Dihydroxypropanoic acid calcium salt (2:1), hydrate (x)" = "2,3-Dihydroxypropanoic acid calcium salt (2:1), hydrate",
+    "Nifedipine (MW 346)" = "Nifedipine",
+    "Polyvinylpyrrolidone (E 1201)" = "Polyvinylpyrrolidone"
+  )
+
+  names_in <- c(kept, kept_flagged, names(stripped))
+  cleaned <- strip_terminal_enclosures(tibble::tibble(chemical_name = names_in), "chemical_name")$cleaned_data
+
+  expect_equal(cleaned$chemical_name, c(kept, kept_flagged, unname(stripped)))
+  expect_equal(
+    cleaned$cleaning_flag,
+    c(rep(NA_character_, length(kept)), rep(ROMAN_CASE_QC_FLAG, length(kept_flagged)), rep(NA_character_, length(stripped)))
+  )
+})
+
+test_that("run_cleaning_pipeline keeps oxidation states end to end and surfaces the lowercase QC flag", {
+  df <- tibble::tibble(
+    chemical_name = c("chromium (VI)", "chromium (iii)", "nickel(0)", "chromium (XII)"),
+    cas_number = NA_character_
+  )
+  result <- run_cleaning_pipeline(df, tag_map = list(chemical_name = "Name", cas_number = "CASRN"))
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$chemical_name, c("chromium (VI)", "chromium (iii)", "nickel(0)", "chromium"))
+  expect_equal(grepl(ROMAN_CASE_QC_FLAG, cleaned$cleaning_flag, fixed = TRUE), c(FALSE, TRUE, FALSE, FALSE))
+})
+
+test_that("strip_terminal_enclosures preserves roman numerals with no space before the paren", {
+  df <- tibble::tibble(chemical_name = c("chromium(III)", "iron(ii)", "Manganese(VII)"))
+  result <- strip_terminal_enclosures(df, "chemical_name")
+  cleaned <- result$cleaned_data
+
+  expect_equal(cleaned$chemical_name, c("chromium(III)", "iron(ii)", "Manganese(VII)"))
   expect_true(all(is.na(cleaned$formula_extract_chemical_name)))
 })
 
