@@ -303,6 +303,7 @@ mod_file_upload_server <- function(
           data_store$clean <- clean_df
           data_store$detection <- detection
           data_store$file_info <- file_info
+          updateNumericInput(session, "manual_header_row", max = nrow(raw_df))
 
           # Calculate smart preview rows
           suggested_rows <- calculate_smart_preview_rows(clean_df)
@@ -461,16 +462,12 @@ mod_file_upload_server <- function(
           return()
         }
 
-        if (
-          input$detection_mode == "manual" &&
-            !is.null(input$manual_header_row) &&
-            input$manual_header_row > nrow(data_store$raw)
-        ) {
-          notify_user(
-            paste0("Header row exceeds file length (", nrow(data_store$raw), " rows)."),
-            type = "warning"
-          )
-          return()
+        if (input$detection_mode == "manual" && !is.null(input$manual_header_row)) {
+          err <- manual_header_row_error(input$manual_header_row, nrow(data_store$raw))
+          if (!is.null(err)) {
+            notify_user(err, type = "warning")
+            return()
+          }
         }
 
         tryCatch(

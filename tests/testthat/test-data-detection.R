@@ -115,6 +115,17 @@ test_that("Manual detection mode takes precedence", {
   expect_equal(result$confidence, 1.0)
 })
 
+test_that("Manual header row rejects 0, negative, NA, fractional and past-end rows", {
+  df <- tibble::tibble(col1 = c("Header", "a", "b"), col2 = c("H2", "c", "d"))
+
+  for (bad in list(0, -1, NA, NA_real_, 1.5, 4)) {
+    expect_error(detect_data_start(df, mode = "manual", manual_row = bad), "Header row")
+  }
+  expect_match(manual_header_row_error(4, 3), "exceeds file length \\(3 rows\\)")
+  expect_null(manual_header_row_error(3L, 3))
+  expect_equal(detect_data_start(df, mode = "manual", manual_row = 3)$header_row, 3)
+})
+
 # Test 8: Extract clean data
 test_that("Extract clean data works correctly", {
   raw_df <- tibble::tibble(
