@@ -1,6 +1,6 @@
 Package: concert
 Title: Chemical Ontology and Nomenclature Crosswalk Tools
-Version: 0.6.1
+Version: 0.6.2
 Authors@R: person("Sean", "Thimons",
     email = "thimons.sean@gmail.com",
     role = c("aut", "cre"))
@@ -63,5 +63,5 @@ Suggests:
 Remotes:
     glin/reactable@7839a5b7b86b454c393a7613d56ff4d96fbdb885,
     seanthimons/ComptoxR@v1.7.1
-Config/roxygen2/version: 8.1.0
+Config/roxygen2/version: 8.1.1
 VignetteBuilder: knitr
