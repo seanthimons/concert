@@ -315,6 +315,23 @@ score_header_likeness <- function(row_values) {
 }
 
 
+#' Validate a manual header row against the raw data
+#'
+#' @param row Requested header row (from the manual numeric input)
+#' @param n_rows Number of rows in the raw data
+#' @return NULL when valid, otherwise a user-facing error message
+#' @keywords internal
+manual_header_row_error <- function(row, n_rows) {
+  if (length(row) != 1 || !is.numeric(row) || is.na(row) || row < 1 || row != round(row)) {
+    return("Header row must be a whole number of 1 or more.")
+  }
+  if (row > n_rows) {
+    return(paste0("Header row exceeds file length (", n_rows, " rows)."))
+  }
+  NULL
+}
+
+
 #' Main ensemble detection function combining all methods
 #'
 #' @param df Data frame to analyze
@@ -325,6 +342,8 @@ score_header_likeness <- function(row_values) {
 detect_data_start <- function(df, mode = "auto", manual_row = NULL) {
   # Manual override
   if (mode == "manual" && !is.null(manual_row)) {
+    err <- manual_header_row_error(manual_row, nrow(df))
+    if (!is.null(err)) stop(err, call. = FALSE)
     return(list(
       header_row = manual_row,
       data_start_row = manual_row + 1,

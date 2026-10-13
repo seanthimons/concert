@@ -453,6 +453,25 @@ test_that("detection-mode switch reprocesses the data", {
   })
 })
 
+test_that("invalid manual header rows are rejected without touching the data", {
+  store <- create_test_store()
+  shiny::testServer(mod_file_upload_server, args = list(data_store = store, reset_all_downstream = function() {}), {
+    upload_csv(session, write_frontmatter_csv())
+    before <- store$clean
+    detection_before <- store$detection
+
+    for (bad in list(NA_integer_, 0L, -2L, nrow(store$raw) + 1L)) {
+      session$setInputs(detection_mode = "manual", manual_header_row = bad)
+      expect_identical(store$detection, detection_before)
+      expect_identical(store$clean, before)
+    }
+
+    # A valid row still applies after the rejected ones
+    session$setInputs(manual_header_row = 1L)
+    expect_equal(store$detection$method, "manual")
+  })
+})
+
 test_that("column tags and selection persist across a detection-mode switch that keeps the columns", {
   store <- create_test_store()
   shiny::testServer(mod_file_upload_server, args = list(data_store = store, reset_all_downstream = function() {}), {
