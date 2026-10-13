@@ -389,3 +389,88 @@ test_that("File Upload detects full CONCERT exports before raw processing", {
   expect_match(src, "treat_export_as_raw")
   expect_match(src, "hydrate_session_state")
 })
+
+# --- #100: column selection, detection-mode reprocessing, tag persistence ---
+
+write_frontmatter_csv <- function() {
+  path <- tempfile(fileext = ".csv")
+  writeLines(c(
+    "Water quality report,,", ",,",
+    "Chemical Name,CAS Number,Result",
+    "acetone,67-64-1,1", "benzene,71-43-2,2", "toluene,108-88-3,3"
+  ), path)
+  path
+}
+
+upload_csv <- function(session, path) {
+  session$setInputs(detection_mode = "auto")
+  session$setInputs(file_upload = data.frame(
+    name = basename(path), size = file.info(path)$size, type = "text/csv", datapath = path
+  ))
+}
+
+render_tagging_html <- function(data_store) {
+  html <- NULL
+  shiny::testServer(mod_tag_columns_server, args = list(data_store = data_store, on_tags_applied = NULL), {
+    html <<- paste(output$column_tagging_ui$html, collapse = "")
+  })
+  html
+}
+
+test_that("column selection filters the tagging UI", {
+  store <- create_test_store()
+  shiny::testServer(mod_file_upload_server, args = list(data_store = store, reset_all_downstream = function() {}), {
+    upload_csv(session, write_frontmatter_csv())
+    expect_equal(store$selected_columns, c("chemical_name", "cas_number", "result"))
+
+    session$setInputs(selected_columns = c("chemical_name", "result"))
+    expect_equal(store$selected_columns, c("chemical_name", "result"))
+  })
+
+  html <- render_tagging_html(store)
+  expect_match(html, "chemical_name", fixed = TRUE)
+  expect_match(html, "result", fixed = TRUE)
+  expect_no_match(html, "cas_number", fixed = TRUE)
+})
+
+test_that("detection-mode switch reprocesses the data", {
+  store <- create_test_store()
+  shiny::testServer(mod_file_upload_server, args = list(data_store = store, reset_all_downstream = function() {}), {
+    upload_csv(session, write_frontmatter_csv())
+    expect_equal(store$detection$header_row, 3)
+    expect_equal(nrow(store$clean), 3L)
+
+    # Manual header on the title row: different columns, title-area rows become data
+    session$setInputs(detection_mode = "manual", manual_header_row = 1L)
+    expect_equal(store$detection$method, "manual")
+    expect_false("chemical_name" %in% names(store$clean))
+    expect_equal(store$selected_columns, names(store$clean))
+
+    # Back to auto restores the detected table
+    session$setInputs(detection_mode = "auto")
+    expect_equal(names(store$clean), c("chemical_name", "cas_number", "result"))
+    expect_equal(store$clean$chemical_name, c("acetone", "benzene", "toluene"))
+  })
+})
+
+test_that("column tags and selection persist across a detection-mode switch that keeps the columns", {
+  store <- create_test_store()
+  shiny::testServer(mod_file_upload_server, args = list(data_store = store, reset_all_downstream = function() {}), {
+    upload_csv(session, write_frontmatter_csv())
+    session$setInputs(selected_columns = c("chemical_name", "result"))
+    store$column_tags <- list(chemical_name = "Name")
+    store$numeric_tags <- list(result = "Result")
+
+    session$setInputs(detection_mode = "manual", manual_header_row = 3L)
+    expect_equal(store$detection$method, "manual")
+    expect_equal(names(store$clean), c("chemical_name", "cas_number", "result"))
+    expect_equal(store$selected_columns, c("chemical_name", "result"))
+    expect_equal(store$column_tags, list(chemical_name = "Name"))
+    expect_equal(store$numeric_tags, list(result = "Result"))
+  })
+
+  # Applied tags pre-fill the re-rendered tagging UI
+  html <- render_tagging_html(store)
+  expect_match(html, '<option value="Name" selected>', fixed = TRUE)
+  expect_match(html, '<option value="Result" selected>', fixed = TRUE)
+})

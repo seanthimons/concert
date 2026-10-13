@@ -664,14 +664,8 @@ test_that("load_all_reference_lists includes unit_map", {
 })
 
 test_that("load_toxval_schema returns zero-row typed tibble", {
-  # Locate inst/extdata: when devtools::test() runs, wd is package root;
-  # when test_file() runs directly, wd is tests/testthat/. Probe both.
-  candidates <- c(
-    file.path(getwd(), "inst", "extdata"),
-    file.path(getwd(), "..", "..", "inst", "extdata")
-  )
-  cache_dir <- candidates[sapply(candidates, function(d) file.exists(file.path(d, "toxval_schema.rds")))][1]
-  if (is.na(cache_dir)) skip("toxval_schema.rds not found")
+  # Same lookup as get_empty_schema(); fails (not skips) if the shipped file moves
+  cache_dir <- system.file("extdata/reference_cache", package = "concert")
 
   result <- load_toxval_schema(cache_dir)
 
@@ -686,12 +680,8 @@ test_that("load_toxval_schema returns zero-row typed tibble", {
 })
 
 test_that("load_toxval_schema has required columns", {
-  candidates <- c(
-    file.path(getwd(), "inst", "extdata"),
-    file.path(getwd(), "..", "..", "inst", "extdata")
-  )
-  cache_dir <- candidates[sapply(candidates, function(d) file.exists(file.path(d, "toxval_schema.rds")))][1]
-  if (is.na(cache_dir)) skip("toxval_schema.rds not found")
+  # Same lookup as get_empty_schema(); fails (not skips) if the shipped file moves
+  cache_dir <- system.file("extdata/reference_cache", package = "concert")
 
   result <- load_toxval_schema(cache_dir)
 
@@ -704,22 +694,17 @@ test_that("load_toxval_schema has required columns", {
   expect_true("toxval_type" %in% names(result))
   expect_true("toxval_numeric" %in% names(result))
   expect_true("toxval_units" %in% names(result))
-  expect_true("toxval_numeric_qualifier" %in% names(result))
+  expect_true("qualifier" %in% names(result))
 
   # Audit columns
   expect_true("toxval_numeric_original" %in% names(result))
   expect_true("toxval_units_original" %in% names(result))
-  expect_true("conversion_factor" %in% names(result))
-  expect_true("parse_flag" %in% names(result))
+  expect_true("original_year" %in% names(result))
 })
 
 test_that("load_toxval_schema uses typed NA values", {
-  candidates <- c(
-    file.path(getwd(), "inst", "extdata"),
-    file.path(getwd(), "..", "..", "inst", "extdata")
-  )
-  cache_dir <- candidates[sapply(candidates, function(d) file.exists(file.path(d, "toxval_schema.rds")))][1]
-  if (is.na(cache_dir)) skip("toxval_schema.rds not found")
+  # Same lookup as get_empty_schema(); fails (not skips) if the shipped file moves
+  cache_dir <- system.file("extdata/reference_cache", package = "concert")
 
   result <- load_toxval_schema(cache_dir)
 
@@ -735,8 +720,8 @@ test_that("load_toxval_schema uses typed NA values", {
   # toxval_numeric should be double
   expect_equal(typeof(result$toxval_numeric), "double")
 
-  # year should be integer
-  expect_equal(typeof(result$year), "integer")
+  # year is numeric (map_to_toxval_schema writes it with pick_num)
+  expect_equal(typeof(result$year), "double")
 })
 
 test_that("load_all_reference_lists includes toxval_schema", {
