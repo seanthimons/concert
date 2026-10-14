@@ -130,6 +130,20 @@ read_excel_robust <- function(filepath) {
         guess_max = 10000
       )
 
+      # Date cells in text columns come back as serial strings ("24478"); a
+      # CAS-RN typed into Excel without Text formatting ends up this way.
+      # Render them as ISO dates so repair_cas_date_coercion() can see them.
+      # ponytail: reads the file twice; parse once with col_types = "list" if
+      # large workbooks get slow
+      cells <- readxl::read_excel(filepath, col_names = FALSE, col_types = "list", .name_repair = "minimal")
+      for (j in seq_along(df)) {
+        if (!is.character(df[[j]])) next
+        is_date <- vapply(cells[[j]], inherits, logical(1), what = "POSIXct")
+        if (any(is_date)) {
+          df[[j]][is_date] <- vapply(cells[[j]][is_date], format, character(1), format = "%Y-%m-%d")
+        }
+      }
+
       # Ensure column names are character
       names(df) <- paste0("V", seq_len(ncol(df)))
 

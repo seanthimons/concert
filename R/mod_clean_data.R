@@ -297,7 +297,8 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
         make_row("synonyms", "Split Synonyms", checks$synonyms),
         make_row("isotopes", "Isotope Shortcodes", checks$isotopes),
         make_row("multi", "Multi-Analyte Detection", checks$multi),
-        make_row("chiral", "Chiral Restoration", checks$chiral)
+        make_row("chiral", "Chiral Restoration", checks$chiral),
+        cas_date_warning(checks$cas$date_coerced)
       )
 
       harmonize_rows <- tagList(
@@ -1591,4 +1592,33 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
       })
     ))
   })
+}
+
+#' Pre-flight warning for CASRNs a spreadsheet converted to dates
+#'
+#' @param date_coerced Tibble from `precheck_normalize_cas()$date_coerced`.
+#' @return A warning alert, or NULL when nothing was flagged.
+#' @keywords internal
+cas_date_warning <- function(date_coerced) {
+  if (is.null(date_coerced) || nrow(date_coerced) == 0) {
+    return(NULL)
+  }
+  # ponytail: first 10 cells only; the full list lands in the audit trail
+  shown <- utils::head(date_coerced, 10)
+  div(
+    class = "alert alert-warning small mt-2",
+    tags$strong(sprintf("%d CAS-RN value(s) look like spreadsheet dates.", nrow(date_coerced))),
+    " Excel/Google Sheets converts some CAS-RNs (e.g. 103-02-6) to dates when the column is not formatted as Text.",
+    " Checksum-verified values will be restored; the rest become NA. Re-export the source with CAS-RN columns set to Text to be safe.",
+    tags$ul(
+      class = "mb-0 mt-1",
+      lapply(seq_len(nrow(shown)), function(i) {
+        tags$li(sprintf(
+          "Row %d, %s: %s -> %s",
+          shown$row[i], shown$column[i], shown$value[i],
+          if (is.na(shown$repair[i])) "NA (unrecoverable)" else shown$repair[i]
+        ))
+      })
+    )
+  )
 }

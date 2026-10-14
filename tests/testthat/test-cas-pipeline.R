@@ -346,3 +346,57 @@ test_that("run_cleaning_pipeline returns new_tags from rescue step", {
   expect_true("cas_extract_chemical_name" %in% names(result$new_tags))
   expect_equal(result$new_tags$cas_extract_chemical_name, "CASRN")
 })
+
+# ==============================================================================
+# Spreadsheet date coercion (#35)
+# ==============================================================================
+
+test_that("repair_cas_date_coercion restores Google Sheets date shapes and leaves real CAS alone", {
+  x <- c("0103-02-06", "19303-09-04", "10-13-2009", "4175-03-05", "9/2/1975", "0103-02-07", "67-64-1", "50-00-0", NA)
+  fix <- repair_cas_date_coercion(x)
+
+  expect_equal(fix$flagged, c(TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE, FALSE))
+  expect_equal(fix$repair, c("103-02-6", "19303-09-4", "10-13-9", "4175-03-5", NA, NA, NA, NA, NA))
+})
+
+test_that("normalize_cas_fields repairs date-coerced CAS before as_cas() can mangle them", {
+  # as_cas("4175-03-05") is the checksum-valid but wrong 41750-30-5
+  expect_equal(as_cas("4175-03-05"), "41750-30-5")
+
+  df <- tibble::tibble(cas = c("4175-03-05", "0103-02-06", "9/2/1975", "67-64-1"))
+  result <- normalize_cas_fields(df, list(cas = "CASRN"))
+
+  expect_equal(result$cleaned_data$cas, c("4175-03-5", "103-02-6", NA, "67-64-1"))
+  audit <- result$audit_trail
+  expect_equal(audit$step, rep("repair_cas_dates", 3))
+  expect_equal(audit$original_value, c("4175-03-05", "0103-02-06", "9/2/1975"))
+  expect_match(audit$reason[3], "cannot be recovered")
+})
+
+test_that("precheck_normalize_cas reports date-coerced cells for the pre-flight warning", {
+  df <- tibble::tibble(cas = c("67-64-1", "0103-02-06", "9/2/1975"))
+  pc <- precheck_normalize_cas(df, list(cas = "CASRN"))
+
+  expect_equal(pc$date_coerced$row, c(2L, 3L))
+  expect_equal(pc$date_coerced$repair, c("103-02-6", NA))
+  html <- as.character(cas_date_warning(pc$date_coerced))
+  expect_match(html, "Row 2, cas: 0103-02-06 -&gt; 103-02-6", fixed = TRUE)
+  expect_match(html, "NA (unrecoverable)", fixed = TRUE)
+  expect_null(cas_date_warning(pc$date_coerced[0, ]))
+})
+
+test_that("read_excel_robust renders xlsx date cells in text columns as ISO dates", {
+  skip_if_not_installed("writexl")
+  path <- tempfile(fileext = ".xlsx")
+  on.exit(unlink(path))
+  # Without the fix the date cells come back as serials ("27639") under the
+  # text header row. writexl can't write pre-1900 dates, so use 75-09-2.
+  writexl::write_xlsx(
+    data.frame(cas = as.POSIXct("1975-09-02", tz = "UTC"), name = "dichloromethane"),
+    path
+  )
+  df <- read_excel_robust(path)
+
+  expect_equal(df$V1, c("cas", "1975-09-02"))
+  expect_equal(repair_cas_date_coercion(df$V1)$repair[2], "75-09-2")
+})
