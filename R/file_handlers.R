@@ -107,6 +107,25 @@ read_csv_robust <- function(filepath) {
     }
   )
 
+  # readr sizes columns from line 1, so a one-cell title line above the header
+  # squashes every later row into a single column. Re-read padded to the
+  # widest line; count.fields is ~5% of a readr read.
+  n_fields <- suppressWarnings(max(
+    utils::count.fields(filepath, sep = ",", quote = "\"", comment.char = "", blank.lines.skip = TRUE),
+    na.rm = TRUE
+  ))
+  if (is.data.frame(df) && is.finite(n_fields) && ncol(df) < n_fields) {
+    df <- tibble::as_tibble(utils::read.csv(
+      filepath,
+      header = FALSE,
+      col.names = paste0("V", seq_len(n_fields)),
+      fill = TRUE,
+      colClasses = "character",
+      na.strings = c("", "NA"),
+      encoding = "UTF-8"
+    ))
+  }
+
   # Validate result
   if (!is.data.frame(df) || nrow(df) == 0 || ncol(df) == 0) {
     stop("CSV file is empty or could not be read")
