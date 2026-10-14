@@ -214,3 +214,48 @@ extract_cas <- function(x) {
     validated_results[!is.na(validated_results)]
   })
 }
+
+#' Detect and repair CASRNs that a spreadsheet converted to dates
+#'
+#' Excel and Google Sheets silently turn some CASRNs into dates on CSV import
+#' (e.g. `103-02-6` -> `0103-02-06`, `10-13-9` -> `10-13-2009`). Roughly 4.6% of
+#' DSSTox CASRNs are exposed. No real CASRN has a zero-padded part or a
+#' multi-digit check digit, so these shapes are input corruption. Values are
+#' repaired only when the reconstruction passes the CAS checksum; otherwise
+#' they are flagged with an `NA` repair and the source file must be re-exported
+#' with CASRN columns formatted as text.
+#'
+#' Recognised shapes:
+#' - year-month-day with a zero-padded day (Google Sheets display, xlsx date
+#'   cells read by [read_excel_robust()]): `0103-02-06`, `1975-09-02`
+#' - US month-day-year with a 4-digit 200x year (Google Sheets): `10-13-2009`
+#' - slash dates such as `9/2/1975`: flagged only, the field order is
+#'   locale-dependent so no repair is attempted
+#'
+#' @param x Character vector of CASRN-column values.
+#' @return Tibble with `flagged` (logical) and `repair` (character, `NA` when
+#'   not flagged or not recoverable), one row per element of `x`.
+#' @keywords internal
+repair_cas_date_coercion <- function(x) {
+  x <- trimws(as.character(x))
+  repair <- rep(NA_character_, length(x))
+  valid <- function(cas) !is.na(cas) & unname(is_cas(cas)) %in% TRUE
+
+  ymd <- !is.na(x) & grepl("^\\d{2,7}-\\d{2}-0[1-9]$", x)
+  if (any(ymd)) {
+    full <- sub("^0*(\\d+)-(\\d{2})-0(\\d)$", "\\1-\\2-\\3", x[ymd])
+    # Two-digit-year CASRNs (75-09-2) come back from xlsx as 1975-09-02
+    short <- sub("^(19|20)(\\d{2})-", "\\2-", full)
+    repair[ymd] <- ifelse(valid(full), full, ifelse(short != full & valid(short), short, NA_character_))
+  }
+
+  mdy <- !is.na(x) & grepl("^1[0-2]-\\d{2}-200\\d$", x)
+  if (any(mdy)) {
+    cand <- sub("-200(\\d)$", "-\\1", x[mdy])
+    repair[mdy] <- ifelse(valid(cand), cand, NA_character_)
+  }
+
+  slash <- !is.na(x) & grepl("^\\d{1,2}/\\d{1,2}/\\d{2,5}$", x)
+
+  tibble::tibble(flagged = ymd | mdy | slash, repair = repair)
+}
