@@ -261,3 +261,41 @@ test_that("Type consistency does not promote data rows over clean CSV headers", 
   expect_equal(names(clean_data), headers)
   expect_equal(nrow(clean_data), 100)
 })
+
+test_that("confidence ties go to heuristic, then pattern (#18)", {
+  stub <- function(method, row) function(df, ...) list(header_row = row, data_start_row = row + 1, method = method, confidence = 0.8)
+  local_mocked_bindings(
+    detect_data_start_heuristic = stub("heuristic", 1),
+    detect_pattern_based = stub("pattern", 2),
+    detect_by_type_consistency = stub("type_consistency", 3)
+  )
+  expect_equal(detect_data_start(data.frame(a = 1:3))$method, "heuristic")
+
+  local_mocked_bindings(detect_data_start_heuristic = function(df, ...) stop("boom"))
+  expect_equal(detect_data_start(data.frame(a = 1:3))$method, "pattern")
+})
+
+test_that("detection thresholds pass through to the methods (#12)", {
+  df <- tibble::tibble(
+    V1 = c("Report", "Name", "Benzene", "Toluene"),
+    V2 = c(NA, "CAS", "71-43-2", "108-88-3"),
+    V3 = c(NA, "Value", "1", "2")
+  )
+  heur <- detect_data_start(df)$all_results$heuristic
+  expect_equal(heur$header_row, 2)
+  # Nothing has 4 filled cells, so the heuristic falls back to row 1
+  strict <- detect_data_start(df, min_cols = 4)$all_results$heuristic
+  expect_false(identical(strict, heur))
+})
+
+test_that("header detection stays fast at 10k rows (#14)", {
+  skip_on_cran()
+  source(test_path("..", "..", "scripts", "benchmark_ingestion.R"), local = TRUE)
+  csv <- write_ingestion_csv(ingestion_benchmark_data(1e4))
+  on.exit(unlink(csv))
+  raw <- suppressWarnings(read_csv_robust(csv))
+  # Measured ~0.1s; detection only scans the first 50 rows
+  elapsed <- system.time(det <- detect_data_start(raw))[["elapsed"]]
+  expect_lt(elapsed, 2, label = sprintf("%.2fs elapsed", elapsed))
+  expect_equal(det$header_row, 3)
+})
