@@ -55,6 +55,9 @@
 #' @export
 map_to_toxval_schema <- function(curated_data, harmonized_data, source_name = NULL, identity_mode = c("lookup", "accepted")) {
   identity_mode <- match.arg(identity_mode)
+  if (!is.data.frame(curated_data) || !is.data.frame(harmonized_data)) {
+    stop("map_to_toxval_schema: curated_data and harmonized_data must be data frames.", call. = FALSE)
+  }
   # Handle zero-row input
   n_rows <- nrow(harmonized_data)
   if (n_rows == 0) {

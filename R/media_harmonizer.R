@@ -744,10 +744,17 @@ build_media_editor_rows <- function(media_map, media_results) {
     canonical_col <- if ("canonical_media" %in% names(media_results)) media_results$canonical_media else character(0)
     hit_terms <- raw_col
     if (length(canonical_col) == length(raw_col) && length(flag_col) == length(raw_col)) {
-      resolved <- flag_col != "media_unmatched" &
-        media_value_present(canonical_col)
-      resolved[is.na(resolved)] <- FALSE
-      hit_terms[resolved] <- canonical_col[resolved]
+      # Credit the map row that resolved the value: exact matches hit their own
+      # lookup key (so a user alias is not outcounted by its canonical target);
+      # phrase fallbacks hit the canonical term.
+      # ponytail: parent_walk credits the canonical, not the matched phrase row;
+      # return the matched term from harmonize_media() if that distinction matters.
+      exact <- flag_col == "" & media_value_present(canonical_col)
+      exact[is.na(exact)] <- FALSE
+      walked <- flag_col == "parent_walk" & media_value_present(canonical_col)
+      walked[is.na(walked)] <- FALSE
+      hit_terms[exact] <- normalize_media_lookup_key(raw_col[exact])
+      hit_terms[walked] <- canonical_col[walked]
     }
     hit_counts <- count_terms(hit_terms, "hit_count")
     if (length(flag_col) == length(raw_col)) {
@@ -756,7 +763,7 @@ build_media_editor_rows <- function(media_map, media_results) {
   }
 
   if (nrow(map_rows) > 0L) {
-    hit_match <- match(map_rows$term, hit_counts$term)
+    hit_match <- match(normalize_media_lookup_key(map_rows$term), hit_counts$term)
     unmatched_match <- match(map_rows$term, unmatched_counts$term)
     map_rows$hit_count <- ifelse(
       is.na(hit_match),
