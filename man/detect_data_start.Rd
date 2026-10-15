@@ -4,7 +4,14 @@
 \alias{detect_data_start}
 \title{Main ensemble detection function combining all methods}
 \usage{
-detect_data_start(df, mode = "auto", manual_row = NULL)
+detect_data_start(
+  df,
+  mode = "auto",
+  manual_row = NULL,
+  min_filled_ratio = 0.7,
+  min_cols = 3,
+  scan_rows = 50
+)
 }
 \arguments{
 \item{df}{Data frame to analyze}
@@ -12,10 +19,18 @@ detect_data_start(df, mode = "auto", manual_row = NULL)
 \item{mode}{Detection mode: "auto" or "manual"}
 
 \item{manual_row}{Manual header row number (used if mode = "manual")}
+
+\item{min_filled_ratio, min_cols}{Passed to \code{\link[=detect_data_start_heuristic]{detect_data_start_heuristic()}}}
+
+\item{scan_rows}{Passed to \code{\link[=detect_by_type_consistency]{detect_by_type_consistency()}}}
 }
 \value{
 List with detection results including all_results for debugging
 }
 \description{
 Main ensemble detection function combining all methods
+}
+\details{
+The method with the highest confidence wins. Ties go to the
+earlier method in the order heuristic, pattern, type_consistency.
 }

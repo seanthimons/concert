@@ -337,9 +337,14 @@ manual_header_row_error <- function(row, n_rows) {
 #' @param df Data frame to analyze
 #' @param mode Detection mode: "auto" or "manual"
 #' @param manual_row Manual header row number (used if mode = "manual")
+#' @param min_filled_ratio,min_cols Passed to [detect_data_start_heuristic()]
+#' @param scan_rows Passed to [detect_by_type_consistency()]
 #' @return List with detection results including all_results for debugging
+#' @details The method with the highest confidence wins. Ties go to the
+#'   earlier method in the order heuristic, pattern, type_consistency.
 #' @export
-detect_data_start <- function(df, mode = "auto", manual_row = NULL) {
+detect_data_start <- function(df, mode = "auto", manual_row = NULL,
+                              min_filled_ratio = 0.7, min_cols = 3, scan_rows = 50) {
   # Manual override
   if (mode == "manual" && !is.null(manual_row)) {
     err <- manual_header_row_error(manual_row, nrow(df))
@@ -356,9 +361,9 @@ detect_data_start <- function(df, mode = "auto", manual_row = NULL) {
 
   # Run all detection methods with error handling
   methods <- list(
-    heuristic = purrr::safely(detect_data_start_heuristic)(df),
+    heuristic = purrr::safely(detect_data_start_heuristic)(df, min_filled_ratio, min_cols),
     pattern = purrr::safely(detect_pattern_based)(df),
-    type_consistency = purrr::safely(detect_by_type_consistency)(df)
+    type_consistency = purrr::safely(detect_by_type_consistency)(df, scan_rows)
   )
 
   # Extract successful results
@@ -379,7 +384,8 @@ detect_data_start <- function(df, mode = "auto", manual_row = NULL) {
     ))
   }
 
-  # Select method with highest confidence
+  # Select method with highest confidence; which.max takes the first on a
+  # tie, so list order above is the tie-break priority
   confidences <- purrr::map_dbl(results, ~ .$confidence)
   best_idx <- which.max(confidences)
   best_result <- results[[best_idx]]
