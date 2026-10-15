@@ -52,7 +52,7 @@ replay_tag_workflow_groups <- function() {
       "Duration",
       "DurationUnit"
     ),
-    study_tags = c("StudyDate", "Media"),
+    study_tags = c("StudyDate", "Media", "AnalyticalMethod"),
     metadata_tags = c("Species", "ExposureRoute")
   )
 }

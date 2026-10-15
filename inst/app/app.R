@@ -183,6 +183,7 @@ server <- function(input, output, session) {
     harmonize_results = NULL,
     harmonize_audit = NULL,
     media_results = NULL,
+    method_results = NULL,
     duration_results = NULL,
     date_results = NULL,
     harmonize_step_mask = NULL,
@@ -392,6 +393,7 @@ server <- function(input, output, session) {
     data_store$harmonize_results <- NULL
     data_store$harmonize_audit <- NULL
     data_store$media_results <- NULL
+    data_store$method_results <- NULL
     data_store$duration_results <- NULL
     data_store$date_results <- NULL
     data_store$harmonize_step_mask <- NULL
@@ -442,6 +444,7 @@ server <- function(input, output, session) {
     data_store$harmonize_results <- NULL
     data_store$harmonize_audit <- NULL
     data_store$media_results <- NULL
+    data_store$method_results <- NULL
     data_store$duration_results <- NULL
     data_store$date_results <- NULL
     data_store$harmonize_step_mask <- NULL

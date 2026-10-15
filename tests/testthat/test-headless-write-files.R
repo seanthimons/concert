@@ -41,6 +41,7 @@ test_that("curate_headless can run harmonized output fully in memory", {
     "harmonize_audit",
     "harmonize_results",
     "media_results",
+    "method_results",
     "duration_results",
     "date_results",
     "detection",

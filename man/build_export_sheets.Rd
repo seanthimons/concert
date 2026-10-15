@@ -23,6 +23,7 @@ build_export_sheets(
   script_baseline_state = NULL,
   media_map = NULL,
   media_results = NULL,
+  method_results = NULL,
   ignored_identifier_cols = character(),
   review_decision_evidence = NULL,
   identity_decisions = NULL,
@@ -85,6 +86,8 @@ State so re-imported sessions can regenerate replay review overrides.}
 \item{media_map}{Effective media map, including user overrides.}
 
 \item{media_results}{Row-level media identity, routing and original-value audit.}
+
+\item{method_results}{Long analytical-method audit from \code{\link[=harmonize_methodology]{harmonize_methodology()}}.}
 
 \item{ignored_identifier_cols}{Deliberately unused identifier metadata columns.}
 

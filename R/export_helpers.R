@@ -40,6 +40,7 @@
 #'   State so re-imported sessions can regenerate replay review overrides.
 #' @param media_map Effective media map, including user overrides.
 #' @param media_results Row-level media identity, routing and original-value audit.
+#' @param method_results Long analytical-method audit from [harmonize_methodology()].
 #' @param ignored_identifier_cols Deliberately unused identifier metadata columns.
 #'
 #' @return Named list of data frames with sheet names as keys
@@ -82,6 +83,7 @@ build_export_sheets <- function(
   script_baseline_state = NULL,
   media_map = NULL,
   media_results = NULL,
+  method_results = NULL,
   ignored_identifier_cols = character(),
   review_decision_evidence = NULL,
   identity_decisions = NULL,
@@ -335,6 +337,9 @@ build_export_sheets <- function(
     sheets[["Media Audit"]]$row_json <- vapply(seq_len(nrow(media_results)), function(i) {
       jsonlite::serializeJSON(media_results[i, ], digits = NA)
     }, character(1))
+  }
+  if (!is.null(method_results)) {
+    sheets[["Method Audit"]] <- method_results
   }
 
   sheets
