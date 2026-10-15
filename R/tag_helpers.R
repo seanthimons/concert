@@ -49,7 +49,7 @@ classify_tags <- function(tags) {
     "DurationUnit"
   )
   metadata_types <- c("Species", "ExposureRoute")
-  study_types <- c("StudyDate", "Media")
+  study_types <- c("StudyDate", "Media", "AnalyticalMethod")
 
   # Handle empty input
 

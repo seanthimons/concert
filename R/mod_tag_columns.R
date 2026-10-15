@@ -183,7 +183,8 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL, on_ta
                       "Species" = "Species",
                       "Exposure Route" = "ExposureRoute",
                       "Study Date" = "StudyDate",
-                      "Media" = "Media"
+                      "Media" = "Media",
+                      "Analytical Method" = "AnalyticalMethod"
                     )
                   ),
                   selected = selected_tag,

@@ -243,7 +243,8 @@ suggest_column_tags <- function(col_names) {
     Species = c("test species", "test organism", "species", "organism", "animal"),
     ExposureRoute = c("route of exposure", "exposure route", "administration route", "exposure pathway", "route"),
     StudyDate = c("study start date", "study date", "test date", "sample date", "sampling date", "collection date"),
-    Media = c("sample matrix", "exposure media", "test media", "sample type", "media", "medium", "matrix")
+    Media = c("sample matrix", "exposure media", "test media", "sample type", "media", "medium", "matrix"),
+    AnalyticalMethod = c("analytical method", "analysis method", "analytical methodology", "methodology", "method name")
   )
 
   # Tie-break priority (lower = preferred) when two tags match at equal
@@ -258,6 +259,7 @@ suggest_column_tags <- function(col_names) {
     "StudyDate",
     "Species",
     "Media",
+    "AnalyticalMethod",
     "Unit",
     "Qualifier",
     "Uncertainty",

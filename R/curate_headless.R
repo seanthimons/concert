@@ -129,7 +129,7 @@
 #'         \item \code{$harmonize_audit} -- harmonization audit tibble (per D-06)
 #'         \item \code{$harmonize_results} -- parsed and unit-harmonized
 #'           measurement tables
-#'         \item \code{$media_results}, \code{$duration_results},
+#'         \item \code{$media_results}, \code{$method_results}, \code{$duration_results},
 #'           \code{$date_results}, and \code{$detection_results} --
 #'           harmonization sidecar artifacts
 #'         \item \code{$row_data} -- curated row data updated with generated

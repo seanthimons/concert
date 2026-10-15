@@ -824,6 +824,7 @@ test_that("hydrate_session_state restores full session state from parsed export"
     conversion_factor = 0.001,
     unit_flag = ""
   )
+  method_results <- harmonize_methodology(c("GC-ECD", "not a method"))
 
   sheets <- build_export_sheets(
     raw = test_data$ingest_raw,
@@ -838,7 +839,8 @@ test_that("hydrate_session_state restores full session state from parsed export"
     cleaned_data = test_data$cleaned_data,
     toxval_output = toxval_output,
     harmonize_audit = harmonize_audit,
-    script_baseline_state = test_data$resolution_state
+    script_baseline_state = test_data$resolution_state,
+    method_results = method_results
   )
 
   temp_file <- tempfile(fileext = ".xlsx")
@@ -850,6 +852,7 @@ test_that("hydrate_session_state restores full session state from parsed export"
   state <- hydrated$state
 
   expect_equal(hydrated$warnings, character(0))
+  expect_equal(state$method_results, method_results)
   expect_equal(names(state$raw), names(test_data$raw))
   expect_equal(state$cleaned_data$cleaning_flag, test_data$cleaned_data$cleaning_flag)
   expect_equal(state$cleaning_audit$step, test_data$cleaning_audit$step)
