@@ -1,6 +1,40 @@
 
 
 
+## concert 0.6.3 (2026-10-15)
+
+#### New features
+
+- expose header detection thresholds and document tie-break (#12, #18,
+  #14)
+  ([c82dd18](https://github.com/seanthimons/concert/tree/c82dd189e792eaa9adc53af1806223a8bca3a9f8))
+- detect and repair CASRNs converted to dates by spreadsheets (#35)
+  ([a8850fe](https://github.com/seanthimons/concert/tree/a8850fe3748f53a8d02fd9ac79d028c53a19ed6f))
+
+#### Bug fixes
+
+- detect CSV encoding and delimiter up front; add upload edge-case tests
+  (#7)
+  ([409b657](https://github.com/seanthimons/concert/tree/409b657ca52a6b53de10b611f9e3992fcc4bd9b8))
+- keep all columns when a CSV has a short title line above the header
+  (#7)
+  ([0f08261](https://github.com/seanthimons/concert/tree/0f08261302f306dde0aec454eff2353c17870de5))
+- validate manual header row for 0, negative and NA (#99)
+  ([32ed51d](https://github.com/seanthimons/concert/tree/32ed51d59d13832a43e9efbad419624cbfdc1f9a))
+
+#### Performance
+
+- vectorize is_cas, as_cas and extract_cas
+  ([eeec32e](https://github.com/seanthimons/concert/tree/eeec32e74408da7f64a4d27e3b2e7d91da6ff254))
+
+#### Other changes
+
+- bump version to 0.6.3 \[skip ci\]
+  ([ff41492](https://github.com/seanthimons/concert/tree/ff41492d74dcc14186668b790ab656cc4ff49324))
+
+Full set of changes:
+[`v0.6.2...v0.6.3`](https://github.com/seanthimons/concert/compare/v0.6.2...v0.6.3)
+
 ## concert 0.6.2 (2026-10-13)
 
 #### Bug fixes
@@ -19,6 +53,11 @@
 - run toxval_schema tests against the shipped cache and fix stale
   assertions
   ([b29b5f0](https://github.com/seanthimons/concert/tree/b29b5f02addd9016c945781c2c39f3edc6d805ba))
+
+#### Docs
+
+- update NEWS.md for v0.6.2 \[skip ci\]
+  ([f2996e0](https://github.com/seanthimons/concert/tree/f2996e06e453c8e90d8b7409626bd5e7673f5e85))
 
 #### Other changes
 
