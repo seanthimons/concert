@@ -19,7 +19,7 @@ column processing.}
 
 \item{media_map}{Optional tibble with columns term, canonical_term, envo_id,
 media_category, source, active, and assertion_mode. When NULL (default),
-falls back to the bundled generated media cache via get_media_table().
+falls back to the pinned media vocabulary via get_media_table().
 Pass a merged map from load_media_map() to enable user-defined mappings
 (MEDIT-03, D-14). If the tibble uses \code{canonical} instead of
 \code{canonical_term} (display schema), the column is translated
@@ -51,7 +51,7 @@ or \code{unmatched}. A successful identity match does not require a route.
 }
 \description{
 Maps a character vector of raw environmental media strings against the
-generated CONCERT media vocabulary cache (\code{amos_media.rds}). Resolution
+pinned CONCERT media vocabulary (see \code{get_media_table()}). Resolution
 order: (1) user assertions; (2) active bundled auto assertions; (3)
 unambiguous phrase fallback for partial matches; (4) \code{media_unmatched} flag
 for everything else. Pending source-table aliases are not auto-resolved.

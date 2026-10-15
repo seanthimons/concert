@@ -5,59 +5,32 @@
 # Public API: harmonize_media()
 # Internal: get_media_table(), walk_parent()
 
-#' Load the generated CONCERT media vocabulary cache
+#' Load the CONCERT media vocabulary
 #'
-#' Reads amos_media.rds from the package reference cache. If the cache is absent
-#' in a source checkout, falls back to building it from reviewable media source
-#' tables so callers can degrade gracefully.
+#' Builds the runtime map from the pinned envharmonizer tables, downloading them
+#' on first use. The result is memoised for the session. If the tables are
+#' unavailable it warns once and returns NULL so callers can degrade gracefully.
 #'
 #' @return Tibble with columns term, canonical_term, envo_id, parent,
 #'   media_category, source, fetch_timestamp, assertion_mode, confidence,
 #'   active; or NULL.
 #' @keywords internal
-find_local_media_table <- function() {
-  cwd <- normalizePath(getwd(), winslash = "/", mustWork = FALSE)
-  parts <- strsplit(cwd, "/", fixed = TRUE)[[1]]
-  if (length(parts) == 0L) {
-    return("")
-  }
-
-  for (i in seq(length(parts), 1L)) {
-    candidate_root <- paste(parts[seq_len(i)], collapse = "/")
-    if (!nzchar(candidate_root)) {
-      candidate_root <- "/"
-    }
-    candidate <- file.path(candidate_root, "inst", "extdata", "reference_cache", "amos_media.rds")
-    if (file.exists(candidate)) {
-      return(candidate)
-    }
-  }
-
-  ""
-}
-
 get_media_table <- function() {
-  package_path <- system.file("extdata/reference_cache/amos_media.rds", package = "concert")
-  local_path <- find_local_media_table()
-  path <- if (nzchar(package_path) && file.exists(package_path)) {
-    package_path
-  } else if (file.exists(local_path)) {
-    local_path
-  } else {
-    ""
+  if (!exists("map", envir = media_table_cache, inherits = FALSE)) {
+    # ponytail: a failed load is memoised too, so an offline start does not retry
+    # the download on every call; restart the app once the network is back.
+    media_table_cache$map <- tryCatch(
+      build_media_runtime_map(load_media_source_tables()),
+      error = function(e) {
+        warning("Media vocabulary unavailable: ", conditionMessage(e), call. = FALSE)
+        NULL
+      }
+    )
   }
-
-  if (nzchar(path)) {
-    readRDS(path)
-  } else {
-    source_tables <- tryCatch(load_media_source_tables(), error = function(e) NULL)
-    if (is.null(source_tables)) {
-      NULL
-    } else {
-      build_media_runtime_map(source_tables, fetch_timestamp = NA_character_)
-    }
-  }
+  media_table_cache$map
 }
+
+media_table_cache <- new.env(parent = emptyenv())
 
 find_local_media_source_dir <- function() {
   cwd <- normalizePath(getwd(), winslash = "/", mustWork = FALSE)
@@ -358,8 +331,11 @@ validate_media_canonical_ontology <- function(canonical, ontology) {
 #'   Explicit legacy directories return canonical, aliases and ontology nodes.
 #' @keywords internal
 load_media_source_tables <- function(source_dir = NULL) {
-  if (is.null(source_dir) || dir.exists(file.path(source_dir, "envharmonizer-0.1.1"))) {
-    return(load_published_media_tables(resolve_media_source_dir(source_dir)))
+  if (is.null(source_dir)) {
+    return(load_published_media_tables())
+  }
+  if (dir.exists(file.path(source_dir, "envharmonizer-0.1.1"))) {
+    return(load_published_media_tables(source_dir))
   }
   source_dir <- resolve_media_source_dir(source_dir)
   if (!nzchar(source_dir)) {
@@ -449,7 +425,7 @@ empty_media_runtime_map <- function() {
 #'
 #' @param source_tables List returned by load_media_source_tables().
 #' @param fetch_timestamp Timestamp for legacy sources; ignored for pinned artifacts.
-#' @return Tibble compatible with legacy amos_media.rds consumers.
+#' @return Runtime media map tibble (see get_media_table()).
 #' @keywords internal
 build_media_runtime_map <- function(source_tables = load_media_source_tables(),
                                     fetch_timestamp = format(Sys.time(), "%Y-%m-%dT%H:%M:%S")) {
@@ -919,7 +895,7 @@ walk_parent <- function(norm_term, media_tbl) {
 #' Harmonize environmental media strings to canonical CONCERT media terms
 #'
 #' Maps a character vector of raw environmental media strings against the
-#' generated CONCERT media vocabulary cache (\code{amos_media.rds}). Resolution
+#' pinned CONCERT media vocabulary (see \code{get_media_table()}). Resolution
 #' order: (1) user assertions; (2) active bundled auto assertions; (3)
 #' unambiguous phrase fallback for partial matches; (4) \code{media_unmatched} flag
 #' for everything else. Pending source-table aliases are not auto-resolved.
@@ -930,7 +906,7 @@ walk_parent <- function(norm_term, media_tbl) {
 #'   column processing.
 #' @param media_map Optional tibble with columns term, canonical_term, envo_id,
 #'   media_category, source, active, and assertion_mode. When NULL (default),
-#'   falls back to the bundled generated media cache via get_media_table().
+#'   falls back to the pinned media vocabulary via get_media_table().
 #'   Pass a merged map from load_media_map() to enable user-defined mappings
 #'   (MEDIT-03, D-14). If the tibble uses \code{canonical} instead of
 #'   \code{canonical_term} (display schema), the column is translated
