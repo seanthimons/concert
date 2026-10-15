@@ -44,6 +44,7 @@
 <url><loc>https://seanthimons.github.io/concert/reference/calculate_smart_preview_rows.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/capture_review_decision.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/capture_review_state.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/cas_date_warning.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/check_unhandled.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/classify_auto_resolve.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/classify_consensus.html</loc></url>
@@ -129,6 +130,7 @@
 <url><loc>https://seanthimons.github.io/concert/reference/load_user_reference_lists.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/load_wqx_dictionary.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/log_condition.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/manual_header_row_error.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/map_results_to_rows.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/map_to_toxval_schema.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/match_wqx.html</loc></url>
@@ -188,6 +190,7 @@
 <url><loc>https://seanthimons.github.io/concert/reference/refresh_wqx_cache.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/register_concert_units.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/remap_audit_to_parent.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/repair_cas_date_coercion.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/rescue_cas_from_text.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/resolve_curation_reference_cache_dir.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/resolve_multi_analyte_row.html</loc></url>

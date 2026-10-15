@@ -23,4 +23,6 @@ precheck_normalize_cas(df, tag_map)
 
 ## Value
 
-list(should_run = logical, est_changes = integer).
+list(should_run = logical, est_changes = integer, date_coerced = tibble
+of CASRN cells a spreadsheet converted to dates: row, column, value,
+repair).
