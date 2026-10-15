@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.3</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -37,9 +37,32 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/seanthimons/concert/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/seanthimons/concert/blob/v0.6.3/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.6.3" id="concert-063-2026-10-15">concert 0.6.3 (2026-10-15)<a class="anchor" aria-label="anchor" href="#concert-063-2026-10-15"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-6-3">New features<a class="anchor" aria-label="anchor" href="#new-features-0-6-3"></a></h4>
+<ul><li>expose header detection thresholds and document tie-break (<a href="https://github.com/seanthimons/concert/issues/12" class="external-link">#12</a>, <a href="https://github.com/seanthimons/concert/issues/18" class="external-link">#18</a>, <a href="https://github.com/seanthimons/concert/issues/14" class="external-link">#14</a>) (<a href="https://github.com/seanthimons/concert/tree/c82dd189e792eaa9adc53af1806223a8bca3a9f8" class="external-link">c82dd18</a>)</li>
+<li>detect and repair CASRNs converted to dates by spreadsheets (<a href="https://github.com/seanthimons/concert/issues/35" class="external-link">#35</a>) (<a href="https://github.com/seanthimons/concert/tree/a8850fe3748f53a8d02fd9ac79d028c53a19ed6f" class="external-link">a8850fe</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="bug-fixes-0-6-3">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-6-3"></a></h4>
+<ul><li>detect CSV encoding and delimiter up front; add upload edge-case tests (<a href="https://github.com/seanthimons/concert/issues/7" class="external-link">#7</a>) (<a href="https://github.com/seanthimons/concert/tree/409b657ca52a6b53de10b611f9e3992fcc4bd9b8" class="external-link">409b657</a>)</li>
+<li>keep all columns when a CSV has a short title line above the header (<a href="https://github.com/seanthimons/concert/issues/7" class="external-link">#7</a>) (<a href="https://github.com/seanthimons/concert/tree/0f08261302f306dde0aec454eff2353c17870de5" class="external-link">0f08261</a>)</li>
+<li>validate manual header row for 0, negative and NA (<a href="https://github.com/seanthimons/concert/issues/99" class="external-link">#99</a>) (<a href="https://github.com/seanthimons/concert/tree/32ed51d59d13832a43e9efbad419624cbfdc1f9a" class="external-link">32ed51d</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="performance-0-6-3">Performance<a class="anchor" aria-label="anchor" href="#performance-0-6-3"></a></h4>
+<ul><li>vectorize is_cas, as_cas and extract_cas (<a href="https://github.com/seanthimons/concert/tree/eeec32e74408da7f64a4d27e3b2e7d91da6ff254" class="external-link">eeec32e</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="other-changes-0-6-3">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-3"></a></h4>
+<ul><li>bump version to 0.6.3 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/ff41492d74dcc14186668b790ab656cc4ff49324" class="external-link">ff41492</a>)</li>
+</ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.6.2...v0.6.3" class="external-link"><code>v0.6.2...v0.6.3</code></a></p>
+</div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.6.2" id="concert-062-2026-10-13">concert 0.6.2 (2026-10-13)<a class="anchor" aria-label="anchor" href="#concert-062-2026-10-13"></a></h2>
 <div class="section level4">
@@ -51,6 +74,10 @@
 <ul><li>add extracted cleaning reference cases (<a href="https://github.com/seanthimons/concert/tree/93e63c0507bc6fee8f30386f19a6849be116ab09" class="external-link">93e63c0</a>)</li>
 <li>cover column selection, detection-mode reprocessing and tag persistence (<a href="https://github.com/seanthimons/concert/tree/c7c4d49847c9f28e082150acd16a08f206da2230" class="external-link">c7c4d49</a>)</li>
 <li>run toxval_schema tests against the shipped cache and fix stale assertions (<a href="https://github.com/seanthimons/concert/tree/b29b5f02addd9016c945781c2c39f3edc6d805ba" class="external-link">b29b5f0</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="docs-0-6-2">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-2"></a></h4>
+<ul><li>update NEWS.md for v0.6.2 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/f2996e06e453c8e90d8b7409626bd5e7673f5e85" class="external-link">f2996e0</a>)</li>
 </ul></div>
 <div class="section level4">
 <h4 id="other-changes-0-6-2">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-2"></a></h4>
