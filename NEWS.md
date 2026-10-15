@@ -1,6 +1,28 @@
 
 
 
+## concert 0.6.4 (2026-10-15)
+
+#### New features
+
+- harmonize analytical methods
+  ([72261ba](https://github.com/seanthimons/concert/tree/72261baa40b3327d3d6391fc7fcfd09b978eb438))
+- download pinned envharmonizer tables at startup
+  ([b56801a](https://github.com/seanthimons/concert/tree/b56801aa8ea2e742e537f8132fcbb3bc6cf58076))
+
+#### Bug fixes
+
+- validate inputs and correct media hit counts
+  ([fe2a4e1](https://github.com/seanthimons/concert/tree/fe2a4e1dc4d687609525d6064b21befdd6a17da8))
+
+#### Other changes
+
+- bump version to 0.6.4 \[skip ci\]
+  ([8e96d74](https://github.com/seanthimons/concert/tree/8e96d74f8de360890487b24acdbdfb9b5a499abd))
+
+Full set of changes:
+[`v0.6.3...v0.6.4`](https://github.com/seanthimons/concert/compare/v0.6.3...v0.6.4)
+
 ## concert 0.6.3 (2026-10-15)
 
 #### New features
@@ -26,6 +48,11 @@
 
 - vectorize is_cas, as_cas and extract_cas
   ([eeec32e](https://github.com/seanthimons/concert/tree/eeec32e74408da7f64a4d27e3b2e7d91da6ff254))
+
+#### Docs
+
+- update NEWS.md for v0.6.3 \[skip ci\]
+  ([a50cdbd](https://github.com/seanthimons/concert/tree/a50cdbd8066db48d1710eb8670ac2c3f2355eaa7))
 
 #### Other changes
 
