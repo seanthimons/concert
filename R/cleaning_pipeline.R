@@ -421,12 +421,15 @@ precheck_trim_whitespace <- function(df) {
 #'
 #' @param df Dataframe to check.
 #' @param tag_map Named character vector or list mapping column names to types.
-#' @return list(should_run = logical, est_changes = integer).
+#' @return list(should_run = logical, est_changes = integer, date_coerced =
+#'   tibble of CASRN cells a spreadsheet converted to dates: row, column,
+#'   value, repair).
 #' @keywords internal
 precheck_normalize_cas <- function(df, tag_map) {
   cas_cols <- names(tag_map)[tag_map == "CASRN"]
+  date_coerced <- tibble::tibble(row = integer(), column = character(), value = character(), repair = character())
   if (length(cas_cols) == 0) {
-    return(list(should_run = FALSE, est_changes = 0L))
+    return(list(should_run = FALSE, est_changes = 0L, date_coerced = date_coerced))
   }
   placeholder_pattern <- "(?i)^\\s*(no\\s*cas|n/?a|proprietary|none|-)\\s*$"
   unformatted_pattern <- "^\\d+$"
@@ -443,10 +446,15 @@ precheck_normalize_cas <- function(df, tag_map) {
     has_cas_shape <- non_na & stringr::str_detect(vals, cas_format_pattern)
     non_cas_format <- non_na & !has_cas_shape & !unformatted & !placeholders
     est_changes <- est_changes + as.integer(sum(unformatted | placeholders | non_cas_format, na.rm = TRUE))
+    fix <- repair_cas_date_coercion(vals)
+    idx <- which(fix$flagged)
+    date_coerced <- dplyr::bind_rows(date_coerced, tibble::tibble(
+      row = idx, column = col, value = as.character(vals[idx]), repair = fix$repair[idx]
+    ))
   }
   # Always recommend when CASRN columns are tagged (validation catches check digit errors)
   has_cas_data <- any(vapply(cas_cols, function(col) !all(is.na(df[[col]])), logical(1)))
-  list(should_run = has_cas_data, est_changes = est_changes)
+  list(should_run = has_cas_data, est_changes = est_changes, date_coerced = date_coerced)
 }
 
 #' Pre-check predicate for the name cleaning chain (Steps 6-pre through 6d3)
@@ -784,6 +792,17 @@ normalize_cas_fields <- function(df, tag_map) {
   df_before <- df
   new_tags <- list()
 
+  # Undo spreadsheet date coercion (e.g. 0103-02-06 from 103-02-6) before
+  # as_cas(), which would otherwise turn some of these into a wrong but
+  # checksum-valid CASRN. Unrecoverable dates become NA rather than a guess.
+  date_coerced <- list()
+  for (col_name in cas_cols) {
+    fix <- repair_cas_date_coercion(df[[col_name]])
+    if (!any(fix$flagged)) next
+    df[[col_name]][fix$flagged] <- fix$repair[fix$flagged]
+    date_coerced[[col_name]] <- fix$flagged
+  }
+
   # Preserve multiple CAS-RNs found in a single CASRN-tagged cell. as_cas()
   # returns NA for delimiter-combined values, so split those into generated CASRN
   # columns before canonical normalization.
@@ -836,6 +855,7 @@ normalize_cas_fields <- function(df, tag_map) {
   all_fields <- character()
   all_originals <- character()
   all_news <- character()
+  all_dates <- logical()
 
   for (col_name in cas_cols_updated) {
     original_vals <- if (col_name %in% names(df_before)) {
@@ -855,6 +875,7 @@ normalize_cas_fields <- function(df, tag_map) {
       all_fields <- c(all_fields, rep(col_name, length(changed_idx)))
       all_originals <- c(all_originals, ifelse(is.na(original_vals[changed_idx]), "[NA]", original_vals[changed_idx]))
       all_news <- c(all_news, ifelse(is.na(cleaned_vals[changed_idx]), "[NA]", cleaned_vals[changed_idx]))
+      all_dates <- c(all_dates, (date_coerced[[col_name]] %||% logical(length(original_vals)))[changed_idx])
     }
   }
 
@@ -872,10 +893,18 @@ normalize_cas_fields <- function(df, tag_map) {
     tibble::tibble(
       row_id = all_row_ids,
       field = all_fields,
-      step = rep("normalize_cas", length(all_row_ids)),
+      step = ifelse(all_dates, "repair_cas_dates", "normalize_cas"),
       original_value = all_originals,
       new_value = all_news,
-      reason = paste0("Normalize CAS-RN in ", all_fields, " using as_cas()")
+      reason = ifelse(
+        !all_dates,
+        paste0("Normalize CAS-RN in ", all_fields, " using as_cas()"),
+        ifelse(
+          all_news == "[NA]",
+          "CAS-RN was converted to a date by a spreadsheet and cannot be recovered; re-export with the column formatted as Text",
+          "Restore CAS-RN that a spreadsheet converted to a date (checksum verified)"
+        )
+      )
     )
   }
 
