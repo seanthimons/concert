@@ -3500,6 +3500,7 @@ mod_review_results_server <- function(id, data_store) {
           script_baseline_state = data_store$script_baseline_state,
           media_map = data_store$media_map_working,
           media_results = data_store$media_results,
+          method_results = data_store$method_results,
           ignored_identifier_cols = data_store$ignored_identifier_cols %||% character(),
           cleaning_steps = data_store$cleaning_steps %||% if (is.null(data_store$cleaned_data)) {
             lapply(default_cleaning_step_mask(), function(x) FALSE)

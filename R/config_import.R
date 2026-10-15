@@ -78,6 +78,7 @@ parse_concert_export <- function(file_path) {
         media_snapshot = read_export_sheet(file_path, sheets, "Media Snapshot", NULL),
         media_overrides = read_export_sheet(file_path, sheets, "Media Overrides", NULL),
         media_audit = read_export_sheet(file_path, sheets, "Media Audit", NULL),
+        method_audit = read_export_sheet(file_path, sheets, "Method Audit", NULL),
         has_full_session_state = all(c("Raw Data", "Curated Data", "Session State") %in% sheets),
         sheet_names = sheets
       )
@@ -231,6 +232,7 @@ hydrate_session_state <- function(parsed, existing_reference_lists = NULL) {
     harmonize_results = harmonize_results,
     harmonize_audit = harmonization_audit,
     media_results = media_results,
+    method_results = restore_method_results(parsed$method_audit),
     media_map_working = reference_lists$media_map,
     toxval_output = toxval_output,
     toxval_identity_mode = "lookup",
@@ -727,4 +729,18 @@ restore_session_inputs <- function(sheet) {
     value
   })
   stats::setNames(result, keys)
+}
+
+# Spreadsheet round trips lose integer and all-NA character types.
+restore_method_results <- function(method_audit) {
+  if (is.null(method_audit) || nrow(method_audit) == 0L) {
+    return(NULL)
+  }
+  out <- tibble::as_tibble(method_audit)
+  for (col in setdiff(names(out), c("orig_row_id", "component_order"))) {
+    out[[col]] <- as.character(out[[col]])
+  }
+  out$orig_row_id <- as.integer(out$orig_row_id)
+  out$component_order <- as.integer(out$component_order)
+  out
 }

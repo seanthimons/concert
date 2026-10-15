@@ -167,3 +167,25 @@ test_that("build_media_editor_rows counts delimiter-coded UAT media under canoni
   expect_equal(tissue$hit_count, 1L)
   expect_equal(tissue$unmatched_count, 0L)
 })
+
+test_that("build_media_editor_rows credits a user alias, not its canonical target (#44)", {
+  media_map <- tibble::tibble(
+    term = c("surface water", "liquid"),
+    canonical = "surface water",
+    canonical_term = "surface water",
+    media_category = "aqueous",
+    source = c("concert", "user"),
+    assertion_mode = c("auto", "user"),
+    active = TRUE
+  )
+  media_results <- harmonize_media(
+    c("Liquid", "liquid", "surface water", "liquid sample"),
+    media_map = media_map
+  )
+
+  rows <- concert:::build_media_editor_rows(media_map, media_results)
+
+  # Two exact alias hits; the phrase fallback still credits the canonical row.
+  expect_equal(rows$hit_count[rows$term == "liquid"], 2L)
+  expect_equal(rows$hit_count[rows$term == "surface water"], 2L)
+})

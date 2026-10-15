@@ -24,7 +24,7 @@ test_that("published media artifacts retain types, keys and deterministic bytes"
 
 test_that("malformed published artifacts fail integrity validation", {
   dir <- withr::local_tempdir()
-  source <- file.path(concert:::resolve_media_source_dir(), "envharmonizer-0.1.1")
+  source <- file.path(concert:::ensure_envharmonizer_tables(), "envharmonizer-0.1.1")
   dest <- file.path(dir, "envharmonizer-0.1.1")
   dir.create(dest)
   file.copy(list.files(source, full.names = TRUE), dest)
@@ -33,4 +33,18 @@ test_that("malformed published artifacts fail integrity validation", {
   cat("corruption", file = file.path(dest, "table-manifest.json"), append = TRUE)
   expect_error(concert:::load_published_media_tables(dir), "hash mismatch.*table-manifest")
   expect_error(concert:::verify_media_file(tempfile(), "wrong"), "hash mismatch")
+})
+
+test_that("a modified cached envharmonizer file invalidates the cache", {
+  dir <- withr::local_tempdir()
+  source <- file.path(concert:::ensure_envharmonizer_tables(), "envharmonizer-0.1.1")
+  expect_true(concert:::envharmonizer_cache_valid(source))
+  dest <- file.path(dir, "envharmonizer-0.1.1")
+  dir.create(dest)
+  file.copy(list.files(source, full.names = TRUE), dest)
+  expect_true(concert:::envharmonizer_cache_valid(dest))
+  cat("stale", file = file.path(dest, "analytical_terms.csv"), append = TRUE)
+  expect_false(concert:::envharmonizer_cache_valid(dest))
+  unlink(file.path(dest, "matrix_terms.csv"))
+  expect_false(concert:::envharmonizer_cache_valid(dest))
 })

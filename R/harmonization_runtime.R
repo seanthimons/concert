@@ -112,6 +112,12 @@ run_harmonization_runtime <- function(
   toxval_identity_mode = c("lookup", "accepted")
 ) {
   toxval_identity_mode <- match.arg(toxval_identity_mode)
+  if (!is.data.frame(input_data)) {
+    stop(
+      "run_harmonization_runtime: no curated data is loaded (input_data must be a data frame).",
+      call. = FALSE
+    )
+  }
   input_df <- tibble::as_tibble(input_data)
   input_df <- input_df[, setdiff(names(input_df), DETECTION_GENERATED_COLUMNS), drop = FALSE]
   tag_values <- as_harmonization_tag_values(tag_map)
@@ -135,19 +141,35 @@ run_harmonization_runtime <- function(
   duration_unit_cols <- names(tag_values)[tag_values == "DurationUnit"]
   date_cols <- names(tag_values)[tag_values == "StudyDate"]
   media_cols <- names(tag_values)[tag_values == "Media"]
+  method_cols <- names(tag_values)[tag_values == "AnalyticalMethod"]
 
   has_measurement <- length(result_cols) > 0L || length(numeric_cols) > 0L
   has_duration_measurement <- length(duration_cols) > 0L && length(duration_unit_cols) > 0L
   has_harmonization_input <- has_measurement ||
     has_duration_measurement ||
     length(date_cols) > 0L ||
-    length(media_cols) > 0L
+    length(media_cols) > 0L ||
+    length(method_cols) > 0L
 
   if (!has_harmonization_input) {
     stop(
       paste(
         "run_harmonization_runtime: harmonization requires at least one column",
-        "tagged as Result, Numeric, Duration, StudyDate, or Media."
+        "tagged as Result, Numeric, Duration, StudyDate, Media, or AnalyticalMethod."
+      ),
+      call. = FALSE
+    )
+  }
+
+  needs_unit_map <- (has_measurement && isTRUE(h_mask$units)) ||
+    (isTRUE(h_mask$duration) && has_duration_measurement)
+  missing_unit_map_cols <- setdiff(c("from_unit", "to_unit", "multiplier"), names(unit_map))
+  if (needs_unit_map && (!is.data.frame(unit_map) || length(missing_unit_map_cols) > 0L)) {
+    stop(
+      paste(
+        "run_harmonization_runtime: the unit conversion table is missing or malformed",
+        "(needs a data frame with from_unit, to_unit and multiplier columns).",
+        "Reload reference data before harmonizing."
       ),
       call. = FALSE
     )
@@ -155,6 +177,7 @@ run_harmonization_runtime <- function(
 
   updated_data <- input_df
   media_results <- NULL
+  method_results <- NULL
   duration_results <- NULL
   date_results <- NULL
   detection_results <- NULL
@@ -256,6 +279,14 @@ run_harmonization_runtime <- function(
     updated_data$year <- date_results$date_year[date_idx]
   }
 
+  if (length(method_cols) > 0L) {
+    # 1:N ordered components live in a sidecar; the row data is left unchanged.
+    method_results <- harmonize_methodology(
+      raw_method = updated_data[[method_cols[1]]],
+      orig_row_id = seq_len(nrow(updated_data))
+    )
+  }
+
   toxval_output <- map_to_toxval_schema(
     curated_data = updated_data,
     harmonized_data = harmonize_tibble,
@@ -268,6 +299,7 @@ run_harmonization_runtime <- function(
     harmonize_audit = harmonize_audit,
     toxval_output = toxval_output,
     media_results = media_results,
+    method_results = method_results,
     duration_results = duration_results,
     date_results = date_results,
     detection_results = detection_results,
