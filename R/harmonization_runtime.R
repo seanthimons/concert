@@ -112,6 +112,12 @@ run_harmonization_runtime <- function(
   toxval_identity_mode = c("lookup", "accepted")
 ) {
   toxval_identity_mode <- match.arg(toxval_identity_mode)
+  if (!is.data.frame(input_data)) {
+    stop(
+      "run_harmonization_runtime: no curated data is loaded (input_data must be a data frame).",
+      call. = FALSE
+    )
+  }
   input_df <- tibble::as_tibble(input_data)
   input_df <- input_df[, setdiff(names(input_df), DETECTION_GENERATED_COLUMNS), drop = FALSE]
   tag_values <- as_harmonization_tag_values(tag_map)
@@ -148,6 +154,20 @@ run_harmonization_runtime <- function(
       paste(
         "run_harmonization_runtime: harmonization requires at least one column",
         "tagged as Result, Numeric, Duration, StudyDate, or Media."
+      ),
+      call. = FALSE
+    )
+  }
+
+  needs_unit_map <- (has_measurement && isTRUE(h_mask$units)) ||
+    (isTRUE(h_mask$duration) && has_duration_measurement)
+  missing_unit_map_cols <- setdiff(c("from_unit", "to_unit", "multiplier"), names(unit_map))
+  if (needs_unit_map && (!is.data.frame(unit_map) || length(missing_unit_map_cols) > 0L)) {
+    stop(
+      paste(
+        "run_harmonization_runtime: the unit conversion table is missing or malformed",
+        "(needs a data frame with from_unit, to_unit and multiplier columns).",
+        "Reload reference data before harmonizing."
       ),
       call. = FALSE
     )

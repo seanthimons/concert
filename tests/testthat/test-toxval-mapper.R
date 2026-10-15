@@ -513,3 +513,54 @@ test_that("NA values in harmonized_data produce valid typed output", {
   expect_true(is.na(result$toxval_units))
   expect_equal(typeof(result$toxval_units), "character")
 })
+
+# --- #101: adversarial runtime input ---
+
+edge_unit_map <- tibble::tibble(
+  from_unit = c("ug/L", "mg/L"),
+  to_unit = "mg/L",
+  multiplier = c(0.001, 1),
+  category = "concentration"
+)
+
+test_that("single-row, single-column curated input maps through the runtime", {
+  result <- run_harmonization_runtime(
+    input_data = tibble::tibble(val = "5 ug/L"),
+    tag_map = c(val = "Result"),
+    unit_map = edge_unit_map
+  )
+
+  expect_equal(nrow(result$toxval_output), 1)
+  expect_equal(ncol(result$toxval_output), 56)
+  expect_equal(result$toxval_output$toxval_numeric, 0.005)
+  expect_equal(result$toxval_output$toxval_units, "mg/L")
+})
+
+test_that("missing or malformed curated state gives a readable error", {
+  expect_error(
+    run_harmonization_runtime(NULL, c(val = "Result"), edge_unit_map),
+    "no curated data is loaded"
+  )
+  expect_error(
+    run_harmonization_runtime("oops", c(val = "Result"), edge_unit_map),
+    "no curated data is loaded"
+  )
+  for (bad_map in list(NULL, list(), tibble::tibble(a = 1))) {
+    expect_error(
+      run_harmonization_runtime(tibble::tibble(val = "5 mg/L"), c(val = "Result"), bad_map),
+      "unit conversion table is missing or malformed"
+    )
+  }
+  expect_error(map_to_toxval_schema(NULL, harmonized_fixture[1, ]), "must be data frames")
+  expect_error(map_to_toxval_schema(curated_fixture[1, ], NULL), "must be data frames")
+})
+
+test_that("a NULL unit map is fine when no unit conversion runs", {
+  result <- run_harmonization_runtime(
+    tibble::tibble(val = "5"),
+    c(val = "Result"),
+    NULL,
+    step_mask = list(units = FALSE, media = TRUE)
+  )
+  expect_equal(nrow(result$toxval_output), 1)
+})
