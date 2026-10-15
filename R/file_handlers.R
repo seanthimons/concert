@@ -35,77 +35,83 @@ safely_read_file <- function(filepath, file_ext) {
   )
 }
 
-#' Robust CSV reading with multiple fallback strategies
+#' Robust delimited-text reading
+#'
+#' Decides encoding and delimiter up front rather than on read errors, because
+#' readr warns instead of failing on wrong encodings and delimiters:
+#' - binary content (NUL bytes) is rejected
+#' - invalid UTF-8 is read as Windows-1252 (a superset of Latin-1)
+#' - the delimiter (`,`, `;`, tab, `|`) is the one giving the most fields on
+#'   the typical line; `;` files use decimal commas
+#' - if readr returns fewer columns or rows than the file has (a short title
+#'   line above the header, a truncated last row), the file is re-read with
+#'   base R padded to the widest line
 #' @keywords internal
 read_csv_robust <- function(filepath) {
-  # Strategy 1: Try readr with auto-detection (most common)
+  head_bytes <- readBin(filepath, "raw", n = 8192)
+  if (length(head_bytes) == 0) {
+    stop("CSV file is empty or could not be read")
+  }
+  if (any(head_bytes == as.raw(0))) {
+    stop("File does not look like text (it contains binary data). Upload a CSV or Excel file.")
+  }
+
+  lines <- readLines(filepath, warn = FALSE)
+  encoding <- if (all(validUTF8(lines))) "UTF-8" else "windows-1252"
+
+  count_fields <- function(con, sep) {
+    suppressWarnings(utils::count.fields(con, sep = sep, quote = "\"", comment.char = "", blank.lines.skip = TRUE))
+  }
+  delims <- c(",", ";", "\t", "|")
+  sample_lines <- iconv(utils::head(lines, 1000), from = encoding, to = "UTF-8", sub = "?")
+  sample_lines <- sample_lines[nzchar(trimws(sample_lines))]
+  typical <- vapply(delims, function(d) {
+    n <- count_fields(textConnection(sample_lines), d)
+    n <- n[!is.na(n)]
+    if (length(n) == 0) 1L else as.integer(names(which.max(table(n))))
+  }, integer(1))
+  delim <- delims[which.max(typical)]
+
+  locale <- if (delim == ";") {
+    readr::locale(encoding = encoding, decimal_mark = ",", grouping_mark = ".")
+  } else {
+    readr::locale(encoding = encoding)
+  }
   df <- tryCatch(
-    {
-      readr::read_csv(
-        filepath,
-        col_names = FALSE,
-        show_col_types = FALSE,
-        name_repair = "minimal",
-        guess_max = 10000,
-        locale = readr::locale(encoding = "UTF-8")
-      )
-    },
-    error = function(e1) {
-      # Strategy 2: Try with Latin-1 encoding
-      tryCatch(
-        {
-          readr::read_csv(
-            filepath,
-            col_names = FALSE,
-            show_col_types = FALSE,
-            name_repair = "minimal",
-            guess_max = 10000,
-            locale = readr::locale(encoding = "Latin1")
-          )
-        },
-        error = function(e2) {
-          # Strategy 3: Try with semicolon delimiter (European format)
-          tryCatch(
-            {
-              readr::read_delim(
-                filepath,
-                delim = ";",
-                col_names = FALSE,
-                show_col_types = FALSE,
-                name_repair = "minimal",
-                guess_max = 10000
-              )
-            },
-            error = function(e3) {
-              # Strategy 4: Try with tab delimiter
-              tryCatch(
-                {
-                  readr::read_delim(
-                    filepath,
-                    delim = "\t",
-                    col_names = FALSE,
-                    show_col_types = FALSE,
-                    name_repair = "minimal",
-                    guess_max = 10000
-                  )
-                },
-                error = function(e4) {
-                  # Strategy 5: Last resort - base R read.csv
-                  df_base <- read.csv(
-                    filepath,
-                    header = FALSE,
-                    stringsAsFactors = FALSE,
-                    check.names = FALSE
-                  )
-                  tibble::as_tibble(df_base)
-                }
-              )
-            }
-          )
-        }
-      )
-    }
+    readr::read_delim(
+      filepath,
+      delim = delim,
+      col_names = FALSE,
+      show_col_types = FALSE,
+      name_repair = "minimal",
+      guess_max = 10000,
+      trim_ws = TRUE,
+      locale = locale
+    ),
+    error = function(e) NULL
   )
+
+  # readr sizes columns from line 1 and drops a short unterminated last line,
+  # so a title row above the header or a truncated file loses data silently.
+  # count.fields is ~5% of a readr read.
+  n <- count_fields(filepath, delim)
+  n_fields <- suppressWarnings(max(n, na.rm = TRUE))
+  n_records <- sum(!is.na(n))
+  if (is.finite(n_fields) && (is.null(df) || ncol(df) < n_fields || nrow(df) < n_records)) {
+    df <- tibble::as_tibble(utils::read.table(
+      filepath,
+      sep = delim,
+      quote = "\"",
+      header = FALSE,
+      col.names = paste0("V", seq_len(n_fields)),
+      fill = TRUE,
+      colClasses = "character",
+      na.strings = c("", "NA"),
+      comment.char = "",
+      strip.white = TRUE,
+      fileEncoding = if (encoding == "UTF-8") "UTF-8-BOM" else encoding
+    ))
+  }
 
   # Validate result
   if (!is.data.frame(df) || nrow(df) == 0 || ncol(df) == 0) {
@@ -130,13 +136,35 @@ read_excel_robust <- function(filepath) {
         guess_max = 10000
       )
 
-      # Ensure column names are character
-      names(df) <- paste0("V", seq_len(ncol(df)))
+      # Date cells in text columns come back as serial strings ("24478"); a
+      # CAS-RN typed into Excel without Text formatting ends up this way.
+      # Render them as ISO dates so repair_cas_date_coercion() can see them.
+      # Only serial-looking cells can be dates, so the per-cell re-read is
+      # skipped entirely for workbooks without any.
+      serials <- lapply(df, function(v) if (is.character(v)) which(grepl("^\\d{1,6}(\\.\\d+)?$", v)) else integer())
+      if (any(lengths(serials) > 0)) {
+        # ponytail: second readxl pass over the candidate columns only
+        cand_cols <- which(lengths(serials) > 0)
+        col_types <- rep("skip", ncol(df))
+        col_types[cand_cols] <- "list"
+        cells <- readxl::read_excel(filepath, col_names = FALSE, col_types = col_types, .name_repair = "minimal")
+        for (k in seq_along(cand_cols)) {
+          j <- cand_cols[k]
+          idx <- serials[[j]]
+          is_date <- vapply(cells[[k]][idx], inherits, logical(1), what = "POSIXct")
+          if (any(is_date)) {
+            df[[j]][idx[is_date]] <- vapply(cells[[k]][idx[is_date]], format, character(1), format = "%Y-%m-%d")
+          }
+        }
+      }
 
       # Validate result
       if (!is.data.frame(df) || nrow(df) == 0 || ncol(df) == 0) {
         stop("Excel file is empty or could not be read")
       }
+
+      # Ensure column names are character
+      names(df) <- paste0("V", seq_len(ncol(df)))
 
       # Convert to tibble
       tibble::as_tibble(df)
