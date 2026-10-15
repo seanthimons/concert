@@ -260,7 +260,7 @@ Key files:
 | Pre-synonym molarity classification | Separate M (Molar) from m (minutes) before synonym lookup to avoid unit confusion | ✓ Good — v2.0 |
 | lubridate for date parsing, not datefixR | Rust binary complicates installation; lubridate handles all verified regulatory formats | ✓ Good — v2.0 |
 | classify_tags() returns 4-element list | chemical_tags, numeric_tags, metadata_tags, study_type_tags — extensible without breaking callers | ✓ Good — v2.0 |
-| AMOS extraction is build-time only | `amos_media.rds` committed, never called at runtime; `refresh_amos_cache()` for manual refresh | ✓ Good — v2.0 |
+| envharmonizer tables download at startup | Pinned v0.1.1 release fetched to the user cache on first run and hash-verified; media map built from the CSVs per session (#102) | Revised — replaces committed `amos_media.rds` |
 | Direct harmonize_media() call over dedup_step wrapper | Media harmonization is hash-based lookup, not string transformation; dedup adds overhead without benefit | ✓ Good — v2.0 |
 | DT selection=none for custom JS callbacks | Simplest fix for row-click conflicts in media editor; no side effects on existing callback pattern | ✓ Good — v2.0 |
 | Unified Run Pipeline button over separate Clean/Harmonize | Single entry point with pre-flight modal gives user full visibility before execution | ✓ Good — v2.0 |
