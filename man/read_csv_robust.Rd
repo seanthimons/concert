@@ -2,11 +2,21 @@
 % Please edit documentation in R/file_handlers.R
 \name{read_csv_robust}
 \alias{read_csv_robust}
-\title{Robust CSV reading with multiple fallback strategies}
+\title{Robust delimited-text reading}
 \usage{
 read_csv_robust(filepath)
 }
 \description{
-Robust CSV reading with multiple fallback strategies
+Decides encoding and delimiter up front rather than on read errors, because
+readr warns instead of failing on wrong encodings and delimiters:
+\itemize{
+\item binary content (NUL bytes) is rejected
+\item invalid UTF-8 is read as Windows-1252 (a superset of Latin-1)
+\item the delimiter (\verb{,}, \verb{;}, tab, \code{|}) is the one giving the most fields on
+the typical line; \verb{;} files use decimal commas
+\item if readr returns fewer columns or rows than the file has (a short title
+line above the header, a truncated last row), the file is re-read with
+base R padded to the widest line
+}
 }
 \keyword{internal}
