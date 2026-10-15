@@ -280,7 +280,7 @@ mod_harmonize_server <- function(id, data_store) {
       has_duration_measurement <- length(duration_cols) > 0 && length(duration_unit_cols) > 0
 
       # Guard: require a measurement-like tag when numeric tags are present.
-      # StudyDate/Media-only runs skip numeric stages and proceed to date/media stages.
+      # Study-tag-only runs (StudyDate/Media/AnalyticalMethod) skip numeric stages.
       if (has_numeric && !has_measurement && !has_duration_measurement) {
         notify_user(
           "No Result or Numeric Measurement column tagged. Tag a measurement column before running harmonization.",
@@ -413,6 +413,7 @@ mod_harmonize_server <- function(id, data_store) {
               data_store$harmonize_results <- runtime_result$harmonize_results
               data_store$harmonize_audit <- runtime_result$harmonize_audit
               data_store$media_results <- runtime_result$media_results
+              data_store$method_results <- runtime_result$method_results
               data_store$duration_results <- runtime_result$duration_results
               data_store$date_results <- runtime_result$date_results
               data_store$detection_results <- runtime_result$detection_results
@@ -451,6 +452,19 @@ mod_harmonize_server <- function(id, data_store) {
                 notify_user(
                   sprintf("Media harmonized: %d matched, %d unmatched", n_matched, n_unmatched),
                   type = if (n_unmatched > 0) "warning" else "message",
+                  duration = 6
+                )
+              }
+
+              if (!is.null(data_store$method_results)) {
+                rows_by_status <- !duplicated(data_store$method_results$orig_row_id)
+                n_queued <- sum(data_store$method_results$status[rows_by_status] == "queued")
+                notify_user(
+                  sprintf(
+                    "Analytical methods harmonized: %d matched, %d unmatched",
+                    sum(rows_by_status) - n_queued, n_queued
+                  ),
+                  type = if (n_queued > 0) "warning" else "message",
                   duration = 6
                 )
               }

@@ -15,7 +15,7 @@ build_media_runtime_map(
 \item{fetch_timestamp}{Timestamp for legacy sources; ignored for pinned artifacts.}
 }
 \value{
-Tibble compatible with legacy amos_media.rds consumers.
+Runtime media map tibble (see get_media_table()).
 }
 \description{
 Build the generated runtime media map from reviewable source tables
