@@ -1,12 +1,32 @@
 
 
 
+## concert 0.6.6 (2026-10-16)
+
+#### Docs
+
+- document ComptoxR pin, API key setup and deployment security
+  ([95f563a](https://github.com/seanthimons/concert/tree/95f563a521fd64154c6cfb84f4d183cea3ceeb02))
+
+#### Other changes
+
+- bump version to 0.6.6 \[skip ci\]
+  ([a3056bd](https://github.com/seanthimons/concert/tree/a3056bd2fbded0854539c4cdcbc929435333de25))
+
+Full set of changes:
+[`v0.6.5...v0.6.6`](https://github.com/seanthimons/concert/compare/v0.6.5...v0.6.6)
+
 ## concert 0.6.5 (2026-10-16)
 
 #### Bug fixes
 
 - scan full sheets when guessing column types
   ([7c1b27d](https://github.com/seanthimons/concert/tree/7c1b27d9c30cedf922cddba4550423a8d6198822))
+
+#### Docs
+
+- update NEWS.md for v0.6.5 \[skip ci\]
+  ([2e326b1](https://github.com/seanthimons/concert/tree/2e326b1cac358409664a698c109837b2500c54e6))
 
 #### Other changes
 
