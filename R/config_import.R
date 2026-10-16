@@ -263,7 +263,10 @@ read_export_sheet <- function(file_path, sheets, sheet_name, default) {
   if (!sheet_name %in% sheets) {
     return(default)
   }
-  readxl::read_excel(file_path, sheet = sheet_name)
+  # Session State writes row records before metadata, and sparse evidence can
+  # first appear late, so type guessing must see every row (#94). Excel's row
+  # limit bounds the scan.
+  readxl::read_excel(file_path, sheet = sheet_name, guess_max = 1048576L)
 }
 
 normalize_optional_sheet <- function(df) {
