@@ -161,6 +161,7 @@ reference:
       - parse_dates
       - harmonize_units
       - harmonize_media
+      - harmonize_methodology
       - normalize_uncertainty_to_two_sigma
       - classify_detection_events
       - classify_harmonized_detection
