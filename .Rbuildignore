@@ -13,8 +13,7 @@
 ^.*\.log$
 ^.*\.Rproj\.user$
 ^concert\.Rproj$
-^load_packages\.R$
-^checkpoint\.R$
+^\.Renviron\.example$
 ^app\.R$
 ^clean_chems.*$
 ^PW_.*$

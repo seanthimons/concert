@@ -16,7 +16,21 @@ pak::pak("seanthimons/concert")
 ```
 
 GitHub-only dependencies (ComptoxR and a pinned reactable revision) are
-installed automatically from `Remotes` in `DESCRIPTION`.
+installed automatically from `Remotes` in `DESCRIPTION`. ComptoxR is pinned to
+a release tag (currently `v1.7.1`); the `track-comptoxr-release` workflow opens a
+PR to bump the pin when ComptoxR publishes a new stable release.
+
+### CompTox API key
+
+Curation queries the EPA CompTox APIs and needs a free key. Register at
+[CompTox APIs](https://www.epa.gov/comptox-tools/computational-toxicology-and-exposure-apis),
+then set `ctx_api_key` in `.Renviron` (see `.Renviron.example`) and restart R:
+
+```
+ctx_api_key=your-key-here
+```
+
+Without a key the app still loads, but **Run Curation** stays disabled.
 
 ## Launch the App
 
@@ -75,6 +89,13 @@ Upload an exported workbook through the ordinary file-upload control and choose
 **Resume Session** to restore its review decisions, source evidence and applied
 cleaning choices. **Treat as Raw Data** starts a new workflow. Sidebar **Import
 Configuration** restores selected configuration rather than the full session.
+
+## Security
+
+CONCERT is built for local or internal use. It has no authentication: anyone who
+can reach the app can upload files and download curated results. Do not deploy it
+to a public URL as-is; put it behind your organization's SSO or an auth layer
+such as [shinymanager](https://datastorm-open.github.io/shinymanager/).
 
 ## Development
 
