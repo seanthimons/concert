@@ -35,6 +35,7 @@ refs <- load_all_reference_lists(cache_dir)
 #> Loading unit conversion map from cache: /home/runner/work/_temp/Library/concert/extdata/reference_cache/unit_conversion.rds
 #> Loading unit synonyms from cache: /home/runner/work/_temp/Library/concert/extdata/reference_cache/unit_synonyms.rds
 #> Loading ToxVal schema from cache: /home/runner/work/_temp/Library/concert/extdata/reference_cache/toxval_schema.rds
+#> Downloading pinned envharmonizer v0.1.1 tables to /home/runner/.cache/R/concert/envharmonizer-0.1.1
 refs$stop_words
 #> # A tibble: 50 × 6
 #>    term          pattern       match_mode   source        active notes

@@ -74,6 +74,7 @@
 <url><loc>https://seanthimons.github.io/concert/reference/detect_truncated_compound_names.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/enrich_candidates.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/enrich_synonyms.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/ensure_envharmonizer_tables.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/expand_isotope_shortcodes.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/extract_cas.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/extract_clean_data.html</loc></url>
@@ -87,7 +88,6 @@
 <url><loc>https://seanthimons.github.io/concert/reference/extract_wqx_alias_units.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/fetch_molecular_weight.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/find_dtxsid_cols.html</loc></url>
-<url><loc>https://seanthimons.github.io/concert/reference/find_local_media_table.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/flag_multi_analyte.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/flag_reference_matches.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/format_file_size.html</loc></url>
@@ -95,7 +95,9 @@
 <url><loc>https://seanthimons.github.io/concert/reference/generate_source_hash.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/get_dedup_preview.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/get_empty_schema.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/get_media_table.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/get_media_target.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/get_method_tables.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/get_molarity_scale.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/get_ppx_conversion_factor.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/get_pre_resolved_isotope_rows.html</loc></url>
@@ -103,6 +105,7 @@
 <url><loc>https://seanthimons.github.io/concert/reference/get_unit_synonyms.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/handle_merged_cells.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/harmonize_media.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/harmonize_methodology.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/harmonize_units.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/has_required_chemical_tags.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/hydrate_session_state.html</loc></url>

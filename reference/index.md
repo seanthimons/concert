@@ -307,6 +307,8 @@ source identity.
 - [`harmonize_media()`](https://seanthimons.github.io/concert/reference/harmonize_media.md)
   : Harmonize environmental media strings to canonical CONCERT media
   terms
+- [`harmonize_methodology()`](https://seanthimons.github.io/concert/reference/harmonize_methodology.md)
+  : Harmonize analytical-method strings
 - [`normalize_uncertainty_to_two_sigma()`](https://seanthimons.github.io/concert/reference/normalize_uncertainty_to_two_sigma.md)
   : Convert reported uncertainty to a two-sigma half-width
 - [`classify_detection_events()`](https://seanthimons.github.io/concert/reference/classify_detection_events.md)

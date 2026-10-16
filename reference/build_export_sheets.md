@@ -25,6 +25,7 @@ build_export_sheets(
   script_baseline_state = NULL,
   media_map = NULL,
   media_results = NULL,
+  method_results = NULL,
   ignored_identifier_cols = character(),
   review_decision_evidence = NULL,
   identity_decisions = NULL,
@@ -124,6 +125,11 @@ build_export_sheets(
 - media_results:
 
   Row-level media identity, routing and original-value audit.
+
+- method_results:
+
+  Long analytical-method audit from
+  [`harmonize_methodology()`](https://seanthimons.github.io/concert/reference/harmonize_methodology.md).
 
 - ignored_identifier_cols:
 

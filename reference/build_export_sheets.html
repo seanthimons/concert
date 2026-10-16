@@ -9,7 +9,7 @@ for Excel export via writexl::write_xlsx()."><meta property="og:image" content="
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.6</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -39,7 +39,7 @@ for Excel export via writexl::write_xlsx()."><meta property="og:image" content="
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Build Export Sheets</h1>
-      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/v0.6.3/R/export_helpers.R" class="external-link"><code>R/export_helpers.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/main/R/export_helpers.R" class="external-link"><code>R/export_helpers.R</code></a></small>
       <div class="d-none name"><code>build_export_sheets.Rd</code></div>
     </div>
 
@@ -69,6 +69,7 @@ for Excel export via writexl::write_xlsx().</p>
 <span>  script_baseline_state <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  media_map <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  media_results <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  method_results <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  ignored_identifier_cols <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  review_decision_evidence <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  identity_decisions <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -170,6 +171,10 @@ State so re-imported sessions can regenerate replay review overrides.</p></dd>
 
 <dt id="arg-media-results">media_results<a class="anchor" aria-label="anchor" href="#arg-media-results"></a></dt>
 <dd><p>Row-level media identity, routing and original-value audit.</p></dd>
+
+
+<dt id="arg-method-results">method_results<a class="anchor" aria-label="anchor" href="#arg-method-results"></a></dt>
+<dd><p>Long analytical-method audit from <code><a href="harmonize_methodology.html">harmonize_methodology()</a></code>.</p></dd>
 
 
 <dt id="arg-ignored-identifier-cols">ignored_identifier_cols<a class="anchor" aria-label="anchor" href="#arg-ignored-identifier-cols"></a></dt>

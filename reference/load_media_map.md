@@ -1,7 +1,7 @@
 # Load merged media harmonization map (user edits + bundled defaults)
 
 User rows (user_media_map.rds) take precedence for the same term. Falls
-back to the generated media cache via get_media_table() for all other
+back to the pinned media vocabulary via get_media_table() for all other
 terms. Returns a display-schema tibble with columns for the media editor
 DT plus the additional columns harmonize_media() needs internally
 (canonical_term, envo_id, media_category, assertion_mode, confidence)
@@ -29,6 +29,6 @@ active
 
 On first run, if user_media_map.rds does not exist, the function returns
 the generated media table normalised to the merged schema. If
-get_media_table() also returns NULL (e.g., amos_media.rds not yet
-built), the function returns an empty tibble with the correct column
-types.
+get_media_table() also returns NULL (e.g., the envharmonizer tables
+could not be downloaded), the function returns an empty tibble with the
+correct column types.

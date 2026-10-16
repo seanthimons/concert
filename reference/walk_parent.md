@@ -21,7 +21,8 @@ walk_parent(norm_term, media_tbl)
 
 - media_tbl:
 
-  Tibble returned by `get_media_table()`.
+  Tibble returned by
+  [`get_media_table()`](https://seanthimons.github.io/concert/reference/get_media_table.md).
 
 ## Value
 

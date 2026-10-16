@@ -310,8 +310,9 @@ Invisibly returns a list:
 
   - `$harmonize_results` – parsed and unit-harmonized measurement tables
 
-  - `$media_results`, `$duration_results`, `$date_results`, and
-    `$detection_results` – harmonization sidecar artifacts
+  - `$media_results`, `$method_results`, `$duration_results`,
+    `$date_results`, and `$detection_results` – harmonization sidecar
+    artifacts
 
   - `$row_data` – curated row data updated with generated detection,
     media, duration, and date fields

@@ -23,4 +23,4 @@ build_media_runtime_map(
 
 ## Value
 
-Tibble compatible with legacy amos_media.rds consumers.
+Runtime media map tibble (see get_media_table()).

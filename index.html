@@ -23,7 +23,7 @@
 
     <a class="navbar-brand me-2" href="index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.6</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -71,22 +71,29 @@
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
 <span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"seanthimons/concert"</span><span class="op">)</span></span></code></pre></div>
-<p>GitHub-only dependencies (ComptoxR and a pinned reactable revision) are installed automatically from <code>Remotes</code> in <code>DESCRIPTION</code>.</p>
+<p>GitHub-only dependencies (ComptoxR and a pinned reactable revision) are installed automatically from <code>Remotes</code> in <code>DESCRIPTION</code>. ComptoxR is pinned to a release tag (currently <code>v1.7.1</code>); the <code>track-comptoxr-release</code> workflow opens a PR to bump the pin when ComptoxR publishes a new stable release.</p>
+<div class="section level3">
+<h3 id="comptox-api-key">CompTox API key<a class="anchor" aria-label="anchor" href="#comptox-api-key"></a>
+</h3>
+<p>Curation queries the EPA CompTox APIs and needs a free key. Register at <a href="https://www.epa.gov/comptox-tools/computational-toxicology-and-exposure-apis" class="external-link">CompTox APIs</a>, then set <code>ctx_api_key</code> in <code>.Renviron</code> (see <code>.Renviron.example</code>) and restart R:</p>
+<pre><code><span><span class="va">ctx_api_key</span><span class="op">=</span><span class="va">your</span><span class="op">-</span><span class="va">key</span><span class="op">-</span><span class="va">here</span></span></code></pre>
+<p>Without a key the app still loads, but <strong>Run Curation</strong> stays disabled.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="launch-the-app">Launch the App<a class="anchor" aria-label="anchor" href="#launch-the-app"></a>
 </h2>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">concert</span><span class="fu">::</span><span class="fu"><a href="reference/run_app.html">run_app</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>For a fixed local port:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">concert</span><span class="fu">::</span><span class="fu"><a href="reference/run_app.html">run_app</a></span><span class="op">(</span>port <span class="op">=</span> <span class="fl">3838</span>, launch.browser <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
 <p>For a visual guide to source DTXSID evidence, mixture correspondence, scoped acceptance, and session restore, read <a href="vignettes/articles/source-identity-review.Rmd">Reviewing a source chemical identity</a>. It includes the complete long Override dialog as overlapping screenshots.</p>
 </div>
 <div class="section level2">
 <h2 id="headless-curation">Headless Curation<a class="anchor" aria-label="anchor" href="#headless-curation"></a>
 </h2>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">concert</span><span class="fu">::</span><span class="fu"><a href="reference/curate_headless.html">curate_headless</a></span><span class="op">(</span></span>
 <span>  input <span class="op">=</span> <span class="st">"path/to/input.xlsx"</span>,</span>
 <span>  output <span class="op">=</span> <span class="st">"path/to/output.xlsx"</span>,</span>
@@ -97,10 +104,10 @@
 <span>  harmonize <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>Names that CompTox leaves unresolved are looked up in the chemi resolver. Its hits are review candidates and are checked against a local copy of the public DSSTox database. That copy is about 800 MB, so CONCERT never downloads it unprompted; without it, hits are marked <code>unverified</code>. To install it once and keep it current:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">options</a></span><span class="op">(</span>concert.dsstox_install <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>  <span class="co"># or run ComptoxR::dss_install() yourself</span></span></code></pre></div>
 <p>For agent-driven curation, the package ships a runner script and a skill:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"scripts/curate_loop.R"</span>, package <span class="op">=</span> <span class="st">"concert"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"skills/concert-curate/SKILL.md"</span>, package <span class="op">=</span> <span class="st">"concert"</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -111,16 +118,21 @@
 <p>Upload an exported workbook through the ordinary file-upload control and choose <strong>Resume Session</strong> to restore its review decisions, source evidence and applied cleaning choices. <strong>Treat as Raw Data</strong> starts a new workflow. Sidebar <strong>Import Configuration</strong> restores selected configuration rather than the full session.</p>
 </div>
 <div class="section level2">
+<h2 id="security">Security<a class="anchor" aria-label="anchor" href="#security"></a>
+</h2>
+<p>CONCERT is built for local or internal use. It has no authentication: anyone who can reach the app can upload files and download curated results. Do not deploy it to a public URL as-is; put it behind your organization’s SSO or an auth layer such as <a href="https://datastorm-open.github.io/shinymanager/" class="external-link">shinymanager</a>.</p>
+</div>
+<div class="section level2">
 <h2 id="development">Development<a class="anchor" aria-label="anchor" href="#development"></a>
 </h2>
 <p>From a checkout, start R (4.5.1) in the repository root; renv bootstraps on first launch. Restore the locked environment, which includes test dependencies:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">renv</span><span class="fu">::</span><span class="fu">restore</span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/load_all.html" class="external-link">load_all</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>After deliberately changing dependencies, run <code>renv::snapshot()</code> and commit <code>renv.lock</code>. <code>renv::status()</code> checks for drift.</p>
 <p>Routine CI runs the locked review and module-rendering tests on Windows with R 4.5.1 and the dependencies in <code>renv.lock</code>, plus commit and secret checks. The Linux, Windows, and macOS package-check matrix runs only when <strong>R-CMD-check</strong> is started manually in GitHub Actions. The release workflow independently runs <code>R CMD check</code> on Linux and rejects errors or warnings before publishing. Run <code><a href="https://devtools.r-lib.org/reference/test.html" class="external-link">devtools::test()</a></code> locally for the full regression suite; package archives currently exclude <code>tests/</code>, so package checks do not run those tests.</p>
 <p>To benchmark the review table on the 8,216-row case:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/source.html" class="external-link">source</a></span><span class="op">(</span><span class="st">"scripts/benchmark_review_results.R"</span><span class="op">)</span></span>
 <span><span class="fu">benchmark_review_results</span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="fu">run_review_benchmark_app</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>

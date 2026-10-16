@@ -1,11 +1,12 @@
 # Harmonize environmental media strings to canonical CONCERT media terms
 
 Maps a character vector of raw environmental media strings against the
-generated CONCERT media vocabulary cache (`amos_media.rds`). Resolution
-order: (1) user assertions; (2) active bundled auto assertions; (3)
-unambiguous phrase fallback for partial matches; (4) `media_unmatched`
-flag for everything else. Pending source-table aliases are not
-auto-resolved.
+pinned CONCERT media vocabulary (see
+[`get_media_table()`](https://seanthimons.github.io/concert/reference/get_media_table.md)).
+Resolution order: (1) user assertions; (2) active bundled auto
+assertions; (3) unambiguous phrase fallback for partial matches; (4)
+`media_unmatched` flag for everything else. Pending source-table aliases
+are not auto-resolved.
 
 ## Usage
 
@@ -33,7 +34,7 @@ harmonize_media(
 
   Optional tibble with columns term, canonical_term, envo_id,
   media_category, source, active, and assertion_mode. When NULL
-  (default), falls back to the bundled generated media cache via
+  (default), falls back to the pinned media vocabulary via
   get_media_table(). Pass a merged map from load_media_map() to enable
   user-defined mappings (MEDIT-03, D-14). If the tibble uses `canonical`
   instead of `canonical_term` (display schema), the column is translated
