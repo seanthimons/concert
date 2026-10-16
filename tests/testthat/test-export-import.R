@@ -1253,3 +1253,88 @@ test_that("Accepted Identities sheet preserves audit consensus and source data",
   expect_equal(identity_review_state(restored$state$resolution_state)$accepted_dtxsid,
     c("DTXSID3020001", NA_character_, NA_character_))
 })
+
+# ===== Large-session round trips (#94) =====
+# readxl guesses types from the first 1,000 rows by default. Session State puts
+# row-state records first, and sparse evidence can first appear after row 1,000;
+# both were coerced to NA on re-import.
+
+large_session_roundtrip <- function(rs) {
+  sheets <- build_export_sheets(
+    raw = rs, resolution_state = rs, consensus_summary = list(n_agree = nrow(rs)),
+    cleaning_audit = NULL, reference_lists = list(),
+    column_tags = list(raw_name = "Name"),
+    detection = list(method = "manual", header_row = 1L),
+    file_info = list(name = "input.csv", size = 1),
+    toxval_identity_mode = "accepted"
+  )
+  path <- tempfile(fileext = ".xlsx")
+  on.exit(unlink(path))
+  writexl::write_xlsx(sheets, path)
+  parse_concert_export(path)
+}
+
+large_session_rows <- function(n) {
+  rs <- tibble::tibble(
+    raw_name = rep("Acetone", n),
+    consensus_dtxsid = rep("DTXSID8021482", n),
+    consensus_status = rep("agree", n),
+    multi_analyte_resolution = rep(NA_character_, n),
+    component_cas_unresolved = rep(NA, n),
+    cas_extraction_count = rep(NA_real_, n)
+  )
+  rs$multi_analyte_resolution[n] <- "keep_combined"
+  rs$component_cas_unresolved[n] <- TRUE
+  rs$cas_extraction_count[n] <- 2
+  rs
+}
+
+test_that("sessions around the 1,000-row type-guess window hydrate portable inputs", {
+  skip_if_not_installed("writexl")
+  for (n in c(999L, 1000L, 1001L)) {
+    parsed <- large_session_roundtrip(large_session_rows(n))
+    expect_type(parsed$session_state$key, "character")
+    expect_type(parsed$session_state$value, "character")
+    hydrated <- hydrate_session_state(parsed)
+    expect_identical(hydrated$state$toxval_identity_mode, "accepted", label = paste(n, "rows"))
+  }
+})
+
+test_that("evidence first populated after row 1,000 survives re-import with its type", {
+  skip_if_not_installed("writexl")
+  rs <- large_session_rows(1001L)
+  parsed <- large_session_roundtrip(rs)
+  curated <- parsed$curated_data
+  expect_identical(curated$multi_analyte_resolution, rs$multi_analyte_resolution)
+  expect_identical(curated$component_cas_unresolved, rs$component_cas_unresolved)
+  expect_identical(curated$cas_extraction_count, rs$cas_extraction_count)
+})
+
+test_that("identity eligibility and scope blockers survive a large round trip", {
+  skip_if_not_installed("writexl")
+  rs <- large_session_rows(1001L)
+  parsed <- large_session_roundtrip(rs)
+  restored <- hydrate_session_state(parsed)$state$resolution_state
+  before <- identity_review_state(rs)
+  after <- identity_review_state(restored)
+  expect_identical(after$identity_status, before$identity_status)
+  expect_identical(after$identity_blockers[1001], "unresolved_scope")
+})
+
+test_that("100k-row export parses in budget with full-sheet type guessing", {
+  skip_on_cran()
+  skip_if_not_installed("writexl")
+  # Measured 1.4s on a dev laptop (1.3s before full-sheet guessing); ceiling ~10x.
+  rs <- large_session_rows(1e5L)
+  sheets <- build_export_sheets(
+    raw = rs, resolution_state = rs, consensus_summary = list(n_agree = nrow(rs)),
+    cleaning_audit = NULL, reference_lists = list(), column_tags = list(raw_name = "Name"),
+    detection = list(method = "manual", header_row = 1L), file_info = list(name = "input.csv", size = 1)
+  )
+  path <- tempfile(fileext = ".xlsx")
+  on.exit(unlink(path))
+  writexl::write_xlsx(sheets, path)
+  elapsed <- system.time(parsed <- parse_concert_export(path))[["elapsed"]]
+  expect_lt(elapsed, 15, label = sprintf("%.2fs elapsed", elapsed))
+  expect_identical(parsed$curated_data$multi_analyte_resolution[1e5], "keep_combined")
+})
