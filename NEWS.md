@@ -1,6 +1,21 @@
 
 
 
+## concert 0.6.5 (2026-10-16)
+
+#### Bug fixes
+
+- scan full sheets when guessing column types
+  ([7c1b27d](https://github.com/seanthimons/concert/tree/7c1b27d9c30cedf922cddba4550423a8d6198822))
+
+#### Other changes
+
+- bump version to 0.6.5 \[skip ci\]
+  ([1fc111a](https://github.com/seanthimons/concert/tree/1fc111a2f9b89d1a9ae9be25397ad4e4283e8906))
+
+Full set of changes:
+[`v0.6.4...v0.6.5`](https://github.com/seanthimons/concert/compare/v0.6.4...v0.6.5)
+
 ## concert 0.6.4 (2026-10-15)
 
 #### New features
@@ -14,6 +29,11 @@
 
 - validate inputs and correct media hit counts
   ([fe2a4e1](https://github.com/seanthimons/concert/tree/fe2a4e1dc4d687609525d6064b21befdd6a17da8))
+
+#### Docs
+
+- update NEWS.md for v0.6.4 \[skip ci\]
+  ([f9be90b](https://github.com/seanthimons/concert/tree/f9be90b27436597fa34d0ea2376cf2cc7b3c76bd))
 
 #### Other changes
 
