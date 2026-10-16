@@ -1,0 +1,3 @@
+# Copy to .Renviron (project or home directory) and restart R.
+# Register for a key at https://www.epa.gov/comptox-tools/computational-toxicology-and-exposure-apis
+ctx_api_key=
