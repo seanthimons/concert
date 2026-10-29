@@ -34,6 +34,8 @@ review_signature_excluded_columns <- function() {
     "display_row",
     "display_index",
     "needs_review",
+    # Derived score; changes whenever scoring does (#126).
+    "similarity_score",
     review_override_columns()
   ))
 }
