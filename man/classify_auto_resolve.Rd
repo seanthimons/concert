@@ -46,6 +46,7 @@ per-candidate scores and applies threshold logic (D-01/D-02/D-03):
 \details{
 Rows are also held as disagree, with the reason in \code{.resolution_reason},
 when WQX name evidence conflicts with the DTXSID candidates, or when a
-would-be suggestion shares fewer than half its name tokens with the input
+would-be suggestion's name has token Jaccard similarity below 0.5 with the input
+(or either name is missing)
 (see \code{\link[=name_token_similarity]{name_token_similarity()}}). Held rows are never bulk-accepted.
 }
