@@ -443,3 +443,24 @@ test_that("expand_isotope_shortcodes does NOT expand alkyl chain lengths in quat
   expect_equal(result$cleaned_data$chemical_name[1:4], quats)
   expect_equal(result$cleaned_data$chemical_name[5:6], c("Carbon-14", "Carbon-14-labelled glucose"))
 })
+
+test_that("flag_measurement_qualifier flags fraction and basis terms but not standard parameter names (#129)", {
+  df <- tibble::tibble(chemical_name = c(
+    "Phosphorus, total", "Nitrate (as N)", "Copper, dissolved", "Phosphate, ortho (as PO4)",
+    "Total Kjeldahl nitrogen", "Total suspended solids", "Total Nitrogen, mixed forms",
+    "Total PCBs", "Benzene", NA
+  ))
+  out <- flag_measurement_qualifier(df, "chemical_name")
+  flag <- out$cleaned_data$cleaning_flag
+  expect_equal(flag[1:5], c(
+    "WARNING: measurement qualifier [total]",
+    "WARNING: measurement qualifier [as N]",
+    "WARNING: measurement qualifier [dissolved]",
+    "WARNING: measurement qualifier [as PO4]",
+    "WARNING: measurement qualifier [total]"
+  ))
+  expect_true(all(is.na(flag[6:10])))
+  expect_equal(out$cleaned_data$chemical_name, df$chemical_name)
+  expect_equal(nrow(out$audit_trail), 5)
+  expect_true(all(out$audit_trail$step == "flag_measurement_qualifier"))
+})

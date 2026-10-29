@@ -56,3 +56,44 @@ test_that("headless accepted ToxVal mode keeps measurements and replays explicit
     harmonize = TRUE, toxval_identity_mode = "accepted")
   expect_match(script, 'toxval_identity_mode = "accepted"', fixed = TRUE)
 })
+
+test_that("a fraction qualifier on a bare-nutrient identity blocks it, whatever the status (#129)", {
+  df <- tibble::tibble(
+    consensus_dtxsid = c("DTXSID4036304", "DTXSID4036304", "DTXSID7039672", "DTXSID7039672", "DTXSID1020000"),
+    consensus_status = "single",
+    cleaning_flag = c(
+      "WARNING: measurement qualifier [total, as N]", NA,
+      "WARNING: measurement qualifier [as PO4]", "WARNING: measurement qualifier [total, as PO4]",
+      "WARNING: measurement qualifier [total]"
+    )
+  )
+  # Nitrogen, total (as N) | Nitrogen | Phosphate, ortho (as PO4) | Phosphate, total | Aluminum, total
+  out <- identity_review_state(df)
+  expect_identical(out$identity_eligible, c(FALSE, TRUE, TRUE, FALSE, TRUE))
+  expect_match(out$identity_blockers[1], "unresolved_scope")
+
+  local_mocked_bindings(validate_manual_dtxsids = function(dtxsids, ...) {
+    tibble::tibble(dtxsid = dtxsids, is_valid = TRUE)
+  })
+  row <- tibble::tibble(original_row_id = 1L, name = "Nitrogen, total", consensus_dtxsid = "DTXSID4036304",
+    consensus_status = "single", consensus_source = "name", dtxsid_name = "DTXSID4036304",
+    cleaning_flag = "WARNING: measurement qualifier [total]")
+  decision <- list(selector = list(original_row_id = 1L, name = "Nitrogen, total"),
+    action = "accept", scope = "substance", conflict = "none", selected_dtxsid = "DTXSID4036304",
+    correspondence = TRUE, reason = "Reviewer confirms N2", evidence_reference = "fixture",
+    evidence_fingerprint = identity_evidence_fingerprint(row, 1))
+  reviewed <- apply_identity_decisions(list(resolution_state = row), list(decision))$resolution_state
+  expect_true(identity_review_state(reviewed)$identity_eligible)
+})
+
+test_that("the measurement-qualifier warning does not change identity fingerprints (#129)", {
+  row <- tibble::tibble(original_row_id = 1L, name = "Copper, dissolved", consensus_dtxsid = "DTXSID1020000",
+    cleaning_flag = c(NA, "WARNING: potential multi-analyte"))
+  flagged <- row
+  flagged$cleaning_flag <- c("WARNING: measurement qualifier [dissolved]",
+    "WARNING: potential multi-analyte; WARNING: measurement qualifier [dissolved, as N]")
+  for (i in 1:2) {
+    expect_identical(identity_fingerprint_v2(flagged, i), identity_fingerprint_v2(row, i))
+    expect_identical(identity_fingerprint_v1(flagged, i), identity_fingerprint_v1(row, i))
+  }
+})

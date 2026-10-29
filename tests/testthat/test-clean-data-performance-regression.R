@@ -151,3 +151,15 @@ test_that("numeric measurement columns use fast parsing path through harmonizati
   expect_equal(result$primary$parsed$parse_flag[2], "narrative")
   expect_equal(sort(unique(result$audit$measurement_role)), c("ReportingLimit", "Result"))
 })
+
+test_that("measurement qualifiers are flagged before enclosure stripping, within budget (#129)", {
+  names <- c("Phosphorus (total)", "Copper, dissolved", "Nitrate (as N)", "Benzene", "Total suspended solids")
+  df <- tibble::tibble(chemical_name = rep(names, length.out = 20000))
+  elapsed <- system.time(out <- flag_measurement_qualifier(df, "chemical_name"))[["elapsed"]]
+  expect_lt(elapsed, 3, label = sprintf("%.2fs elapsed", elapsed))
+  expect_equal(sum(!is.na(out$cleaned_data$cleaning_flag)), 12000)
+
+  cleaned <- run_cleaning_pipeline(tibble::tibble(chemical_name = "Phosphorus (total)"), c(chemical_name = "Name"))
+  expect_match(cleaned$cleaned_data$cleaning_flag, "measurement qualifier \\[total\\]")
+  expect_equal(cleaned$cleaned_data$chemical_name, "Phosphorus")
+})

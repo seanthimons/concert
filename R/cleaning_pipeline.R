@@ -2866,6 +2866,11 @@ run_cleaning_pipeline_masked <- function(
     name_cols <- names(tag_map)[tag_map == "Name"]
     if (length(name_cols) > 0) {
       if (mask$names) {
+        # Before pass 1, which strips "(total)"-style enclosures.
+        qualifier_result <- flag_measurement_qualifier(df_work, name_cols)
+        df_work <- qualifier_result$cleaned_data
+        audit_parts[[length(audit_parts) + 1]] <- qualifier_result$audit_trail
+
         should_run_name_pass1 <- TRUE
         if (isTRUE(respect_prechecks)) {
           should_run_name_pass1 <- precheck_name_cleaning(df_work, name_cols)$should_run
@@ -3689,6 +3694,67 @@ flag_multi_analyte <- function(df, name_cols) {
     cleaned_data = df_result,
     audit_trail = audit_trail
   )
+}
+
+# Fraction terms say how a sample was measured; "as X" says what it is reported as.
+MEASUREMENT_FRACTION_PATTERN <- "\\b(total recoverable|total|dissolved|suspended|recoverable|unfiltered|filtered|particulate|acid[- ]soluble|extractable|bioavailable)\\b"
+REPORTING_BASIS_PATTERN <- "\\b[Aa][Ss]\\s+(N|P|NO3|PO4|NH4|CaCO3|CN|SiO2|SO4|S|Cl2|element)\\b"
+# Names where "total" etc. is part of a standard parameter name, not a qualifier.
+# TKN is deliberately absent: Total Kjeldahl nitrogen is not N2 either.
+MEASUREMENT_QUALIFIER_EXCEPTIONS <- "(?i)mixed forms|organic carbon|inorganic carbon|\\b(TOC|TIC|PCBs?|THMs?|TPH)\\b|polychlorinated biphenyls|trihalomethanes|petroleum hydrocarbons|residual chlorine|solids"
+
+#' Flag measurement qualifiers in names
+#'
+#' Fraction terms ("Copper, dissolved") and reporting bases ("Nitrate (as N)")
+#' describe a measurement, not a chemical. Appends
+#' `WARNING: measurement qualifier [<terms>]` to `cleaning_flag`; the name is
+#' unchanged. Runs before enclosure stripping so "(total)" is still visible.
+#'
+#' @param df Dataframe with name columns
+#' @param name_cols Character vector of Name-tagged column names
+#' @return List with cleaned_data (tibble) and audit_trail (tibble)
+#' @keywords internal
+flag_measurement_qualifier <- function(df, name_cols) {
+  if (!"cleaning_flag" %in% names(df)) {
+    df$cleaning_flag <- NA_character_
+  }
+  row_ids <- if ("original_row_id" %in% names(df)) df$original_row_id else seq_len(nrow(df))
+  audit <- list()
+
+  for (col_name in intersect(name_cols, names(df))) {
+    x <- as.character(df[[col_name]])
+    hit <- which(!is.na(x) & (grepl(MEASUREMENT_FRACTION_PATTERN, x, ignore.case = TRUE, perl = TRUE) |
+      grepl(REPORTING_BASIS_PATTERN, x, perl = TRUE)) & !grepl(MEASUREMENT_QUALIFIER_EXCEPTIONS, x, perl = TRUE))
+    if (length(hit) == 0) next
+
+    terms <- vapply(hit, function(i) {
+      found <- c(
+        tolower(regmatches(x[i], gregexpr(MEASUREMENT_FRACTION_PATTERN, x[i], ignore.case = TRUE, perl = TRUE))[[1]]),
+        regmatches(x[i], gregexpr(REPORTING_BASIS_PATTERN, x[i], perl = TRUE))[[1]]
+      )
+      paste(unique(found), collapse = ", ")
+    }, character(1))
+    flag <- paste0(measurement_qualifier_warning_label(), " [", terms, "]")
+    existing <- df$cleaning_flag[hit]
+    df$cleaning_flag[hit] <- ifelse(is.na(existing), flag, paste0(existing, "; ", flag))
+    audit[[length(audit) + 1]] <- tibble::tibble(
+      row_id = as.integer(row_ids[hit]),
+      field = col_name,
+      step = "flag_measurement_qualifier",
+      original_value = x[hit],
+      new_value = x[hit],
+      reason = paste0("Measurement qualifier in ", col_name, ": ", terms)
+    )
+  }
+
+  list(
+    cleaned_data = df,
+    audit_trail = if (length(audit)) dplyr::bind_rows(audit) else empty_cleaning_audit()
+  )
+}
+
+measurement_qualifier_warning_label <- function() {
+  "WARNING: measurement qualifier"
 }
 
 multi_analyte_warning_label <- function() {
