@@ -43,7 +43,7 @@ is_wqx_tier <- function(x) {
 normalize_identity_evidence_name <- function(x) {
   x <- as.character(x)
   x[is.na(x)] <- NA_character_
-  normalized <- tolower(gsub("[^a-z0-9]+", "", x))
+  normalized <- gsub("[^a-z0-9]+", "", tolower(x))
   normalized[!nzchar(normalized)] <- NA_character_
   normalized
 }
@@ -175,7 +175,7 @@ classify_consensus <- function(df, dtxsid_cols) {
   }
 
   # Pre-compute source_tier column names (avoids repeated sub() inside loop)
-  tier_cols <- ifelse(dtxsid_cols == "dtxsid", "source_tier", sub("^dtxsid_", "source_tier_", dtxsid_cols))
+  tier_cols <- vapply(dtxsid_cols, source_field_column, character(1), prefix = "source_tier", USE.NAMES = FALSE)
   tier_cols_exist <- tier_cols %in% names(df)
 
   for (i in seq_len(nrow(df))) {
@@ -221,18 +221,10 @@ classify_consensus <- function(df, dtxsid_cols) {
         consensus_dtxsid[i] <- NA_character_
         # Find which column had the WQX resolution for source attribution
         wqx_col_idx <- which(!is.na(row_tiers) & grepl("^wqx_", row_tiers))[1]
-        consensus_source[i] <- if (tier_cols[wqx_col_idx] == "source_tier") {
-          "Name"
-        } else {
-          sub("^source_tier_", "", tier_cols[wqx_col_idx])
-        }
+        consensus_source[i] <- source_column_name(dtxsid_cols[wqx_col_idx])
         # Promote the resolved WQX canonical name from the parallel preferredName column
         # so it survives into the ToxVal export as a non-DTXSID crosswalk key.
-        pref_col <- if (dtxsid_cols[wqx_col_idx] == "dtxsid") {
-          "preferredName"
-        } else {
-          sub("^dtxsid_", "preferredName_", dtxsid_cols[wqx_col_idx])
-        }
+        pref_col <- source_field_column(dtxsid_cols[wqx_col_idx], "preferredName")
         if (pref_col %in% names(df)) {
           consensus_name[i] <- as.character(df[[pref_col]][i])
         }
@@ -253,7 +245,7 @@ classify_consensus <- function(df, dtxsid_cols) {
       consensus_dtxsid[i] <- non_na[1]
       # Find which column had the value
       src_col <- dtxsid_cols[!is.na(values)][1]
-      consensus_source[i] <- if (src_col == "dtxsid") "Name" else sub("^dtxsid_", "", src_col)
+      consensus_source[i] <- source_column_name(src_col)
       qc_tier[i] <- compute_qc_tier("single", 1L, k)
     } else if (n_unique == 1 && n_present == k) {
       # All columns agree
@@ -559,6 +551,26 @@ get_resolution_options <- function(df, row_idx, dtxsid_cols, enrichment_cache = 
 # score_one_candidate
 # ============================================================================
 
+#' Token Jaccard similarity between two names
+#'
+#' Lowercase alphanumeric word overlap. Shared prefixes such as "Total" or
+#' "Phosphorus" do not rescue names whose distinguishing token differs.
+#'
+#' @param a,b Character vectors of names (recycled).
+#' @return Numeric vector in `[0, 1]`; NA where either name is missing.
+#' @keywords internal
+name_token_similarity <- function(a, b) {
+  tokens <- function(x) lapply(strsplit(tolower(x), "[^a-z0-9]+"), function(t) unique(t[nzchar(t)]))
+  sim <- as.numeric(mapply(
+    function(x, y) length(intersect(x, y)) / max(length(union(x, y)), 1),
+    tokens(a),
+    tokens(b),
+    USE.NAMES = FALSE
+  ))
+  sim[is.na(a) | is.na(b)] <- NA_real_
+  sim
+}
+
 #' Compute similarity score for a single candidate against an input name
 #'
 #' Score formula (per D-03): max(JW(input, preferredName, synonym_1, ..., synonym_N)).
@@ -653,8 +665,8 @@ compute_similarity_scores <- function(resolution_state, enrichment_cache, dtxsid
         next
       }
 
-      pref_col <- sub("^dtxsid_", "preferredName_", col)
-      rank_col <- sub("^dtxsid_", "rank_", col)
+      pref_col <- source_field_column(col, "preferredName")
+      rank_col <- source_field_column(col, "rank")
       pref_name <- if (pref_col %in% names(resolution_state)) resolution_state[[pref_col]][i] else NA_character_
       rank_val <- if (rank_col %in% names(resolution_state)) resolution_state[[rank_col]][i] else NA_real_
 
@@ -721,9 +733,13 @@ resolve_row <- function(df, row_idx, chosen_column, dtxsid_cols) {
   if (is_wqx_evidence) {
     df$consensus_name[row_idx] <- pref_name
   }
-  df$consensus_source[row_idx] <- sub("^dtxsid_", "", chosen_column)
+  df$consensus_source[row_idx] <- source_column_name(chosen_column)
   df$.pinned[row_idx] <- TRUE
   df$.resolution_method[row_idx] <- "manual"
+  # The reviewer overrode the hold; its reason no longer describes the row (#127).
+  if (isTRUE(startsWith(df$.resolution_reason[row_idx], "held:"))) {
+    df$.resolution_reason[row_idx] <- NA_character_
+  }
 
   df
 }
@@ -731,6 +747,13 @@ resolve_row <- function(df, row_idx, chosen_column, dtxsid_cols) {
 # ============================================================================
 # apply_priority_chain
 # ============================================================================
+
+# Rows a bulk path (priority chain, accept-all) must leave for a reviewer (#132).
+bulk_blocked_rows <- function(df) {
+  scope <- identity_scope_blockers(df)
+  scope$scope | scope$conflict | scope$stale |
+    identity_col(df, "row_flag") %in% c("BAD", "FOLLOW-UP")
+}
 
 #' Apply en masse column priority to resolve all non-pinned disagree rows
 #'
@@ -742,12 +765,17 @@ resolve_row <- function(df, row_idx, chosen_column, dtxsid_cols) {
 apply_priority_chain <- function(df, priority_order, dtxsid_cols) {
   df <- init_resolution_state(df)
 
+  blocked <- bulk_blocked_rows(df)
   for (i in seq_len(nrow(df))) {
     # Only process disagree rows that are not pinned
-    if (df$consensus_status[i] != "disagree") {
+    if (blocked[i] || !df$consensus_status[i] %in% "disagree") {
       next
     }
     if (isTRUE(df$.pinned[i])) {
+      next
+    }
+    # Held rows need a reviewer; a bulk chain must not resolve them (#128).
+    if (isTRUE(startsWith(df$.resolution_reason[i], "held:"))) {
       next
     }
 
@@ -756,7 +784,7 @@ apply_priority_chain <- function(df, priority_order, dtxsid_cols) {
       val <- df[[col]][i]
       if (!is.na(val)) {
         df$consensus_dtxsid[i] <- val
-        df$consensus_source[i] <- sub("^dtxsid_", "", col)
+        df$consensus_source[i] <- source_column_name(col)
         break
       }
     }
@@ -776,6 +804,12 @@ apply_priority_chain <- function(df, priority_order, dtxsid_cols) {
 #'   - Auto-resolve: best score >= 0.95 AND gap >= 0.15
 #'   - Suggest: best score >= 0.70 (but not auto-resolve eligible)
 #'   - Leave as disagree: best score < 0.70
+#'
+#' Rows are also held as disagree, with the reason in `.resolution_reason`,
+#' when WQX name evidence conflicts with the DTXSID candidates, or when a
+#' would-be suggestion's name has token Jaccard similarity below 0.5 with the input
+#' (or either name is missing)
+#' (see [name_token_similarity()]). Held rows are never bulk-accepted.
 #'
 #' @param resolution_state Data frame with consensus_status, similarity_score, dtxsid_*,
 #'   preferredName_*, rank_* columns
@@ -823,6 +857,11 @@ classify_auto_resolve <- function(
     return(resolution_state)
   }
 
+  # These rows are re-decided below; a reason or suggestion from an earlier run
+  # is stale (#127).
+  resolution_state$.resolution_reason[disagree_idx] <- NA_character_
+  resolution_state$.suggested_column[disagree_idx] <- NA_character_
+
   has_synonyms <- !is.null(enrichment_cache) &&
     nrow(enrichment_cache) > 0 &&
     "synonyms" %in% names(enrichment_cache)
@@ -834,15 +873,28 @@ classify_auto_resolve <- function(
     character(0)
   }
 
-  # Pre-build column name -> stripped source name map (avoids repeated sub() in loop)
+  # Pre-build column name -> source name map (avoids repeated lookups in loop)
   source_names <- stats::setNames(
-    sub("^dtxsid_", "", dtxsid_cols),
+    vapply(dtxsid_cols, source_column_name, character(1)),
     dtxsid_cols
   )
+
+  # Held rows stay disagree so bulk acceptance can never pick them. Reasons are
+  # assigned after the loop: per-row data frame writes dominate its cost.
+  held_reason <- rep(NA_character_, nrow(resolution_state))
+  tier_cols <- intersect(vapply(dtxsid_cols, source_field_column, character(1), prefix = "source_tier"), names(resolution_state))
+  has_wqx_tier <- Reduce(`|`, lapply(tier_cols, function(col) is_wqx_tier(resolution_state[[col]])), rep(FALSE, nrow(resolution_state)))
 
   for (i in disagree_idx) {
     input_name <- as.character(resolution_state[[name_col]][i])
     if (is.na(input_name) || nchar(trimws(input_name)) == 0) {
+      next
+    }
+
+    # WQX name evidence carries no DTXSID, so it is never scored. Scoring the
+    # rest would let a lone CAS hit win with a trivial gap.
+    if (has_wqx_tier[i] && has_wqx_evidence_conflict(resolution_state, dtxsid_cols, i)) {
+      held_reason[i] <- "held: WQX name evidence conflicts with DTXSID candidates"
       next
     }
 
@@ -855,8 +907,8 @@ classify_auto_resolve <- function(
         next
       }
 
-      pref_col <- sub("^dtxsid_", "preferredName_", col)
-      rank_col <- sub("^dtxsid_", "rank_", col)
+      pref_col <- source_field_column(col, "preferredName")
+      rank_col <- source_field_column(col, "rank")
       pref_name <- if (pref_col %in% names(resolution_state)) {
         resolution_state[[pref_col]][i]
       } else {
@@ -890,6 +942,14 @@ classify_auto_resolve <- function(
     best_col <- names(candidate_scores)[1]
     second_best <- if (length(candidate_scores) >= 2) candidate_scores[2] else 0.0
     gap <- best_score - second_best
+    # Jaro rewards a shared prefix ("Phosphorus, total" vs "Phosphorus-31"), so a
+    # suggestion must also share most name tokens. NA similarity fails closed.
+    drift <- if (best_score >= suggest_threshold) {
+      pref_col <- source_field_column(best_col, "preferredName")
+      name_token_similarity(input_name, if (pref_col %in% names(resolution_state)) resolution_state[[pref_col]][i] else NA_character_)
+    } else {
+      NA_real_
+    }
 
     if (best_score >= auto_threshold && gap >= gap_threshold) {
       # Auto-resolve: clear winner with sufficient margin
@@ -905,6 +965,8 @@ classify_auto_resolve <- function(
       resolution_state$consensus_dtxsid[i] <- resolution_state[[best_col]][i]
       resolution_state$consensus_source[i] <- source_names[[best_col]]
       resolution_state$.suggested_column[i] <- best_col
+    } else if (best_score >= suggest_threshold && !isTRUE(drift >= 0.5)) {
+      held_reason[i] <- sprintf("held: name token similarity=%.2f < 0.50", drift)
     } else if (best_score >= suggest_threshold) {
       # Suggest: good score but not conclusive enough to auto-resolve
       resolution_state$consensus_status[i] <- "suggested"
@@ -921,6 +983,8 @@ classify_auto_resolve <- function(
     # else: leave as "disagree" -- best score below suggest_threshold
   }
 
+  held <- !is.na(held_reason)
+  resolution_state$.resolution_reason[held] <- held_reason[held]
   resolution_state
 }
 
@@ -941,9 +1005,7 @@ classify_auto_resolve <- function(
 accept_all_suggestions <- function(df, dtxsid_cols) {
   df <- init_resolution_state(df)
 
-  scope <- identity_scope_blockers(df)
-  blocked <- scope$scope | scope$conflict | scope$stale |
-    identity_col(df, "row_flag") %in% c("BAD", "FOLLOW-UP")
+  blocked <- bulk_blocked_rows(df)
   for (i in seq_len(nrow(df))) {
     if (blocked[i] || is.na(df$consensus_status[i]) || df$consensus_status[i] != "suggested") {
       next
@@ -963,7 +1025,7 @@ accept_all_suggestions <- function(df, dtxsid_cols) {
     }
 
     df$consensus_dtxsid[i] <- val
-    df$consensus_source[i] <- sub("^dtxsid_", "", best_col)
+    df$consensus_source[i] <- source_column_name(best_col)
     df$.pinned[i] <- TRUE
     df$.resolution_method[i] <- "bulk-accept"
     # Preserve existing .resolution_reason from classification

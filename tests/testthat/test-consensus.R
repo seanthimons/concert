@@ -1393,6 +1393,233 @@ test_that("accept_all_suggestions: skips pinned rows", {
   }
 })
 
+# Regression: treatment run, "Phosphorus, total" + CAS 7723-14-0. The name hit
+# only WQX (no DTXSID); the lone CAS candidate won with a trivial gap and was
+# bulk-accepted as Phosphorus-31 without review.
+test_that("classify_auto_resolve: WQX name conflict stays disagree and is not bulk-accepted", {
+  df <- data.frame(
+    Chemical = "Phosphorus, total",
+    dtxsid = NA_character_,
+    preferredName = "Total Phosphorus, mixed forms",
+    source_tier = "wqx_alias",
+    rank = NA_integer_,
+    dtxsid_CAS = "DTXSID1024382",
+    preferredName_CAS = "Phosphorus-31",
+    source_tier_CAS = "cas",
+    rank_CAS = 1L,
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+  expect_equal(df$consensus_status, "disagree")
+
+  cache <- tibble::tibble(dtxsid = "DTXSID1024382", synonyms = "Phosphorus|Phosphorus, elemental")
+  result <- classify_auto_resolve(df, cache, dtxsid_cols, list(Chemical = "Name"))
+  expect_equal(result$consensus_status, "disagree")
+  expect_true(is.na(result$.suggested_column))
+  expect_match(result$.resolution_reason, "WQX")
+
+  accepted <- accept_all_suggestions(result, dtxsid_cols)
+  expect_false(isTRUE(accepted$.pinned))
+  expect_true(is.na(accepted$consensus_dtxsid))
+})
+
+test_that("classify_auto_resolve: suggestion whose name tokens drift stays disagree", {
+  df <- data.frame(
+    Chemical = "Phosphorus, total",
+    dtxsid_Chemical = "DTXSID0000001",
+    preferredName_Chemical = "Phosphorus pentoxide",
+    dtxsid_CAS = "DTXSID1024382",
+    preferredName_CAS = "Phosphorus-31",
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  # Jaro alone would suggest (best ~0.80, gap ~0.02); token similarity is 1/3.
+  result <- classify_auto_resolve(df, NULL, dtxsid_cols, list(Chemical = "Name"))
+  expect_equal(result$consensus_status, "disagree")
+  expect_true(is.na(result$.suggested_column))
+  expect_match(result$.resolution_reason, "similarity=0.33")
+  expect_false(isTRUE(accept_all_suggestions(result, dtxsid_cols)$.pinned))
+})
+
+test_that("held reasons are cleared by a re-run that no longer holds and by a manual pick (#127)", {
+  df <- data.frame(
+    Chemical = "Phosphorus, total",
+    dtxsid_Chemical = "DTXSID0000001",
+    preferredName_Chemical = "Phosphorus pentoxide",
+    dtxsid_CAS = "DTXSID1024382",
+    preferredName_CAS = "Phosphorus-31",
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  held <- classify_auto_resolve(classify_consensus(df, dtxsid_cols), NULL, dtxsid_cols, list(Chemical = "Name"))
+  expect_match(held$.resolution_reason, "^held:")
+
+  # Candidates change so the row scores below the suggest band: no hold, no reason.
+  rerun <- held
+  rerun$preferredName_Chemical <- "Xylene"
+  rerun$preferredName_CAS <- "Toluene"
+  rerun <- classify_auto_resolve(rerun, NULL, dtxsid_cols, list(Chemical = "Name"))
+  expect_equal(rerun$consensus_status, "disagree")
+  expect_true(is.na(rerun$.resolution_reason))
+
+  picked <- resolve_row(held, 1, "dtxsid_Chemical", dtxsid_cols)
+  expect_equal(picked$.resolution_method, "manual")
+  expect_true(is.na(picked$.resolution_reason))
+})
+
+test_that("apply_priority_chain skips held rows (#128)", {
+  df <- data.frame(
+    Chemical = c("Phosphorus, total", "Silica"),
+    dtxsid_Chemical = c("DTXSID0000001", "DTXSID1"),
+    preferredName_Chemical = c("Phosphorus pentoxide", "Quartz"),
+    dtxsid_CAS = c("DTXSID1024382", "DTXSID9"),
+    preferredName_CAS = c("Phosphorus-31", "Cristobalite"),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  held <- classify_auto_resolve(classify_consensus(df, dtxsid_cols), NULL, dtxsid_cols, list(Chemical = "Name"))
+  expect_match(held$.resolution_reason[1], "^held:")
+  expect_equal(held$consensus_status[2], "disagree")
+
+  chained <- apply_priority_chain(held, c("dtxsid_CAS", "dtxsid_Chemical"), dtxsid_cols)
+  expect_true(is.na(chained$consensus_dtxsid[1]))
+  expect_equal(chained$consensus_dtxsid[2], "DTXSID9")
+})
+
+test_that("apply_priority_chain skips blocked and flagged rows and tolerates NA status (#132)", {
+  df <- init_resolution_state(data.frame(
+    Chemical = c("Lead", "Benzene", "Toluene", "Xylene"),
+    consensus_status = c("disagree", "disagree", NA, "disagree"),
+    consensus_dtxsid = NA_character_,
+    consensus_source = NA_character_,
+    dtxsid_CAS = c("DTXSID1", "DTXSID2", "DTXSID3", "DTXSID4"),
+    identity_scope = c(NA, "aggregate", NA, NA),
+    stringsAsFactors = FALSE
+  ))
+  df$row_flag[4] <- "BAD"
+
+  chained <- apply_priority_chain(df, "dtxsid_CAS", "dtxsid_CAS")
+  expect_equal(chained$consensus_dtxsid, c("DTXSID1", NA, NA, NA))
+})
+
+test_that("a re-run clears the suggestion of a row that drops back to disagree (#133)", {
+  df <- data.frame(
+    Chemical = "Silica",
+    dtxsid_Chemical = "DTXSID1",
+    preferredName_Chemical = "Silica",
+    dtxsid_CAS = "DTXSID9",
+    preferredName_CAS = "Quartz",
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  suggested <- classify_auto_resolve(classify_consensus(df, dtxsid_cols), NULL, dtxsid_cols, list(Chemical = "Name"))
+  expect_false(is.na(suggested$.suggested_column))
+
+  rerun <- suggested
+  rerun$consensus_status <- "disagree"
+  rerun$.pinned <- FALSE
+  rerun$preferredName_Chemical <- "Xylene"
+  rerun$preferredName_CAS <- "Toluene"
+  rerun <- classify_auto_resolve(rerun, NULL, dtxsid_cols, list(Chemical = "Name"))
+  expect_equal(rerun$consensus_status, "disagree")
+  expect_true(is.na(rerun$.suggested_column))
+  expect_true(is.na(rerun$.resolution_reason))
+})
+
+test_that("every resolver labels the unsuffixed Name column as \"Name\" (#134)", {
+  df <- init_resolution_state(data.frame(
+    Chemical = "Lead",
+    consensus_status = "disagree",
+    consensus_dtxsid = NA_character_,
+    consensus_source = NA_character_,
+    dtxsid = "DTXSID1",
+    dtxsid_CAS = "DTXSID2",
+    stringsAsFactors = FALSE
+  ))
+  cols <- c("dtxsid", "dtxsid_CAS")
+  expect_equal(resolve_row(df, 1, "dtxsid", cols)$consensus_source, "Name")
+  expect_equal(apply_priority_chain(df, cols, cols)$consensus_source, "Name")
+  df$consensus_status <- "suggested"
+  df$.suggested_column <- "dtxsid"
+  expect_equal(accept_all_suggestions(df, cols)$consensus_source, "Name")
+
+  expect_equal(source_to_column("preferredName", "Name"), "preferredName")
+  expect_equal(source_to_column("preferredName", "dtxsid"), "preferredName")
+  expect_equal(source_to_column("preferredName", "CAS"), "preferredName_CAS")
+})
+
+test_that("classify_auto_resolve: no source_tier columns still suggests past row 1", {
+  df <- data.frame(
+    Chemical = c("Silica", "Benzene"),
+    dtxsid_Chemical = c("DTXSID1", "DTXSID2"),
+    preferredName_Chemical = c("Silica", "Benzene"),
+    dtxsid_CAS = c("DTXSID9", "DTXSID8"),
+    preferredName_CAS = c("Quartz", "Toluene"),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+  result <- classify_auto_resolve(df, NULL, dtxsid_cols, list(Chemical = "Name"))
+  expect_true(all(result$consensus_status %in% c("auto_resolved", "suggested")))
+  expect_false(any(grepl("^held", result$.resolution_reason)))
+})
+
+test_that("unsuffixed dtxsid column is scored on its preferredName and rank (#126)", {
+  df <- data.frame(
+    Chemical = "Benzene",
+    dtxsid = "DTXSID2",
+    preferredName = "Benzene",
+    rank = 1L,
+    dtxsid_CAS = "DTXSID8",
+    preferredName_CAS = "Toluene",
+    rank_CAS = 1L,
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  expect_equal(compute_similarity_scores(df, NULL, dtxsid_cols, list(Chemical = "Name"))$similarity_score, 1)
+  result <- classify_auto_resolve(df, NULL, dtxsid_cols, list(Chemical = "Name"))
+  expect_equal(result$consensus_status, "auto_resolved")
+  expect_equal(result$.suggested_column, "dtxsid")
+  expect_equal(result$consensus_dtxsid, "DTXSID2")
+})
+
+test_that("normalize_identity_evidence_name keeps uppercase letters", {
+  expect_equal(normalize_identity_evidence_name(c("Nitrogen", "Total Phosphorus, mixed forms", NA)),
+               c("nitrogen", "totalphosphorusmixedforms", NA))
+})
+
+test_that("classify_auto_resolve: holds stay within time budget at 2k disagree rows", {
+  skip_on_cran()
+  n <- 2000
+  df <- data.frame(
+    Chemical = rep(c("Phosphorus, total", "Silica"), length.out = n),
+    dtxsid = ifelse(seq_len(n) %% 2 == 0, NA, paste0("DTXSID", seq_len(n))),
+    preferredName = rep(c("Silica", "Total Phosphorus, mixed forms"), length.out = n),
+    source_tier = ifelse(seq_len(n) %% 2 == 0, "wqx_alias", "exact"),
+    dtxsid_CAS = paste0("DTXSID9", seq_len(n)),
+    preferredName_CAS = "Phosphorus-31",
+    source_tier_CAS = "cas",
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+  # ~0.8s on a dev laptop; ceiling ~10x catches per-row data frame writes.
+  elapsed <- system.time(classify_auto_resolve(df, NULL, dtxsid_cols, list(Chemical = "Name")))[["elapsed"]]
+  expect_lt(elapsed, 8, label = sprintf("%.2fs elapsed", elapsed))
+})
+
+test_that("name_token_similarity: token Jaccard with NA passthrough", {
+  expect_equal(name_token_similarity("Phosphorus, total", "Phosphorus-31"), 1 / 3)
+  expect_equal(name_token_similarity("Silica", "Silica gel"), 0.5)
+  expect_equal(name_token_similarity(c("a b", NA), c("A-B", "x")), c(1, NA))
+  expect_identical(name_token_similarity(character(0), character(0)), numeric(0))
+})
+
 # ============================================================================
 # Test Group 19: resolve_row with auto_resolved / suggested statuses
 # ============================================================================
