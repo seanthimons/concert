@@ -64,7 +64,7 @@ resolution_state with updated consensus_status, .pinned,
 
 Rows are also held as disagree, with the reason in `.resolution_reason`,
 when WQX name evidence conflicts with the DTXSID candidates, or when a
-would-be suggestion shares fewer than half its name tokens with the
-input (see
+would-be suggestion's name has token Jaccard similarity below 0.5 with
+the input (or either name is missing) (see
 [`name_token_similarity()`](https://seanthimons.github.io/concert/reference/name_token_similarity.md)).
 Held rows are never bulk-accepted.

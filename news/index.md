@@ -1,9 +1,49 @@
 # Changelog
 
+## concert 0.6.7 (2026-10-29)
+
+#### New features
+
+- flag measurement qualifiers and hold fraction-qualified nutrients
+  ([ef322f7](https://github.com/seanthimons/concert/tree/ef322f77e95eead470add4a7ca822a87740c5f00))
+
+#### Bug fixes
+
+- gate the priority chain and normalise consensus_source
+  ([82f4dec](https://github.com/seanthimons/concert/tree/82f4dec13ed5f04d8fcca90d10049048cdf2d5e7))
+- priority chain skips rows held by classify_auto_resolve
+  ([6cb19ca](https://github.com/seanthimons/concert/tree/6cb19cad0348f510556052e0ed7b18217f0c1416))
+- clear stale “held:” resolution reasons
+  ([efcd8b8](https://github.com/seanthimons/concert/tree/efcd8b837e783759baa783c2b3ba5b8e60bc6bda))
+- score the unsuffixed dtxsid column on its own preferredName and rank
+  ([516a262](https://github.com/seanthimons/concert/tree/516a262aef4f2d0a89b5a011845531d2caf4523d))
+- hold WQX-conflict and name-drift rows in classify_auto_resolve
+  ([1fb2f69](https://github.com/seanthimons/concert/tree/1fb2f693adcdd45a9cba5f66a513e66827cd68f9))
+
+#### CI
+
+- restore locked-review from the lockfile snapshot, not public RSPM
+  ([ec5403b](https://github.com/seanthimons/concert/tree/ec5403bb0cf16510457810ae089598edc3bf5a7e))
+
+#### Docs
+
+- add harmonize_methodology to pkgdown reference index
+  ([0978ef8](https://github.com/seanthimons/concert/tree/0978ef809867b4faa2617c11b74f34fd051ab145))
+
+#### Other changes
+
+- bump version to 0.6.7 \[skip ci\]
+  ([c3e04d1](https://github.com/seanthimons/concert/tree/c3e04d12b66574d47d528b1ee7bc482736cc734c))
+
+Full set of changes:
+[`v0.6.6...v0.6.7`](https://github.com/seanthimons/concert/compare/v0.6.6...v0.6.7)
+
 ## concert 0.6.6 (2026-10-16)
 
 #### Docs
 
+- update NEWS.md for v0.6.6 \[skip ci\]
+  ([8eb71cf](https://github.com/seanthimons/concert/tree/8eb71cfd61b9ec546b0e945d93c0fa4f632e1e03))
 - document ComptoxR pin, API key setup and deployment security
   ([95f563a](https://github.com/seanthimons/concert/tree/95f563a521fd64154c6cfb84f4d183cea3ceeb02))
 
