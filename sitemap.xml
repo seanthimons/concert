@@ -88,6 +88,7 @@
 <url><loc>https://seanthimons.github.io/concert/reference/extract_wqx_alias_units.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/fetch_molecular_weight.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/find_dtxsid_cols.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/flag_measurement_qualifier.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/flag_multi_analyte.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/flag_reference_matches.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/format_file_size.html</loc></url>
@@ -160,6 +161,7 @@
 <url><loc>https://seanthimons.github.io/concert/reference/mod_tag_columns_server.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/mod_tag_columns_ui.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/multi_analyte_separator_pattern.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/name_token_similarity.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/normalize_cas_fields.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/normalize_numeric_string.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/normalize_row_flag.html</loc></url>

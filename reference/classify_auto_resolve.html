@@ -111,6 +111,13 @@ preferredName_</em>, rank_* columns</p></dd>
     <p>resolution_state with updated consensus_status, .pinned, .resolution_method,
 .resolution_reason, and .suggested_column columns</p>
     </div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p>Rows are also held as disagree, with the reason in <code>.resolution_reason</code>,
+when WQX name evidence conflicts with the DTXSID candidates, or when a
+would-be suggestion shares fewer than half its name tokens with the input
+(see <code><a href="name_token_similarity.html">name_token_similarity()</a></code>). Held rows are never bulk-accepted.</p>
+    </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>

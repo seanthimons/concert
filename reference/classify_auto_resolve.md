@@ -59,3 +59,12 @@ classify_auto_resolve(
 
 resolution_state with updated consensus_status, .pinned,
 .resolution_method, .resolution_reason, and .suggested_column columns
+
+## Details
+
+Rows are also held as disagree, with the reason in `.resolution_reason`,
+when WQX name evidence conflicts with the DTXSID candidates, or when a
+would-be suggestion shares fewer than half its name tokens with the
+input (see
+[`name_token_similarity()`](https://seanthimons.github.io/concert/reference/name_token_similarity.md)).
+Held rows are never bulk-accepted.
