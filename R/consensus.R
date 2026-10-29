@@ -175,7 +175,7 @@ classify_consensus <- function(df, dtxsid_cols) {
   }
 
   # Pre-compute source_tier column names (avoids repeated sub() inside loop)
-  tier_cols <- ifelse(dtxsid_cols == "dtxsid", "source_tier", sub("^dtxsid_", "source_tier_", dtxsid_cols))
+  tier_cols <- vapply(dtxsid_cols, source_field_column, character(1), prefix = "source_tier", USE.NAMES = FALSE)
   tier_cols_exist <- tier_cols %in% names(df)
 
   for (i in seq_len(nrow(df))) {
@@ -221,18 +221,10 @@ classify_consensus <- function(df, dtxsid_cols) {
         consensus_dtxsid[i] <- NA_character_
         # Find which column had the WQX resolution for source attribution
         wqx_col_idx <- which(!is.na(row_tiers) & grepl("^wqx_", row_tiers))[1]
-        consensus_source[i] <- if (tier_cols[wqx_col_idx] == "source_tier") {
-          "Name"
-        } else {
-          sub("^source_tier_", "", tier_cols[wqx_col_idx])
-        }
+        consensus_source[i] <- source_column_name(dtxsid_cols[wqx_col_idx])
         # Promote the resolved WQX canonical name from the parallel preferredName column
         # so it survives into the ToxVal export as a non-DTXSID crosswalk key.
-        pref_col <- if (dtxsid_cols[wqx_col_idx] == "dtxsid") {
-          "preferredName"
-        } else {
-          sub("^dtxsid_", "preferredName_", dtxsid_cols[wqx_col_idx])
-        }
+        pref_col <- source_field_column(dtxsid_cols[wqx_col_idx], "preferredName")
         if (pref_col %in% names(df)) {
           consensus_name[i] <- as.character(df[[pref_col]][i])
         }
@@ -253,7 +245,7 @@ classify_consensus <- function(df, dtxsid_cols) {
       consensus_dtxsid[i] <- non_na[1]
       # Find which column had the value
       src_col <- dtxsid_cols[!is.na(values)][1]
-      consensus_source[i] <- if (src_col == "dtxsid") "Name" else sub("^dtxsid_", "", src_col)
+      consensus_source[i] <- source_column_name(src_col)
       qc_tier[i] <- compute_qc_tier("single", 1L, k)
     } else if (n_unique == 1 && n_present == k) {
       # All columns agree
@@ -741,7 +733,7 @@ resolve_row <- function(df, row_idx, chosen_column, dtxsid_cols) {
   if (is_wqx_evidence) {
     df$consensus_name[row_idx] <- pref_name
   }
-  df$consensus_source[row_idx] <- sub("^dtxsid_", "", chosen_column)
+  df$consensus_source[row_idx] <- source_column_name(chosen_column)
   df$.pinned[row_idx] <- TRUE
   df$.resolution_method[row_idx] <- "manual"
   # The reviewer overrode the hold; its reason no longer describes the row (#127).
@@ -756,6 +748,13 @@ resolve_row <- function(df, row_idx, chosen_column, dtxsid_cols) {
 # apply_priority_chain
 # ============================================================================
 
+# Rows a bulk path (priority chain, accept-all) must leave for a reviewer (#132).
+bulk_blocked_rows <- function(df) {
+  scope <- identity_scope_blockers(df)
+  scope$scope | scope$conflict | scope$stale |
+    identity_col(df, "row_flag") %in% c("BAD", "FOLLOW-UP")
+}
+
 #' Apply en masse column priority to resolve all non-pinned disagree rows
 #'
 #' @param df Classified data frame
@@ -766,9 +765,10 @@ resolve_row <- function(df, row_idx, chosen_column, dtxsid_cols) {
 apply_priority_chain <- function(df, priority_order, dtxsid_cols) {
   df <- init_resolution_state(df)
 
+  blocked <- bulk_blocked_rows(df)
   for (i in seq_len(nrow(df))) {
     # Only process disagree rows that are not pinned
-    if (df$consensus_status[i] != "disagree") {
+    if (blocked[i] || !df$consensus_status[i] %in% "disagree") {
       next
     }
     if (isTRUE(df$.pinned[i])) {
@@ -784,7 +784,7 @@ apply_priority_chain <- function(df, priority_order, dtxsid_cols) {
       val <- df[[col]][i]
       if (!is.na(val)) {
         df$consensus_dtxsid[i] <- val
-        df$consensus_source[i] <- sub("^dtxsid_", "", col)
+        df$consensus_source[i] <- source_column_name(col)
         break
       }
     }
@@ -857,9 +857,10 @@ classify_auto_resolve <- function(
     return(resolution_state)
   }
 
-  # Holds are re-decided below; a reason from an earlier run is stale (#127).
-  stale_hold <- disagree_idx[startsWith(resolution_state$.resolution_reason[disagree_idx], "held:") %in% TRUE]
-  resolution_state$.resolution_reason[stale_hold] <- NA_character_
+  # These rows are re-decided below; a reason or suggestion from an earlier run
+  # is stale (#127).
+  resolution_state$.resolution_reason[disagree_idx] <- NA_character_
+  resolution_state$.suggested_column[disagree_idx] <- NA_character_
 
   has_synonyms <- !is.null(enrichment_cache) &&
     nrow(enrichment_cache) > 0 &&
@@ -872,9 +873,9 @@ classify_auto_resolve <- function(
     character(0)
   }
 
-  # Pre-build column name -> stripped source name map (avoids repeated sub() in loop)
+  # Pre-build column name -> source name map (avoids repeated lookups in loop)
   source_names <- stats::setNames(
-    sub("^dtxsid_", "", dtxsid_cols),
+    vapply(dtxsid_cols, source_column_name, character(1)),
     dtxsid_cols
   )
 
@@ -1004,9 +1005,7 @@ classify_auto_resolve <- function(
 accept_all_suggestions <- function(df, dtxsid_cols) {
   df <- init_resolution_state(df)
 
-  scope <- identity_scope_blockers(df)
-  blocked <- scope$scope | scope$conflict | scope$stale |
-    identity_col(df, "row_flag") %in% c("BAD", "FOLLOW-UP")
+  blocked <- bulk_blocked_rows(df)
   for (i in seq_len(nrow(df))) {
     if (blocked[i] || is.na(df$consensus_status[i]) || df$consensus_status[i] != "suggested") {
       next
@@ -1026,7 +1025,7 @@ accept_all_suggestions <- function(df, dtxsid_cols) {
     }
 
     df$consensus_dtxsid[i] <- val
-    df$consensus_source[i] <- sub("^dtxsid_", "", best_col)
+    df$consensus_source[i] <- source_column_name(best_col)
     df$.pinned[i] <- TRUE
     df$.resolution_method[i] <- "bulk-accept"
     # Preserve existing .resolution_reason from classification

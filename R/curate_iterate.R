@@ -396,7 +396,7 @@ low_similarity_rows <- function(state, threshold = 0.5) {
   pref <- rep(NA_character_, n)
   src <- rs$consensus_source %||% rep(NA_character_, n)
   for (s in unique(src[!is.na(src)])) {
-    col <- paste0("preferredName_", s)
+    col <- source_to_column("preferredName", s)
     mask <- !is.na(src) & src == s
     if (col %in% names(rs)) {
       pref[mask] <- as.character(rs[[col]][mask])
