@@ -43,7 +43,7 @@ is_wqx_tier <- function(x) {
 normalize_identity_evidence_name <- function(x) {
   x <- as.character(x)
   x[is.na(x)] <- NA_character_
-  normalized <- tolower(gsub("[^a-z0-9]+", "", x))
+  normalized <- gsub("[^a-z0-9]+", "", tolower(x))
   normalized[!nzchar(normalized)] <- NA_character_
   normalized
 }
@@ -673,8 +673,8 @@ compute_similarity_scores <- function(resolution_state, enrichment_cache, dtxsid
         next
       }
 
-      pref_col <- sub("^dtxsid_", "preferredName_", col)
-      rank_col <- sub("^dtxsid_", "rank_", col)
+      pref_col <- source_field_column(col, "preferredName")
+      rank_col <- source_field_column(col, "rank")
       pref_name <- if (pref_col %in% names(resolution_state)) resolution_state[[pref_col]][i] else NA_character_
       rank_val <- if (rank_col %in% names(resolution_state)) resolution_state[[rank_col]][i] else NA_real_
 
@@ -894,8 +894,8 @@ classify_auto_resolve <- function(
         next
       }
 
-      pref_col <- sub("^dtxsid_", "preferredName_", col)
-      rank_col <- sub("^dtxsid_", "rank_", col)
+      pref_col <- source_field_column(col, "preferredName")
+      rank_col <- source_field_column(col, "rank")
       pref_name <- if (pref_col %in% names(resolution_state)) {
         resolution_state[[pref_col]][i]
       } else {

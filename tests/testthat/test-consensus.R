@@ -1460,6 +1460,32 @@ test_that("classify_auto_resolve: no source_tier columns still suggests past row
   expect_false(any(grepl("^held", result$.resolution_reason)))
 })
 
+test_that("unsuffixed dtxsid column is scored on its preferredName and rank (#126)", {
+  df <- data.frame(
+    Chemical = "Benzene",
+    dtxsid = "DTXSID2",
+    preferredName = "Benzene",
+    rank = 1L,
+    dtxsid_CAS = "DTXSID8",
+    preferredName_CAS = "Toluene",
+    rank_CAS = 1L,
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid", "dtxsid_CAS")
+  df <- classify_consensus(df, dtxsid_cols)
+
+  expect_equal(compute_similarity_scores(df, NULL, dtxsid_cols, list(Chemical = "Name"))$similarity_score, 1)
+  result <- classify_auto_resolve(df, NULL, dtxsid_cols, list(Chemical = "Name"))
+  expect_equal(result$consensus_status, "auto_resolved")
+  expect_equal(result$.suggested_column, "dtxsid")
+  expect_equal(result$consensus_dtxsid, "DTXSID2")
+})
+
+test_that("normalize_identity_evidence_name keeps uppercase letters", {
+  expect_equal(normalize_identity_evidence_name(c("Nitrogen", "Total Phosphorus, mixed forms", NA)),
+               c("nitrogen", "totalphosphorusmixedforms", NA))
+})
+
 test_that("classify_auto_resolve: holds stay within time budget at 2k disagree rows", {
   skip_on_cran()
   n <- 2000

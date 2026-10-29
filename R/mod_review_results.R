@@ -3062,7 +3062,7 @@ mod_review_results_server <- function(id, data_store) {
           data_store$consensus_summary <- recalc_consensus_summary(updated_df)
 
           opt_dtxsid <- updated_df$consensus_dtxsid[row_idx]
-          pref_col <- sub("^dtxsid_", "preferredName_", suggested_col)
+          pref_col <- source_field_column(suggested_col, "preferredName")
           opt_pref <- if (pref_col %in% names(updated_df)) updated_df[[pref_col]][row_idx] else NA_character_
           notification_msg <- if (!is.na(opt_pref)) {
             sprintf("Accepted suggestion for %d row(s): %s - %s", length(group_rows), opt_dtxsid, opt_pref)
