@@ -203,6 +203,18 @@ test_that("low_similarity_rows flags accepted matches whose preferred name drift
   expect_equal(nrow(low_similarity_rows(list(resolution_state = rs[0, ], merged_chemical_tags = list()))), 0)
 })
 
+test_that("low_similarity_rows reads the unsuffixed Name column's preferred name (#134)", {
+  rs <- init_resolution_state(tibble::tibble(
+    chemical_name = c("Total PFAS", "Lead"),
+    consensus_dtxsid = c("DTXSID1", "DTXSID2"),
+    consensus_source = c("Name", "dtxsid"),
+    consensus_status = "single",
+    preferredName = c("Total Furans", "Lead")
+  ))
+  state <- list(resolution_state = rs, merged_chemical_tags = list(chemical_name = "Name"))
+  expect_equal(low_similarity_rows(state)$name, "Total PFAS")
+})
+
 test_that("pending reopens contradictory verification with provenance and multi-analyte priority", {
   rs <- tibble::tibble(
     chemical_name = c("PFHxDA", "Unresolved", "Deferred", "Bad", "Carbon", "Known", "A + B"),

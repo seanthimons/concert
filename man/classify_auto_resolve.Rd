@@ -43,3 +43,9 @@ per-candidate scores and applies threshold logic (D-01/D-02/D-03):
 \item Leave as disagree: best score < 0.70
 }
 }
+\details{
+Rows are also held as disagree, with the reason in \code{.resolution_reason},
+when WQX name evidence conflicts with the DTXSID candidates, or when a
+would-be suggestion shares fewer than half its name tokens with the input
+(see \code{\link[=name_token_similarity]{name_token_similarity()}}). Held rows are never bulk-accepted.
+}

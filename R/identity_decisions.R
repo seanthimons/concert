@@ -46,6 +46,13 @@ identity_fingerprint_values <- function(df, row, cols, version) {
   values <- lapply(as.list(df[row, cols, drop = FALSE]), function(x) {
     x <- trimws(as.character(x)); x[is.na(x) | !nzchar(x)] <- NA_character_; x
   })
+  # The qualifier warning restates the name, which is already evidence; keep it
+  # out so adding the step does not stale existing decisions (#129).
+  if (!is.null(values$cleaning_flag)) {
+    flag <- gsub(paste0("(^|;\\s*)", measurement_qualifier_warning_label(), " \\[[^]]*\\]"), "", values$cleaning_flag)
+    flag <- sub("^;\\s*", "", flag)
+    values$cleaning_flag <- ifelse(is.na(flag) | !nzchar(flag), NA_character_, flag)
+  }
   values <- values[!vapply(values, function(x) all(is.na(x)), logical(1))]
   paste0("identity-v", version, ":", digest::digest(values, algo = "sha256"))
 }

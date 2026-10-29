@@ -12,6 +12,22 @@ accepted_suggestion_rows <- function(df) {
     identity_col(df, ".resolution_method") %in% c("bulk-accept", "manual", "user-pick")
 }
 
+# "Nitrogen, total" is a measurement, not N2. A fraction qualifier on a row that
+# resolved to a bare nutrient needs a reviewer, whatever its consensus status (#129).
+# ponytail: hard-coded IDs; add more when another bare-element mapping turns up.
+qualified_nutrient_dtxsids <- function() {
+  c(nitrogen = "DTXSID4036304", phosphorus = "DTXSID1024382", phosphate = "DTXSID7039672")
+}
+
+qualified_nutrient_rows <- function(df) {
+  flag <- identity_col(df, "cleaning_flag")
+  fraction <- !is.na(flag) & grepl(
+    paste0(measurement_qualifier_warning_label(), " \\[[^]]*", MEASUREMENT_FRACTION_PATTERN),
+    flag, ignore.case = TRUE, perl = TRUE
+  )
+  fraction & identity_col(df, "consensus_dtxsid") %in% qualified_nutrient_dtxsids()
+}
+
 identity_scope_blockers <- function(df) {
   n <- nrow(df)
   scope <- identity_col(df, "identity_scope")
@@ -23,7 +39,8 @@ identity_scope_blockers <- function(df) {
     scope %in% c("substance", "registered_mixture") &
     identity_decision_current_rows(df)
   list(
-    scope = (multi | component | combined | scope %in% c("unknown", "aggregate", "class", "registered_mixture")) & !scope_resolved,
+    scope = (multi | component | combined | qualified_nutrient_rows(df) |
+      scope %in% c("unknown", "aggregate", "class", "registered_mixture")) & !scope_resolved,
     conflict = !is.na(conflict) & nzchar(trimws(conflict)) & !conflict %in% "none",
     stale = identity_col(df, "identity_scope_reviewed", FALSE) %in% TRUE &
       !identity_decision_current_rows(df)

@@ -396,7 +396,7 @@ low_similarity_rows <- function(state, threshold = 0.5) {
   pref <- rep(NA_character_, n)
   src <- rs$consensus_source %||% rep(NA_character_, n)
   for (s in unique(src[!is.na(src)])) {
-    col <- paste0("preferredName_", s)
+    col <- source_to_column("preferredName", s)
     mask <- !is.na(src) & src == s
     if (col %in% names(rs)) {
       pref[mask] <- as.character(rs[[col]][mask])
@@ -411,13 +411,8 @@ low_similarity_rows <- function(state, threshold = 0.5) {
   if (!any(ok)) {
     return(empty)
   }
-  tokens <- function(x) lapply(strsplit(tolower(x), "[^a-z0-9]+"), function(t) unique(t[nzchar(t)]))
   sim <- rep(NA_real_, n)
-  sim[ok] <- mapply(
-    function(a, b) length(intersect(a, b)) / max(length(union(a, b)), 1),
-    tokens(name[ok]),
-    tokens(pref[ok])
-  )
+  sim[ok] <- name_token_similarity(name[ok], pref[ok])
   idx <- which(ok & sim < threshold)
   tibble::tibble(
     row_index = if ("original_row_id" %in% names(rs)) as.integer(rs$original_row_id[idx]) else idx,
