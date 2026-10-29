@@ -1444,6 +1444,32 @@ test_that("classify_auto_resolve: suggestion whose name tokens drift stays disag
   expect_false(isTRUE(accept_all_suggestions(result, dtxsid_cols)$.pinned))
 })
 
+test_that("held reasons are cleared by a re-run that no longer holds and by a manual pick (#127)", {
+  df <- data.frame(
+    Chemical = "Phosphorus, total",
+    dtxsid_Chemical = "DTXSID0000001",
+    preferredName_Chemical = "Phosphorus pentoxide",
+    dtxsid_CAS = "DTXSID1024382",
+    preferredName_CAS = "Phosphorus-31",
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  held <- classify_auto_resolve(classify_consensus(df, dtxsid_cols), NULL, dtxsid_cols, list(Chemical = "Name"))
+  expect_match(held$.resolution_reason, "^held:")
+
+  # Candidates change so the row scores below the suggest band: no hold, no reason.
+  rerun <- held
+  rerun$preferredName_Chemical <- "Xylene"
+  rerun$preferredName_CAS <- "Toluene"
+  rerun <- classify_auto_resolve(rerun, NULL, dtxsid_cols, list(Chemical = "Name"))
+  expect_equal(rerun$consensus_status, "disagree")
+  expect_true(is.na(rerun$.resolution_reason))
+
+  picked <- resolve_row(held, 1, "dtxsid_Chemical", dtxsid_cols)
+  expect_equal(picked$.resolution_method, "manual")
+  expect_true(is.na(picked$.resolution_reason))
+})
+
 test_that("classify_auto_resolve: no source_tier columns still suggests past row 1", {
   df <- data.frame(
     Chemical = c("Silica", "Benzene"),
