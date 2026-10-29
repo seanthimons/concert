@@ -1470,6 +1470,25 @@ test_that("held reasons are cleared by a re-run that no longer holds and by a ma
   expect_true(is.na(picked$.resolution_reason))
 })
 
+test_that("apply_priority_chain skips held rows (#128)", {
+  df <- data.frame(
+    Chemical = c("Phosphorus, total", "Silica"),
+    dtxsid_Chemical = c("DTXSID0000001", "DTXSID1"),
+    preferredName_Chemical = c("Phosphorus pentoxide", "Quartz"),
+    dtxsid_CAS = c("DTXSID1024382", "DTXSID9"),
+    preferredName_CAS = c("Phosphorus-31", "Cristobalite"),
+    stringsAsFactors = FALSE
+  )
+  dtxsid_cols <- c("dtxsid_Chemical", "dtxsid_CAS")
+  held <- classify_auto_resolve(classify_consensus(df, dtxsid_cols), NULL, dtxsid_cols, list(Chemical = "Name"))
+  expect_match(held$.resolution_reason[1], "^held:")
+  expect_equal(held$consensus_status[2], "disagree")
+
+  chained <- apply_priority_chain(held, c("dtxsid_CAS", "dtxsid_Chemical"), dtxsid_cols)
+  expect_true(is.na(chained$consensus_dtxsid[1]))
+  expect_equal(chained$consensus_dtxsid[2], "DTXSID9")
+})
+
 test_that("classify_auto_resolve: no source_tier columns still suggests past row 1", {
   df <- data.frame(
     Chemical = c("Silica", "Benzene"),

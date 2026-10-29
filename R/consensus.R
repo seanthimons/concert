@@ -774,6 +774,10 @@ apply_priority_chain <- function(df, priority_order, dtxsid_cols) {
     if (isTRUE(df$.pinned[i])) {
       next
     }
+    # Held rows need a reviewer; a bulk chain must not resolve them (#128).
+    if (isTRUE(startsWith(df$.resolution_reason[i], "held:"))) {
+      next
+    }
 
     # Walk priority order, pick first with non-NA value
     for (col in priority_order) {
