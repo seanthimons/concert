@@ -559,6 +559,26 @@ get_resolution_options <- function(df, row_idx, dtxsid_cols, enrichment_cache = 
 # score_one_candidate
 # ============================================================================
 
+#' Token Jaccard similarity between two names
+#'
+#' Lowercase alphanumeric word overlap. Shared prefixes such as "Total" or
+#' "Phosphorus" do not rescue names whose distinguishing token differs.
+#'
+#' @param a,b Character vectors of names (recycled).
+#' @return Numeric vector in `[0, 1]`; NA where either name is missing.
+#' @keywords internal
+name_token_similarity <- function(a, b) {
+  tokens <- function(x) lapply(strsplit(tolower(x), "[^a-z0-9]+"), function(t) unique(t[nzchar(t)]))
+  sim <- as.numeric(mapply(
+    function(x, y) length(intersect(x, y)) / max(length(union(x, y)), 1),
+    tokens(a),
+    tokens(b),
+    USE.NAMES = FALSE
+  ))
+  sim[is.na(a) | is.na(b)] <- NA_real_
+  sim
+}
+
 #' Compute similarity score for a single candidate against an input name
 #'
 #' Score formula (per D-03): max(JW(input, preferredName, synonym_1, ..., synonym_N)).
@@ -777,6 +797,12 @@ apply_priority_chain <- function(df, priority_order, dtxsid_cols) {
 #'   - Suggest: best score >= 0.70 (but not auto-resolve eligible)
 #'   - Leave as disagree: best score < 0.70
 #'
+#' Rows are also held as disagree, with the reason in `.resolution_reason`,
+#' when WQX name evidence conflicts with the DTXSID candidates, or when a
+#' would-be suggestion's name has token Jaccard similarity below 0.5 with the input
+#' (or either name is missing)
+#' (see [name_token_similarity()]). Held rows are never bulk-accepted.
+#'
 #' @param resolution_state Data frame with consensus_status, similarity_score, dtxsid_*,
 #'   preferredName_*, rank_* columns
 #' @param enrichment_cache Tibble with dtxsid and (optionally) synonyms columns
@@ -840,9 +866,22 @@ classify_auto_resolve <- function(
     dtxsid_cols
   )
 
+  # Held rows stay disagree so bulk acceptance can never pick them. Reasons are
+  # assigned after the loop: per-row data frame writes dominate its cost.
+  held_reason <- rep(NA_character_, nrow(resolution_state))
+  tier_cols <- intersect(vapply(dtxsid_cols, source_field_column, character(1), prefix = "source_tier"), names(resolution_state))
+  has_wqx_tier <- Reduce(`|`, lapply(tier_cols, function(col) is_wqx_tier(resolution_state[[col]])), rep(FALSE, nrow(resolution_state)))
+
   for (i in disagree_idx) {
     input_name <- as.character(resolution_state[[name_col]][i])
     if (is.na(input_name) || nchar(trimws(input_name)) == 0) {
+      next
+    }
+
+    # WQX name evidence carries no DTXSID, so it is never scored. Scoring the
+    # rest would let a lone CAS hit win with a trivial gap.
+    if (has_wqx_tier[i] && has_wqx_evidence_conflict(resolution_state, dtxsid_cols, i)) {
+      held_reason[i] <- "held: WQX name evidence conflicts with DTXSID candidates"
       next
     }
 
@@ -890,6 +929,14 @@ classify_auto_resolve <- function(
     best_col <- names(candidate_scores)[1]
     second_best <- if (length(candidate_scores) >= 2) candidate_scores[2] else 0.0
     gap <- best_score - second_best
+    # Jaro rewards a shared prefix ("Phosphorus, total" vs "Phosphorus-31"), so a
+    # suggestion must also share most name tokens. NA similarity fails closed.
+    drift <- if (best_score >= suggest_threshold) {
+      pref_col <- source_field_column(best_col, "preferredName")
+      name_token_similarity(input_name, if (pref_col %in% names(resolution_state)) resolution_state[[pref_col]][i] else NA_character_)
+    } else {
+      NA_real_
+    }
 
     if (best_score >= auto_threshold && gap >= gap_threshold) {
       # Auto-resolve: clear winner with sufficient margin
@@ -905,6 +952,8 @@ classify_auto_resolve <- function(
       resolution_state$consensus_dtxsid[i] <- resolution_state[[best_col]][i]
       resolution_state$consensus_source[i] <- source_names[[best_col]]
       resolution_state$.suggested_column[i] <- best_col
+    } else if (best_score >= suggest_threshold && !isTRUE(drift >= 0.5)) {
+      held_reason[i] <- sprintf("held: name token similarity=%.2f < 0.50", drift)
     } else if (best_score >= suggest_threshold) {
       # Suggest: good score but not conclusive enough to auto-resolve
       resolution_state$consensus_status[i] <- "suggested"
@@ -921,6 +970,8 @@ classify_auto_resolve <- function(
     # else: leave as "disagree" -- best score below suggest_threshold
   }
 
+  held <- !is.na(held_reason)
+  resolution_state$.resolution_reason[held] <- held_reason[held]
   resolution_state
 }
 

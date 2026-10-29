@@ -411,13 +411,8 @@ low_similarity_rows <- function(state, threshold = 0.5) {
   if (!any(ok)) {
     return(empty)
   }
-  tokens <- function(x) lapply(strsplit(tolower(x), "[^a-z0-9]+"), function(t) unique(t[nzchar(t)]))
   sim <- rep(NA_real_, n)
-  sim[ok] <- mapply(
-    function(a, b) length(intersect(a, b)) / max(length(union(a, b)), 1),
-    tokens(name[ok]),
-    tokens(pref[ok])
-  )
+  sim[ok] <- name_token_similarity(name[ok], pref[ok])
   idx <- which(ok & sim < threshold)
   tibble::tibble(
     row_index = if ("original_row_id" %in% names(rs)) as.integer(rs$original_row_id[idx]) else idx,
