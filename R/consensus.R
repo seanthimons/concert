@@ -744,6 +744,10 @@ resolve_row <- function(df, row_idx, chosen_column, dtxsid_cols) {
   df$consensus_source[row_idx] <- sub("^dtxsid_", "", chosen_column)
   df$.pinned[row_idx] <- TRUE
   df$.resolution_method[row_idx] <- "manual"
+  # The reviewer overrode the hold; its reason no longer describes the row (#127).
+  if (isTRUE(startsWith(df$.resolution_reason[row_idx], "held:"))) {
+    df$.resolution_reason[row_idx] <- NA_character_
+  }
 
   df
 }
@@ -848,6 +852,10 @@ classify_auto_resolve <- function(
   if (length(disagree_idx) == 0) {
     return(resolution_state)
   }
+
+  # Holds are re-decided below; a reason from an earlier run is stale (#127).
+  stale_hold <- disagree_idx[startsWith(resolution_state$.resolution_reason[disagree_idx], "held:") %in% TRUE]
+  resolution_state$.resolution_reason[stale_hold] <- NA_character_
 
   has_synonyms <- !is.null(enrichment_cache) &&
     nrow(enrichment_cache) > 0 &&
