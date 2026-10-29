@@ -21,17 +21,11 @@ source_to_column <- function(prefix, source) {
   if (is.na(source) || !nzchar(source)) {
     return(NA_character_)
   }
-  if (source == "Name") {
+  # "dtxsid" is the legacy label for the unsuffixed Name column.
+  if (source %in% c("Name", "dtxsid")) {
     return(prefix)
   }
   paste0(prefix, "_", source)
-}
-
-dtxsid_to_column <- function(dtxsid_col, prefix) {
-  if (dtxsid_col == "dtxsid") {
-    return(prefix)
-  }
-  sub("^dtxsid_", paste0(prefix, "_"), dtxsid_col)
 }
 
 pick_source_aligned_values <- function(df, prefix) {
@@ -56,7 +50,7 @@ pick_source_aligned_values <- function(df, prefix) {
     if (!is.na(dtxsid[i]) && length(dtxsid_cols) > 0) {
       for (dc in dtxsid_cols) {
         if (!is.na(df[[dc]][i]) && identical(as.character(df[[dc]][i]), dtxsid[i])) {
-          candidate_col <- dtxsid_to_column(dc, prefix)
+          candidate_col <- source_field_column(dc, prefix)
           if (candidate_col %in% names(df) && !is.na(df[[candidate_col]][i])) {
             values[i] <- as.character(df[[candidate_col]][i])
             break
@@ -3230,12 +3224,7 @@ mod_review_results_server <- function(id, data_store) {
 
       tryCatch(
         {
-          # Count disagree rows before
-          pinned_before <- !is.na(data_store$resolution_state$.pinned) & data_store$resolution_state$.pinned
-          before_count <- sum(
-            data_store$resolution_state$consensus_status == "disagree" & !pinned_before,
-            na.rm = TRUE
-          )
+          before_dtxsid <- data_store$resolution_state$consensus_dtxsid
 
           # Apply priority chain
           updated_df <- apply_priority_chain(
@@ -3247,20 +3236,16 @@ mod_review_results_server <- function(id, data_store) {
           # Update state
           data_store$resolution_state <- updated_df
 
-          # Count disagree rows after
-          pinned_after <- !is.na(updated_df$.pinned) & updated_df$.pinned
-          after_count <- sum(
-            updated_df$consensus_status == "disagree" & !pinned_after,
-            na.rm = TRUE
-          )
-
-          resolved_count <- before_count - after_count
+          # The chain fills consensus_dtxsid and leaves the status as is, so
+          # count changed picks rather than a drop in disagree rows.
+          after_dtxsid <- updated_df$consensus_dtxsid
+          resolved_count <- sum(!is.na(after_dtxsid) & (is.na(before_dtxsid) | after_dtxsid != before_dtxsid))
 
           # Recalculate consensus summary
           data_store$consensus_summary <- recalc_consensus_summary(updated_df)
 
           showNotification(
-            paste0("Applied priority chain: ", resolved_count, " rows resolved"),
+            paste0("Applied priority chain: ", resolved_count, " rows updated"),
             type = "message"
           )
         },
