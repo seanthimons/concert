@@ -47,6 +47,10 @@ jobs:
         uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
         with:
           r-version: renv
+          # Public RSPM sets RENV_CONFIG_REPOS_OVERRIDE to cran/latest, which
+          # overrides the lockfile's dated snapshot. Pins older than latest then
+          # exist only as source, and duckdb fails to compile on Windows.
+          use-public-rspm: false
       - name: Restore renv environment
         uses: r-lib/actions/setup-renv@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
       - name: Verify locked review environment
