@@ -17,7 +17,7 @@ pak::pak("seanthimons/concert")
 
 GitHub-only dependencies (ComptoxR and a pinned reactable revision) are
 installed automatically from `Remotes` in `DESCRIPTION`. ComptoxR is pinned to
-a release tag (currently `v1.7.1`); the `track-comptoxr-release` workflow opens a
+a release tag (currently `v4.0.0`); the `track-comptoxr-release` workflow opens a
 PR to bump the pin when ComptoxR publishes a new stable release.
 
 ### CompTox API key

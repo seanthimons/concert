@@ -35,7 +35,7 @@ unused_source_identifier_diagnostics <- function(df, tags = list(), ignored_iden
 }
 
 source_identifier_lookup <- function(ids) {
-  ComptoxR::ct_chemical_detail_search_bulk(ids, projection = "chemicaldetailall")
+  ComptoxR::ct_chemical_detail_search_by_dtxsid_bulk(ids, projection = "chemicaldetailall")
 }
 
 #' Validate source DTXSID membership without accepting source identity

@@ -3,7 +3,7 @@
 # ============================================================================
 
 test_that("enrich_candidates returns structured cache tibble for valid DTXSIDs", {
-  # Mock ComptoxR::ct_chemical_detail_search_bulk() to return synthetic data
+  # Mock ComptoxR::ct_chemical_detail_search_by_dtxsid_bulk() to return synthetic data
   mock_response <- tibble::tibble(
     dtxsid = c("DTXSID7021360", "DTXSID9020584"),
     casrn = c("108-88-3", "64-17-5"),
@@ -12,7 +12,7 @@ test_that("enrich_candidates returns structured cache tibble for valid DTXSIDs",
   )
 
   testthat::local_mocked_bindings(
-    ct_chemical_detail_search_bulk = function(...) mock_response,
+    ct_chemical_detail_search_by_dtxsid_bulk = function(...) mock_response,
     .package = "ComptoxR"
   )
 
@@ -42,7 +42,7 @@ test_that("enrich_candidates returns structured cache tibble for valid DTXSIDs",
 test_that("enrich_candidates skips already-cached DTXSIDs", {
   call_count <- 0
   testthat::local_mocked_bindings(
-    ct_chemical_detail_search_bulk = function(dtxsids, ...) {
+    ct_chemical_detail_search_by_dtxsid_bulk = function(dtxsids, ...) {
       call_count <<- call_count + 1
       tibble::tibble(
         dtxsid = dtxsids,
@@ -80,7 +80,7 @@ test_that("enrich_candidates skips already-cached DTXSIDs", {
 test_that("enrich_candidates returns existing_cache when all DTXSIDs already cached", {
   # Mock should NOT be called
   testthat::local_mocked_bindings(
-    ct_chemical_detail_search_bulk = function(...) {
+    ct_chemical_detail_search_by_dtxsid_bulk = function(...) {
       stop("Should not be called when all DTXSIDs are cached")
     },
     .package = "ComptoxR"
@@ -122,7 +122,7 @@ test_that("enrich_candidates with empty DTXSIDs returns empty cache", {
 
 test_that("enrich_candidates handles total API failure gracefully", {
   testthat::local_mocked_bindings(
-    ct_chemical_detail_search_bulk = function(...) stop("API connection refused"),
+    ct_chemical_detail_search_by_dtxsid_bulk = function(...) stop("API connection refused"),
     .package = "ComptoxR"
   )
 
@@ -140,7 +140,7 @@ test_that("enrich_candidates handles total API failure gracefully", {
 
 test_that("enrich_candidates handles API failure with existing_cache", {
   testthat::local_mocked_bindings(
-    ct_chemical_detail_search_bulk = function(...) stop("API timeout"),
+    ct_chemical_detail_search_by_dtxsid_bulk = function(...) stop("API timeout"),
     .package = "ComptoxR"
   )
 
@@ -168,7 +168,7 @@ test_that("enrich_candidates handles API failure with existing_cache", {
 
 test_that("enrich_candidates handles partial API response (some DTXSIDs missing)", {
   testthat::local_mocked_bindings(
-    ct_chemical_detail_search_bulk = function(dtxsids, ...) {
+    ct_chemical_detail_search_by_dtxsid_bulk = function(dtxsids, ...) {
       # Only return data for first DTXSID
       tibble::tibble(
         dtxsid = dtxsids[1],
@@ -221,7 +221,7 @@ test_that("find_related_parent_candidates returns shared predecessor component p
 
   testthat::local_mocked_bindings(
     ct_related = function(query, ...) related_response,
-    ct_chemical_detail_search_bulk = function(dtxsids, ...) detail_response,
+    ct_chemical_detail_search_by_dtxsid_bulk = function(dtxsids, ...) detail_response,
     .package = "ComptoxR"
   )
 
@@ -260,7 +260,7 @@ test_that("find_related_parent_candidates excludes single-support and other rela
 
   testthat::local_mocked_bindings(
     ct_related = function(query, ...) related_response,
-    ct_chemical_detail_search_bulk = function(dtxsids, ...) {
+    ct_chemical_detail_search_by_dtxsid_bulk = function(dtxsids, ...) {
       detail_called <<- TRUE
       tibble::tibble()
     },
@@ -286,7 +286,7 @@ test_that("find_related_parent_candidates handles empty inputs and API failures"
       related_calls <<- related_calls + 1L
       stop("related API unavailable")
     },
-    ct_chemical_detail_search_bulk = function(dtxsids, ...) {
+    ct_chemical_detail_search_by_dtxsid_bulk = function(dtxsids, ...) {
       stop("detail lookup should not run")
     },
     .package = "ComptoxR"
@@ -337,7 +337,7 @@ test_that("find_related_parent_candidates ranks Markush, support, rank, then DTX
 
   testthat::local_mocked_bindings(
     ct_related = function(query, ...) related_response,
-    ct_chemical_detail_search_bulk = function(dtxsids, ...) detail_response,
+    ct_chemical_detail_search_by_dtxsid_bulk = function(dtxsids, ...) detail_response,
     .package = "ComptoxR"
   )
 
@@ -372,7 +372,7 @@ test_that("find_related_parent_candidates handles missing isMarkush and rank det
 
   testthat::local_mocked_bindings(
     ct_related = function(query, ...) related_response,
-    ct_chemical_detail_search_bulk = function(dtxsids, ...) detail_response,
+    ct_chemical_detail_search_by_dtxsid_bulk = function(dtxsids, ...) detail_response,
     .package = "ComptoxR"
   )
 
@@ -537,7 +537,7 @@ test_that("enrich_synonyms returns cache with synonyms column", {
   )
 
   testthat::local_mocked_bindings(
-    ct_chemical_synonym_search_bulk = function(...) mock_response,
+    ct_chemical_synonym_search_by_dtxsid_bulk = function(...) mock_response,
     .package = "ComptoxR"
   )
 
@@ -560,6 +560,24 @@ test_that("enrich_synonyms returns cache with synonyms column", {
   expect_true("Silicon dioxide" %in% syns)
 })
 
+test_that("enrich_synonyms splits ComptoxR's '; '-collapsed tier strings", {
+  # Real API shape: each tier arrives as one "; "-joined string, empty tiers as NA
+  mock_response <- tibble::tibble(
+    dtxsid = "DTXSID3020702",
+    valid = "302-01-2; Hydrazine; Hydrazine",
+    good = "Diamine; Hydrazin",
+    other = NA, deleted = NA, beilstein = "N2H4", alternate = NA, pcCode = NA
+  )
+
+  testthat::local_mocked_bindings(
+    ct_chemical_synonym_search_by_dtxsid_bulk = function(...) mock_response,
+    .package = "ComptoxR"
+  )
+
+  result <- enrich_synonyms(dtxsids = "DTXSID3020702")
+  expect_equal(result$cache$synonyms[1], "302-01-2|Hydrazine|Diamine|Hydrazin|N2H4")
+})
+
 test_that("enrich_synonyms stores NA when API returns 0 rows", {
   mock_response <- tibble::tibble(
     dtxsid = character(0),
@@ -568,7 +586,7 @@ test_that("enrich_synonyms stores NA when API returns 0 rows", {
   )
 
   testthat::local_mocked_bindings(
-    ct_chemical_synonym_search_bulk = function(...) mock_response,
+    ct_chemical_synonym_search_by_dtxsid_bulk = function(...) mock_response,
     .package = "ComptoxR"
   )
 
@@ -600,7 +618,7 @@ test_that("enrich_synonyms merges into existing cache preserving other columns",
   )
 
   testthat::local_mocked_bindings(
-    ct_chemical_synonym_search_bulk = function(...) mock_response,
+    ct_chemical_synonym_search_by_dtxsid_bulk = function(...) mock_response,
     .package = "ComptoxR"
   )
 
@@ -620,7 +638,7 @@ test_that("enrich_synonyms merges into existing cache preserving other columns",
 test_that("enrich_synonyms skips already-cached DTXSIDs with synonyms", {
   call_args <- NULL
   testthat::local_mocked_bindings(
-    ct_chemical_synonym_search_bulk = function(dtxsids, ...) {
+    ct_chemical_synonym_search_by_dtxsid_bulk = function(dtxsids, ...) {
       call_args <<- dtxsids
       tibble::tibble(
         dtxsid = dtxsids,
@@ -660,7 +678,7 @@ test_that("enrich_synonyms skips already-cached DTXSIDs with synonyms", {
 
 test_that("enrich_synonyms handles API failure gracefully", {
   testthat::local_mocked_bindings(
-    ct_chemical_synonym_search_bulk = function(...) stop("API connection refused"),
+    ct_chemical_synonym_search_by_dtxsid_bulk = function(...) stop("API connection refused"),
     .package = "ComptoxR"
   )
 

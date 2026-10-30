@@ -235,13 +235,13 @@ fetch_molecular_weight <- function(dtxsids) {
 
   tryCatch(
     {
-      raw <- suppressMessages(ComptoxR::ct_chemical_detail_search_bulk(dtxsids))
+      raw <- suppressMessages(ComptoxR::ct_chemical_detail_search_by_dtxsid_bulk(dtxsids))
       if (!is.data.frame(raw) || nrow(raw) == 0) {
         return(empty_result())
       }
 
       mw_col <- intersect(
-        c("molecularWeight", "mol_weight", "molecular_weight", "average_mass"),
+        c("averageMass", "molecularWeight", "mol_weight", "molecular_weight", "average_mass"),
         names(raw)
       )
       if (!("dtxsid" %in% names(raw)) || length(mw_col) == 0) {
