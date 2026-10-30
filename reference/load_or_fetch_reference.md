@@ -34,6 +34,6 @@ Data returned by fetch_fn (or read from cache)
 cache_path <- file.path(tempdir(), "data.rds")
 load_or_fetch_reference(cache_path, function() c("a", "b"), "test_data")
 #> Fetching test_data (cache not found)...
-#> Cached test_data to: /tmp/RtmpNBj6Iy/data.rds
+#> Cached test_data to: /tmp/Rtmp9cY4o1/data.rds
 #> [1] "a" "b"
 ```

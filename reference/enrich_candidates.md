@@ -3,12 +3,14 @@
 Calls CompTox chemical detail search to retrieve CASRN, molecular
 formula, and molecular weight for each unique DTXSID. Supports
 incremental caching: pass existing_cache to skip already-fetched
-DTXSIDs.
+DTXSIDs. Uses the `chemicaldetailstandard` server-side projection by
+default to avoid the 73-column `chemicaldetailall` response while
+retaining `isMarkush` for review metadata.
 
 ## Usage
 
 ``` r
-enrich_candidates(dtxsids, existing_cache = NULL)
+enrich_candidates(dtxsids, existing_cache = NULL, projection = "chemicaldetailstandard")
 ```
 
 ## Arguments
@@ -22,10 +24,16 @@ enrich_candidates(dtxsids, existing_cache = NULL)
   Optional tibble from a previous enrich_candidates() call. DTXSIDs
   already present in the cache will not be re-fetched.
 
+- projection:
+
+  CompTox server-side projection to request. Defaults to
+  `chemicaldetailstandard`, the narrowest tested projection that
+  includes identifiers, preferred name, formula, mass, and `isMarkush`.
+
 ## Value
 
 Named list with:
 
-- cache: tibble(dtxsid, casrn, molecular_formula, molecular_weight)
+- cache: normalized chemical details including `isMarkush`
 
 - failed_dtxsids: character vector of DTXSIDs that could not be fetched
