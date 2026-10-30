@@ -12,7 +12,11 @@ test_that("enrich_candidates returns structured cache tibble for valid DTXSIDs",
   )
 
   testthat::local_mocked_bindings(
-    ct_chemical_detail_search_by_dtxsid_bulk = function(...) mock_response,
+    ct_chemical_detail_search_by_dtxsid_bulk = function(query, projection) {
+      expect_identical(query, c("DTXSID7021360", "DTXSID9020584"))
+      expect_identical(projection, "chemicaldetailstandard")
+      mock_response
+    },
     .package = "ComptoxR"
   )
 
@@ -32,6 +36,31 @@ test_that("enrich_candidates returns structured cache tibble for valid DTXSIDs",
   expect_equal(cache$casrn[1], "108-88-3")
   expect_equal(cache$molecular_formula[1], "C7H8")
   expect_equal(cache$molecular_weight[1], 92.14)
+  expect_length(result$failed_dtxsids, 0)
+})
+
+test_that("enrich_candidates preserves v4 standard fields and forwards a projection override", {
+  testthat::local_mocked_bindings(
+    ct_chemical_detail_search_by_dtxsid_bulk = function(query, projection) {
+      expect_identical(projection, "chemicaldetailall")
+      tibble::tibble(
+        dtxsid = query,
+        preferredName = "Toluene",
+        casrn = "108-88-3",
+        molFormula = "C7H8",
+        monoisotopicMass = 92.06260,
+        isMarkush = FALSE
+      )
+    },
+    .package = "ComptoxR"
+  )
+
+  result <- enrich_candidates("DTXSID7021360", projection = "chemicaldetailall")
+
+  expect_equal(result$cache$preferredName, "Toluene")
+  expect_equal(result$cache$molecular_weight, 92.06260)
+  expect_identical(result$cache$isMarkush, FALSE)
+  expect_identical(result$cache$rank, NA_integer_)
   expect_length(result$failed_dtxsids, 0)
 })
 
@@ -221,7 +250,10 @@ test_that("find_related_parent_candidates returns shared predecessor component p
 
   testthat::local_mocked_bindings(
     ct_related = function(query, ...) related_response,
-    ct_chemical_detail_search_by_dtxsid_bulk = function(dtxsids, ...) detail_response,
+    ct_chemical_detail_search_by_dtxsid_bulk = function(dtxsids, projection) {
+      expect_identical(projection, "chemicaldetailstandard")
+      detail_response
+    },
     .package = "ComptoxR"
   )
 

@@ -4,18 +4,22 @@
 \alias{enrich_candidates}
 \title{Fetch CompTox chemical details for DTXSIDs and return structured cache}
 \usage{
-enrich_candidates(dtxsids, existing_cache = NULL)
+enrich_candidates(dtxsids, existing_cache = NULL, projection = "chemicaldetailstandard")
 }
 \arguments{
 \item{dtxsids}{Character vector of DTXSIDs to enrich}
 
 \item{existing_cache}{Optional tibble from a previous enrich_candidates() call.
 DTXSIDs already present in the cache will not be re-fetched.}
+
+\item{projection}{CompTox server-side projection to request. Defaults to
+\code{chemicaldetailstandard}, the narrowest tested projection that includes
+identifiers, preferred name, formula, mass, and \code{isMarkush}.}
 }
 \value{
 Named list with:
 \itemize{
-\item cache: tibble(dtxsid, casrn, molecular_formula, molecular_weight)
+\item cache: normalized chemical details including \code{isMarkush}
 \item failed_dtxsids: character vector of DTXSIDs that could not be fetched
 }
 }
@@ -23,4 +27,7 @@ Named list with:
 Calls CompTox chemical detail search to retrieve CASRN, molecular formula,
 and molecular weight for each unique DTXSID.
 Supports incremental caching: pass existing_cache to skip already-fetched DTXSIDs.
+Uses the \code{chemicaldetailstandard} server-side projection by default to avoid
+the 73-column \code{chemicaldetailall} response while retaining \code{isMarkush} for
+review metadata.
 }
