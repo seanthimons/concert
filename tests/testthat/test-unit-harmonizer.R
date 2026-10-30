@@ -592,12 +592,12 @@ test_that("molarity MW: vector of different MWs", {
   expect_equal(result$harmonized_value, c(100, 200, 300))
 })
 
-test_that("MW lookup recognizes ComptoxR molecularWeight responses", {
+test_that("MW lookup recognizes ComptoxR averageMass responses", {
   testthat::local_mocked_bindings(
-    ct_chemical_detail_search_bulk = function(query, ...) {
+    ct_chemical_detail_search_by_dtxsid_bulk = function(query, ...) {
       tibble::tibble(
         dtxsid = query,
-        molecularWeight = c(100, 200)
+        averageMass = c(100, 200)
       )
     },
     .package = "ComptoxR"
@@ -617,7 +617,7 @@ test_that("MW lookup recognizes ComptoxR molecularWeight responses", {
 
 test_that("MW lookup distinguishes returned missing data from technical failure", {
   testthat::local_mocked_bindings(
-    ct_chemical_detail_search_bulk = function(...) {
+    ct_chemical_detail_search_by_dtxsid_bulk = function(...) {
       tibble::tibble(
         dtxsid = "DTXSID0000001",
         molecularWeight = NA_real_
@@ -634,7 +634,7 @@ test_that("MW lookup distinguishes returned missing data from technical failure"
   expect_equal(missing_mw$unit_flag, "needs_mw")
 
   testthat::local_mocked_bindings(
-    ct_chemical_detail_search_bulk = function(...) stop("service unavailable"),
+    ct_chemical_detail_search_by_dtxsid_bulk = function(...) stop("service unavailable"),
     .package = "ComptoxR"
   )
   failed <- harmonize_units(
@@ -652,7 +652,7 @@ test_that("MW lookup distinguishes returned missing data from technical failure"
 test_that("empty and malformed MW responses are lookup failures", {
   response <- NULL
   testthat::local_mocked_bindings(
-    ct_chemical_detail_search_bulk = function(...) response,
+    ct_chemical_detail_search_by_dtxsid_bulk = function(...) response,
     .package = "ComptoxR"
   )
 
@@ -676,7 +676,7 @@ test_that("empty and malformed MW responses are lookup failures", {
 
 test_that("partial MW responses preserve provenance in direct and deduplicated paths", {
   testthat::local_mocked_bindings(
-    ct_chemical_detail_search_bulk = function(...) {
+    ct_chemical_detail_search_by_dtxsid_bulk = function(...) {
       tibble::tibble(
         dtxsid = "DTXSID0000001",
         molecularWeight = NA_real_

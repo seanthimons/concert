@@ -11,7 +11,7 @@
   "Packages": {
     "ComptoxR": {
       "Package": "ComptoxR",
-      "Version": "1.7.1",
+      "Version": "4.0.0",
       "Source": "GitHub",
       "Title": "Wrappers and Functions for Accessing USEPA CompTox Chemical Dashboard and Other Products",
       "Authors@R": "person(\"Sean\", \"Thimons\", email = \"thimons.sean@epa.gov\", role = c(\"aut\", \"cre\") )",
@@ -28,6 +28,7 @@
         "curl",
         "DBI",
         "dbplyr",
+        "digest",
         "dplyr (>= 1.1.4)",
         "duckdb",
         "glue",
@@ -35,6 +36,7 @@
         "httr2",
         "jsonlite (>= 1.8.8)",
         "lifecycle",
+        "magick",
         "magrittr (>= 2.0.3)",
         "purrr (>= 1.0.2)",
         "rlang",
@@ -50,6 +52,7 @@
       "Suggests": [
         "arrow",
         "autonewsmd",
+        "callr",
         "pROC",
         "ctxR (>= 1.0)",
         "fs",
@@ -58,9 +61,9 @@
         "janitor",
         "knitr",
         "lubridate",
-        "magick",
         "mockery",
         "pkgload",
+        "plumber",
         "readr",
         "readxl",
         "roxygen2",
@@ -74,7 +77,7 @@
       ],
       "Config/testthat/edition": "3",
       "Config/testthat/parallel": "true",
-      "Config/roxygen2/version": "8.1.0",
+      "Config/roxygen2/version": "8.1.1",
       "VignetteBuilder": "knitr",
       "Author": "Sean Thimons [aut, cre]",
       "Maintainer": "Sean Thimons <thimons.sean@epa.gov>",
@@ -82,8 +85,8 @@
       "RemoteHost": "api.github.com",
       "RemoteUsername": "seanthimons",
       "RemoteRepo": "ComptoxR",
-      "RemoteRef": "v1.7.1",
-      "RemoteSha": "b196409273c7b7af7c90b21a9a0fa9671bfccf52"
+      "RemoteRef": "v4.0.0",
+      "RemoteSha": "bff04f585268e536b13ccce314a490f7b1d8ce33"
     },
     "DBI": {
       "Package": "DBI",
@@ -2886,6 +2889,54 @@
       "Collate": "'Dates.r' 'POSIXt.r' 'util.r' 'parse.r' 'timespans.r' 'intervals.r' 'difftimes.r' 'durations.r' 'periods.r' 'accessors-date.R' 'accessors-day.r' 'accessors-dst.r' 'accessors-hour.r' 'accessors-minute.r' 'accessors-month.r' 'accessors-quarter.r' 'accessors-second.r' 'accessors-tz.r' 'accessors-week.r' 'accessors-year.r' 'am-pm.r' 'time-zones.r' 'numeric.r' 'coercion.r' 'constants.r' 'cyclic_encoding.r' 'data.r' 'decimal-dates.r' 'deprecated.r' 'format_ISO8601.r' 'guess.r' 'hidden.r' 'instants.r' 'leap-years.r' 'ops-addition.r' 'ops-compare.r' 'ops-division.r' 'ops-integer-division.r' 'ops-m+.r' 'ops-modulo.r' 'ops-multiplication.r' 'ops-subtraction.r' 'package.r' 'pretty.r' 'round.r' 'stamp.r' 'tzdir.R' 'update.r' 'vctrs.R' 'zzz.R'",
       "NeedsCompilation": "yes",
       "Author": "Vitalie Spinu [aut, cre], Garrett Grolemund [aut], Hadley Wickham [aut], Davis Vaughan [ctb], Ian Lyttle [ctb], Imanuel Costigan [ctb], Jason Law [ctb], Doug Mitarotonda [ctb], Joseph Larmarange [ctb], Jonathan Boiser [ctb], Chel Hee Lee [ctb]",
+      "Repository": "CRAN"
+    },
+    "magick": {
+      "Package": "magick",
+      "Version": "2.9.1",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "Advanced Graphics and Image-Processing in R",
+      "Authors@R": "person(\"Jeroen\", \"Ooms\", role = c(\"aut\", \"cre\"), email = \"jeroenooms@gmail.com\", comment = c(ORCID = \"0000-0002-4035-0289\"))",
+      "Description": "Bindings to 'ImageMagick': the most comprehensive open-source image processing library available. Supports many common formats (png, jpeg, tiff, pdf, etc) and manipulations (rotate, scale, crop, trim, flip, blur, etc). All operations are vectorized via the Magick++ STL meaning they operate either on a single frame or a series of frames for working with layers, collages, or animation. In RStudio images are automatically previewed when printed to the console, resulting in an interactive editing environment. Also includes a graphics device for creating drawing onto images using pixel coordinates.",
+      "License": "MIT + file LICENSE",
+      "URL": "https://docs.ropensci.org/magick/ https://ropensci.r-universe.dev/magick",
+      "BugReports": "https://github.com/ropensci/magick/issues",
+      "SystemRequirements": "ImageMagick++: ImageMagick-c++-devel (rpm) or libmagick++-dev (deb)",
+      "VignetteBuilder": "knitr",
+      "Depends": [
+        "R (>= 4.1.0)"
+      ],
+      "Imports": [
+        "Rcpp (>= 0.12.12)",
+        "magrittr",
+        "curl"
+      ],
+      "LinkingTo": [
+        "Rcpp"
+      ],
+      "Suggests": [
+        "av",
+        "spelling",
+        "jsonlite",
+        "methods",
+        "knitr",
+        "rmarkdown",
+        "rsvg",
+        "webp",
+        "pdftools",
+        "ggplot2",
+        "gapminder",
+        "IRdisplay",
+        "tesseract",
+        "gifski"
+      ],
+      "Encoding": "UTF-8",
+      "RoxygenNote": "7.3.3",
+      "Language": "en-US",
+      "NeedsCompilation": "yes",
+      "Author": "Jeroen Ooms [aut, cre] (ORCID: <https://orcid.org/0000-0002-4035-0289>)",
+      "Maintainer": "Jeroen Ooms <jeroenooms@gmail.com>",
       "Repository": "CRAN"
     },
     "magrittr": {

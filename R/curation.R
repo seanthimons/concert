@@ -1249,7 +1249,7 @@ enrich_candidates <- function(dtxsids, existing_cache = NULL) {
 
   api_error <- NULL
   raw <- tryCatch(
-    suppressMessages(ComptoxR::ct_chemical_detail_search_bulk(dtxsids_to_fetch)),
+    suppressMessages(ComptoxR::ct_chemical_detail_search_by_dtxsid_bulk(dtxsids_to_fetch)),
     error = function(e) {
       message(sprintf("[enrich] API call failed: %s", conditionMessage(e)))
       api_error <<- conditionMessage(e)
@@ -1515,14 +1515,15 @@ find_related_parent_candidates <- function(df, row_idx, dtxsid_cols, relationshi
 # ============================================================================
 
 #' Flatten all synonym tiers from a single API response row into a pipe-joined string
-#' @param row A single-row list/tibble from ct_chemical_synonym_search_bulk output
+#' @param row A single-row list/tibble from ct_chemical_synonym_search_by_dtxsid_bulk output
 #' @return Character string of pipe-joined unique synonyms, or NA_character_ if none
 #' @noRd
 flatten_synonym_tiers <- function(row) {
   tier_cols <- c("valid", "good", "other", "deleted", "beilstein", "alternate", "pcCode")
   syns <- unlist(lapply(tier_cols, function(col) {
     vals <- row[[col]]
-    if (!is.null(vals)) as.character(unlist(vals)) else character(0)
+    # ComptoxR collapses each tier into one "; "-joined string
+    if (!is.null(vals)) unlist(strsplit(as.character(unlist(vals)), "; ", fixed = TRUE)) else character(0)
   }))
   syns <- unique(syns[!is.na(syns) & nchar(syns) > 0])
   if (length(syns) == 0) NA_character_ else paste(syns, collapse = "|")
@@ -1598,7 +1599,7 @@ enrich_synonyms <- function(dtxsids, existing_cache = NULL) {
 
   api_error <- NULL
   raw <- tryCatch(
-    suppressMessages(ComptoxR::ct_chemical_synonym_search_bulk(dtxsids_to_fetch)),
+    suppressMessages(ComptoxR::ct_chemical_synonym_search_by_dtxsid_bulk(dtxsids_to_fetch)),
     error = function(e) {
       message(sprintf("[synonyms] API call failed: %s", conditionMessage(e)))
       api_error <<- conditionMessage(e)
