@@ -1,7 +1,14 @@
 
 
 
-## concert 0.6.7 (2026-10-29)
+## concert 0.6.7 (2026-10-30)
+
+#### Updated package build
+
+- Use ComptoxR 4.0.0 and its renamed chemical detail and synonym endpoints.
+- Request the standard chemical detail projection during enrichment, reducing
+  response size while preserving the fields used by CONCERT.
+- Remove retired planning documents and development artifacts from the repository.
 
 #### New features
 
