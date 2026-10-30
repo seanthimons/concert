@@ -27,7 +27,6 @@ Thumbs.db
 
 # Dot folders
 .*/
-!.beans/
 !.github/
 
 # Output/ Render files
@@ -38,7 +37,7 @@ playwright/
 
 # Allow
 !.gitignore
-!.planning/
+.beans.yml
 
 # Scratch files
 *.log
