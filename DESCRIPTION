@@ -19,7 +19,7 @@ Imports:
     bsicons,
     bslib,
     cli,
-    ComptoxR (>= 1.7.1),
+    ComptoxR (>= 4.0.0),
     DBI,
     digest,
     dplyr (>= 1.1.0),
@@ -62,6 +62,6 @@ Suggests:
     withr
 Remotes:
     glin/reactable@7839a5b7b86b454c393a7613d56ff4d96fbdb885,
-    seanthimons/ComptoxR@v1.7.1
+    seanthimons/ComptoxR@v4.0.0
 Config/roxygen2/version: 8.1.1
 VignetteBuilder: knitr
