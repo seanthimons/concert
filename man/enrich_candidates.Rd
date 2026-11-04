@@ -4,7 +4,11 @@
 \alias{enrich_candidates}
 \title{Fetch CompTox chemical details for DTXSIDs and return structured cache}
 \usage{
-enrich_candidates(dtxsids, existing_cache = NULL, projection = "chemicaldetailstandard")
+enrich_candidates(
+  dtxsids,
+  existing_cache = NULL,
+  projection = "chemicaldetailstandard"
+)
 }
 \arguments{
 \item{dtxsids}{Character vector of DTXSIDs to enrich}
