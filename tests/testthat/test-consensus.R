@@ -1783,3 +1783,81 @@ test_that("explicitly accepted suggestions are not reopened as verified_unresolv
   state$.pinned <- FALSE
   expect_true(all(verified_unresolved_rows(state)))
 })
+
+test_that("audit_bulk_accepted lists bulk-accepted pins that current holds would refuse (#128)", {
+  # Mirrors the treatment run: every row was pinned as Phosphorus-31 by bulk accept.
+  df <- data.frame(
+    Chemical = c("Phosphorus", "Phosphorus, total", "(as P)", "Lead", "Zinc"),
+    dtxsid_CAS = "DTXSID1024382",
+    preferredName_CAS = c("Phosphorus-31", "Phosphorus-31", "Phosphorus-31", "Lead", "Zinc"),
+    consensus_status = "suggested",
+    consensus_dtxsid = "DTXSID1024382",
+    .suggested_column = "dtxsid_CAS",
+    .pinned = TRUE,
+    .resolution_method = c("bulk-accept", "bulk-accept", "bulk-accept", "bulk-accept", "manual"),
+    stringsAsFactors = FALSE
+  )
+  df$.resolution_reason <- NA_character_
+  before <- df
+  audit <- audit_bulk_accepted(df, "dtxsid_CAS", list(Chemical = "Name"))
+
+  # "Phosphorus" vs "Phosphorus-31" shares half its tokens, so it passes the 0.5 floor.
+  # The manual pick is a reviewer decision, not a bulk accept.
+  expect_equal(audit$row_id, c(2L, 3L))
+  expect_equal(audit$input_name, c("Phosphorus, total", "(as P)"))
+  expect_equal(audit$accepted_name, rep("Phosphorus-31", 2))
+  expect_equal(audit$token_similarity, c(1 / 3, 0))
+  expect_match(audit$reason, "^held: name token similarity=", all = TRUE)
+  expect_identical(df, before)
+})
+
+test_that("audit_bulk_accepted flags WQX conflicts, blockers and missing names (#128)", {
+  df <- data.frame(
+    Chemical = c("Phosphorus, total", "Silica", "Benzene", "Toluene"),
+    dtxsid = c(NA, "DTXSID1", "DTXSID2", "DTXSID3"),
+    preferredName = c("Total Phosphorus, mixed forms", "Silica", "Benzene", "Toluene"),
+    source_tier = c("wqx_alias", NA, NA, NA),
+    dtxsid_CAS = c("DTXSID1024382", "DTXSID1", "DTXSID2", "DTXSID3"),
+    preferredName_CAS = c("Phosphorus, total", "Silica", "Benzene", NA),
+    consensus_status = "suggested",
+    consensus_dtxsid = c("DTXSID1024382", "DTXSID1", "DTXSID2", "DTXSID3"),
+    .suggested_column = "dtxsid_CAS",
+    .pinned = TRUE,
+    .resolution_method = "bulk-accept",
+    row_flag = c(NA, NA, "BAD", NA),
+    stringsAsFactors = FALSE
+  )
+  audit <- audit_bulk_accepted(df, c("dtxsid", "dtxsid_CAS"), list(Chemical = "Name"))
+
+  expect_equal(audit$row_id, c(1L, 3L, 4L))
+  expect_match(audit$reason[1], "WQX name evidence conflicts")
+  expect_match(audit$reason[2], "^blocked:")
+  expect_match(audit$reason[3], "unavailable")
+  expect_equal(nrow(audit_bulk_accepted(df[2, ], c("dtxsid", "dtxsid_CAS"), list(Chemical = "Name"))), 0L)
+})
+
+test_that("audit_bulk_accepted falls back to the candidate carrying the pinned DTXSID", {
+  df <- data.frame(
+    Chemical = "Phosphorus, total",
+    dtxsid_Chemical = "DTXSID0000001",
+    preferredName_Chemical = "Phosphorus pentoxide",
+    dtxsid_CAS = "DTXSID1024382",
+    preferredName_CAS = "Phosphorus-31",
+    consensus_status = "suggested",
+    consensus_dtxsid = "DTXSID1024382",
+    .suggested_column = NA_character_,
+    .resolution_method = "bulk-accept",
+    stringsAsFactors = FALSE
+  )
+  audit <- audit_bulk_accepted(df, c("dtxsid_Chemical", "dtxsid_CAS"), list(Chemical = "Name"))
+  expect_equal(audit$accepted_name, "Phosphorus-31")
+  expect_error(audit_bulk_accepted(df, "dtxsid_CAS", list(Chemical = "Other")), "Name-tagged")
+  expect_error(audit_bulk_accepted(df, "dtxsid_CAS", list(Missing = "Name")), "not in df")
+
+  # A suggestion whose column no longer carries the pinned DTXSID is not trusted,
+  # and a state saved without .suggested_column still audits.
+  df$.suggested_column <- "dtxsid_Chemical"
+  expect_equal(audit_bulk_accepted(df, c("dtxsid_Chemical", "dtxsid_CAS"), list(Chemical = "Name"))$accepted_name, "Phosphorus-31")
+  df$.suggested_column <- NULL
+  expect_equal(nrow(audit_bulk_accepted(df, c("dtxsid_Chemical", "dtxsid_CAS"), list(Chemical = "Name"))), 1L)
+})
