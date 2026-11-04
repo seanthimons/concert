@@ -15,7 +15,8 @@ run_cleaning_pipeline(
 \arguments{
 \item{df}{Dataframe to clean}
 
-\item{tag_map}{Optional named list mapping column names to types ("CASRN", "Name", "Other")}
+\item{tag_map}{Optional named list mapping column names to types ("CASRN", "Name", "Other").
+"Synonym" columns are left as-is (see \code{\link[=format_synonyms]{format_synonyms()}}).}
 
 \item{reference_lists}{Optional list of reference data (unused in Phase 11, reserved for future)}
 

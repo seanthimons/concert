@@ -11,7 +11,9 @@
 #' Deduplicate tagged column values before API calls
 #'
 #' @param df Data frame with chemical data
-#' @param tag_map Named list mapping column names to tag types ("Name", "CASRN", or "Other")
+#' @param tag_map Named list mapping column names to tag types ("Name", "CASRN",
+#'   "Other", or "Synonym"). A Synonym cell is split on `;` and each part is
+#'   searched; the dedup key map then has one row per part.
 #' @param skip_flags Optional character vector of cleaning_flag values. Rows whose
 #'   cleaning_flag contains any of these values are excluded from the search pool
 #'   (their dedup_key_map entries are kept but marked as skipped).
@@ -19,10 +21,11 @@
 #'   the search pool. When supplied, this takes precedence over skip_flags.
 #' @return List with unique_names, unique_cas, dedup_key_map, and skipped_rows (integer vector)
 deduplicate_tagged_columns <- function(df, tag_map, skip_flags = NULL, skip_rows = NULL) {
-  tag_map <- tag_map[unlist(tag_map) %in% c("Name", "CASRN", "Other")]
+  tag_map <- tag_map[unlist(tag_map) %in% c("Name", "CASRN", "Other", "Synonym")]
   name_cols <- names(tag_map)[tag_map == "Name"]
   cas_cols <- names(tag_map)[tag_map == "CASRN"]
   other_cols <- names(tag_map)[tag_map == "Other"]
+  synonym_cols <- names(tag_map)[tag_map == "Synonym"]
 
   # Identify rows to skip from API search (e.g., isotope_match)
   skipped_rows <- integer(0)
@@ -50,40 +53,47 @@ deduplicate_tagged_columns <- function(df, tag_map, skip_flags = NULL, skip_rows
   # Build dedup key map using vectorized operations (O(n) instead of O(n^2))
   n_rows <- nrow(df)
   col_names <- names(tag_map)
-  n_cols <- length(col_names)
 
-  # Pre-allocate vectors for the full result
-  total_entries <- n_rows * n_cols
-  all_row_idx <- integer(total_entries)
-  all_col_names <- character(total_entries)
-  all_tag_types <- character(total_entries)
-  all_dedup_keys <- character(total_entries)
-
-  idx <- 1L
-  for (col_name in col_names) {
-    end_idx <- idx + n_rows - 1L
-    all_row_idx[idx:end_idx] <- seq_len(n_rows)
-    all_col_names[idx:end_idx] <- col_name
-    all_tag_types[idx:end_idx] <- tag_map[[col_name]]
-    all_dedup_keys[idx:end_idx] <- as.character(df[[col_name]])
-    idx <- end_idx + 1L
+  # One entry per row and column; a Synonym cell contributes one entry per part.
+  synonym_parts <- stats::setNames(lapply(synonym_cols, function(col) split_synonym_list(df[[col]])), synonym_cols)
+  key_parts <- lapply(col_names, function(col_name) {
+    if (col_name %in% synonym_cols) {
+      parts <- synonym_parts[[col_name]]
+      lens <- lengths(parts)
+      # An empty cell keeps a single NA entry so every row stays represented.
+      parts[lens == 0L] <- list(NA_character_)
+      lens <- pmax(lens, 1L)
+      row_idx <- rep(seq_len(n_rows), lens)
+      keys <- as.character(unlist(parts, use.names = FALSE))
+    } else {
+      row_idx <- seq_len(n_rows)
+      keys <- as.character(df[[col_name]])
+    }
+    tibble::tibble(
+      row_idx = row_idx,
+      column_name = col_name,
+      tag_type = tag_map[[col_name]],
+      dedup_key = keys
+    )
+  })
+  dedup_key_map <- if (length(key_parts) > 0L) {
+    dplyr::bind_rows(key_parts)
+  } else {
+    tibble::tibble(row_idx = integer(), column_name = character(), tag_type = character(), dedup_key = character())
   }
-
-  dedup_key_map <- tibble::tibble(
-    row_idx = all_row_idx,
-    column_name = all_col_names,
-    tag_type = all_tag_types,
-    dedup_key = all_dedup_keys
-  )
 
   # Extract unique non-NA values by type, excluding skipped rows
   unique_names <- character(0)
   unique_cas <- character(0)
 
   searchable_cols <- c(name_cols, other_cols)
-  if (length(searchable_cols) > 0) {
+  has_searchable <- length(searchable_cols) > 0 || length(synonym_cols) > 0
+  if (has_searchable) {
     search_df <- if (length(skipped_rows) > 0) df[-skipped_rows, , drop = FALSE] else df
     all_names <- unlist(lapply(searchable_cols, function(col) search_df[[col]]))
+    keep <- if (length(skipped_rows) > 0) -skipped_rows else seq_len(n_rows)
+    searched_parts <- unlist(lapply(synonym_cols, function(col) synonym_parts[[col]][keep]), use.names = FALSE)
+    all_names <- c(all_names, searched_parts)
     unique_names <- unique(all_names[!is.na(all_names) & all_names != ""])
   }
 
@@ -616,6 +626,60 @@ run_tiered_search <- function(dedup_result) {
 }
 
 # ============================================================================
+# pick_synonym_hit
+# ============================================================================
+
+# Choose the evidence a row's synonym parts give. `hits` are the deduplicated
+# lookup rows for the row's parts. Loose evidence never decides: fuzzy WQX hits
+# are ignored, starts-with hits only count when nothing firmer hit, and WQX
+# vocabulary hits only count when no part resolved to a DTXSID.
+#   - one distinct DTXSID among exact/CAS parts: the best-ranked such hit;
+#   - several, or parts that tie between DTXSIDs: a tie, which classify_consensus
+#     resolves against the other sources (an unresolved tie goes to review);
+#   - otherwise starts-with, then WQX exact/alias hits when they agree;
+#   - otherwise nothing.
+# Returns list(pos = row of `hits` or NA, tied = "a; b" or NA, tier = "miss" or NA).
+pick_synonym_hit <- function(hits) {
+  none <- list(pos = NA_integer_, tied = NA_character_, tier = if (nrow(hits) > 0L) "miss" else NA_character_)
+  if (nrow(hits) == 0L) {
+    return(none)
+  }
+  tier <- as.character(hits$source_tier)
+  tied_col <- as.character(hits[["tied_dtxsids"]] %||% rep(NA_character_, nrow(hits)))
+  best <- function(rows) rows[order(is.na(hits$rank[rows]), hits$rank[rows])][1]
+
+  definite <- which(!is.na(hits$dtxsid) & tier %in% c("exact", "cas"))
+  tie_sets <- lapply(tied_col[is.na(hits$dtxsid) & !is.na(tied_col)], strsplit, split = "; ", fixed = TRUE)
+  tie_sets <- lapply(tie_sets, `[[`, 1L)
+  if (length(definite) > 0L || length(tie_sets) > 0L) {
+    candidates <- unique(hits$dtxsid[definite])
+    if (length(candidates) > 0L) {
+      # A tie that includes a definite hit supports it; a disjoint tie competes.
+      for (ties in tie_sets) if (!any(ties %in% candidates)) candidates <- union(candidates, ties)
+    } else {
+      candidates <- Reduce(intersect, tie_sets)
+      if (length(candidates) == 0L) candidates <- unique(unlist(tie_sets))
+    }
+    if (length(candidates) == 1L && length(definite) > 0L) {
+      pos <- best(definite[hits$dtxsid[definite] == candidates])
+      return(list(pos = pos, tied = NA_character_, tier = NA_character_))
+    }
+    return(list(pos = NA_integer_, tied = paste(candidates, collapse = "; "), tier = "exact_tied"))
+  }
+
+  loose <- which(!is.na(hits$dtxsid) & tier == "starts_with")
+  if (length(loose) > 0L && length(unique(hits$dtxsid[loose])) == 1L) {
+    return(list(pos = best(loose), tied = NA_character_, tier = NA_character_))
+  }
+
+  vocab <- which(tier %in% c("wqx_exact", "wqx_alias"))
+  if (length(vocab) > 0L && length(unique(tolower(hits$preferredName[vocab]))) == 1L) {
+    return(list(pos = vocab[1], tied = NA_character_, tier = NA_character_))
+  }
+  none
+}
+
+# ============================================================================
 # map_results_to_rows
 # ============================================================================
 
@@ -691,25 +755,59 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
     })
     names(wqx_vectors) <- wqx_fields
 
-    # Fill in results by direct index lookup
-    for (i in seq_len(nrow(col_keys))) {
-      ridx <- col_keys$row_idx[i]
-      key <- col_keys$dedup_key[i]
-      match_pos <- lookup_idx[key]
+    assign_hit <- function(ridx, match_pos) {
+      dtxsid_vec[ridx] <<- lookup_deduped$dtxsid[match_pos]
+      pref_vec[ridx] <<- lookup_deduped$preferredName[match_pos]
+      search_vec[ridx] <<- lookup_deduped$searchName[match_pos]
+      rank_vec[ridx] <<- lookup_deduped$rank[match_pos]
+      tier_vec[ridx] <<- lookup_deduped$source_tier[match_pos]
+      for (field in wqx_fields) wqx_vectors[[field]][ridx] <<- lookup_deduped[[field]][match_pos]
+      if ("wqx_confidence" %in% names(lookup_deduped)) {
+        wqx_conf_vec[ridx] <<- lookup_deduped$wqx_confidence[match_pos]
+      }
+      if ("tied_dtxsids" %in% names(lookup_deduped)) {
+        tied_vec[ridx] <<- lookup_deduped$tied_dtxsids[match_pos]
+      }
+    }
 
-      if (!is.na(match_pos)) {
-        dtxsid_vec[ridx] <- lookup_deduped$dtxsid[match_pos]
-        pref_vec[ridx] <- lookup_deduped$preferredName[match_pos]
-        search_vec[ridx] <- lookup_deduped$searchName[match_pos]
-        rank_vec[ridx] <- lookup_deduped$rank[match_pos]
-        tier_vec[ridx] <- lookup_deduped$source_tier[match_pos]
-        for (field in wqx_fields) wqx_vectors[[field]][ridx] <- lookup_deduped[[field]][match_pos]
-        if ("wqx_confidence" %in% names(lookup_deduped)) {
-          wqx_conf_vec[ridx] <- lookup_deduped$wqx_confidence[match_pos]
+    if ("tag_type" %in% names(col_keys) && nrow(col_keys) > 0L && all(col_keys$tag_type == "Synonym")) {
+      # Several parts per row: pick one piece of evidence, never overwrite in turn.
+      pairs <- dplyr::distinct(tibble::tibble(row = col_keys$row_idx, pos = unname(lookup_idx[col_keys$dedup_key])))
+      pairs <- pairs[!is.na(pairs$pos), , drop = FALSE]
+      pairs$dtxsid <- lookup_deduped$dtxsid[pairs$pos]
+      pairs$definite <- !is.na(pairs$dtxsid) & lookup_deduped$source_tier[pairs$pos] %in% c("exact", "cas")
+      pairs$rank <- lookup_deduped$rank[pairs$pos]
+
+      # Fast path, vectorized: every part resolved to the same exact/CAS DTXSID.
+      agreed <- pairs |>
+        dplyr::group_by(row) |>
+        dplyr::summarise(agreed = all(definite) && dplyr::n_distinct(dtxsid) == 1L, .groups = "drop")
+      fast_rows <- agreed$row[agreed$agreed]
+      fast <- pairs[pairs$row %in% fast_rows, , drop = FALSE]
+      fast <- fast[order(fast$row, is.na(fast$rank), fast$rank), , drop = FALSE]
+      fast <- fast[!duplicated(fast$row), , drop = FALSE]
+      if (nrow(fast) > 0L) assign_hit(fast$row, fast$pos)
+
+      slow <- pairs[!pairs$row %in% fast_rows, , drop = FALSE]
+      by_row <- split(slow$pos, slow$row)
+      for (k in seq_along(by_row)) {
+        ridx <- as.integer(names(by_row)[k])
+        row_pos <- by_row[[k]]
+        pick <- pick_synonym_hit(lookup_deduped[row_pos, , drop = FALSE])
+        if (!is.na(pick$pos)) {
+          assign_hit(ridx, row_pos[pick$pos])
+        } else if (!is.na(pick$tied)) {
+          tier_vec[ridx] <- pick$tier
+          tied_vec[ridx] <- pick$tied
+        } else if (!is.na(pick$tier)) {
+          tier_vec[ridx] <- pick$tier
         }
-        if ("tied_dtxsids" %in% names(lookup_deduped)) {
-          tied_vec[ridx] <- lookup_deduped$tied_dtxsids[match_pos]
-        }
+      }
+    } else {
+      # Fill in results by direct index lookup
+      for (i in seq_len(nrow(col_keys))) {
+        match_pos <- lookup_idx[col_keys$dedup_key[i]]
+        if (!is.na(match_pos)) assign_hit(col_keys$row_idx[i], match_pos)
       }
     }
 
@@ -778,7 +876,12 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
 #' Orchestrate the full curation pipeline: dedup -> search -> map -> consensus -> resolution
 #'
 #' @param clean_data The cleaned data frame (data_store$clean)
-#' @param column_tags Named list (col_name -> "Name"|"CASRN"|"Other")
+#' @param column_tags Named list (col_name -> "Name"|"CASRN"|"Other"|"Synonym").
+#'   A "Synonym" column holds `;`-separated extra names for the row's own
+#'   chemical (see [format_synonyms()]). Each part is looked up and the column
+#'   contributes one evidence source for its row; it never adds rows. Like any
+#'   other tagged column it counts as a consensus source, so rows whose synonym
+#'   cell is empty or unresolved reach at most `agree_caveat`.
 #' @param progress_callback Optional function(stage, message) for reporting progress to Shiny
 #' @param dedup_only If TRUE, return after dedup stage with just counts (for preview)
 #' @param wqx_threshold Numeric WQX fuzzy matching threshold.
@@ -799,7 +902,8 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
 #'   and ambiguous dictionary evidence. Independent of `pubchem`. Mapped
 #'   `wqx_match_distance` is lossless 17-digit decimal text for portable evidence
 #'   fingerprints; the matcher's `match_distance` remains numeric.
-#' @return List with results, dedup_summary, search_summary, consensus_summary
+#' @return List with results, dedup_summary, search_summary, consensus_summary,
+#'   and synonym_diagnostics (columns that look comma-delimited)
 #' @export
 run_curation_pipeline <- function(
   clean_data,
@@ -821,7 +925,9 @@ run_curation_pipeline <- function(
   if (nrow(identifier_diagnostics)) warning("Unused source identifier columns: ",
     paste(identifier_diagnostics$column, collapse = ", "),
     ". Assign DTXSID role or configure ignored_identifier_cols.", call. = FALSE)
-  column_tags <- column_tags[unlist(column_tags) %in% c("Name", "CASRN", "Other")]
+  synonym_diagnostics <- synonym_delimiter_diagnostics(clean_data, column_tags)
+  warn_synonym_delimiter(synonym_diagnostics)
+  column_tags <- column_tags[unlist(column_tags) %in% c("Name", "CASRN", "Other", "Synonym")]
   # Build pre-resolved tibble for isotope-matched rows with known DTXSIDs.
   # Isotope matches without DTXSID must remain searchable so WQX can resolve
   # radiochemical canonical names such as Potassium-40, Lead-212, and Thallium-208.
@@ -845,9 +951,9 @@ run_curation_pipeline <- function(
   search_skip_rows <- sort(unique(c(isotope_skip_rows, blocked_skip_rows)))
   dedup_result <- deduplicate_tagged_columns(clean_data, column_tags, skip_rows = search_skip_rows)
 
-  n_other <- sum(column_tags == "Other")
+  n_other <- sum(column_tags %in% c("Other", "Synonym"))
   dedup_msg <- sprintf(
-    "Deduplicated: %d unique names (including %d Other columns), %d unique CAS",
+    "Deduplicated: %d unique names (including %d Other/Synonym columns), %d unique CAS",
     length(dedup_result$unique_names),
     n_other,
     length(dedup_result$unique_cas)
@@ -936,6 +1042,9 @@ run_curation_pipeline <- function(
         cache_dir <- resolve_curation_reference_cache_dir()
         wqx_dict <- load_wqx_dictionary(cache_dir)
         wqx_raw <- match_wqx(still_missed, wqx_dict, threshold = wqx_threshold, verbose = FALSE)
+        # A name that still holds several ';'-separated parts is a synonym bundle,
+        # not one substance, so a fuzzy hit on the whole string is meaningless (#139).
+        wqx_raw$match_tier[is_synonym_bundle(wqx_raw$input_name) & wqx_raw$match_tier == "fuzzy"] <- "none"
 
         wqx_resolved <- wqx_raw[wqx_raw$match_tier != "none", ]
         n_wqx <- nrow(wqx_resolved)
@@ -1117,6 +1226,7 @@ run_curation_pipeline <- function(
     results = resolved_df,
     source_identifier_evidence = source_result$evidence,
     identifier_diagnostics = identifier_diagnostics,
+    synonym_diagnostics = synonym_diagnostics,
     dedup_summary = list(
       n_names = length(dedup_result$unique_names),
       n_cas = length(dedup_result$unique_cas)
@@ -1840,8 +1950,8 @@ merge_retry_results <- function(original_state, retry_results, selected_row_indi
     }
   }
 
-  # Update per-column lookup columns (dtxsid_*, preferredName_*, rank_*, source_tier_*)
-  lookup_col_patterns <- c("^dtxsid_", "^preferredName_", "^rank_", "^source_tier_")
+  # Update per-column lookup columns (dtxsid_*, preferredName_*, rank_*, source_tier_*, tied_dtxsids_*)
+  lookup_col_patterns <- c("^dtxsid_", "^preferredName_", "^rank_", "^source_tier_", "^tied_dtxsids_")
   for (pattern in lookup_col_patterns) {
     retry_cols <- grep(pattern, names(retry_results), value = TRUE)
     for (col in retry_cols) {

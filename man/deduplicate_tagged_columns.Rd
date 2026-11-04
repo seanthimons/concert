@@ -9,7 +9,9 @@ deduplicate_tagged_columns(df, tag_map, skip_flags = NULL, skip_rows = NULL)
 \arguments{
 \item{df}{Data frame with chemical data}
 
-\item{tag_map}{Named list mapping column names to tag types ("Name", "CASRN", or "Other")}
+\item{tag_map}{Named list mapping column names to tag types ("Name", "CASRN",
+"Other", or "Synonym"). A Synonym cell is split on \verb{;} and each part is
+searched; the dedup key map then has one row per part.}
 
 \item{skip_flags}{Optional character vector of cleaning_flag values. Rows whose
 cleaning_flag contains any of these values are excluded from the search pool

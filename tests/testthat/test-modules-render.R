@@ -315,19 +315,23 @@ test_that("UIPOL-03: unlist(queue) is wrapped with unname() to prevent jsonlite 
 test_that("UIPOL-04: re-tag modal uses named list choices to avoid jsonlite warning", {
   src_path <- find_mod_review_results()
   skip_if(is.null(src_path), "R/mod_review_results.R not found from test context")
-  src <- readLines(src_path)
+  src <- paste(readLines(src_path), collapse = "\n")
 
-  named_list_lines <- grep(
-    "choices = list\\(\"\\(none\\)\" = \"\", \"Name\" = \"Name\", \"CASRN\" = \"CASRN\", \"Other\" = \"Other\"\\)",
-    src
+  # Inspect this modal's choices without depending on line wrapping or unrelated inputs.
+  pattern <- paste0(
+    '(?s)inputId\\s*=\\s*session\\$ns\\(paste0\\("retag_col_".*?',
+    'choices\\s*=\\s*((?:list|c)\\(.*?\\))\\s*,\\s*selected'
   )
-  expect_true(length(named_list_lines) > 0, info = "re-tag modal choices must use list(...)")
+  matched <- regmatches(src, regexec(pattern, src, perl = TRUE))[[1]]
+  expect_length(matched, 2L)
+  if (length(matched) != 2L) return(invisible(NULL))
 
-  named_vector_lines <- grep(
-    "choices = c\\(\"\\(none\\)\" = \"\", \"Name\" = \"Name\", \"CASRN\" = \"CASRN\", \"Other\" = \"Other\"\\)",
-    src
-  )
-  expect_equal(length(named_vector_lines), 0, info = "re-tag modal choices must not use c(...)")
+  choices <- eval(parse(text = matched[2]), envir = baseenv())
+  expect_type(choices, "list")
+  expect_identical(choices, list(
+    "(none)" = "", "Name" = "Name", "CASRN" = "CASRN", "Source DTXSID" = "DTXSID",
+    "Other" = "Other", "Synonym list" = "Synonym"
+  ))
 })
 
 test_that("Review Results renders replay Code controls after curation completion", {

@@ -113,6 +113,7 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
       name_count <- sum(col_tags == "Name")
       cas_count <- sum(col_tags == "CASRN")
       other_count <- sum(col_tags == "Other")
+      synonym_count <- sum(col_tags == "Synonym")
 
       # API key check
       has_api_key <- Sys.getenv("ctx_api_key") != ""
@@ -127,7 +128,8 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
         tags$ul(
           tags$li(paste(name_count, "Chemical Name column(s)")),
           tags$li(paste(cas_count, "CASRN column(s)")),
-          if (other_count > 0) tags$li(paste(other_count, "Other column(s)"))
+          if (other_count > 0) tags$li(paste(other_count, "Other column(s)")),
+          if (synonym_count > 0) tags$li(paste(synonym_count, "Synonym list column(s)"))
         ),
 
         # Dedup preview
@@ -283,6 +285,14 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
             data_store$consensus_data <- pipeline_result$results
             data_store$source_identifier_evidence <- pipeline_result$source_identifier_evidence
             data_store$identifier_diagnostics <- pipeline_result$identifier_diagnostics
+            synonym_diagnostics <- pipeline_result$synonym_diagnostics
+            if (!is.null(synonym_diagnostics) && nrow(synonym_diagnostics) > 0) {
+              notify_user(
+                paste(synonym_diagnostics$column, "-", synonym_diagnostics$message, collapse = "\n"),
+                type = "warning",
+                duration = NULL
+              )
+            }
             data_store$consensus_summary <- pipeline_result$consensus_summary
             data_store$resolution_state <- pipeline_result$results
             data_store$dtxsid_cols <- find_dtxsid_cols(pipeline_result$results)

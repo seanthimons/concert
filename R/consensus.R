@@ -1033,3 +1033,98 @@ accept_all_suggestions <- function(df, dtxsid_cols) {
 
   df
 }
+
+# ============================================================================
+# audit_bulk_accepted
+# ============================================================================
+
+#' List bulk-accepted pins that current identity holds would refuse
+#'
+#' The holds in [classify_auto_resolve()] and the bulk-accept blockers apply only
+#' to new classification; rows pinned by [accept_all_suggestions()] replay from
+#' saved sessions unchanged. This re-runs those holds over the existing
+#' `"bulk-accept"` rows and lists the ones that would now be held, so they can be
+#' re-reviewed (#128). It does not modify `df`.
+#'
+#' A row is listed when any of these holds:
+#'   - WQX name evidence conflicts with the DTXSID candidates;
+#'   - the accepted candidate's preferred name has token Jaccard similarity below
+#'     0.5 with the input name, or either name is missing
+#'     (see [name_token_similarity()]);
+#'   - a current bulk blocker applies (identity scope, identity conflict, stale
+#'     scope review, or a BAD/FOLLOW-UP row flag).
+#'
+#' @param df Resolution state with `.resolution_method`, `consensus_dtxsid`,
+#'   `.suggested_column`, and `dtxsid_*`/`preferredName_*` columns.
+#' @param dtxsid_cols Character vector of DTXSID column names.
+#' @param column_tags Named list (col_name -> "Name"|"CASRN"|"Other"); the first
+#'   Name-tagged column supplies the input name.
+#' @return Tibble of rows that would now be held, with `row_id`, `input_name`,
+#'   `consensus_dtxsid`, `accepted_name`, `token_similarity`, and `reason`.
+#'   Zero rows when nothing needs re-review. `row_id` is the position in `df`.
+#' @export
+audit_bulk_accepted <- function(df, dtxsid_cols, column_tags) {
+  df <- init_resolution_state(df)
+  name_cols <- names(column_tags)[column_tags == "Name"]
+  if (length(name_cols) == 0) {
+    stop("audit_bulk_accepted() needs a Name-tagged column in column_tags.", call. = FALSE)
+  }
+  name_col <- name_cols[1]
+  if (!name_col %in% names(df)) {
+    stop("audit_bulk_accepted(): Name column '", name_col, "' is not in df.", call. = FALSE)
+  }
+  suggested <- identity_col(df, ".suggested_column")
+
+  rows <- which(identity_col(df, ".resolution_method") %in% "bulk-accept")
+  blocked <- bulk_blocked_rows(df)
+  tier_cols <- intersect(vapply(dtxsid_cols, source_field_column, character(1), prefix = "source_tier"), names(df))
+  has_wqx_tier <- Reduce(`|`, lapply(tier_cols, function(col) is_wqx_tier(df[[col]])), rep(FALSE, nrow(df)))
+
+  # The column the reviewer accepted: the recorded suggestion while it still
+  # carries the pinned DTXSID, else whichever candidate does.
+  accepted_name <- rep(NA_character_, nrow(df))
+  for (i in rows) {
+    pinned_id <- as.character(df$consensus_dtxsid[i])
+    carries_id <- vapply(dtxsid_cols, function(c) identical(as.character(df[[c]][i]), pinned_id), logical(1))
+    col <- if (!is.na(suggested[i]) && suggested[i] %in% dtxsid_cols[carries_id]) {
+      suggested[i]
+    } else if (any(carries_id)) {
+      dtxsid_cols[carries_id][1]
+    } else {
+      NA_character_
+    }
+    pref_col <- if (is.na(col)) NA_character_ else source_field_column(col, "preferredName")
+    if (!is.na(pref_col) && pref_col %in% names(df)) accepted_name[i] <- as.character(df[[pref_col]][i])
+  }
+
+  input_name <- as.character(df[[name_col]])
+  similarity <- rep(NA_real_, nrow(df))
+  similarity[rows] <- name_token_similarity(input_name[rows], accepted_name[rows])
+
+  reason <- rep(NA_character_, nrow(df))
+  for (i in rows) {
+    reason[i] <- if (has_wqx_tier[i] && has_wqx_evidence_conflict(df, dtxsid_cols, i)) {
+      "held: WQX name evidence conflicts with DTXSID candidates"
+    } else if (!isTRUE(similarity[i] >= 0.5)) {
+      if (is.na(similarity[i])) {
+        "held: name token similarity unavailable"
+      } else {
+        sprintf("held: name token similarity=%.2f < 0.50", similarity[i])
+      }
+    } else if (blocked[i]) {
+      "blocked: identity scope, conflict, stale scope review, or row flag needs review"
+    } else {
+      NA_character_
+    }
+  }
+
+  held <- which(!is.na(reason))
+  tibble::tibble(
+    row_id = held,
+    input_name = input_name[held],
+    consensus_dtxsid = as.character(df$consensus_dtxsid[held]),
+    accepted_name = accepted_name[held],
+    token_similarity = similarity[held],
+    reason = reason[held]
+  )
+}

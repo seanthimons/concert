@@ -167,7 +167,7 @@ mod_tag_columns_server <- function(id, data_store, on_tags_applied = NULL, on_ta
                   label = NULL,
                   choices = list(
                     "Select type..." = c("Select type..." = ""),
-                    "Chemical" = c("Chemical Name" = "Name", "CASRN" = "CASRN", "Source DTXSID" = "DTXSID", "Other" = "Other"),
+                    "Chemical" = c("Chemical Name" = "Name", "CASRN" = "CASRN", "Source DTXSID" = "DTXSID", "Other" = "Other", "Synonym list" = "Synonym"),
                     "Numeric" = c(
                       "Result Value" = "Result",
                       "Numeric Measurement" = "Numeric",
