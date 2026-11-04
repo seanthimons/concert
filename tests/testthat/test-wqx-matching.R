@@ -411,3 +411,64 @@ test_that("alias precedence and duplicate normalized targets remain usable", {
     expect_equal(result$wqx_cas_status, "valid")
   }
 })
+
+test_that("match_wqx fuzzy tier never crosses isomers or compounds", {
+  dict <- tibble::tibble(
+    name = c(
+      "Dichlorobenzene",
+      "1,1-Dichloroethane",
+      "3,4,5-Trichlorocatechol",
+      "Ethylene oxide",
+      "total PCNs",
+      "Methylene chloride + Chlorobenzene",
+      "Formation code",
+      "Arsenic"
+    ),
+    canonical_name = name,
+    type = "canonical"
+  )
+  inputs <- c(
+    "1 2-Dichlorobenzene",
+    "3,4,6-trichlorocatechol",
+    "Ethylene bromide",
+    "Total phenols",
+    "Methylene chloride (Dichloromethane)",
+    "Formation oil"
+  )
+  result <- match_wqx(inputs, dict, threshold = 0.85)
+
+  expect_equal(result$match_tier, rep("none", length(inputs)))
+  expect_true(all(is.na(result$wqx_name)))
+
+  # Positive controls: spacing/punctuation and typos still resolve.
+  ok <- match_wqx(c("1 1-Dichloroethane", "Arsenick", "3 4 5-trichlorocatechol"), dict, threshold = 0.85)
+  expect_equal(ok$wqx_name, c("1,1-Dichloroethane", "Arsenic", "3,4,5-Trichlorocatechol"))
+  expect_true(all(ok$match_tier %in% c("fuzzy", "exact")))
+})
+
+test_that("fuzzy_identity_ok keeps positional tokens exact", {
+  expect_false(fuzzy_identity_ok("alpha-Endosulfan", "beta-Endosulfan"))
+  expect_false(fuzzy_identity_ok("o-Xylene", "Xylene"))
+  expect_false(fuzzy_identity_ok("cis-1,2-Dichloroethene", "trans-1,2-Dichloroethene"))
+  expect_true(fuzzy_identity_ok("Carbon tetrachlorid", "Carbon tetrachloride"))
+})
+
+test_that("fuzzy_identity_ok compares locant order and multiplicity", {
+  expect_false(fuzzy_identity_ok("1,1,2,2-Tetrachloroethane", "1,1,1,2-Tetrachloroethane"))
+  expect_false(fuzzy_identity_ok("1,2-dichloro-4-nitrobenzene", "1,4-dichloro-2-nitrobenzene"))
+  expect_false(fuzzy_identity_ok("p-Cresol", "m-Cresol"))
+  expect_false(fuzzy_identity_ok("Dichlorobenzene", "Trichlorobenzene"))
+  expect_false(fuzzy_identity_ok("Dichloroethane", "Dichloroethene"))
+  expect_false(fuzzy_identity_ok("Dichlorethene", "Dichloroethane"))
+  expect_false(fuzzy_identity_ok("Chlorobenzene", "Dichlorobenzene"))
+  expect_false(fuzzy_identity_ok("Dichlorobenzne", "Trichlorobenzene"))
+  expect_false(fuzzy_identity_ok("\u03b1-Endosulfan", "beta-Endosulfan"))
+  expect_true(fuzzy_identity_ok("Dichlorobenzne", "Dichlorobenzene"))
+  expect_true(fuzzy_identity_ok("1 1 2 2-Tetrachloroethane", "1,1,2,2-Tetrachloroethane"))
+  expect_true(fuzzy_identity_ok("Nitrate nitrogen", "Nitrogen nitrate"))
+})
+
+test_that("fuzzy_identity_ok tolerates empty and missing input", {
+  expect_identical(fuzzy_identity_ok(character(0), character(0)), logical(0))
+  expect_false(isTRUE(fuzzy_identity_ok(NA_character_, "Arsenic")))
+})

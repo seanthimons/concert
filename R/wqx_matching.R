@@ -63,13 +63,89 @@ identity_token_key <- function(x) {
   vapply(tokens, function(t) paste(sort(unique(toupper(gsub("[^[:alnum:]]", "", t)))), collapse = "|"), character(1))
 }
 
+# Alphanumeric word tokens, lowercased, in order and with repeats. Locants
+# ("1,2-" and "1 2-" alike), o/m/p prefixes and numbers fall out as short or
+# digit-bearing tokens. Greek stereo prefixes are spelled out so they survive.
+fuzzy_name_tokens <- function(x) {
+  x <- stringr::str_replace_all(
+    tolower(x),
+    c("\u03b1" = "alpha", "\u03b2" = "beta", "\u03b3" = "gamma", "\u03b4" = "delta")
+  )
+  lapply(strsplit(x, "[^a-z0-9]+"), function(t) t[nzchar(t)])
+}
+
+# A multiplier prefix or -ane/-ene/-yne ending that is the only difference
+# between two words is substance identity, not a typo: dichlorobenzene is not
+# chloro- or trichlorobenzene, ethane is not ethene. Multiplier differences are
+# caught even beside a typo; a dropped saturation vowel (benzne) stays a typo.
+FUZZY_MULTIPLIER <- "^(?:mono|di|tri|tetra|penta|hexa|hepta|octa|nona|deca)(?=[a-z]{4})"
+FUZZY_SATURATION <- "[aey](?=ne$)"
+fuzzy_feature_swapped <- function(tok, words, pattern, both_present = TRUE, token_cutoff = 0.15) {
+  feature <- function(x) dplyr::coalesce(stringr::str_extract(x, pattern), "")
+  rest <- function(x) stringr::str_remove(x, pattern)
+  differs <- feature(words) != feature(tok)
+  if (both_present) {
+    differs <- differs & nzchar(feature(words)) & nzchar(feature(tok))
+  }
+  differs & stringdist::stringdist(rest(tok), rest(words), method = "jw") <= token_cutoff
+}
+
+# Every token on each side needs a counterpart on the other. Tokens that carry
+# positional identity (digits as in locants, or <= 3 characters as in o/m/p,
+# cis, E/Z) must match exactly; longer words may differ by a typo. The ordered
+# digit tokens must also be identical, so 1,1,2,2- is not 1,1,1,2- and
+# 1,2-dichloro-4-nitro is not 1,4-dichloro-2-nitro. This stops dropped or
+# different locants, alpha/beta and a shared word hiding a different substance
+# (Ethylene bromide vs Ethylene oxide).
+fuzzy_tokens_aligned <- function(input, candidate, token_cutoff = 0.15) {
+  has_digit <- function(x) grepl("[0-9]", x)
+  covered <- function(x, y) {
+    y_words <- y[!has_digit(y) & nchar(y) > 3L]
+    all(vapply(
+      unique(x),
+      function(tok) {
+        if (tok %in% y) {
+          return(TRUE)
+        }
+        if (has_digit(tok) || nchar(tok) <= 3L || length(y_words) == 0L) {
+          return(FALSE)
+        }
+        y_words <- y_words[
+          !fuzzy_feature_swapped(tok, y_words, FUZZY_MULTIPLIER, both_present = FALSE, token_cutoff = token_cutoff) &
+            !fuzzy_feature_swapped(tok, y_words, FUZZY_SATURATION, token_cutoff = token_cutoff)
+        ]
+        length(y_words) > 0L && min(stringdist::stringdist(tok, y_words, method = "jw")) <= token_cutoff
+      },
+      logical(1)
+    ))
+  }
+  a <- fuzzy_name_tokens(input)
+  b <- fuzzy_name_tokens(candidate)
+  vapply(
+    seq_along(a),
+    function(i) {
+      if (is.na(input[i]) || is.na(candidate[i])) {
+        return(FALSE)
+      }
+      identical(a[[i]][has_digit(a[[i]])], b[[i]][has_digit(b[[i]])]) &&
+        covered(a[[i]], b[[i]]) &&
+        covered(b[[i]], a[[i]])
+    },
+    logical(1)
+  )
+}
+
 # A shared label inflates similarity (Testosterone-13C3 vs Progesterone-13C3),
 # so labelled names fuzzy-match only on case/punctuation differences.
 # ponytail: drops reordered synonyms like N-ethyl-d5 FOSAA; they go to review.
-fuzzy_identity_ok <- function(input, candidate) {
+# Unlabelled names must also agree token by token, so a whole-string JW score
+# cannot cross isomers or compounds (see fuzzy_tokens_aligned()).
+fuzzy_identity_ok <- function(input, candidate, token_cutoff = 0.15) {
   squash <- function(x) tolower(gsub("[^[:alnum:]]", "", x))
   key <- identity_token_key(input)
-  key == identity_token_key(candidate) & (key == "" | squash(input) == squash(candidate))
+  same_text <- squash(input) == squash(candidate)
+  key == identity_token_key(candidate) &
+    (same_text | (key == "" & fuzzy_tokens_aligned(input, candidate, token_cutoff)))
 }
 
 #' Match chemical names against WQX Characteristic Name dictionary
@@ -212,7 +288,7 @@ match_wqx <- function(names, dictionary, threshold = 0.85, verbose = FALSE) {
 
     # JW distance: 0=identical, cutoff = 1 - threshold
     accepted <- best_dist <= (1 - threshold) & !tied_keys &
-      fuzzy_identity_ok(names[still_unresolved_idx], best_match)
+      fuzzy_identity_ok(names[still_unresolved_idx], best_match, token_cutoff = min(1 - threshold, 0.15))
 
     # Vectorized assignment: all unresolved positions get distance and nearest candidate
     match_distance[still_unresolved_idx] <- best_dist
