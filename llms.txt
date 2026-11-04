@@ -288,6 +288,8 @@ Curate a file without the Shiny app, or drive it from an agent loop.
   : Restore chiral designation placeholders to original markers
 - [`split_synonyms()`](https://seanthimons.github.io/concert/reference/split_synonyms.md)
   : Split semicolon-separated synonyms in name fields
+- [`format_synonyms()`](https://seanthimons.github.io/concert/reference/format_synonyms.md)
+  : Format synonyms for a Synonym-tagged column
 - [`extract_cas()`](https://seanthimons.github.io/concert/reference/extract_cas.md)
   : Extracts all valid CASRNs from a character vector
 - [`extract_formulas()`](https://seanthimons.github.io/concert/reference/extract_formulas.md)
@@ -408,6 +410,8 @@ CompTox and WQX matching, consensus, and review.
   : Resolve one flagged review row (multi-analyte and/or multi-CAS)
 - [`accept_all_suggestions()`](https://seanthimons.github.io/concert/reference/accept_all_suggestions.md)
   : Accept all suggested resolutions in bulk
+- [`audit_bulk_accepted()`](https://seanthimons.github.io/concert/reference/audit_bulk_accepted.md)
+  : List bulk-accepted pins that current identity holds would refuse
 - [`build_review_overrides()`](https://seanthimons.github.io/concert/reference/build_review_overrides.md)
   : Build content-matched review overrides
 - [`apply_review_overrides()`](https://seanthimons.github.io/concert/reference/apply_review_overrides.md)

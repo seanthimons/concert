@@ -30,7 +30,14 @@ run_curation_pipeline(
 
 - column_tags:
 
-  Named list (col_name -\> "Name"\|"CASRN"\|"Other")
+  Named list (col_name -\> "Name"\|"CASRN"\|"Other"\|"Synonym"). A
+  "Synonym" column holds `;`-separated extra names for the row's own
+  chemical (see
+  [`format_synonyms()`](https://seanthimons.github.io/concert/reference/format_synonyms.md)).
+  Each part is looked up and the column contributes one evidence source
+  for its row; it never adds rows. Like any other tagged column it
+  counts as a consensus source, so rows whose synonym cell is empty or
+  unresolved reach at most `agree_caveat`.
 
 - progress_callback:
 
@@ -85,4 +92,5 @@ run_curation_pipeline(
 
 ## Value
 
-List with results, dedup_summary, search_summary, consensus_summary
+List with results, dedup_summary, search_summary, consensus_summary, and
+synonym_diagnostics (columns that look comma-delimited)

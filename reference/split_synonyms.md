@@ -5,11 +5,13 @@ inside balanced parentheses or brackets stay within the name; unmatched
 or mismatched enclosures leave the entire cell unsplit. Commas never
 split: inverted IUPAC and CAS-registry names ("butane, 2,2-dimethyl",
 "Fatty acids, C16-22, lithium salts") carry commas inside one name. Rows
-that carry a CASRN are never split (one CAS is one chemical). CAS-less
-rows are left intact when any fragment cannot stand alone as a name
-(trailing hyphen, leading locant, bare descriptor such as "branched").
-Primary name keeps original row; synonyms get new rows with CAS columns
-set to NA. Switch off in the pipeline with
+that carry a CASRN are never split (one CAS is one chemical); give
+synonym lists their own column tagged `"Synonym"` instead (see
+[`format_synonyms()`](https://seanthimons.github.io/concert/reference/format_synonyms.md)).
+CAS-less rows are left intact when any fragment cannot stand alone as a
+name (trailing hyphen, leading locant, bare descriptor such as
+"branched"). Primary name keeps original row; synonyms get new rows with
+CAS columns set to NA. Switch off in the pipeline with
 `mask = list(synonyms = FALSE)`.
 
 ## Usage

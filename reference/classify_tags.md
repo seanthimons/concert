@@ -23,7 +23,8 @@ Named list with four elements:
 
 - chemical_tags:
 
-  Named list of chemical-related tags (Name, CASRN, Other)
+  Named list of chemical-related tags (Name, CASRN, Other, DTXSID,
+  Synonym)
 
 - numeric_tags:
 
@@ -43,7 +44,7 @@ Named list with four elements:
 
 Tag type membership per design decisions:
 
-- D-06: Chemical types = Name, CASRN, Other
+- D-06: Chemical types = Name, CASRN, Other, DTXSID, Synonym
 
 - D-07: Numeric types = Result, Numeric, Unit, Qualifier,
   ReportingLimit, Uncertainty, UncertaintyCoverage, Duration,

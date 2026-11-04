@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.7</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.8</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -74,7 +74,15 @@ must match column names <em>after</em> <code><a href="https://sfirke.github.io/j
 Values are one of <code>"Name"</code>, <code>"CASRN"</code>, <code>"Other"</code>, <code>"Result"</code>, <code>"Numeric"</code>, <code>"Unit"</code>,
 <code>"Qualifier"</code>, <code>"ReportingLimit"</code>, <code>"Uncertainty"</code>,
 <code>"UncertaintyCoverage"</code>, etc. Example:
-<code>list(chemical_name = "Name", cas_number = "CASRN", result = "Result", unit = "Unit")</code>.</p></dd>
+<code>list(chemical_name = "Name", cas_number = "CASRN", result = "Result", unit = "Unit")</code>.</p>
+<p>A <code>"Synonym"</code> column supplies extra names for the row's own chemical as
+one cell, <code>"EDB; Ethylene bromide; Ethylene dibromide"</code>. Separate synonyms
+with <code>;</code> (semicolons inside parentheses or brackets are kept); commas never
+separate them, because names such as "Benzene, 1,2-dichloro-" contain commas.
+Build cells from a list column with <code><a href="format_synonyms.html">format_synonyms()</a></code>. Each synonym is
+looked up and the column contributes one evidence source per row, whether or
+not the row has a CASRN. It never adds rows. <code>"Other"</code> columns are looked up
+whole, so do not use them for synonym lists.</p></dd>
 
 
 <dt id="arg-header-row">header_row<a class="anchor" aria-label="anchor" href="#arg-header-row"></a></dt>

@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.7</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.8</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -72,7 +72,12 @@
 
 
 <dt id="arg-column-tags">column_tags<a class="anchor" aria-label="anchor" href="#arg-column-tags"></a></dt>
-<dd><p>Named list (col_name -&gt; "Name"|"CASRN"|"Other")</p></dd>
+<dd><p>Named list (col_name -&gt; "Name"|"CASRN"|"Other"|"Synonym").
+A "Synonym" column holds <code>;</code>-separated extra names for the row's own
+chemical (see <code><a href="format_synonyms.html">format_synonyms()</a></code>). Each part is looked up and the column
+contributes one evidence source for its row; it never adds rows. Like any
+other tagged column it counts as a consensus source, so rows whose synonym
+cell is empty or unresolved reach at most <code>agree_caveat</code>.</p></dd>
 
 
 <dt id="arg-progress-callback">progress_callback<a class="anchor" aria-label="anchor" href="#arg-progress-callback"></a></dt>
@@ -127,7 +132,8 @@ fingerprints; the matcher's <code>match_distance</code> remains numeric.</p></dd
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>List with results, dedup_summary, search_summary, consensus_summary</p>
+    <p>List with results, dedup_summary, search_summary, consensus_summary,
+and synonym_diagnostics (columns that look comma-delimited)</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

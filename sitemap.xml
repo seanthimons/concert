@@ -28,6 +28,7 @@
 <url><loc>https://seanthimons.github.io/concert/reference/as_cas.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/assert_no_source_result_flag.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/assert_typed_nas.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/audit_bulk_accepted.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/augment_radiological_unit_map.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/build_audit_trail.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/build_candidate_review.html</loc></url>
@@ -91,6 +92,7 @@
 <url><loc>https://seanthimons.github.io/concert/reference/flag_multi_analyte.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/flag_reference_matches.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/format_file_size.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/format_synonyms.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/generate_concert_script.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/generate_source_hash.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/get_dedup_preview.html</loc></url>
@@ -220,6 +222,7 @@
 <url><loc>https://seanthimons.github.io/concert/reference/set_row_flags.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/source_identifier_evidence.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/split_ranges.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/split_synonym_list.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/split_synonyms.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/stage_clean.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/stage_curate.html</loc></url>

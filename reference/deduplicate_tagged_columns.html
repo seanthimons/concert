@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.7</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.8</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -59,7 +59,9 @@
 
 
 <dt id="arg-tag-map">tag_map<a class="anchor" aria-label="anchor" href="#arg-tag-map"></a></dt>
-<dd><p>Named list mapping column names to tag types ("Name", "CASRN", or "Other")</p></dd>
+<dd><p>Named list mapping column names to tag types ("Name", "CASRN",
+"Other", or "Synonym"). A Synonym cell is split on <code>;</code> and each part is
+searched; the dedup key map then has one row per part.</p></dd>
 
 
 <dt id="arg-skip-flags">skip_flags<a class="anchor" aria-label="anchor" href="#arg-skip-flags"></a></dt>

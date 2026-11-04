@@ -16,8 +16,9 @@ deduplicate_tagged_columns(df, tag_map, skip_flags = NULL, skip_rows = NULL)
 
 - tag_map:
 
-  Named list mapping column names to tag types ("Name", "CASRN", or
-  "Other")
+  Named list mapping column names to tag types ("Name", "CASRN",
+  "Other", or "Synonym"). A Synonym cell is split on `;` and each part
+  is searched; the dedup key map then has one row per part.
 
 - skip_flags:
 

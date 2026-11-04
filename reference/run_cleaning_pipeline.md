@@ -33,7 +33,8 @@ run_cleaning_pipeline(
 - tag_map:
 
   Optional named list mapping column names to types ("CASRN", "Name",
-  "Other")
+  "Other"). "Synonym" columns are left as-is (see
+  [`format_synonyms()`](https://seanthimons.github.io/concert/reference/format_synonyms.md)).
 
 - reference_lists:
 

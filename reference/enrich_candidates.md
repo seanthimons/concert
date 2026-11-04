@@ -10,7 +10,11 @@ retaining `isMarkush` for review metadata.
 ## Usage
 
 ``` r
-enrich_candidates(dtxsids, existing_cache = NULL, projection = "chemicaldetailstandard")
+enrich_candidates(
+  dtxsids,
+  existing_cache = NULL,
+  projection = "chemicaldetailstandard"
+)
 ```
 
 ## Arguments

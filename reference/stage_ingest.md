@@ -34,6 +34,17 @@ stage_ingest(
   `"Uncertainty"`, `"UncertaintyCoverage"`, etc. Example:
   `list(chemical_name = "Name", cas_number = "CASRN", result = "Result", unit = "Unit")`.
 
+  A `"Synonym"` column supplies extra names for the row's own chemical
+  as one cell, `"EDB; Ethylene bromide; Ethylene dibromide"`. Separate
+  synonyms with `;` (semicolons inside parentheses or brackets are
+  kept); commas never separate them, because names such as "Benzene,
+  1,2-dichloro-" contain commas. Build cells from a list column with
+  [`format_synonyms()`](https://seanthimons.github.io/concert/reference/format_synonyms.md).
+  Each synonym is looked up and the column contributes one evidence
+  source per row, whether or not the row has a CASRN. It never adds
+  rows. `"Other"` columns are looked up whole, so do not use them for
+  synonym lists.
+
 - header_row:
 
   Integer or NULL. If NULL (default), frontmatter detection runs
