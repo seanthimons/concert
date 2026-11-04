@@ -83,6 +83,7 @@ reference:
       - protect_chiral_designations
       - restore_chiral_designations
       - split_synonyms
+      - format_synonyms
       - extract_cas
       - extract_formulas
       - extract_mixture
@@ -130,6 +131,7 @@ reference:
       - resolve_row
       - resolve_review_row
       - accept_all_suggestions
+      - audit_bulk_accepted
       - build_review_overrides
       - apply_review_overrides
       - apply_review_resolutions
