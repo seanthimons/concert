@@ -42,7 +42,7 @@ review_signature_excluded_columns <- function() {
 
 replay_tag_workflow_groups <- function() {
   list(
-    chemical_tags = c("Name", "CASRN", "Other"),
+    chemical_tags = c("Name", "CASRN", "Other", "Synonym"),
     measurement_tags = c(
       "Result",
       "Numeric",

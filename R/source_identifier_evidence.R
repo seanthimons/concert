@@ -4,7 +4,7 @@ normalize_source_dtxsid <- function(x) toupper(trimws(as.character(x)))
 validate_source_identifier_config <- function(df, tags, ignored_identifier_cols = character()) {
   missing <- setdiff(c(names(tags), ignored_identifier_cols), names(df))
   if (length(missing)) stop("Unknown source identifier configuration columns: ", paste(missing, collapse = ", "))
-  overlap <- intersect(names(tags)[unlist(tags) %in% c("Name", "CASRN", "Other", "DTXSID")], ignored_identifier_cols)
+  overlap <- intersect(names(tags)[unlist(tags) %in% c("Name", "CASRN", "Other", "DTXSID", "Synonym")], ignored_identifier_cols)
   if (length(overlap)) stop("Chemical evidence columns cannot also be ignored as metadata: ", paste(overlap, collapse = ", "))
   invisible(TRUE)
 }

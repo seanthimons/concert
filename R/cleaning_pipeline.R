@@ -1665,7 +1665,8 @@ SYNONYM_IMPLAUSIBLE_PART <- stringr::regex(
 #' Commas never split:
 #' inverted IUPAC and CAS-registry names ("butane, 2,2-dimethyl",
 #' "Fatty acids, C16-22, lithium salts") carry commas inside one name.
-#' Rows that carry a CASRN are never split (one CAS is one chemical). CAS-less
+#' Rows that carry a CASRN are never split (one CAS is one chemical); give synonym
+#' lists their own column tagged `"Synonym"` instead (see [format_synonyms()]). CAS-less
 #' rows are left intact when any fragment cannot stand alone as a name
 #' (trailing hyphen, leading locant, bare descriptor such as "branched").
 #' Primary name keeps original row; synonyms get new rows with CAS columns set to NA.
@@ -1697,25 +1698,8 @@ split_synonyms <- function(df, name_cols, tag_map) {
       return(NA_character_)
     }
     # Split only outside enclosures, including nested parentheses/brackets.
-    chars <- strsplit(name, "", fixed = TRUE)[[1]]
-    stack <- character()
-    separators <- integer()
-    for (i in which(chars %in% c("(", ")", "[", "]", ";"))) {
-      char <- chars[i]
-      if (char %in% c("(", "[")) {
-        stack <- c(stack, char)
-      } else if (char %in% c(")", "]")) {
-        expected <- if (char == ")") "(" else "["
-        if (length(stack) == 0L || tail(stack, 1L) != expected) return(name)
-        stack <- head(stack, -1L)
-      } else if (length(stack) == 0L) {
-        separators <- c(separators, i)
-      }
-    }
-    if (length(stack) > 0L) return(name)
-    parts <- stringr::str_trim(substring(name, c(1L, separators + 1L), c(separators - 1L, nchar(name))))
-    parts <- parts[parts != "" & !is.na(parts)]
-
+    parts <- split_semicolon_cell(name)
+    if (identical(parts, name)) return(name)
     # Plausibility gate: a fragment that cannot stand alone as a chemical name
     # means the cell was one name, not a synonym list.
     if (length(parts) > 1 && any(nchar(parts) < 4 | stringr::str_detect(parts, SYNONYM_IMPLAUSIBLE_PART))) {
@@ -2698,7 +2682,8 @@ perform_unicode_qc <- function(df) {
 #' Each step generates an audit trail. Final audit trail combines all changes.
 #'
 #' @param df Dataframe to clean
-#' @param tag_map Optional named list mapping column names to types ("CASRN", "Name", "Other")
+#' @param tag_map Optional named list mapping column names to types ("CASRN", "Name", "Other").
+#'   "Synonym" columns are left as-is (see [format_synonyms()]).
 #' @param reference_lists Optional list of reference data (unused in Phase 11, reserved for future)
 #' @param use_dedup Logical. When TRUE (default), uses dedup_step() wrappers
 #'   and pre-check predicates for performance optimization. Set to FALSE for
@@ -2841,6 +2826,9 @@ run_cleaning_pipeline_masked <- function(
     if (is.list(tag_map)) {
       tag_map <- unlist(tag_map, use.names = TRUE)
     }
+    # Synonym lists are lookup evidence, not cleaning targets: rescuing "CAS" out
+    # of a "a; 71-43-2; b" cell would break the list and add a CASRN column.
+    tag_map <- tag_map[tag_map != "Synonym"]
 
     cas_cols <- names(tag_map)[tag_map == "CASRN"]
     should_run_cas <- mask$cas && length(cas_cols) > 0

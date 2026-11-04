@@ -22,7 +22,12 @@ run_curation_pipeline(
 \arguments{
 \item{clean_data}{The cleaned data frame (data_store$clean)}
 
-\item{column_tags}{Named list (col_name -> "Name"|"CASRN"|"Other")}
+\item{column_tags}{Named list (col_name -> "Name"|"CASRN"|"Other"|"Synonym").
+A "Synonym" column holds \verb{;}-separated extra names for the row's own
+chemical (see \code{\link[=format_synonyms]{format_synonyms()}}). Each part is looked up and the column
+contributes one evidence source for its row; it never adds rows. Like any
+other tagged column it counts as a consensus source, so rows whose synonym
+cell is empty or unresolved reach at most \code{agree_caveat}.}
 
 \item{progress_callback}{Optional function(stage, message) for reporting progress to Shiny}
 
@@ -55,7 +60,8 @@ and ambiguous dictionary evidence. Independent of \code{pubchem}. Mapped
 fingerprints; the matcher's \code{match_distance} remains numeric.}
 }
 \value{
-List with results, dedup_summary, search_summary, consensus_summary
+List with results, dedup_summary, search_summary, consensus_summary,
+and synonym_diagnostics (columns that look comma-delimited)
 }
 \description{
 Orchestrate the full curation pipeline: dedup -> search -> map -> consensus -> resolution

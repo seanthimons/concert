@@ -58,7 +58,16 @@ must match column names \emph{after} \code{janitor::clean_names()} normalization
 Values are one of \code{"Name"}, \code{"CASRN"}, \code{"Other"}, \code{"Result"}, \code{"Numeric"}, \code{"Unit"},
 \code{"Qualifier"}, \code{"ReportingLimit"}, \code{"Uncertainty"},
 \code{"UncertaintyCoverage"}, etc. Example:
-\code{list(chemical_name = "Name", cas_number = "CASRN", result = "Result", unit = "Unit")}.}
+\code{list(chemical_name = "Name", cas_number = "CASRN", result = "Result", unit = "Unit")}.
+
+A \code{"Synonym"} column supplies extra names for the row's own chemical as
+one cell, \code{"EDB; Ethylene bromide; Ethylene dibromide"}. Separate synonyms
+with \verb{;} (semicolons inside parentheses or brackets are kept); commas never
+separate them, because names such as "Benzene, 1,2-dichloro-" contain commas.
+Build cells from a list column with \code{\link[=format_synonyms]{format_synonyms()}}. Each synonym is
+looked up and the column contributes one evidence source per row, whether or
+not the row has a CASRN. It never adds rows. \code{"Other"} columns are looked up
+whole, so do not use them for synonym lists.}
 
 \item{skip_flags}{Character vector of cleaning flag codes whose rows should
 skip the CompTox API search. Reserved for future use; isotope_match rows
