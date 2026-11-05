@@ -1,5 +1,26 @@
 # Changelog
 
+## concert 0.6.9 (2026-11-05)
+
+#### Bug fixes
+
+- handle environmental unit gaps
+  ([\#142](https://github.com/seanthimons/concert/issues/142))
+  ([83bd19c](https://github.com/seanthimons/concert/tree/83bd19c672b3ea5177bf385fdd44eaf75625fe03))
+
+#### Docs
+
+- index new synonym and bulk-audit helpers
+  ([60fe748](https://github.com/seanthimons/concert/tree/60fe748b6a07edce026f5fbe1f2d7e96116ab2dd))
+
+#### Other changes
+
+- bump version to 0.6.9 \[skip ci\]
+  ([1320cbc](https://github.com/seanthimons/concert/tree/1320cbcd412b13773594fc43123e5ff18e3c4378))
+
+Full set of changes:
+[`v0.6.8...v0.6.9`](https://github.com/seanthimons/concert/compare/v0.6.8...v0.6.9)
+
 ## concert 0.6.8 (2026-11-04)
 
 #### New features
@@ -23,6 +44,11 @@
 
 - update R actions for current Ubuntu sudo
   ([2eaaa36](https://github.com/seanthimons/concert/tree/2eaaa36c81981036494f971bede03d3d38775ef3))
+
+#### Docs
+
+- update NEWS.md for v0.6.8 \[skip ci\]
+  ([1bf6c4d](https://github.com/seanthimons/concert/tree/1bf6c4d6ec5622d146b13d957d27f68e2ef40433))
 
 #### Other changes
 
