@@ -1692,3 +1692,61 @@ test_that("bare radiological activity units harmonize to pCi without assuming vo
   ), tolerance = 1e-12)
   expect_true(all(result$unit_flag %in% c("", "case_fallback")))
 })
+
+test_that("a matched map row with no multiplier passes through with a reason", {
+  unit_map <- tibble::tibble(
+    from_unit = c("mg/L", "umol", "umol/g", "odd"),
+    to_unit = c("mg/L", "M", "M", "odd"),
+    multiplier = c(1, NA, NA, NA),
+    category = c("concentration", "molarity", "molarity", "other"),
+    confidence = rep("HIGH", 4),
+    source = rep("test", 4)
+  )
+  units <- rep(c("mg/L", "umol", "umol/g", "odd"), 5)
+
+  direct <- harmonize_units(rep(3, 20), units, unit_map, use_dedup = FALSE)
+  deduplicated <- harmonize_units(rep(3, 20), units, unit_map, use_dedup = TRUE)
+
+  expect_equal(deduplicated, direct)
+  expect_equal(direct$harmonized_value, rep(3, 20))
+  expect_equal(direct$harmonized_unit, units)
+  expect_equal(direct$conversion_factor, rep(1, 20))
+  expect_equal(direct$unit_flag, rep(c("", "needs_mw", "needs_mw", "unmatched"), 5))
+})
+
+test_that("environmental gap units harmonize through the loaded map", {
+  unit_map <- load_unit_map()
+  units <- c(
+    "mg/hr", "lb/day", "lb/d", "lbs/day",
+    "s.u.", "S.U.", "SU",
+    "mg N/L", "mg O2/L", "mg/L as O2",
+    "mg/dscm", "ug/dscm", "ng/dscm",
+    "mg/Nm3", "ug/Nm3", "ng/Nm3", "pg/Nm3"
+  )
+
+  result <- harmonize_units(rep(1, length(units)), units, unit_map)
+
+  expect_equal(result$harmonized_unit, c(
+    rep("g/h", 4),
+    rep("pH units", 3),
+    "mg/L as N", "mg/L as O2", "mg/L as O2",
+    rep("mg/dscm", 3),
+    rep("mg/Nm3", 4)
+  ))
+  expect_equal(result$conversion_factor, c(
+    0.001, rep(453.59237 / 24, 3),
+    1, 1, 1,
+    1, 1, 1,
+    1, 1e-3, 1e-6,
+    1, 1e-3, 1e-6, 1e-9
+  ), tolerance = 1e-12)
+  expect_equal(result$unit_flag, rep("", length(units)))
+})
+
+test_that("ECOTOX umol rows report needs_mw instead of an unflagged NA", {
+  result <- harmonize_units(c(2, 2), c("umol", "umol/g"), load_unit_map())
+
+  expect_equal(result$harmonized_value, c(2, 2))
+  expect_equal(result$harmonized_unit, c("umol", "umol/g"))
+  expect_equal(result$unit_flag, c("needs_mw", "needs_mw"))
+})
