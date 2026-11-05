@@ -1855,9 +1855,42 @@ augment_environmental_unit_map <- function(unit_map) {
       category = "osmolality"
     ),
     make_rows(
-      from_unit = c("mg TAN/L", "mg/L as CaCO3", "mg/L as N", "mg/L as NH3"),
-      to_unit = c("mg TAN/L", "mg/L as CaCO3", "mg/L as N", "mg/L as NH3"),
+      from_unit = c("mg TAN/L", "mg/L as CaCO3", "mg/L as N", "mg/L as NH3", "mg/L as O2"),
+      to_unit = c("mg TAN/L", "mg/L as CaCO3", "mg/L as N", "mg/L as NH3", "mg/L as O2"),
       category = "chemistry_qualifier"
+    ),
+    # The basis written into the unit is kept, never stripped to plain mg/L.
+    make_rows(
+      from_unit = c("mg N/L", "mg O2/L"),
+      to_unit = c("mg/L as N", "mg/L as O2"),
+      category = "chemistry_qualifier"
+    ),
+    make_rows(
+      from_unit = c("mg/hr"),
+      to_unit = "g/h",
+      multiplier = 0.001,
+      category = "rate"
+    ),
+    make_rows(
+      from_unit = c("lb/day", "lb/d", "lbs/day"),
+      to_unit = "g/h",
+      multiplier = lb_to_kg * 1000 / 24,
+      category = "rate"
+    ),
+    # Stack-gas concentrations at standard conditions. Dry standard cubic meters (20 C, dry)
+    # and normal cubic meters (0 C) are different reference volumes, and neither is the
+    # actual-condition m3 behind mg/m3, so each keeps its own canonical.
+    make_rows(
+      from_unit = c("mg/dscm", "ug/dscm", "ng/dscm"),
+      to_unit = "mg/dscm",
+      multiplier = c(1, 1e-3, 1e-6),
+      category = "air_concentration_standard"
+    ),
+    make_rows(
+      from_unit = c("mg/Nm3", "ug/Nm3", "ng/Nm3", "pg/Nm3"),
+      to_unit = "mg/Nm3",
+      multiplier = c(1, 1e-3, 1e-6, 1e-9),
+      category = "air_concentration_standard"
     ),
     make_rows(
       from_unit = c("No Units", "no units", "no unit name", "[no units]"),
@@ -1865,7 +1898,7 @@ augment_environmental_unit_map <- function(unit_map) {
       category = "none"
     ),
     make_rows(
-      from_unit = c("pH Units", "pH units", "standard units"),
+      from_unit = c("pH Units", "pH units", "standard units", "s.u.", "S.U.", "SU"),
       to_unit = "pH units",
       category = "dimensionless"
     ),

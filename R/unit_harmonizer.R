@@ -307,6 +307,18 @@ get_ppx_conversion_factor <- function(unit) {
   }
 }
 
+# A matched map row with no multiplier cannot convert. ECOTOX carries such rows for molar
+# units outside is_molarity_unit() (umol, umol/g, umol/kg, ...) and for blank source factors.
+# The value passes through, flagged needs_mw for molarity rows and unmatched otherwise.
+no_factor_flag <- function(unit_map, map_rows) {
+  category <- if ("category" %in% names(unit_map)) {
+    unit_map$category[map_rows]
+  } else {
+    rep(NA_character_, length(map_rows))
+  }
+  ifelse(!is.na(category) & category == "molarity", "needs_mw", "unmatched")
+}
+
 normalize_unit_map_schema <- function(unit_map) {
   if (is.null(unit_map) || nrow(unit_map) == 0) {
     return(unit_map)
@@ -776,6 +788,15 @@ harmonize_units <- function(
       u_conversion_factor[u_matched_global] <- unit_map$multiplier[u_map_rows]
       u_conversion_offset[u_matched_global] <- unit_map$offset[u_map_rows]
 
+      u_no_factor <- is.na(unit_map$multiplier[u_map_rows])
+      if (any(u_no_factor)) {
+        u_nf_global <- u_matched_global[u_no_factor]
+        u_harmonized_unit[u_nf_global] <- orig_unit[first_idx[u_nf_global]]
+        u_conversion_factor[u_nf_global] <- 1
+        u_conversion_offset[u_nf_global] <- 0
+        u_unit_flag[u_nf_global] <- no_factor_flag(unit_map, u_map_rows[u_no_factor])
+      }
+
       u_still_unmatched_local <- is.na(u_lookup_idx)
       u_still_unmatched_global <- u_std_indices[u_still_unmatched_local]
       u_unresolved_flag <- u_unit_flag[u_still_unmatched_global]
@@ -905,6 +926,16 @@ harmonize_units <- function(
       conversion_offset[matched_global] <- unit_map$offset[map_rows]
       harmonized_value[matched_global] <-
         values[matched_global] * conversion_factor[matched_global] + conversion_offset[matched_global]
+
+      no_factor <- is.na(unit_map$multiplier[map_rows])
+      if (any(no_factor)) {
+        nf_global <- matched_global[no_factor]
+        harmonized_unit[nf_global] <- orig_unit[nf_global]
+        conversion_factor[nf_global] <- 1
+        conversion_offset[nf_global] <- 0
+        harmonized_value[nf_global] <- values[nf_global]
+        unit_flag[nf_global] <- no_factor_flag(unit_map, map_rows[no_factor])
+      }
 
       # Handle truly unmatched (pass through with flag)
       still_unmatched_local <- is.na(lookup_idx)
