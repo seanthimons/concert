@@ -121,7 +121,7 @@ refs$isotope_lookup
 #>   "Caesium" "Aluminium"   "Sulphur" 
 #> 
 refs$unit_map
-#> # A tibble: 1,561 × 8
+#> # A tibble: 1,578 × 8
 #>    from_unit to_unit  multiplier category      confidence source          offset
 #>    <chr>     <chr>         <dbl> <chr>         <chr>      <chr>            <dbl>
 #>  1 %         %                 1 dimensionless HIGH       concert_enviro…      0
@@ -134,7 +134,7 @@ refs$unit_map
 #>  8 g% w/v    mg/L          10000 concentration HIGH       concert_enviro…      0
 #>  9 no/eu     count/eu          1 count         HIGH       concert_enviro…      0
 #> 10 mg%       mg/L             10 concentration MEDIUM     concert_enviro…      0
-#> # ℹ 1,551 more rows
+#> # ℹ 1,568 more rows
 #> # ℹ 1 more variable: conversion_type <chr>
 refs$unit_synonyms
 #> # A tibble: 28 × 4
