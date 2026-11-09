@@ -27,7 +27,7 @@ jobs:
     # Cross-platform compatibility checks are opt-in, not routine PR checks.
     if: github.event_name == 'workflow_dispatch'
     name: R CMD check
-    uses: seanthimons/baseline/.github/workflows/r-cmd-check.yaml@733a6e4554870ab2fa8dd7495fa67bea029bb38c # v1.3.0
+    uses: seanthimons/baseline/.github/workflows/r-cmd-check.yaml@e53831a23ef8f543c3fee58edd390089b0f13a27 # v1.4.0
 
   # ponytail: stays local; baseline r-renv-tests runs test_dir() without loading
   # the package, so concert's tests cannot find package functions there.

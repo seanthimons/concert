@@ -16,4 +16,4 @@ concurrency:
 jobs:
   lint:
     name: Lint workflows
-    uses: seanthimons/baseline/.github/workflows/lint-workflows.yaml@733a6e4554870ab2fa8dd7495fa67bea029bb38c # v1.3.0
+    uses: seanthimons/baseline/.github/workflows/lint-workflows.yaml@e53831a23ef8f543c3fee58edd390089b0f13a27 # v1.4.0
