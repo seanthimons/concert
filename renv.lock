@@ -11,7 +11,7 @@
   "Packages": {
     "ComptoxR": {
       "Package": "ComptoxR",
-      "Version": "4.0.0",
+      "Version": "4.0.3",
       "Source": "GitHub",
       "Title": "Wrappers and Functions for Accessing USEPA CompTox Chemical Dashboard and Other Products",
       "Authors@R": "person(\"Sean\", \"Thimons\", email = \"thimons.sean@epa.gov\", role = c(\"aut\", \"cre\") )",
@@ -33,7 +33,7 @@
         "duckdb",
         "glue",
         "here",
-        "httr2",
+        "httr2 (>= 1.0.0)",
         "jsonlite (>= 1.8.8)",
         "lifecycle",
         "magick",
@@ -85,8 +85,8 @@
       "RemoteHost": "api.github.com",
       "RemoteUsername": "seanthimons",
       "RemoteRepo": "ComptoxR",
-      "RemoteRef": "v4.0.0",
-      "RemoteSha": "bff04f585268e536b13ccce314a490f7b1d8ce33"
+      "RemoteRef": "v4.0.3",
+      "RemoteSha": "eef85b50864c91f2c0fe1eba530d7d0e5692acf4"
     },
     "DBI": {
       "Package": "DBI",
