@@ -342,16 +342,43 @@ add_structure_parents <- function(df, cache = NULL, workflows = DESALT_WORKFLOWS
 # The chemi resolver reaches DSSTox records the public CTX API lacks (e.g.
 # Prochloraz-d4, DTXSID801539501), so hits are review candidates only and
 # carry whether the DTXSIDs are in the public DSSTox build (public, not_public,
-# some_public when a name has several hits, unverified, no_hit, error).
-add_resolver_candidates <- function(df, name_cols, original_data = NULL,
-                                    lookup_fn = ComptoxR::chemi_resolver_lookup_bulk,
-                                    public_fn = dsstox_public_ids) {
+# some_public when a query has several hits, unverified, no_hit, error).
+add_resolver_candidates <- function(
+  df,
+  name_cols,
+  original_data = NULL,
+  lookup_fn = ComptoxR::chemi_resolver_lookup_bulk,
+  public_fn = dsstox_public_ids,
+  cas_cols = character()
+) {
   df$resolver_dtxsid_candidate <- NA_character_
   df$resolver_name <- NA_character_
   df$resolver_lookup_status <- NA_character_
   df$resolver_query <- NA_character_
   df$resolver_query_details <- NA_character_
   info <- unresolved_name_queries(df, name_cols, original_data)
+  unresolved <- which(
+    df$consensus_status %in%
+      c("error", "unresolvable", "wqx") &
+      (is.na(df$consensus_dtxsid) | !nzchar(trimws(df$consensus_dtxsid)))
+  )
+  for (column in intersect(cas_cols, names(df))) {
+    query <- trimws(as.character(df[[column]][unresolved]))
+    # Only complete, checksum-valid CAS RNs; never rescue digits from structures or mixtures.
+    valid <- !is.na(query) & grepl("^[1-9][0-9]{1,6}-[0-9]{2}-[0-9]$", query)
+    valid[valid] <- is_cas(query[valid]) %in% TRUE
+    rows <- unresolved[valid]
+    info$rows <- c(info$rows, rows)
+    info$names <- c(info$names, query[valid])
+    info$role <- c(info$role, rep("source_cas", length(rows)))
+    info$source_column <- c(info$source_column, rep(column, length(rows)))
+    lineage <- if ("original_row_id" %in% names(df)) {
+      as.character(df$original_row_id[rows])
+    } else {
+      rep(NA_character_, length(rows))
+    }
+    info$original_row_id <- c(info$original_row_id, lineage)
+  }
   keep <- !is.na(info$names) & nzchar(info$names)
   queries <- unique(info$names[keep])
   if (!length(queries)) return(df)

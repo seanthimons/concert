@@ -1218,7 +1218,10 @@ run_curation_pipeline <- function(
   }
   # Always on: only unresolved rows are queried and failures are recorded, not raised.
   resolved_df <- add_resolver_candidates(
-    resolved_df, names(column_tags)[column_tags == "Name"], original_data
+    resolved_df,
+    names(column_tags)[column_tags == "Name"],
+    original_data,
+    cas_cols = names(column_tags)[column_tags == "CASRN"]
   )
 
   # Return full pipeline result
