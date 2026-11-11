@@ -1,5 +1,21 @@
 # Changelog
 
+## concert 0.6.10 (2026-11-11)
+
+#### Bug fixes
+
+- retry unresolved CAS aliases with ComptoxR 4.0.3
+  ([\#145](https://github.com/seanthimons/concert/issues/145))
+  ([001bd17](https://github.com/seanthimons/concert/tree/001bd17f4ed569f138ea5dcb4b8faf3e1c9c91c1))
+
+#### Other changes
+
+- bump version to 0.6.10 \[skip ci\]
+  ([ade995f](https://github.com/seanthimons/concert/tree/ade995f02915ea6ec3796c527ad7762932fa2c01))
+
+Full set of changes:
+[`v0.6.9...v0.6.10`](https://github.com/seanthimons/concert/compare/v0.6.9...v0.6.10)
+
 ## concert 0.6.9 (2026-11-05)
 
 #### Bug fixes
@@ -10,6 +26,8 @@
 
 #### Docs
 
+- update NEWS.md for v0.6.9 \[skip ci\]
+  ([ef90987](https://github.com/seanthimons/concert/tree/ef90987724c7986a706b27f1d5d6954a41ae155b))
 - index new synonym and bulk-audit helpers
   ([60fe748](https://github.com/seanthimons/concert/tree/60fe748b6a07edce026f5fbe1f2d7e96116ab2dd))
 

@@ -7,16 +7,16 @@
 ## Citation
 
 Source:
-[`DESCRIPTION`](https://github.com/seanthimons/concert/blob/v0.6.9/DESCRIPTION)
+[`DESCRIPTION`](https://github.com/seanthimons/concert/blob/v0.6.10/DESCRIPTION)
 
 Thimons S (2026). *concert: Chemical Ontology and Nomenclature Crosswalk
-Tools*. R package version 0.6.9,
+Tools*. R package version 0.6.10,
 <https://seanthimons.github.io/concert/>.
 
     @Manual{,
       title = {concert: Chemical Ontology and Nomenclature Crosswalk Tools},
       author = {Sean Thimons},
       year = {2026},
-      note = {R package version 0.6.9},
+      note = {R package version 0.6.10},
       url = {https://seanthimons.github.io/concert/},
     }
