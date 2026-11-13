@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.10</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.11</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -37,79 +37,92 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/seanthimons/concert/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/seanthimons/concert/blob/v0.6.11/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
     <div class="section level2">
-<h2 class="pkg-version" data-toc-text="development version" id="concert-development-version">concert (development version)<a class="anchor" aria-label="anchor" href="#concert-development-version"></a></h2>
-<ul><li><p><code>Remotes</code> no longer pins ComptoxR to a release tag, so installers such as pak accept any ComptoxR that meets the <code>Imports</code> floor (&gt;= 4.0.3) instead of failing when a consumer’s lockfile records a different ComptoxR commit.</p></li>
-<li><p>CAS cleaning rejects EC-formatted and explicitly EC/EINECS/ELINCS-labelled identifiers instead of rebuilding their digits into checksum-valid CAS numbers. Text extraction retains genuine CAS values alongside those other identifiers.</p></li>
-</ul><div class="section level3">
-<h3 id="concert-development-version-1">concert 0.6.10 (2026-11-11)<a class="anchor" aria-label="anchor" href="#concert-development-version-1"></a></h3>
-<div class="section level5">
-<h5 id="bug-fixes-development-version">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version"></a></h5>
+<h2 class="pkg-version" data-toc-text="0.6.11" id="concert-0611-2026-11-13">concert 0.6.11 (2026-11-13)<a class="anchor" aria-label="anchor" href="#concert-0611-2026-11-13"></a></h2>
+<div class="section level4">
+<h4 id="bug-fixes-0-6-11">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-6-11"></a></h4>
+<ul><li>reject EC/EINECS/ELINCS identifiers in CAS cleaning (<a href="https://github.com/seanthimons/concert/tree/f8dff1eb7b69c9bd8e7f763bc9f16d022dc276c7" class="external-link">f8dff1e</a>)</li>
+<li>drop release tag from ComptoxR remote (<a href="https://github.com/seanthimons/concert/tree/cdb4d5f03bad5f4b4de5c2886d9536038f8904b2" class="external-link">cdb4d5f</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="other-changes-0-6-11">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-11"></a></h4>
+<ul><li>bump version to 0.6.11 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/535d6e4f372e35b5cee603a807754820f8084c58" class="external-link">535d6e4</a>)</li>
+</ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.6.11...v0.6.11" class="external-link"><code>v0.6.11...v0.6.11</code></a></p>
+</div>
+</div>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.6.10" id="concert-0610-2026-11-11">concert 0.6.10 (2026-11-11)<a class="anchor" aria-label="anchor" href="#concert-0610-2026-11-11"></a></h2>
+<div class="section level4">
+<h4 id="bug-fixes-0-6-10">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-6-10"></a></h4>
 <ul><li>retry unresolved CAS aliases with ComptoxR 4.0.3 (<a href="https://github.com/seanthimons/concert/issues/145" class="external-link">#145</a>) (<a href="https://github.com/seanthimons/concert/tree/001bd17f4ed569f138ea5dcb4b8faf3e1c9c91c1" class="external-link">001bd17</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-6-10">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-10"></a></h4>
+<ul><li>update NEWS.md for v0.6.10 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/b3028955abb1b6657ad5d25580d956f303246777" class="external-link">b302895</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="other-changes-0-6-10">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-10"></a></h4>
 <ul><li>bump version to 0.6.10 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/ade995f02915ea6ec3796c527ad7762932fa2c01" class="external-link">ade995f</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.6.9...v0.6.10" class="external-link"><code>v0.6.9...v0.6.10</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-2">concert 0.6.9 (2026-11-05)<a class="anchor" aria-label="anchor" href="#concert-development-version-2"></a></h3>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-1">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-1"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.6.9" id="concert-069-2026-11-05">concert 0.6.9 (2026-11-05)<a class="anchor" aria-label="anchor" href="#concert-069-2026-11-05"></a></h2>
+<div class="section level4">
+<h4 id="bug-fixes-0-6-9">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-6-9"></a></h4>
 <ul><li>handle environmental unit gaps (<a href="https://github.com/seanthimons/concert/issues/142" class="external-link">#142</a>) (<a href="https://github.com/seanthimons/concert/tree/83bd19c672b3ea5177bf385fdd44eaf75625fe03" class="external-link">83bd19c</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-6-9">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-9"></a></h4>
 <ul><li>update NEWS.md for v0.6.9 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/ef90987724c7986a706b27f1d5d6954a41ae155b" class="external-link">ef90987</a>)</li>
 <li>index new synonym and bulk-audit helpers (<a href="https://github.com/seanthimons/concert/tree/60fe748b6a07edce026f5fbe1f2d7e96116ab2dd" class="external-link">60fe748</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-1">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-1"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-6-9">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-9"></a></h4>
 <ul><li>bump version to 0.6.9 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/1320cbcd412b13773594fc43123e5ff18e3c4378" class="external-link">1320cbc</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.6.8...v0.6.9" class="external-link"><code>v0.6.8...v0.6.9</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-3">concert 0.6.8 (2026-11-04)<a class="anchor" aria-label="anchor" href="#concert-development-version-3"></a></h3>
-<div class="section level5">
-<h5 id="new-features-development-version">New features<a class="anchor" aria-label="anchor" href="#new-features-development-version"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.6.8" id="concert-068-2026-11-04">concert 0.6.8 (2026-11-04)<a class="anchor" aria-label="anchor" href="#concert-068-2026-11-04"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-6-8">New features<a class="anchor" aria-label="anchor" href="#new-features-0-6-8"></a></h4>
 <ul><li>add Synonym tag for per-row synonym-list evidence (<a href="https://github.com/seanthimons/concert/tree/bc6e86bd4d7b0e18a028477851615535c307acd7" class="external-link">bc6e86b</a>)</li>
 <li>audit bulk-accepted pins against current identity holds (<a href="https://github.com/seanthimons/concert/tree/b96b05e0a0f3ab3e2ba84f9d3fc771f9a9c6f1af" class="external-link">b96b05e</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-2">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-2"></a></h5>
+<div class="section level4">
+<h4 id="bug-fixes-0-6-8">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-6-8"></a></h4>
 <ul><li>stop fuzzy tier crossing isomers and compounds (<a href="https://github.com/seanthimons/concert/tree/d191339ead570edd21ce0ae5db67d52ff8841055" class="external-link">d191339</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="tests-development-version">Tests<a class="anchor" aria-label="anchor" href="#tests-development-version"></a></h5>
+<div class="section level4">
+<h4 id="tests-0-6-8">Tests<a class="anchor" aria-label="anchor" href="#tests-0-6-8"></a></h4>
 <ul><li>validate expanded re-tag choices across line breaks (<a href="https://github.com/seanthimons/concert/tree/6ecc81e70119b54d56d2cbc72dd936434a98892f" class="external-link">6ecc81e</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="ci-development-version">CI<a class="anchor" aria-label="anchor" href="#ci-development-version"></a></h5>
+<div class="section level4">
+<h4 id="ci-0-6-8">CI<a class="anchor" aria-label="anchor" href="#ci-0-6-8"></a></h4>
 <ul><li>update R actions for current Ubuntu sudo (<a href="https://github.com/seanthimons/concert/tree/2eaaa36c81981036494f971bede03d3d38775ef3" class="external-link">2eaaa36</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-1">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-1"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-6-8">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-8"></a></h4>
 <ul><li>update NEWS.md for v0.6.8 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/1bf6c4d6ec5622d146b13d957d27f68e2ef40433" class="external-link">1bf6c4d</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-2">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-2"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-6-8">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-8"></a></h4>
 <ul><li>bump version to 0.6.8 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/95ef07a310d3f299b245e79dfc5b22fb0dc19b55" class="external-link">95ef07a</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.6.7...v0.6.8" class="external-link"><code>v0.6.7...v0.6.8</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-4">concert 0.6.7 (2026-10-30)<a class="anchor" aria-label="anchor" href="#concert-development-version-4"></a></h3>
-<div class="section level5">
-<h5 id="new-features-development-version-1">New features<a class="anchor" aria-label="anchor" href="#new-features-development-version-1"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.6.7" id="concert-067-2026-10-30">concert 0.6.7 (2026-10-30)<a class="anchor" aria-label="anchor" href="#concert-067-2026-10-30"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-6-7">New features<a class="anchor" aria-label="anchor" href="#new-features-0-6-7"></a></h4>
 <ul><li>flag measurement qualifiers and hold fraction-qualified nutrients (<a href="https://github.com/seanthimons/concert/tree/f2c8ba1bd3ca271822c1b47c4ab96f166f8c3077" class="external-link">f2c8ba1</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-3">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-3"></a></h5>
+<div class="section level4">
+<h4 id="bug-fixes-0-6-7">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-6-7"></a></h4>
 <ul><li>use standard Comptox detail projection (<a href="https://github.com/seanthimons/concert/tree/7a3ebafab7f8bfcce031fe048118256076374ced" class="external-link">7a3ebaf</a>)</li>
 <li>gate the priority chain and normalise consensus_source (<a href="https://github.com/seanthimons/concert/tree/646f08e8dc35be367e347aefae3df07675ae973e" class="external-link">646f08e</a>)</li>
 <li>priority chain skips rows held by classify_auto_resolve (<a href="https://github.com/seanthimons/concert/tree/337e029965a4e256cebfa191f8c39bf52eeb7ab3" class="external-link">337e029</a>)</li>
@@ -117,143 +130,143 @@
 <li>score the unsuffixed dtxsid column on its own preferredName and rank (<a href="https://github.com/seanthimons/concert/tree/319316b1cd24f60339b4e01d3a23dfe767ca61ef" class="external-link">319316b</a>)</li>
 <li>hold WQX-conflict and name-drift rows in classify_auto_resolve (<a href="https://github.com/seanthimons/concert/tree/6a6f0a56f689f42c91f3e10bdb045883de625731" class="external-link">6a6f0a5</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="tests-development-version-1">Tests<a class="anchor" aria-label="anchor" href="#tests-development-version-1"></a></h5>
+<div class="section level4">
+<h4 id="tests-0-6-7">Tests<a class="anchor" aria-label="anchor" href="#tests-0-6-7"></a></h4>
 <ul><li>cover v4 fields and projection override (<a href="https://github.com/seanthimons/concert/tree/89ccd7f067aa0929bdebfbbcb934d2ae9138c9a0" class="external-link">89ccd7f</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="ci-development-version-1">CI<a class="anchor" aria-label="anchor" href="#ci-development-version-1"></a></h5>
+<div class="section level4">
+<h4 id="ci-0-6-7">CI<a class="anchor" aria-label="anchor" href="#ci-0-6-7"></a></h4>
 <ul><li>restore locked-review from the lockfile snapshot, not public RSPM (<a href="https://github.com/seanthimons/concert/tree/46d5598e660f150bcab3774374db4a6071f096e8" class="external-link">46d5598</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-2">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-2"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-6-7">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-7"></a></h4>
 <ul><li>update replacement v0.6.7 release notes [skip ci] (<a href="https://github.com/seanthimons/concert/tree/7e9673c3b4daef17b1648a50d2de08f7d8a17b9e" class="external-link">7e9673c</a>)</li>
 <li>update NEWS.md for v0.6.7 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/585f088ef1324147aa8218a5822f40b8becbf836" class="external-link">585f088</a>)</li>
 <li>add harmonize_methodology to pkgdown reference index (<a href="https://github.com/seanthimons/concert/tree/268f83898e99ca8be62e4844f5952daaa30e61b7" class="external-link">268f838</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-3">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-3"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-6-7">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-7"></a></h4>
 <ul><li>remove retired planning and development artifacts [skip ci] (<a href="https://github.com/seanthimons/concert/tree/18ee6fcd79e3ff08f52fedf6a5355a72412ea656" class="external-link">18ee6fc</a>)</li>
 <li>migrate API calls to v4 (<a href="https://github.com/seanthimons/concert/tree/9242b557ae43a7f763a4c15969a8e2fce09809eb" class="external-link">9242b55</a>)</li>
 <li>bump version to 0.6.7 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/3efcc62f56401d0b44200c7c8ea2bc5bc807e092" class="external-link">3efcc62</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.6.6...v0.6.7" class="external-link"><code>v0.6.6...v0.6.7</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-5">concert 0.6.6 (2026-10-16)<a class="anchor" aria-label="anchor" href="#concert-development-version-5"></a></h3>
-<div class="section level5">
-<h5 id="docs-development-version-3">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-3"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.6.6" id="concert-066-2026-10-16">concert 0.6.6 (2026-10-16)<a class="anchor" aria-label="anchor" href="#concert-066-2026-10-16"></a></h2>
+<div class="section level4">
+<h4 id="docs-0-6-6">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-6"></a></h4>
 <ul><li>update NEWS.md for v0.6.6 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/2b996096077b85ef7857da1948c46254a0786151" class="external-link">2b99609</a>)</li>
 <li>document ComptoxR pin, API key setup and deployment security (<a href="https://github.com/seanthimons/concert/tree/c2f6205ad029232d44993c751f6711faaa0d63db" class="external-link">c2f6205</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-4">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-4"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-6-6">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-6"></a></h4>
 <ul><li>bump version to 0.6.6 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/22fa4cd5d23875a9912e27c17749536b3afeb93e" class="external-link">22fa4cd</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.6.5...v0.6.6" class="external-link"><code>v0.6.5...v0.6.6</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-6">concert 0.6.5 (2026-10-16)<a class="anchor" aria-label="anchor" href="#concert-development-version-6"></a></h3>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-4">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-4"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.6.5" id="concert-065-2026-10-16">concert 0.6.5 (2026-10-16)<a class="anchor" aria-label="anchor" href="#concert-065-2026-10-16"></a></h2>
+<div class="section level4">
+<h4 id="bug-fixes-0-6-5">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-6-5"></a></h4>
 <ul><li>scan full sheets when guessing column types (<a href="https://github.com/seanthimons/concert/tree/7820c4b5e106efeef034024d778f69650a58a0a5" class="external-link">7820c4b</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-4">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-4"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-6-5">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-5"></a></h4>
 <ul><li>update NEWS.md for v0.6.5 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/535f5fa7916fa3badfe7c5d7c937f5e735bdb442" class="external-link">535f5fa</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-5">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-5"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-6-5">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-5"></a></h4>
 <ul><li>bump version to 0.6.5 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/80db5d4b61d5db32165af68d0f353378d97662b2" class="external-link">80db5d4</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.6.4...v0.6.5" class="external-link"><code>v0.6.4...v0.6.5</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-7">concert 0.6.4 (2026-10-15)<a class="anchor" aria-label="anchor" href="#concert-development-version-7"></a></h3>
-<div class="section level5">
-<h5 id="new-features-development-version-2">New features<a class="anchor" aria-label="anchor" href="#new-features-development-version-2"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.6.4" id="concert-064-2026-10-15">concert 0.6.4 (2026-10-15)<a class="anchor" aria-label="anchor" href="#concert-064-2026-10-15"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-6-4">New features<a class="anchor" aria-label="anchor" href="#new-features-0-6-4"></a></h4>
 <ul><li>harmonize analytical methods (<a href="https://github.com/seanthimons/concert/tree/dbe736c0b2e0431ad7350331dc5b976f8fb3f1e8" class="external-link">dbe736c</a>)</li>
 <li>download pinned envharmonizer tables at startup (<a href="https://github.com/seanthimons/concert/tree/eeb3fb682310dfeb9b75803c6e4625e7a71a6714" class="external-link">eeb3fb6</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-5">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-5"></a></h5>
+<div class="section level4">
+<h4 id="bug-fixes-0-6-4">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-6-4"></a></h4>
 <ul><li>validate inputs and correct media hit counts (<a href="https://github.com/seanthimons/concert/tree/c87ca5e0730b4fdb6db9f992f35e7730059cd325" class="external-link">c87ca5e</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-5">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-5"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-6-4">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-4"></a></h4>
 <ul><li>update NEWS.md for v0.6.4 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/cb7a3d6a333bd4a4906b07a859efe84d2041a2dc" class="external-link">cb7a3d6</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-6">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-6"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-6-4">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-4"></a></h4>
 <ul><li>bump version to 0.6.4 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/0d492e6af52b289e8b352a6de2d9d0e89f23880a" class="external-link">0d492e6</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.6.3...v0.6.4" class="external-link"><code>v0.6.3...v0.6.4</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-8">concert 0.6.3 (2026-10-15)<a class="anchor" aria-label="anchor" href="#concert-development-version-8"></a></h3>
-<div class="section level5">
-<h5 id="new-features-development-version-3">New features<a class="anchor" aria-label="anchor" href="#new-features-development-version-3"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.6.3" id="concert-063-2026-10-15">concert 0.6.3 (2026-10-15)<a class="anchor" aria-label="anchor" href="#concert-063-2026-10-15"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-6-3">New features<a class="anchor" aria-label="anchor" href="#new-features-0-6-3"></a></h4>
 <ul><li>expose header detection thresholds and document tie-break (<a href="https://github.com/seanthimons/concert/issues/12" class="external-link">#12</a>, <a href="https://github.com/seanthimons/concert/issues/18" class="external-link">#18</a>, <a href="https://github.com/seanthimons/concert/issues/14" class="external-link">#14</a>) (<a href="https://github.com/seanthimons/concert/tree/731f477aca2eb1e2e69d2f5e9813de877db98221" class="external-link">731f477</a>)</li>
 <li>detect and repair CASRNs converted to dates by spreadsheets (<a href="https://github.com/seanthimons/concert/issues/35" class="external-link">#35</a>) (<a href="https://github.com/seanthimons/concert/tree/48df2473eebf29a3aa152eaa225be1fbbf5c0a21" class="external-link">48df247</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-6">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-6"></a></h5>
+<div class="section level4">
+<h4 id="bug-fixes-0-6-3">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-6-3"></a></h4>
 <ul><li>detect CSV encoding and delimiter up front; add upload edge-case tests (<a href="https://github.com/seanthimons/concert/issues/7" class="external-link">#7</a>) (<a href="https://github.com/seanthimons/concert/tree/723a4a3924226ebd40a81adda636f7770aea64dc" class="external-link">723a4a3</a>)</li>
 <li>keep all columns when a CSV has a short title line above the header (<a href="https://github.com/seanthimons/concert/issues/7" class="external-link">#7</a>) (<a href="https://github.com/seanthimons/concert/tree/0da5682a05a70cbb0bf3cbf9071f014a0b2d267b" class="external-link">0da5682</a>)</li>
 <li>validate manual header row for 0, negative and NA (<a href="https://github.com/seanthimons/concert/issues/99" class="external-link">#99</a>) (<a href="https://github.com/seanthimons/concert/tree/b4a6cccc2933b03d2c4d91699b97ead590fff060" class="external-link">b4a6ccc</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="performance-development-version">Performance<a class="anchor" aria-label="anchor" href="#performance-development-version"></a></h5>
+<div class="section level4">
+<h4 id="performance-0-6-3">Performance<a class="anchor" aria-label="anchor" href="#performance-0-6-3"></a></h4>
 <ul><li>vectorize is_cas, as_cas and extract_cas (<a href="https://github.com/seanthimons/concert/tree/2c4fe7c393157d34f3ead303d8fbf94f97cc06ba" class="external-link">2c4fe7c</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-6">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-6"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-6-3">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-3"></a></h4>
 <ul><li>update NEWS.md for v0.6.3 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/5e0b838495a2cf56f2afe1def764fe7e50169937" class="external-link">5e0b838</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-7">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-7"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-6-3">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-3"></a></h4>
 <ul><li>bump version to 0.6.3 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/a7d63b3a608e25faebacbf9d50e46f7b8a2c3da5" class="external-link">a7d63b3</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.6.2...v0.6.3" class="external-link"><code>v0.6.2...v0.6.3</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-9">concert 0.6.2 (2026-10-13)<a class="anchor" aria-label="anchor" href="#concert-development-version-9"></a></h3>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-7">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-7"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.6.2" id="concert-062-2026-10-13">concert 0.6.2 (2026-10-13)<a class="anchor" aria-label="anchor" href="#concert-062-2026-10-13"></a></h2>
+<div class="section level4">
+<h4 id="bug-fixes-0-6-2">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-6-2"></a></h4>
 <ul><li>limit roman oxidation-state protection to real states and QC-flag lowercase (<a href="https://github.com/seanthimons/concert/tree/fa2ec685001195c9b55c348637bfd8c7291b07a3" class="external-link">fa2ec68</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="tests-development-version-2">Tests<a class="anchor" aria-label="anchor" href="#tests-development-version-2"></a></h5>
+<div class="section level4">
+<h4 id="tests-0-6-2">Tests<a class="anchor" aria-label="anchor" href="#tests-0-6-2"></a></h4>
 <ul><li>add extracted cleaning reference cases (<a href="https://github.com/seanthimons/concert/tree/419bf83e1bab1f1dbc29cac6540b1d1c3b49d05a" class="external-link">419bf83</a>)</li>
 <li>cover column selection, detection-mode reprocessing and tag persistence (<a href="https://github.com/seanthimons/concert/tree/3c28746432fbf028c49ac81df3b6b63f02d4006e" class="external-link">3c28746</a>)</li>
 <li>run toxval_schema tests against the shipped cache and fix stale assertions (<a href="https://github.com/seanthimons/concert/tree/b638e1220c9ba7f872865617976f74002b611e19" class="external-link">b638e12</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-7">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-7"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-6-2">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-2"></a></h4>
 <ul><li>update NEWS.md for v0.6.2 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/91ab9b2c43f3cf7870db32fbaf1dbc8126c0886c" class="external-link">91ab9b2</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-8">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-8"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-6-2">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-2"></a></h4>
 <ul><li>bump version to 0.6.2 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/484e08f88a5fb6a64b3ac66a79c605039a71d680" class="external-link">484e08f</a>)</li>
 <li>ignore testthat _problems reproductions (<a href="https://github.com/seanthimons/concert/tree/f421899cf7be82e17393896ae1ce692174e12a18" class="external-link">f421899</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.6.1...v0.6.2" class="external-link"><code>v0.6.1...v0.6.2</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-10">concert 0.6.1 (2026-10-08)<a class="anchor" aria-label="anchor" href="#concert-development-version-10"></a></h3>
-<div class="section level5">
-<h5 id="new-features-development-version-4">New features<a class="anchor" aria-label="anchor" href="#new-features-development-version-4"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.6.1" id="concert-061-2026-10-08">concert 0.6.1 (2026-10-08)<a class="anchor" aria-label="anchor" href="#concert-061-2026-10-08"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-6-1">New features<a class="anchor" aria-label="anchor" href="#new-features-0-6-1"></a></h4>
 <ul><li>bulk staging and aligned editor for Rows Needing Review (<a href="https://github.com/seanthimons/concert/issues/46" class="external-link">#46</a>) (<a href="https://github.com/seanthimons/concert/tree/e8184f5147b3bc51b051dcddab3cacd7a0fb5876" class="external-link">e8184f5</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-8">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-8"></a></h5>
+<div class="section level4">
+<h4 id="bug-fixes-0-6-1">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-6-1"></a></h4>
 <ul><li>record repeated source CAS on scripted multi-analyte splits (<a href="https://github.com/seanthimons/concert/issues/95" class="external-link">#95</a>) (<a href="https://github.com/seanthimons/concert/tree/82a86651dbd3485bfc270362378d56f4e40e8dcd" class="external-link">82a8665</a>)</li>
 <li>compare exact-match ties as unordered sets in review evidence (<a href="https://github.com/seanthimons/concert/issues/93" class="external-link">#93</a>) (<a href="https://github.com/seanthimons/concert/tree/e97e246dade99e8613caaae434314b96bf88c05f" class="external-link">e97e246</a>)</li>
 <li>surface scope blockers on VERIFIED rows in pending review (<a href="https://github.com/seanthimons/concert/issues/110" class="external-link">#110</a>) (<a href="https://github.com/seanthimons/concert/tree/cbc5f2b4f33c757ba5d5642b3c973313e11d1330" class="external-link">cbc5f2b</a>)</li>
 <li>keep accepted suggestions out of the verified_unresolved queue (<a href="https://github.com/seanthimons/concert/issues/92" class="external-link">#92</a>) (<a href="https://github.com/seanthimons/concert/tree/b4c6277c0801fa2a333e1053b32cbe5d5eb15cda" class="external-link">b4c6277</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="ci-development-version-2">CI<a class="anchor" aria-label="anchor" href="#ci-development-version-2"></a></h5>
+<div class="section level4">
+<h4 id="ci-0-6-1">CI<a class="anchor" aria-label="anchor" href="#ci-0-6-1"></a></h4>
 <ul><li>push release commit and tag atomically with a scoped token (<a href="https://github.com/seanthimons/concert/tree/7b7dd370ee40e3c1f643c1622dc4aedbe4aa0782" class="external-link">7b7dd37</a>)</li>
 <li>stop ignoring .github so zizmor can collect workflows (<a href="https://github.com/seanthimons/concert/tree/29b23c3246690d48b151e82ffd33d4067fc7626a" class="external-link">29b23c3</a>)</li>
 <li>silence intentional SC2016 in the ComptoxR bump PR body (<a href="https://github.com/seanthimons/concert/tree/d3a705f1c1bebc2b3ef5407e98857e028fbdd494" class="external-link">d3a705f</a>)</li>
@@ -264,24 +277,24 @@
 <li>skip automatic releases for tests- and tooling-only merges (<a href="https://github.com/seanthimons/concert/tree/bd3b00a16b3626df7eceab4fc2ad24cb0dc9886b" class="external-link">bd3b00a</a>)</li>
 <li>cut a patch release on merges to main except docs, site and CI changes (<a href="https://github.com/seanthimons/concert/tree/aaac0c07c0dc7c6111daf16646014e85b47992ad" class="external-link">aaac0c0</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-8">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-8"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-6-1">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-1"></a></h4>
 <ul><li>update NEWS.md for v0.6.1 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/dc6c708e0b25fbfbf17b8a7e6c89b5315d2f4fd3" class="external-link">dc6c708</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-9">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-9"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-6-1">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-1"></a></h4>
 <ul><li>bump version to 0.6.1 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/d6f1ba0eae2c75c79723ee2f7ec8e0f64ca26ff9" class="external-link">d6f1ba0</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.6.1...v0.6.1" class="external-link"><code>v0.6.1...v0.6.1</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-11">concert 0.6.0 (2026-10-08)<a class="anchor" aria-label="anchor" href="#concert-development-version-11"></a></h3>
-<div class="section level5">
-<h5 id="new-features-development-version-5">New features<a class="anchor" aria-label="anchor" href="#new-features-development-version-5"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.6.0" id="concert-060-2026-10-08">concert 0.6.0 (2026-10-08)<a class="anchor" aria-label="anchor" href="#concert-060-2026-10-08"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-6-0">New features<a class="anchor" aria-label="anchor" href="#new-features-0-6-0"></a></h4>
 <ul><li>add scoped chemical identity review and acceptance (<a href="https://github.com/seanthimons/concert/tree/399b6de7ff94e11ebec796b7f7d5472f68ab95e2" class="external-link">399b6de</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-9">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-9"></a></h5>
+<div class="section level4">
+<h4 id="bug-fixes-0-6-0">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-6-0"></a></h4>
 <ul><li>leave conflicting WQX aliases unresolved (<a href="https://github.com/seanthimons/concert/tree/3597efc74e2a55d7f3331f34db00b35fc6d04c6b" class="external-link">3597efc</a>)</li>
 <li>keep raw WQX metadata out of candidate queries (<a href="https://github.com/seanthimons/concert/tree/51882a940a694642faa5d542f597510850904721" class="external-link">51882a9</a>)</li>
 <li>keep detailed query records optional in the review table (<a href="https://github.com/seanthimons/concert/tree/ced8ea2fa3fbe75611b479b2bacc843e3a1e100a" class="external-link">ced8ea2</a>)</li>
@@ -292,416 +305,416 @@
 <li>make review UI strings and release archive portable (<a href="https://github.com/seanthimons/concert/tree/78c9c614fd658a3fb697ea36b79daae35cbf14d5" class="external-link">78c9c61</a>)</li>
 <li>preserve pinned manifest bytes and repair CAS assertion (<a href="https://github.com/seanthimons/concert/tree/2947812802d98e90ba70c28bbbd9f71faee1bcff" class="external-link">2947812</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="tests-development-version-3">Tests<a class="anchor" aria-label="anchor" href="#tests-development-version-3"></a></h5>
+<div class="section level4">
+<h4 id="tests-0-6-0">Tests<a class="anchor" aria-label="anchor" href="#tests-0-6-0"></a></h4>
 <ul><li>cover WQX candidate boundaries in locked CI (<a href="https://github.com/seanthimons/concert/tree/bf9e725669c261585117b695efce107a17d616ca" class="external-link">bf9e725</a>)</li>
 <li>exercise WQX source decisions in the actual app (<a href="https://github.com/seanthimons/concert/tree/23bcbcd8d27a687bc55b31d94f7c564cfa7be2b3" class="external-link">23bcbcd</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="ci-development-version-3">CI<a class="anchor" aria-label="anchor" href="#ci-development-version-3"></a></h5>
+<div class="section level4">
+<h4 id="ci-0-6-0">CI<a class="anchor" aria-label="anchor" href="#ci-0-6-0"></a></h4>
 <ul><li>restore locked packages directly on disposable runners (<a href="https://github.com/seanthimons/concert/tree/372ff4a9041cf6365c8a6e1ddd2eb7746344cfe4" class="external-link">372ff4a</a>)</li>
 <li>make cross-platform package checks opt-in (<a href="https://github.com/seanthimons/concert/tree/90629b260a26602674505e4a2c520d98dc620331" class="external-link">90629b2</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-9">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-9"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-6-0">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-0"></a></h4>
 <ul><li>update NEWS.md for v0.6.0 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/f359cac1aabd9fefa87ecb45c9c9d929d6939aa9" class="external-link">f359cac</a>)</li>
 <li>record audit regressions and crash recovery (<a href="https://github.com/seanthimons/concert/tree/5109c72b159fee60daae6c6e06b8ea49e9a10597" class="external-link">5109c72</a>)</li>
 <li>record WQX implementation checks and release pause (<a href="https://github.com/seanthimons/concert/tree/bfca9d522d2e7c2bac05fa43b43947a175de053d" class="external-link">bfca9d5</a>)</li>
 <li>illustrate WQX evidence review and repair NEWS publishing (<a href="https://github.com/seanthimons/concert/tree/e2aa2f73dd70fd7acdb40f08de72cff4b32c1bda" class="external-link">e2aa2f7</a>)</li>
 <li>index identity review APIs for pkgdown (<a href="https://github.com/seanthimons/concert/tree/d4b684d4ffc75d80d56a871d41e4a9845dce0fad" class="external-link">d4b684d</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-10">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-10"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-6-0">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-0"></a></h4>
 <ul><li>bump version to 0.6.0 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/1a68cd1b4203e0a42ceaec48187ec872a388267d" class="external-link">1a68cd1</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.5.3...v0.6.0" class="external-link"><code>v0.5.3...v0.6.0</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-12">concert 0.5.3 (2026-10-06)<a class="anchor" aria-label="anchor" href="#concert-development-version-12"></a></h3>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-10">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-10"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.5.3" id="concert-053-2026-10-06">concert 0.5.3 (2026-10-06)<a class="anchor" aria-label="anchor" href="#concert-053-2026-10-06"></a></h2>
+<div class="section level4">
+<h4 id="bug-fixes-0-5-3">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-5-3"></a></h4>
 <ul><li>stop reading alkyl chain lengths as carbon isotopes (<a href="https://github.com/seanthimons/concert/tree/34939706d6ed6caee4c3ba220317cba2f5215e61" class="external-link">3493970</a>)</li>
 <li>keep CAS-only rows through name cleaning (<a href="https://github.com/seanthimons/concert/tree/87552648f8bd8bb21429435e4c368e39b5355736" class="external-link">8755264</a>)</li>
 <li>refresh harmonize DTXSID count and ToxVal identifiers after curation (<a href="https://github.com/seanthimons/concert/issues/79" class="external-link">#79</a>) (<a href="https://github.com/seanthimons/concert/tree/ab04b6d2ee00535aa7c846ef62eed011f1fc90f2" class="external-link">ab04b6d</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-10">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-10"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-5-3">Docs<a class="anchor" aria-label="anchor" href="#docs-0-5-3"></a></h4>
 <ul><li>update NEWS.md for v0.5.3 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/890efdb01dbb10f0bbd1c14a15b5f52d13c4db66" class="external-link">890efdb</a>)</li>
 <li>app walkthrough article and README installation cleanup (<a href="https://github.com/seanthimons/concert/issues/80" class="external-link">#80</a>) (<a href="https://github.com/seanthimons/concert/tree/d8a32ef30c2307a4318853c0f9f707e8683d93d4" class="external-link">d8a32ef</a>)</li>
 <li>merge pkgdown site and usage vignettes (<a href="https://github.com/seanthimons/concert/issues/65" class="external-link">#65</a>) (<a href="https://github.com/seanthimons/concert/tree/4306b81136cc9d1210d1435923f25b4ac875b85f" class="external-link">4306b81</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-11">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-11"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-5-3">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-5-3"></a></h4>
 <ul><li>bump version to 0.5.3 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/872415ce589f1834a52a168a93d2168f17390c71" class="external-link">872415c</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.5.2...v0.5.3" class="external-link"><code>v0.5.2...v0.5.3</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-13">concert 0.5.2 (2026-10-05)<a class="anchor" aria-label="anchor" href="#concert-development-version-13"></a></h3>
-<div class="section level5">
-<h5 id="new-features-development-version-6">New features<a class="anchor" aria-label="anchor" href="#new-features-development-version-6"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.5.2" id="concert-052-2026-10-05">concert 0.5.2 (2026-10-05)<a class="anchor" aria-label="anchor" href="#concert-052-2026-10-05"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-5-2">New features<a class="anchor" aria-label="anchor" href="#new-features-0-5-2"></a></h4>
 <ul><li>merge v0.5.2 curation fixes (<a href="https://github.com/seanthimons/concert/issues/78" class="external-link">#78</a>) (<a href="https://github.com/seanthimons/concert/tree/a2639cd323e9ef0a3601c61ea8e69e4376e9acfa" class="external-link">a2639cd</a>)</li>
 <li>opt-in DSSTox download and desalt_workflows in scripts and decisions (<a href="https://github.com/seanthimons/concert/tree/209773eabfadbdc4f804040f78450782ce4d8de6" class="external-link">209773e</a>)</li>
 <li>chemi resolver fallback for names CTX leaves unresolved (<a href="https://github.com/seanthimons/concert/tree/c108e7c8d34652c61783f7039344f9edea5711ab" class="external-link">c108e7c</a>)</li>
 <li>point isotope-labelled records to their unlabelled parent (<a href="https://github.com/seanthimons/concert/tree/11ff44c10820aba85828577109e54beed3658736" class="external-link">11ff44c</a>)</li>
 <li>add structure-based parent columns via chemi standardizer (<a href="https://github.com/seanthimons/concert/tree/5b7635c564243fc9a023fa3f580a57fbe8209b02" class="external-link">5b7635c</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-11">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-11"></a></h5>
+<div class="section level4">
+<h4 id="bug-fixes-0-5-2">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-5-2"></a></h4>
 <ul><li>send tied exact-name hits to review instead of a batch-dependent pick (<a href="https://github.com/seanthimons/concert/tree/43b952de49ad2d9973a3b5f15a47fa0e2b37ea7e" class="external-link">43b952d</a>)</li>
 <li>keep DUPLICATE resolver hits, drop structure-parsed ones; flag Markush (<a href="https://github.com/seanthimons/concert/tree/dbae93a363b41d51bd7048bf8801f8a6ec089736" class="external-link">dbae93a</a>)</li>
 <li>still strip glued acronyms and plural markers from names (<a href="https://github.com/seanthimons/concert/tree/9642bdc9ea12b61fa1d5b0bb3fdf905ecd79446d" class="external-link">9642bdc</a>)</li>
 <li>block WQX fuzzy matches that bridge isotope labels or congener codes (<a href="https://github.com/seanthimons/concert/tree/6a056d5a892b3644c9090642cb24f7754fec80b5" class="external-link">6a056d5</a>)</li>
 <li>keep name-attached enclosures during terminal stripping (<a href="https://github.com/seanthimons/concert/tree/3ff20a09908434fa3ffa54f48a94d57a6e42aaf2" class="external-link">3ff20a0</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-11">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-11"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-5-2">Docs<a class="anchor" aria-label="anchor" href="#docs-0-5-2"></a></h4>
 <ul><li>update NEWS.md for v0.5.2 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/76ee087098db3a627c96ed7ae9ad53adb0d620bb" class="external-link">76ee087</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-12">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-12"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-5-2">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-5-2"></a></h4>
 <ul><li>bump version to 0.5.2 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/3738c6c2e4c5761f8e9eb1aa3f617a8119fa7eb9" class="external-link">3738c6c</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.5.1...v0.5.2" class="external-link"><code>v0.5.1...v0.5.2</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-14">concert 0.5.1 (2026-10-04)<a class="anchor" aria-label="anchor" href="#concert-development-version-14"></a></h3>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-12">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-12"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.5.1" id="concert-051-2026-10-04">concert 0.5.1 (2026-10-04)<a class="anchor" aria-label="anchor" href="#concert-051-2026-10-04"></a></h2>
+<div class="section level4">
+<h4 id="bug-fixes-0-5-1">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-5-1"></a></h4>
 <ul><li>merge WQX review flags and chemical identity qualifier fixes (<a href="https://github.com/seanthimons/concert/tree/ff8718b65388769c5b41936abaae1ac19ea7b62c" class="external-link">ff8718b</a>)</li>
 <li>preserve enclosed chemical qualifiers and audit lineage (<a href="https://github.com/seanthimons/concert/tree/7cbb4af4c31426702dab44eb170a139aceec4af0" class="external-link">7cbb4af</a>)</li>
 <li>preserve bounded identity qualifier tokens (<a href="https://github.com/seanthimons/concert/issues/73" class="external-link">#73</a>) (<a href="https://github.com/seanthimons/concert/tree/215dab7f1b9b0722021daf646f1f37cf74fa1a5e" class="external-link">215dab7</a>)</li>
 <li>preserve 13C6 identity enclosures (<a href="https://github.com/seanthimons/concert/issues/73" class="external-link">#73</a>) (<a href="https://github.com/seanthimons/concert/tree/dce9f3502cf7776fed37702202249237caa015a7" class="external-link">dce9f35</a>)</li>
 <li>flag unverified WQX identities for review (<a href="https://github.com/seanthimons/concert/issues/72" class="external-link">#72</a>) (<a href="https://github.com/seanthimons/concert/tree/12ee869fde818f23580ee5ed6b973edb647221cd" class="external-link">12ee869</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="tests-development-version-4">Tests<a class="anchor" aria-label="anchor" href="#tests-development-version-4"></a></h5>
+<div class="section level4">
+<h4 id="tests-0-5-1">Tests<a class="anchor" aria-label="anchor" href="#tests-0-5-1"></a></h4>
 <ul><li>cover identity qualifiers through full cleaning pipeline (<a href="https://github.com/seanthimons/concert/issues/73" class="external-link">#73</a>) (<a href="https://github.com/seanthimons/concert/tree/064794ee62468a441a8aa00f824bf2addfce123b" class="external-link">064794e</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-12">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-12"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-5-1">Docs<a class="anchor" aria-label="anchor" href="#docs-0-5-1"></a></h4>
 <ul><li>update NEWS.md for v0.5.1 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/e2348fec89d40d44d98475d2b4320c5c17cb1bb0" class="external-link">e2348fe</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-13">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-13"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-5-1">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-5-1"></a></h4>
 <ul><li>bump version to 0.5.1 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/3487db37c6261b945b8bbdb500b1bf34efa69f7f" class="external-link">3487db3</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.5.0...v0.5.1" class="external-link"><code>v0.5.0...v0.5.1</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-15">concert 0.5.0 (2026-09-28)<a class="anchor" aria-label="anchor" href="#concert-development-version-15"></a></h3>
-<div class="section level5">
-<h5 id="new-features-development-version-7">New features<a class="anchor" aria-label="anchor" href="#new-features-development-version-7"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.5.0" id="concert-050-2026-09-28">concert 0.5.0 (2026-09-28)<a class="anchor" aria-label="anchor" href="#concert-050-2026-09-28"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-5-0">New features<a class="anchor" aria-label="anchor" href="#new-features-0-5-0"></a></h4>
 <ul><li>add PubChem and salt parent candidates (<a href="https://github.com/seanthimons/concert/tree/912a452ff957dfca56a2d081ad14885008c44cde" class="external-link">912a452</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-13">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-13"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-5-0">Docs<a class="anchor" aria-label="anchor" href="#docs-0-5-0"></a></h4>
 <ul><li>update NEWS.md for v0.5.0 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/c74ffd47fe20e17ed868fd618418b17ae1802387" class="external-link">c74ffd4</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-14">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-14"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-5-0">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-5-0"></a></h4>
 <ul><li>bump version to 0.5.0 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/4b4e1069e34d9857494d89fcb2a650f0b8e7c4b5" class="external-link">4b4e106</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.4.4...v0.5.0" class="external-link"><code>v0.4.4...v0.5.0</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-16">concert 0.4.4 (2026-09-22)<a class="anchor" aria-label="anchor" href="#concert-development-version-16"></a></h3>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-13">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-13"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.4.4" id="concert-044-2026-09-22">concert 0.4.4 (2026-09-22)<a class="anchor" aria-label="anchor" href="#concert-044-2026-09-22"></a></h2>
+<div class="section level4">
+<h4 id="bug-fixes-0-4-4">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-4-4"></a></h4>
 <ul><li>merge semicolon-only synonym split and original_row_id keyed resolutions (v0.4.4) (<a href="https://github.com/seanthimons/concert/tree/0767bf02dec17f1f9003ef4d82539d423e24a59a" class="external-link">0767bf0</a>)</li>
 <li>split synonyms on semicolons only and key resolutions by original_row_id (<a href="https://github.com/seanthimons/concert/tree/49df31a79c75e4560ba76c3d04c9195e09569f51" class="external-link">49df31a</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-14">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-14"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-4-4">Docs<a class="anchor" aria-label="anchor" href="#docs-0-4-4"></a></h4>
 <ul><li>update NEWS.md for v0.4.4 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/c8bf9d42f1aac8843b7ad0f882f8b9e8de017dbe" class="external-link">c8bf9d4</a>)</li>
 <li>document row_index keying and value_corrections ordering (<a href="https://github.com/seanthimons/concert/tree/4bb9a97c11314758f710446097bfab5cd545a3fb" class="external-link">4bb9a97</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-15">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-15"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-4-4">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-4-4"></a></h4>
 <ul><li>bump version to 0.4.4 (<a href="https://github.com/seanthimons/concert/tree/9743a634aba7569e7456eecfb95dc7efa2c7b3c3" class="external-link">9743a63</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.4.4...v0.4.4" class="external-link"><code>v0.4.4...v0.4.4</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-17">concert 0.4.3 (2026-09-22)<a class="anchor" aria-label="anchor" href="#concert-development-version-17"></a></h3>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-14">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-14"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.4.3" id="concert-043-2026-09-22">concert 0.4.3 (2026-09-22)<a class="anchor" aria-label="anchor" href="#concert-043-2026-09-22"></a></h2>
+<div class="section level4">
+<h4 id="bug-fixes-0-4-3">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-4-3"></a></h4>
 <ul><li>merge split_synonyms CAS gate and synonyms step switch (<a href="https://github.com/seanthimons/concert/tree/e8494192427f689050572e0d89546054c9bb0d06" class="external-link">e849419</a>)</li>
 <li>stop split_synonyms breaking IUPAC and registry names on commas (<a href="https://github.com/seanthimons/concert/tree/daa7bfb9ad8bfbe3e58c6bdee9f9d2f1aced2569" class="external-link">daa7bfb</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-15">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-15"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-4-3">Docs<a class="anchor" aria-label="anchor" href="#docs-0-4-3"></a></h4>
 <ul><li>update NEWS.md for v0.4.3 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/446f12b72a566d3b998666ec14636d3b5c4666ce" class="external-link">446f12b</a>)</li>
 <li>add pkgdown site and usage vignettes (<a href="https://github.com/seanthimons/concert/tree/06c83961516fcbba389a6183f06d8c95558cbce1" class="external-link">06c8396</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-16">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-16"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-4-3">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-4-3"></a></h4>
 <ul><li>bump version to 0.4.3 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/1398a4d2745c970c13ff1b4e5a54c171af71153f" class="external-link">1398a4d</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.4.2...v0.4.3" class="external-link"><code>v0.4.2...v0.4.3</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-18">concert 0.4.2 (2026-09-15)<a class="anchor" aria-label="anchor" href="#concert-development-version-18"></a></h3>
-<div class="section level5">
-<h5 id="docs-development-version-16">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-16"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.4.2" id="concert-042-2026-09-15">concert 0.4.2 (2026-09-15)<a class="anchor" aria-label="anchor" href="#concert-042-2026-09-15"></a></h2>
+<div class="section level4">
+<h4 id="docs-0-4-2">Docs<a class="anchor" aria-label="anchor" href="#docs-0-4-2"></a></h4>
 <ul><li>update NEWS.md for v0.4.2 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/3ef373e52f6e2330814c8326734bc85138db86e1" class="external-link">3ef373e</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-17">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-17"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-4-2">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-4-2"></a></h4>
 <ul><li>bump version to 0.4.2 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/200f8b993f4ed31ebbc6cd7d5110ee71b1758093" class="external-link">200f8b9</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.4.1...v0.4.2" class="external-link"><code>v0.4.1...v0.4.2</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-19">concert 0.4.1 (2026-09-15)<a class="anchor" aria-label="anchor" href="#concert-development-version-19"></a></h3>
-<div class="section level5">
-<h5 id="new-features-development-version-8">New features<a class="anchor" aria-label="anchor" href="#new-features-development-version-8"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.4.1" id="concert-041-2026-09-15">concert 0.4.1 (2026-09-15)<a class="anchor" aria-label="anchor" href="#concert-041-2026-09-15"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-4-1">New features<a class="anchor" aria-label="anchor" href="#new-features-0-4-1"></a></h4>
 <ul><li>runner installs latest release before each run (<a href="https://github.com/seanthimons/concert/tree/0776f634fac3ef104eed3f2a9543cce64e82be2b" class="external-link">0776f63</a>)</li>
 <li>ship curate_loop.R runner and concert-curate agent skill (<a href="https://github.com/seanthimons/concert/tree/bfcfa563ef0748106085d941c7d70eedac6d25c6" class="external-link">bfcfa56</a>)</li>
 <li>add curate_iterate agent loop with decisions template and search cache (<a href="https://github.com/seanthimons/concert/tree/23c7e15550a5beeff083166e116a47e08a082588" class="external-link">23c7e15</a>)</li>
 <li>add value_corrections and cleaning_steps replay inputs (<a href="https://github.com/seanthimons/concert/tree/7afb533aa476d0919368efa31e31d95887d96d59" class="external-link">7afb533</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-15">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-15"></a></h5>
+<div class="section level4">
+<h4 id="bug-fixes-0-4-1">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-4-1"></a></h4>
 <ul><li>runner survives failed release install and status.md flags low-similarity matches (<a href="https://github.com/seanthimons/concert/tree/31c0f3a2b72a7fc688d955f23efc6f3e8aed5158" class="external-link">31c0f3a</a>)</li>
 <li>integrate Unicode cleanup with review performance (<a href="https://github.com/seanthimons/concert/tree/0285d718cf4f80b3d190c0db9464be0018e8e71d" class="external-link">0285d71</a>)</li>
 <li>protect primed locants from synonym splitting (<a href="https://github.com/seanthimons/concert/tree/ce8b63d6e8e01ec664aefcde28b6b97865cf5b1c" class="external-link">ce8b63d</a>)</li>
 <li>distinguish unmapped Unicode in QC (<a href="https://github.com/seanthimons/concert/tree/bbd3925cdd47537456b18b2aae409449b756dcc8" class="external-link">bbd3925</a>)</li>
 <li>normalize hyphen and zero-width space (<a href="https://github.com/seanthimons/concert/tree/c283936075bc2b1ba8ecbcaafb3f4eef39886b80" class="external-link">c283936</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="refactorings-development-version">Refactorings<a class="anchor" aria-label="anchor" href="#refactorings-development-version"></a></h5>
+<div class="section level4">
+<h4 id="refactorings-0-4-1">Refactorings<a class="anchor" aria-label="anchor" href="#refactorings-0-4-1"></a></h4>
 <ul><li>split curate_headless into composable stage functions (<a href="https://github.com/seanthimons/concert/tree/1882a836eb2f73e598a669a35dab5dc4cd76f3d9" class="external-link">1882a83</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="performance-development-version-1">Performance<a class="anchor" aria-label="anchor" href="#performance-development-version-1"></a></h5>
+<div class="section level4">
+<h4 id="performance-0-4-1">Performance<a class="anchor" aria-label="anchor" href="#performance-0-4-1"></a></h4>
 <ul><li>paginate review results and lock project dependencies (<a href="https://github.com/seanthimons/concert/tree/cf749af8ed84edf98b2b7c7f1fdd612a631dd0d5" class="external-link">cf749af</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="build-development-version">Build<a class="anchor" aria-label="anchor" href="#build-development-version"></a></h5>
+<div class="section level4">
+<h4 id="build-0-4-1">Build<a class="anchor" aria-label="anchor" href="#build-0-4-1"></a></h4>
 <ul><li>pin renv lock to dated PPM snapshot for binary restore (<a href="https://github.com/seanthimons/concert/tree/9ebd68f317c2f91efc73404662fab8279c79672a" class="external-link">9ebd68f</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-17">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-17"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-4-1">Docs<a class="anchor" aria-label="anchor" href="#docs-0-4-1"></a></h4>
 <ul><li>update NEWS.md for v0.4.1 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/326c3ca3abb44ea527b68a64bdd30d959f740696" class="external-link">326c3ca</a>)</li>
 <li>document mask argument of run_cleaning_pipeline (<a href="https://github.com/seanthimons/concert/tree/cb1ed52f9dbd745edb2ac0611269a30e85d94236" class="external-link">cb1ed52</a>)</li>
 <li>update NEWS.md for v0.4.1 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/d82c4cf40793eb1c9cbdf3ed09c6aeb98804adf2" class="external-link">d82c4cf</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-18">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-18"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-4-1">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-4-1"></a></h4>
 <ul><li>bump version to 0.4.1 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/acc48f3cb6ca1749ac9984b3ce81117470340651" class="external-link">acc48f3</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.4.0...v0.4.1" class="external-link"><code>v0.4.0...v0.4.1</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-20">concert 0.4.0 (2026-09-11)<a class="anchor" aria-label="anchor" href="#concert-development-version-20"></a></h3>
-<div class="section level5">
-<h5 id="breaking-changes-development-version">Breaking changes<a class="anchor" aria-label="anchor" href="#breaking-changes-development-version"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.4.0" id="concert-040-2026-09-11">concert 0.4.0 (2026-09-11)<a class="anchor" aria-label="anchor" href="#concert-040-2026-09-11"></a></h2>
+<div class="section level4">
+<h4 id="breaking-changes-0-4-0">Breaking changes<a class="anchor" aria-label="anchor" href="#breaking-changes-0-4-0"></a></h4>
 <ul><li>integrate published media curation and compact replays (<a href="https://github.com/seanthimons/concert/issues/61" class="external-link">#61</a>) (<a href="https://github.com/seanthimons/concert/tree/c4ab218d94145903f3fde0d0ece6f45c09f4d0f4" class="external-link">c4ab218</a>)</li>
 <li>pin workbook and script replay to media artifacts (<a href="https://github.com/seanthimons/concert/tree/1ee4b7114e598169499105023117523fab432425" class="external-link">1ee4b71</a>)</li>
 <li>export canonical labels and preserve original input (<a href="https://github.com/seanthimons/concert/tree/cbb4b18610d6542a137a58278fc767e63499da9c" class="external-link">cbb4b18</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="new-features-development-version-9">New features<a class="anchor" aria-label="anchor" href="#new-features-development-version-9"></a></h5>
+<div class="section level4">
+<h4 id="new-features-0-4-0">New features<a class="anchor" aria-label="anchor" href="#new-features-0-4-0"></a></h4>
 <ul><li>expose published ontology context in the editor (<a href="https://github.com/seanthimons/concert/tree/c0fb6765e09cbef22ca03f24fa0aa180d17ad1bc" class="external-link">c0fb676</a>)</li>
 <li>separate published identities from conversion routes (<a href="https://github.com/seanthimons/concert/tree/764d23b08226a6656e8afc2be9f4a4ace6f3acb3" class="external-link">764d23b</a>)</li>
 <li>import pinned published media artifacts (<a href="https://github.com/seanthimons/concert/tree/0c00adebb624f33082b2b545b34782380f2be3c8" class="external-link">0c00ade</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-16">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-16"></a></h5>
+<div class="section level4">
+<h4 id="bug-fixes-0-4-0">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-4-0"></a></h4>
 <ul><li>omit reconstructible metadata from media replay snapshots (<a href="https://github.com/seanthimons/concert/tree/414031d0e9d83ebb6e0fd87df05148a7f036451a" class="external-link">414031d</a>)</li>
 <li>exclude bundled reference settings from replay overrides (<a href="https://github.com/seanthimons/concert/tree/d20a845525a2c5fdea3ac23693e2689668aae14a" class="external-link">d20a845</a>)</li>
 <li>make replay deterministic across locales and unit edits (<a href="https://github.com/seanthimons/concert/tree/012c78baf2440ec9425ff6ae052b47122f53124e" class="external-link">012c78b</a>)</li>
 <li>allow selecting WQX evidence candidates (<a href="https://github.com/seanthimons/concert/tree/0d1c855477d50ff88fc1d23b4a5429cf2f27c2ed" class="external-link">0d1c855</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="build-development-version-1">Build<a class="anchor" aria-label="anchor" href="#build-development-version-1"></a></h5>
+<div class="section level4">
+<h4 id="build-0-4-0">Build<a class="anchor" aria-label="anchor" href="#build-0-4-0"></a></h4>
 <ul><li>bump ComptoxR pin to v1.7.1 (<a href="https://github.com/seanthimons/concert/tree/6daa5c48cc989bcbca2d630784c6ad323482832d" class="external-link">6daa5c4</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-18">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-18"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-4-0">Docs<a class="anchor" aria-label="anchor" href="#docs-0-4-0"></a></h4>
 <ul><li>update NEWS.md for v0.4.0 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/ab35c45ff88506ceb1fbd91cf75175b8fcd845b4" class="external-link">ab35c45</a>)</li>
 <li>record user acceptance for review (<a href="https://github.com/seanthimons/concert/tree/442b76e965e0ca4b6643385cbfa7f089838a5ed6" class="external-link">442b76e</a>)</li>
 <li>link integration epic to review PR (<a href="https://github.com/seanthimons/concert/tree/3e3f391d9f925f5ff0672b9a57b86ccec1ab50f4" class="external-link">3e3f391</a>)</li>
 <li>record validation and remaining manual acceptance (<a href="https://github.com/seanthimons/concert/tree/80f03776e545925a1419b92ba37e6d909929d45d" class="external-link">80f0377</a>)</li>
 <li>assess environmental harmonization integration (<a href="https://github.com/seanthimons/concert/tree/6b4ec6a7d9fbe168d1c715d557e932efedd4801f" class="external-link">6b4ec6a</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-19">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-19"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-4-0">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-4-0"></a></h4>
 <ul><li>bump version to 0.4.0 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/04355a0f88f71356a2cf926f462d2962a5f93ec6" class="external-link">04355a0</a>)</li>
 <li>track published media integration and follow-ups (<a href="https://github.com/seanthimons/concert/tree/f14ff3f78d616c3a65ad548399379d6945b63f23" class="external-link">f14ff3f</a>)</li>
 <li>integrate current main (<a href="https://github.com/seanthimons/concert/tree/3c345874c96cf18ae33d1535f8470b43faec40c8" class="external-link">3c34587</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.3.2...v0.4.0" class="external-link"><code>v0.3.2...v0.4.0</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-21">concert 0.3.2 (2026-08-12)<a class="anchor" aria-label="anchor" href="#concert-development-version-21"></a></h3>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-17">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-17"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.3.2" id="concert-032-2026-08-12">concert 0.3.2 (2026-08-12)<a class="anchor" aria-label="anchor" href="#concert-032-2026-08-12"></a></h2>
+<div class="section level4">
+<h4 id="bug-fixes-0-3-2">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-3-2"></a></h4>
 <ul><li>correct harmonizer failure handling (<a href="https://github.com/seanthimons/concert/tree/3bea7e221ebd45fd202226b1e6d68741bb5d93ad" class="external-link">3bea7e2</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-19">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-19"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-3-2">Docs<a class="anchor" aria-label="anchor" href="#docs-0-3-2"></a></h4>
 <ul><li>update NEWS.md for v0.3.2 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/0b878ca56554fcee8214e9cd492ab9b118ab375a" class="external-link">0b878ca</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-20">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-20"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-3-2">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-3-2"></a></h4>
 <ul><li>bump version to 0.3.2 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/3d0797ba24e975f1a929d39aabd5e23c1685661d" class="external-link">3d0797b</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.3.1...v0.3.2" class="external-link"><code>v0.3.1...v0.3.2</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-22">concert 0.3.1 (2026-07-21)<a class="anchor" aria-label="anchor" href="#concert-development-version-22"></a></h3>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-18">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-18"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.3.1" id="concert-031-2026-07-21">concert 0.3.1 (2026-07-21)<a class="anchor" aria-label="anchor" href="#concert-031-2026-07-21"></a></h2>
+<div class="section level4">
+<h4 id="bug-fixes-0-3-1">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-3-1"></a></h4>
 <ul><li>detect ’ &amp; ’ and ’ / ’ multi-analyte separators (<a href="https://github.com/seanthimons/concert/issues/54" class="external-link">#54</a>) (<a href="https://github.com/seanthimons/concert/tree/dff9b545efb5649e062de07d78241d051d24cf4d" class="external-link">dff9b54</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-20">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-20"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-3-1">Docs<a class="anchor" aria-label="anchor" href="#docs-0-3-1"></a></h4>
 <ul><li>update NEWS.md for v0.3.1 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/3ff24f2f1bfa110c7f374a73eb6d230d0d67270c" class="external-link">3ff24f2</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-21">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-21"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-3-1">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-3-1"></a></h4>
 <ul><li>bump version to 0.3.1 (<a href="https://github.com/seanthimons/concert/tree/7b75317e29880e88dad76f95e768a8007cfdffa6" class="external-link">7b75317</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.3.0...v0.3.1" class="external-link"><code>v0.3.0...v0.3.1</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-23">concert 0.3.0 (2026-07-21)<a class="anchor" aria-label="anchor" href="#concert-development-version-23"></a></h3>
-<div class="section level5">
-<h5 id="new-features-development-version-10">New features<a class="anchor" aria-label="anchor" href="#new-features-development-version-10"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.3.0" id="concert-030-2026-07-21">concert 0.3.0 (2026-07-21)<a class="anchor" aria-label="anchor" href="#concert-030-2026-07-21"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-3-0">New features<a class="anchor" aria-label="anchor" href="#new-features-0-3-0"></a></h4>
 <ul><li>fan one review decision to all rows sharing name + CAS (<a href="https://github.com/seanthimons/concert/tree/92160871617bc5da5b3ba8aed6407434df6f59ab" class="external-link">9216087</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-19">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-19"></a></h5>
+<div class="section level4">
+<h4 id="bug-fixes-0-3-0">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-3-0"></a></h4>
 <ul><li>use ASCII in review pairing label for R CMD check (<a href="https://github.com/seanthimons/concert/tree/0ca7f62e3d58286dc38cd3fdf608d5ccfde92084" class="external-link">0ca7f62</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="refactorings-development-version-1">Refactorings<a class="anchor" aria-label="anchor" href="#refactorings-development-version-1"></a></h5>
+<div class="section level4">
+<h4 id="refactorings-0-3-0">Refactorings<a class="anchor" aria-label="anchor" href="#refactorings-0-3-0"></a></h4>
 <ul><li>consolidate multi-analyte and multi-CAS review into one surface (<a href="https://github.com/seanthimons/concert/tree/158732313cad4d49dbcd21488194d3c3e2fc1a5a" class="external-link">1587323</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="tests-development-version-5">Tests<a class="anchor" aria-label="anchor" href="#tests-development-version-5"></a></h5>
+<div class="section level4">
+<h4 id="tests-0-3-0">Tests<a class="anchor" aria-label="anchor" href="#tests-0-3-0"></a></h4>
 <ul><li>prove review fan-out is CAS-column-order independent (<a href="https://github.com/seanthimons/concert/tree/62dae5377a71d6399a7845a40646ef02cc22cd48" class="external-link">62dae53</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-21">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-21"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-3-0">Docs<a class="anchor" aria-label="anchor" href="#docs-0-3-0"></a></h4>
 <ul><li>update NEWS.md for v0.3.0 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/4a49fb57ebfe86d76c7f21cc828583fd57407ee3" class="external-link">4a49fb5</a>)</li>
 <li>track review-resolution follow-up beans (<a href="https://github.com/seanthimons/concert/issues/54" class="external-link">#54</a>, <a href="https://github.com/seanthimons/concert/issues/55" class="external-link">#55</a>) (<a href="https://github.com/seanthimons/concert/tree/72205dc0c615c34152fa85eefb3c1bc51d325576" class="external-link">72205dc</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-22">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-22"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-3-0">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-3-0"></a></h4>
 <ul><li>bump version to 0.3.0 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/124d9612a7d943d589b3e9b39c7373950f6e5ba8" class="external-link">124d961</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.2.0...v0.3.0" class="external-link"><code>v0.2.0...v0.3.0</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-24">concert 0.2.0 (2026-07-20)<a class="anchor" aria-label="anchor" href="#concert-development-version-24"></a></h3>
-<div class="section level5">
-<h5 id="new-features-development-version-11">New features<a class="anchor" aria-label="anchor" href="#new-features-development-version-11"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.2.0" id="concert-020-2026-07-20">concert 0.2.0 (2026-07-20)<a class="anchor" aria-label="anchor" href="#concert-020-2026-07-20"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-2-0">New features<a class="anchor" aria-label="anchor" href="#new-features-0-2-0"></a></h4>
 <ul><li>split embedded units out of measurement values (<a href="https://github.com/seanthimons/concert/tree/4f4b2ddf5c8a40f7d569d268ccab7b910ac125f6" class="external-link">4f4b2dd</a>)</li>
 <li>rebuild numeric parse issues as editable bulk-reassign table (<a href="https://github.com/seanthimons/concert/tree/f68d941052f91bf39f07796058ac87a48776096b" class="external-link">f68d941</a>)</li>
 <li>add MFL fiber-concentration conversions to stable dictionary (<a href="https://github.com/seanthimons/concert/tree/20342d9b52a24308cec87161a981a22afeef310c" class="external-link">20342d9</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-20">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-20"></a></h5>
+<div class="section level4">
+<h4 id="bug-fixes-0-2-0">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-2-0"></a></h4>
 <ul><li>harmonize microfiber units to MFL (<a href="https://github.com/seanthimons/concert/tree/324841d999bfaa110b4483fc3ce4be5bf46ca0cb" class="external-link">324841d</a>)</li>
 <li>resolve blank-target unit mappings (<a href="https://github.com/seanthimons/concert/tree/44f3b69292a2695d31f9c6561c97297e9a89b9e3" class="external-link">44f3b69</a>)</li>
 <li>apply searchable review filters on selectize changes (<a href="https://github.com/seanthimons/concert/tree/bf6979fe08369064495e25fcc42c62ab22982ad1" class="external-link">bf6979f</a>)</li>
 <li>keep filter dropdowns above table (<a href="https://github.com/seanthimons/concert/tree/17d90cc8a8b7dbe65aafe6876f98bb6cee59c0e7" class="external-link">17d90cc</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="refactorings-development-version-2">Refactorings<a class="anchor" aria-label="anchor" href="#refactorings-development-version-2"></a></h5>
+<div class="section level4">
+<h4 id="refactorings-0-2-0">Refactorings<a class="anchor" aria-label="anchor" href="#refactorings-0-2-0"></a></h4>
 <ul><li>reorder editor panels — unmatched under unit map, parse issues above corrections (<a href="https://github.com/seanthimons/concert/tree/820ab419c8fb7a0af2e51a10525e6a0c0494c0f1" class="external-link">820ab41</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="build-development-version-2">Build<a class="anchor" aria-label="anchor" href="#build-development-version-2"></a></h5>
+<div class="section level4">
+<h4 id="build-0-2-0">Build<a class="anchor" aria-label="anchor" href="#build-0-2-0"></a></h4>
 <ul><li>pin ComptoxR to v1.5.1 (<a href="https://github.com/seanthimons/concert/tree/3978909a08a92c440b8088a02553f97035dfa7cb" class="external-link">3978909</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="ci-development-version-4">CI<a class="anchor" aria-label="anchor" href="#ci-development-version-4"></a></h5>
+<div class="section level4">
+<h4 id="ci-0-2-0">CI<a class="anchor" aria-label="anchor" href="#ci-0-2-0"></a></h4>
 <ul><li>add workflow to track ComptoxR releases and open pin-bump PRs (<a href="https://github.com/seanthimons/concert/tree/9e94f7ac51be5bab7b783c5c7d7c9e551e9db2e7" class="external-link">9e94f7a</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-22">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-22"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-2-0">Docs<a class="anchor" aria-label="anchor" href="#docs-0-2-0"></a></h4>
 <ul><li>update NEWS.md for v0.2.0 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/d4010d329ae5d55a654b13ba9d27225c6fef9cfd" class="external-link">d4010d3</a>)</li>
 <li>mark internal editor/split helpers <a href="https://github.com/noRd" class="external-link">@noRd</a> (<a href="https://github.com/seanthimons/concert/tree/abfa3dd4cc2450141fb8c697416e2d0fe7dcfe8e" class="external-link">abfa3dd</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-23">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-23"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-2-0">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-2-0"></a></h4>
 <ul><li>bump version to 0.2.0 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/c6648d3a1087c6f2108b86afe78683509c48d110" class="external-link">c6648d3</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.1.4...v0.2.0" class="external-link"><code>v0.1.4...v0.2.0</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-25">concert 0.1.4 (2026-07-14)<a class="anchor" aria-label="anchor" href="#concert-development-version-25"></a></h3>
-<div class="section level5">
-<h5 id="new-features-development-version-12">New features<a class="anchor" aria-label="anchor" href="#new-features-development-version-12"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.1.4" id="concert-014-2026-07-14">concert 0.1.4 (2026-07-14)<a class="anchor" aria-label="anchor" href="#concert-014-2026-07-14"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-1-4">New features<a class="anchor" aria-label="anchor" href="#new-features-0-1-4"></a></h4>
 <ul><li>clarify canonical site identity (<a href="https://github.com/seanthimons/concert/tree/f0658bd45ceaf9a818934a8aaa3990b4bd6c6cfb" class="external-link">f0658bd</a>)</li>
 <li>add curated results dropdown filters (<a href="https://github.com/seanthimons/concert/tree/c96f26c6453645599d73b5bf03dccbf7bf3b5fb9" class="external-link">c96f26c</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-21">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-21"></a></h5>
+<div class="section level4">
+<h4 id="bug-fixes-0-1-4">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-1-4"></a></h4>
 <ul><li>advance the replay baseline to the harmonized stage (<a href="https://github.com/seanthimons/concert/tree/be17b011eb8f2d0444df015a42019ef956c8c427" class="external-link">be17b01</a>)</li>
 <li>reconstruct full replay when resuming a baseline-less workbook (<a href="https://github.com/seanthimons/concert/tree/7eeff1be7cb2a5af6587c8aaf5bafae0a2958c0c" class="external-link">7eeff1b</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="performance-development-version-2">Performance<a class="anchor" aria-label="anchor" href="#performance-development-version-2"></a></h5>
+<div class="section level4">
+<h4 id="performance-0-1-4">Performance<a class="anchor" aria-label="anchor" href="#performance-0-1-4"></a></h4>
 <ul><li>snapshot harmonization maps as provenance-blind deltas (<a href="https://github.com/seanthimons/concert/tree/654f610c57429f62c7fcaf679212cf99b170cbf2" class="external-link">654f610</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="ci-development-version-5">CI<a class="anchor" aria-label="anchor" href="#ci-development-version-5"></a></h5>
+<div class="section level4">
+<h4 id="ci-0-1-4">CI<a class="anchor" aria-label="anchor" href="#ci-0-1-4"></a></h4>
 <ul><li>align GitHub Actions across R package repos (<a href="https://github.com/seanthimons/concert/issues/49" class="external-link">#49</a>) (<a href="https://github.com/seanthimons/concert/tree/2ed41da0f5ff3503055c02ac87bc622a2150e678" class="external-link">2ed41da</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-23">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-23"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-1-4">Docs<a class="anchor" aria-label="anchor" href="#docs-0-1-4"></a></h4>
 <ul><li>update NEWS.md for v0.1.4 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/eba71818f52d21d70976b224152302e840d0559d" class="external-link">eba7181</a>)</li>
 <li>track resume-replay bug analysis and id-keying follow-up (<a href="https://github.com/seanthimons/concert/tree/4cc0a18761377d6bef689067715c45ca06ced70d" class="external-link">4cc0a18</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-24">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-24"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-1-4">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-1-4"></a></h4>
 <ul><li>bump version to 0.1.4 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/b6f690bd5d64659846a2be40918badac75d004f9" class="external-link">b6f690b</a>)</li>
 <li>log when a workbook is exported without a replay baseline (<a href="https://github.com/seanthimons/concert/tree/0e0e2816cbd4301e0b1992c8b22464cffd863d10" class="external-link">0e0e281</a>)</li>
 <li>add csm_curation_raw replay script (<a href="https://github.com/seanthimons/concert/tree/e394e191d7f104a7e7033988c3a1f3f5c2ad2dff" class="external-link">e394e19</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.1.3...v0.1.4" class="external-link"><code>v0.1.3...v0.1.4</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-26">concert 0.1.3 (2026-07-10)<a class="anchor" aria-label="anchor" href="#concert-development-version-26"></a></h3>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-22">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-22"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.1.3" id="concert-013-2026-07-10">concert 0.1.3 (2026-07-10)<a class="anchor" aria-label="anchor" href="#concert-013-2026-07-10"></a></h2>
+<div class="section level4">
+<h4 id="bug-fixes-0-1-3">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-1-3"></a></h4>
 <ul><li>harmonize environmental units (<a href="https://github.com/seanthimons/concert/tree/9e5452d5ae3254e474aa234a557de6f4586654eb" class="external-link">9e5452d</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-25">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-25"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-1-3">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-1-3"></a></h4>
 <ul><li>bump package version to 0.1.3 (<a href="https://github.com/seanthimons/concert/issues/48" class="external-link">#48</a>) (<a href="https://github.com/seanthimons/concert/tree/d9154732685ec2037afe29efd763e6d22acf4817" class="external-link">d915473</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.1.2...v0.1.3" class="external-link"><code>v0.1.2...v0.1.3</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-27">concert 0.1.2 (2026-07-09)<a class="anchor" aria-label="anchor" href="#concert-development-version-27"></a></h3>
-<div class="section level5">
-<h5 id="new-features-development-version-13">New features<a class="anchor" aria-label="anchor" href="#new-features-development-version-13"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.1.2" id="concert-012-2026-07-09">concert 0.1.2 (2026-07-09)<a class="anchor" aria-label="anchor" href="#concert-012-2026-07-09"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-1-2">New features<a class="anchor" aria-label="anchor" href="#new-features-0-1-2"></a></h4>
 <ul><li>salvage SSWQS-style numeric strings, zero-digit values become narrative (<a href="https://github.com/seanthimons/concert/tree/7bc2bbfffab4f477a086e8532aa57ef81ca5a5e0" class="external-link">7bc2bbf</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-23">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-23"></a></h5>
+<div class="section level4">
+<h4 id="bug-fixes-0-1-2">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-1-2"></a></h4>
 <ul><li>address PR <a href="https://github.com/seanthimons/concert/issues/47" class="external-link">#47</a> review feedback (<a href="https://github.com/seanthimons/concert/tree/bd39d73854e0d8b55d272a50886f4e43b35f9b4b" class="external-link">bd39d73</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="tests-development-version-6">Tests<a class="anchor" aria-label="anchor" href="#tests-development-version-6"></a></h5>
+<div class="section level4">
+<h4 id="tests-0-1-2">Tests<a class="anchor" aria-label="anchor" href="#tests-0-1-2"></a></h4>
 <ul><li>pin SSWQS criterion-value corpus as parser regression fixture (<a href="https://github.com/seanthimons/concert/tree/85a20693745b3ce30c94550abf62c993fc647f4f" class="external-link">85a2069</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-26">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-26"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-1-2">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-1-2"></a></h4>
 <ul><li>bump package version to 0.1.2 (<a href="https://github.com/seanthimons/concert/issues/47" class="external-link">#47</a>) (<a href="https://github.com/seanthimons/concert/tree/c202cdcda09a6b0dc57605d994ffcceba85b1b5f" class="external-link">c202cdc</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.1.1...v0.1.2" class="external-link"><code>v0.1.1...v0.1.2</code></a></p>
 </div>
 </div>
-<div class="section level3">
-<h3 id="concert-development-version-28">concert 0.1.1 (2026-07-09)<a class="anchor" aria-label="anchor" href="#concert-development-version-28"></a></h3>
-<div class="section level5">
-<h5 id="new-features-development-version-14">New features<a class="anchor" aria-label="anchor" href="#new-features-development-version-14"></a></h5>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.1.1" id="concert-011-2026-07-09">concert 0.1.1 (2026-07-09)<a class="anchor" aria-label="anchor" href="#concert-011-2026-07-09"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-1-1">New features<a class="anchor" aria-label="anchor" href="#new-features-0-1-1"></a></h4>
 <ul><li>show package version in app header (<a href="https://github.com/seanthimons/concert/tree/0a20b7345bd7f5099fa9db65082e68c2e3589124" class="external-link">0a20b73</a>)</li>
 <li>unify harmonization runtime and replay state (<a href="https://github.com/seanthimons/concert/tree/edfdfc225212d0c735dc7707a7e8ffa770493d64" class="external-link">edfdfc2</a>)</li>
 <li>add flat ToxVal CSV/Parquet export from the app via shared writer (<a href="https://github.com/seanthimons/concert/tree/2ba705a441bf80fcbf558e733bff8a866ec6a29c" class="external-link">2ba705a</a>)</li>
@@ -720,8 +733,8 @@
 <li>split curation tab into 3 separate tabs with full-width layout (<a href="https://github.com/seanthimons/concert/tree/7ad51776b86cbe94c4ff971ed56329b38fa274e7" class="external-link">7ad5177</a>)</li>
 <li>add chemical curation workflow with ComptoxR integration (<a href="https://github.com/seanthimons/concert/tree/4aebefa4792386b0f5347403b23016f123606578" class="external-link">4aebefa</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="bug-fixes-development-version-24">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version-24"></a></h5>
+<div class="section level4">
+<h4 id="bug-fixes-0-1-1">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-1-1"></a></h4>
 <ul><li>persist replay baseline across session export and import (<a href="https://github.com/seanthimons/concert/tree/28aa0e54b806eb059d13e0adf41cdf6b787b7996" class="external-link">28aa0e5</a>)</li>
 <li>added example replay script (<a href="https://github.com/seanthimons/concert/tree/bf2928cd57a6b6cf7d299cd632829d9924bb4f3c" class="external-link">bf2928c</a>)</li>
 <li>hide dataset context audit columns by default (<a href="https://github.com/seanthimons/concert/tree/221a1b34908744734fcf9624e602462eca7c65cd" class="external-link">221a1b3</a>)</li>
@@ -788,13 +801,13 @@
 <li>improve CSV reading robustness for messy datasets (<a href="https://github.com/seanthimons/concert/tree/8befb088ea36fb0794d531679b8208352186aa44" class="external-link">8befb08</a>)</li>
 <li>adjusted layout of cards. (<a href="https://github.com/seanthimons/concert/tree/d779a6f524f123d875547a82d47771c3649b6929" class="external-link">d779a6f</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="refactorings-development-version-3">Refactorings<a class="anchor" aria-label="anchor" href="#refactorings-development-version-3"></a></h5>
+<div class="section level4">
+<h4 id="refactorings-0-1-1">Refactorings<a class="anchor" aria-label="anchor" href="#refactorings-0-1-1"></a></h4>
 <ul><li>slim generated replay scripts (<a href="https://github.com/seanthimons/concert/tree/637ef6a82f06d794b9dabc5d1f8850d17098974e" class="external-link">637ef6a</a>)</li>
 <li>migrate all tables from DT to reactable + reactable.extras (<a href="https://github.com/seanthimons/concert/tree/1617577ff11b48a46f879f04e2803c8d7534f1bc" class="external-link">1617577</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="performance-development-version-3">Performance<a class="anchor" aria-label="anchor" href="#performance-development-version-3"></a></h5>
+<div class="section level4">
+<h4 id="performance-0-1-1">Performance<a class="anchor" aria-label="anchor" href="#performance-0-1-1"></a></h4>
 <ul><li>finish replay export optimization (<a href="https://github.com/seanthimons/concert/tree/78be50f090fce6c04c1da3e9697df1aed473691f" class="external-link">78be50f</a>)</li>
 <li>vectorize review-override capture for replay export (<a href="https://github.com/seanthimons/concert/tree/f50969245c737e018126c92d46830bd7e966c410" class="external-link">f509692</a>)</li>
 <li>vectorize + deduplicate curation results table (<a href="https://github.com/seanthimons/concert/tree/5b64b3003dd6d2824f0c6e81d3c8b41d9f637f2f" class="external-link">5b64b30</a>)</li>
@@ -802,8 +815,8 @@
 <li>incremental harmonization + ppx O(k²) fix (<a href="https://github.com/seanthimons/concert/tree/eb6155d7cc3dd49bfd5ab1085275a2fbb9fb809b" class="external-link">eb6155d</a>)</li>
 <li>fix O(n²) list-growth in deduplicate_tagged_columns (<a href="https://github.com/seanthimons/concert/tree/0874ecee4e7d16a87c90e46b4ba1a03abfd2fd79" class="external-link">0874ece</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="tests-development-version-7">Tests<a class="anchor" aria-label="anchor" href="#tests-development-version-7"></a></h5>
+<div class="section level4">
+<h4 id="tests-0-1-1">Tests<a class="anchor" aria-label="anchor" href="#tests-0-1-1"></a></h4>
 <ul><li>add extracted problem cases (<a href="https://github.com/seanthimons/concert/tree/90cb32c3abb972ed95bcf2de7532a435249ca41d" class="external-link">90cb32c</a>)</li>
 <li>record pending human verification (<a href="https://github.com/seanthimons/concert/tree/7bda3ca883b2a6560dca959e025c206e5e216c3b" class="external-link">7bda3ca</a>)</li>
 <li>record UAT findings — 2 issues (duplicate confidence column, broken search) (<a href="https://github.com/seanthimons/concert/tree/4d176fc8b152eb70d31b3e145226c3737df6fbbf" class="external-link">4d176fc</a>)</li>
@@ -829,8 +842,8 @@
 <li>add guaranteed-error rows for unresolvable status testing (<a href="https://github.com/seanthimons/concert/tree/8ba4879242529d03a710c52f2c9dbc850db2e4ea" class="external-link">8ba4879</a>)</li>
 <li>complete UAT - 12 passed, 0 issues (<a href="https://github.com/seanthimons/concert/tree/14e48138ae2f8c531254ac0f2465c5859c05053d" class="external-link">14e4813</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="ci-development-version-6">CI<a class="anchor" aria-label="anchor" href="#ci-development-version-6"></a></h5>
+<div class="section level4">
+<h4 id="ci-0-1-1">CI<a class="anchor" aria-label="anchor" href="#ci-0-1-1"></a></h4>
 <ul><li>configure git user for release tags (<a href="https://github.com/seanthimons/concert/tree/63f04720abaf1d50f53bff0b955d2088a469ea56" class="external-link">63f0472</a>)</li>
 <li>align release tags with package versions (<a href="https://github.com/seanthimons/concert/tree/07ed55624a9c21fa0e99b8f3e38d90bf422a64b6" class="external-link">07ed556</a>)</li>
 <li>separate package build from release bump (<a href="https://github.com/seanthimons/concert/tree/2525eee8a3f730bb6ddee84cfcd5627df8447413" class="external-link">2525eee</a>)</li>
@@ -840,8 +853,8 @@
 <li>release package after merged pull requests (<a href="https://github.com/seanthimons/concert/tree/31dd683938454afda0e08a91e5f3d405ebe52dbb" class="external-link">31dd683</a>)</li>
 <li>add gitleaks secret scanning (<a href="https://github.com/seanthimons/concert/tree/16b5fa58abe68dc375494eb622b09103da083ebe" class="external-link">16b5fa5</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="docs-development-version-24">Docs<a class="anchor" aria-label="anchor" href="#docs-development-version-24"></a></h5>
+<div class="section level4">
+<h4 id="docs-0-1-1">Docs<a class="anchor" aria-label="anchor" href="#docs-0-1-1"></a></h4>
 <ul><li>add auto-tag analyte id bean (<a href="https://github.com/seanthimons/concert/tree/172dd044b1c298cd1c5b1ce7e69417b608470517" class="external-link">172dd04</a>)</li>
 <li>add Concert hex sticker assets (<a href="https://github.com/seanthimons/concert/tree/884b8a36730ccd4f76834f4d3a9763bd23777ace" class="external-link">884b8a3</a>)</li>
 <li>summarize row flagging execution (<a href="https://github.com/seanthimons/concert/tree/07ae96573d9a67079132a351f6025531edaf6ca2" class="external-link">07ae965</a>)</li>
@@ -1116,12 +1129,12 @@
 <li>capture phase context (<a href="https://github.com/seanthimons/concert/tree/53d2826f557b3d26a9636cd24cc4da4350ca7b44" class="external-link">53d2826</a>)</li>
 <li>complete project research (<a href="https://github.com/seanthimons/concert/tree/f248694b073978118acd78d8e456d2aa9fd6fb0a" class="external-link">f248694</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="style-development-version">Style<a class="anchor" aria-label="anchor" href="#style-development-version"></a></h5>
+<div class="section level4">
+<h4 id="style-0-1-1">Style<a class="anchor" aria-label="anchor" href="#style-0-1-1"></a></h4>
 <ul><li>apply air formatting and jarl fixes to review module (<a href="https://github.com/seanthimons/concert/tree/e9ea3bc4057785f1b8a0151fe0c73163daedddd2" class="external-link">e9ea3bc</a>)</li>
 </ul></div>
-<div class="section level5">
-<h5 id="other-changes-development-version-27">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-development-version-27"></a></h5>
+<div class="section level4">
+<h4 id="other-changes-0-1-1">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-1-1"></a></h4>
 <ul><li>remove dead replay helper functions (<a href="https://github.com/seanthimons/concert/tree/f136176b1fc77d5e2c0577d01cb5f7cbc0fc1330" class="external-link">f136176</a>)</li>
 <li>record current repository state (<a href="https://github.com/seanthimons/concert/tree/5bd3c574738110e8469c605e3bb97c59123e5b3b" class="external-link">5bd3c57</a>)</li>
 <li>merge executor worktree (worktree-agent-a3db1caf) (<a href="https://github.com/seanthimons/concert/tree/2468d62e4f9db8bce785beedb43b77a556675c3d" class="external-link">2468d62</a>)</li>
@@ -1155,7 +1168,6 @@
 <li>complete v1.1 milestone — archive and retrospective (<a href="https://github.com/seanthimons/concert/tree/8cb37b0a085823d2d705bacad88938fd57890d19" class="external-link">8cb37b0</a>)</li>
 <li>complete v1.0 milestone (<a href="https://github.com/seanthimons/concert/tree/6d2cbbac10c01e482b411c0f5769275f8dd2eee8" class="external-link">6d2cbba</a>)</li>
 </ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/48a0046...v0.1.1" class="external-link"><code>48a0046...v0.1.1</code></a></p>
-</div>
 </div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
