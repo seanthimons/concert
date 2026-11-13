@@ -45,6 +45,7 @@ is_cas <- function(x) {
 #' The function extracts all digits, trims any leading zeros, formats the
 #' result into the standard "xx-yy-z" structure, and then validates it using
 #' the `is_cas()` check-digit algorithm.
+#' EC-formatted and explicitly EC/EINECS/ELINCS-labelled identifiers are rejected.
 #'
 #' @param x A character vector of potential CASRN strings.
 #'
@@ -74,11 +75,13 @@ as_cas <- function(x) {
   # Source identifiers such as NOCAS_1355346 are not CAS numbers, even if
   # their digits happen to satisfy the CAS checksum after reformatting.
   nocas <- grepl("^\\s*NO[_[:space:]-]*CAS(?:[_[:space:]-]|$)", x, ignore.case = TRUE, perl = TRUE)
+  other_id <- grepl("(?<![0-9])[0-9]{3}-[0-9]{3}-[0-9](?![0-9])", x, perl = TRUE) |
+    grepl("^\\s*(EC|EINECS|ELINCS)\\b", x, ignore.case = TRUE, perl = TRUE)
 
   # Keep only digits, trim leading zeros; a CASRN has 5 to 10 digits
   digits <- sub("^0+", "", gsub("[^0-9]", "", x))
   n <- nchar(digits)
-  ok <- !is.na(x) & !nocas & n >= 5 & n <= 10
+  ok <- !is.na(x) & !nocas & !other_id & n >= 5 & n <= 10
 
   cand <- paste(substr(digits, 1, n - 3), substr(digits, n - 2, n - 1), substr(digits, n, n), sep = "-")
   ok[ok] <- is_cas(cand[ok])
@@ -131,6 +134,8 @@ as_cas <- function(x) {
 #' # [[5]]
 #' # character(0)
 extract_cas <- function(x) {
+  x <- gsub("\\b(?:EC|EINECS|ELINCS)(?:[\\h\\p{Pd}]*(?:No\\.?|Nr\\.?|numbers?))?\\h*[:#]?\\h*[0-9-]+\\b", " ", x,
+    ignore.case = TRUE, perl = TRUE)
   # Candidates are "words" of 5 to 12 digits and hyphens: well-formatted,
   # unhyphenated and zero-padded CASRNs. as_cas() validates them in one pass.
   candidates_list <- stringr::str_extract_all(x, "\\b[0-9-]{5,12}\\b")

@@ -60,6 +60,19 @@ test_that("normalize_cas_fields converts placeholder text to NA (CAS-01)", {
   expect_equal(as_cas("CAS: 7732-18-5"), "7732-18-5")
 })
 
+test_that("EC identifiers cannot be reinterpreted as checksum-valid CAS numbers", {
+  ec <- c("277-727-7","229-548-0","229-549-6","EC: 2777277",NA_character_)
+  expect_true(all(is.na(as_cas(ec))))
+  expect_equal(as_cas(c("74115-12-1","CAS: 7732-18-5","50000")),c("74115-12-1","7732-18-5","50-00-0"))
+  expect_length(extract_cas("277-727-7")[[1]],0L)
+  expect_equal(extract_cas("EC: 2777277; CAS: 74115-12-1")[[1]],"74115-12-1")
+  expect_equal(extract_cas(c("EINECS-No. 2777277", "EC-Nr.: 2777277 CAS 74115-12-1")),list(character(0),"74115-12-1"))
+  expect_equal(extract_cas(c("EC50 50-00-0", "Spec 50-00-0", "ECHA 50-00-0", "EC\n50-00-0")), rep(list("50-00-0"), 4))
+  expect_equal(extract_cas(c("EC numbers 2777277", "EC\u2011No. 2777277")), list(character(0), character(0)))
+  result <- normalize_cas_fields(tibble::tibble(cas=ec),list(cas='CASRN'))
+  expect_true(all(is.na(result$cleaned_data$cas)))
+})
+
 test_that("normalize_cas_fields sets invalid checksum CAS to NA (CAS-02)", {
   df <- tibble::tibble(cas = c("67-64-2", "108-88-4"))  # Invalid checksums
   tag_map <- list(cas = "CASRN")

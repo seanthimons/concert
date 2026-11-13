@@ -20,6 +20,7 @@ as extra non-digit characters, missing hyphens, and leading zeros.
 The function extracts all digits, trims any leading zeros, formats the
 result into the standard "xx-yy-z" structure, and then validates it using
 the \code{is_cas()} check-digit algorithm.
+EC-formatted and explicitly EC/EINECS/ELINCS-labelled identifiers are rejected.
 }
 \examples{
 # Handles standard and padded formats

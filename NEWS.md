@@ -7,6 +7,10 @@
   accept any ComptoxR that meets the `Imports` floor (>= 4.0.3) instead of
   failing when a consumer's lockfile records a different ComptoxR commit.
 
+- CAS cleaning rejects EC-formatted and explicitly EC/EINECS/ELINCS-labelled
+  identifiers instead of rebuilding their digits into checksum-valid CAS numbers.
+  Text extraction retains genuine CAS values alongside those other identifiers.
+
 ## concert 0.6.10 (2026-11-11)
 
 #### Bug fixes
