@@ -16,7 +16,7 @@
   ([535d6e4](https://github.com/seanthimons/concert/tree/535d6e4f372e35b5cee603a807754820f8084c58))
 
 Full set of changes:
-[`v0.6.11...v0.6.11`](https://github.com/seanthimons/concert/compare/v0.6.11...v0.6.11)
+[`v0.6.10...v0.6.11`](https://github.com/seanthimons/concert/compare/v0.6.10...v0.6.11)
 
 ## concert 0.6.10 (2026-11-11)
 
@@ -337,7 +337,7 @@ Full set of changes:
   ([d6f1ba0](https://github.com/seanthimons/concert/tree/d6f1ba0eae2c75c79723ee2f7ec8e0f64ca26ff9))
 
 Full set of changes:
-[`v0.6.1...v0.6.1`](https://github.com/seanthimons/concert/compare/v0.6.1...v0.6.1)
+[`v0.6.0...v0.6.1`](https://github.com/seanthimons/concert/compare/v0.6.0...v0.6.1)
 
 ## concert 0.6.0 (2026-10-08)
 
@@ -549,7 +549,7 @@ Full set of changes:
   ([9743a63](https://github.com/seanthimons/concert/tree/9743a634aba7569e7456eecfb95dc7efa2c7b3c3))
 
 Full set of changes:
-[`v0.4.4...v0.4.4`](https://github.com/seanthimons/concert/compare/v0.4.4...v0.4.4)
+[`v0.4.3...v0.4.4`](https://github.com/seanthimons/concert/compare/v0.4.3...v0.4.4)
 
 ## concert 0.4.3 (2026-09-22)
 
