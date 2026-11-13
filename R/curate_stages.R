@@ -189,9 +189,14 @@ stage_clean <- function(state, multi_analyte_resolutions = NULL, value_correctio
 #' @param state State list from [stage_clean()].
 #' @inheritParams curate_headless
 #' @param cache_dir Optional directory. When set, the CompTox search result is
-#'   cached by a hash of the cleaned chemical columns and search settings, and
-#'   the candidate enrichment cache persists across runs. Used by
-#'   [curate_iterate()] so re-runs after review edits skip the API.
+#'   cached by a hash of the cleaned data, the detected input data, and the
+#'   search settings, and the candidate enrichment and structure-parent caches
+#'   persist across runs, so a re-run after review edits skips the API. Files
+#'   live in a per-concert-version subdirectory. Use one directory per dataset
+#'   and do not share it between concurrent runs.
+#' @param refresh_cache Logical. If TRUE, deletes this concert version's cache
+#'   under `cache_dir` first, forcing a fresh search. Caches written by other
+#'   concert versions are left in place.
 #' @return The state with `resolution_state`, `consensus_summary`,
 #'   `enrichment_cache`, `enrichment_failed`, and `script_baseline_state` added.
 #' @export
@@ -203,21 +208,27 @@ stage_curate <- function(
   cache_dir = NULL,
   pubchem = FALSE,
   desalt = FALSE,
-  desalt_workflows = c("qsar-ready", "ms-ready")
+  desalt_workflows = c("qsar-ready", "ms-ready"),
+  refresh_cache = FALSE
 ) {
   cleaned <- state$cleaning_result$cleaned_data
   search_cache_path <- NULL
   enrichment_cache_path <- NULL
   pipeline_result <- NULL
   if (!is.null(cache_dir)) {
+    # A concert upgrade invalidates every cache file. Within one version (e.g.
+    # under load_all) code changes rely on the "-v1" tokens in the key below.
+    cache_dir <- file.path(cache_dir, paste0("concert-", utils::packageVersion("concert")))
+    if (isTRUE(refresh_cache)) {
+      message("[headless] refresh_cache = TRUE: discarding cached curation state")
+      unlink(cache_dir, recursive = TRUE)
+    }
     fs::dir_create(cache_dir, recurse = TRUE)
-    key_cols <- intersect(
-      c(names(state$merged_chemical_tags), "cleaning_flag", "isotope_dtxsid"),
-      names(cleaned)
-    )
-    original_names <- if (isTRUE(pubchem) || isTRUE(desalt)) state$clean_data[intersect(names(state$merged_chemical_tags), names(state$clean_data))] else NULL
+    # The cached result carries every column, so the key covers the whole
+    # cleaned and detected frames, not only the searched columns.
     key <- digest::digest(list(
-      cleaned[key_cols],
+      cleaned,
+      state$clean_data,
       state$merged_chemical_tags,
       state$ignored_identifier_cols,
       "source-id-v1",
@@ -225,7 +236,7 @@ stage_curate <- function(
       "resolver-source-cas-v1",
       identity_policy_version(),
       as.character(utils::packageVersion("ComptoxR")),
-      original_names,
+      unname(tools::md5sum(file.path(resolve_curation_reference_cache_dir(), "wqx_dictionary.rds"))),
       wqx_threshold,
       starts_with,
       pubchem,
@@ -234,10 +245,14 @@ stage_curate <- function(
     search_cache_path <- file.path(cache_dir, paste0("curation_", key, ".rds"))
     enrichment_cache_path <- file.path(cache_dir, "enrichment.rds")
     if (file.exists(search_cache_path)) {
-      message("[headless] Curation search loaded from cache")
       pipeline_result <- readRDS(search_cache_path)
       if (any(pipeline_result$source_identifier_evidence$validation_status %in% "unavailable")) pipeline_result <- NULL
     }
+    message(if (is.null(pipeline_result)) {
+      "[headless] No reusable cached curation search for these inputs; searching afresh"
+    } else {
+      sprintf("[headless] Reusing cached curation search: %s", search_cache_path)
+    })
   }
 
   if (is.null(pipeline_result)) {
@@ -262,7 +277,8 @@ stage_curate <- function(
   consensus_summary <- pipeline_result$consensus_summary
   enrichment_cache <- NULL
   enrichment_failed <- character(0)
-  if (!is.null(enrichment_cache_path) && file.exists(enrichment_cache_path)) {
+  # Without postprocessing a from-scratch run exports no enrichment columns.
+  if (isTRUE(postprocess_candidates) && !is.null(enrichment_cache_path) && file.exists(enrichment_cache_path)) {
     enrichment_cache <- readRDS(enrichment_cache_path)
   }
 
@@ -293,6 +309,7 @@ stage_curate <- function(
   state$enrichment_cache <- enrichment_cache
   state$enrichment_failed <- enrichment_failed
   state$script_baseline_state <- resolution_state
+  state$postprocess_candidates <- isTRUE(postprocess_candidates)
   state$desalt <- isTRUE(desalt)
   state$desalt_workflows <- desalt_workflows
   state$parent_cache_path <- if (!is.null(cache_dir)) file.path(cache_dir, "desalt_parents.rds")
@@ -403,6 +420,18 @@ stage_review <- function(
   state <- apply_identity_decisions(state, identity_decisions)
   rs <- state$resolution_state
   changed <- changed || length(identity_decisions) > 0L
+
+  # Review can accept a DTXSID no search returned; enrich it so the export
+  # does not depend on what an earlier run left in the enrichment cache.
+  if (isTRUE(state$postprocess_candidates) && "consensus_dtxsid" %in% names(rs)) {
+    accepted <- grep("^DTXSID[0-9]+$", unique(rs$consensus_dtxsid), value = TRUE)
+    enriched <- enrich_candidates(accepted, state$enrichment_cache)
+    state$enrichment_cache <- enriched$cache
+    state$enrichment_failed <- union(state$enrichment_failed, enriched$failed_dtxsids)
+    if (length(enriched$failed_dtxsids)) {
+      message(sprintf("[headless] Enrichment failed for %d accepted DTXSIDs", length(enriched$failed_dtxsids)))
+    }
+  }
 
   # Parents follow the final DTXSIDs, so they run after every review edit.
   if (isTRUE(state$desalt)) {

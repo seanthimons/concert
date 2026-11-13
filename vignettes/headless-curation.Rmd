@@ -91,6 +91,33 @@ out <- curate_headless(
 )
 ```
 
+## Re-running after review edits
+
+The CompTox, PubChem, and desalt lookups dominate the run time. Pass
+`cache_dir` to keep their results on disk; a later call that changes only
+review inputs (`review_picks`, `row_flags`, `review_overrides`,
+`accept_suggestions`, `review_decision_evidence`, `candidate_validation`,
+`identity_decisions`) then skips the search and redoes review, harmonization,
+and export.
+
+```{r}
+curate_headless(
+  input_path = "data/inventory.csv",
+  output_path = "output/inventory_curated.xlsx",
+  tag_map = list(chemical_name = "Name", cas_number = "CASRN"),
+  postprocess_candidates = TRUE,
+  review_picks = review_picks,
+  cache_dir = "output/concert-cache"
+)
+```
+
+The file is always re-read and re-cleaned. The search is repeated whenever
+the cleaned data, the tag map, a search switch, the WQX dictionary, or the
+concert or ComptoxR version changes; the progress messages say which
+happened. The cache is a snapshot of the external services, so pass
+`refresh_cache = TRUE` to search afresh. Use one `cache_dir` per dataset and
+do not share it between concurrent runs.
+
 ## Stages
 
 `curate_headless()` is a composition of six stage functions. Call them

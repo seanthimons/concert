@@ -51,6 +51,10 @@ mock_validate <- function(dtxsids, ...) {
   )
 }
 
+mock_enrich <- function(dtxsids, existing_cache = NULL, ...) {
+  list(cache = existing_cache, failed_dtxsids = character(0))
+}
+
 test_that("curate_decisions_template writes a sourceable decisions file with suggestions", {
   fx <- iterate_fixture()
   path <- curate_decisions_template(fx$input_path, fx$dir)
@@ -78,6 +82,7 @@ test_that("curate_iterate loops from pending to done and reuses the search cache
       mock_pipeline_result(cleaned_data)
     },
     postprocess_curation_candidates = mock_postprocess,
+    enrich_candidates = mock_enrich,
     validate_manual_dtxsids = mock_validate
   )
 
@@ -104,7 +109,7 @@ test_that("curate_iterate loops from pending to done and reuses the search cache
   expect_true(file.exists(file.path(fx$dir, "pending.csv")))
   expect_match(paste(readLines(file.path(fx$dir, "status.md")), collapse = "\n"), "done: FALSE", fixed = TRUE)
   expect_match(paste(readLines(file.path(fx$dir, "replay.R")), collapse = "\n"), "curate_headless(", fixed = TRUE)
-  expect_length(list.files(file.path(fx$dir, "cache"), pattern = "^curation_"), 1L)
+  expect_length(list.files(file.path(fx$dir, "cache"), pattern = "^curation_", recursive = TRUE), 1L)
 
   cat(
     "review_picks <- tibble::tibble(name = \"Chromium\", casrn = NA, dtxsid = \"DTXSID1020322\")\n",
@@ -130,6 +135,7 @@ test_that("curate_iterate reports unmatched picks and clears pending via row_fla
   local_mocked_bindings(
     run_curation_pipeline = mock_pipeline_result,
     postprocess_curation_candidates = mock_postprocess,
+    enrich_candidates = mock_enrich,
     validate_manual_dtxsids = mock_validate
   )
 
@@ -257,6 +263,7 @@ test_that("iterated review keeps stale VERIFIED ties pending until an explicit d
       out
     },
     postprocess_curation_candidates = mock_postprocess,
+    enrich_candidates = mock_enrich,
     validate_manual_dtxsids = mock_validate
   )
   decisions <- file.path(fx$dir, "decisions.R")
@@ -310,7 +317,7 @@ test_that("captured candidate work reopens iteration and exact acknowledgments s
       rs$resolver_lookup_status <- c(NA, NA, if (discovered) "unverified" else "no_hit")
       out$results <- rs
       out
-    }, postprocess_curation_candidates = mock_postprocess, validate_manual_dtxsids = mock_validate
+    }, postprocess_curation_candidates = mock_postprocess, enrich_candidates = mock_enrich, validate_manual_dtxsids = mock_validate
   )
   decisions <- file.path(fx$dir, "decisions.R")
   writeLines(c(sprintf("input_path <- %s", deparse(fx$input_path)),
@@ -322,7 +329,7 @@ test_that("captured candidate work reopens iteration and exact acknowledgments s
   evidence <- capture_review_state(first$state, "Lead", disposition = "no_hit", flag = "FOLLOW-UP")
   cat("\nreview_decision_evidence <- ", script_literal(evidence), "\n", file = decisions, append = TRUE)
   discovered <- TRUE
-  unlink(list.files(file.path(fx$dir, "cache"), pattern = "^curation_", full.names = TRUE))
+  unlink(list.files(file.path(fx$dir, "cache"), pattern = "^curation_", recursive = TRUE, full.names = TRUE))
   second <- curate_iterate(decisions, verbose = FALSE)
   expect_false(second$done)
   expect_equal(second$pending$pending_type, "candidate_validation")
@@ -352,7 +359,7 @@ test_that("captured candidate work reopens iteration and exact acknowledgments s
   expect_identical(restored$review_decision_evidence, ack)
 
   fail <- TRUE
-  unlink(list.files(file.path(fx$dir, "cache"), pattern = "^curation_", full.names = TRUE))
+  unlink(list.files(file.path(fx$dir, "cache"), pattern = "^curation_", recursive = TRUE, full.names = TRUE))
   expect_error(curate_iterate(decisions, verbose = FALSE), "fixture outage")
   expect_equal(nrow(readr::read_csv(file.path(fx$dir, "candidate_review.csv"), show_col_types = FALSE)), 0)
   expect_equal(nrow(readr::read_csv(file.path(fx$dir, "review_reconciliation.csv"), show_col_types = FALSE)), 0)
