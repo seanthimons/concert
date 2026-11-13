@@ -1,6 +1,12 @@
 
 
 
+# concert (development version)
+
+- `Remotes` no longer pins ComptoxR to a release tag, so installers such as pak
+  accept any ComptoxR that meets the `Imports` floor (>= 4.0.3) instead of
+  failing when a consumer's lockfile records a different ComptoxR commit.
+
 ## concert 0.6.10 (2026-11-11)
 
 #### Bug fixes
