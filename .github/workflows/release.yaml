@@ -131,6 +131,14 @@ jobs:
           news <- news[news != "# concert NEWS"]
           news[news == "## Development"] <- "## concert (development version)"
           news <- sub("^## v([0-9])", "## concert \\1", news)
+          # ponytail: autonewsmd picks each compare base by committer time, which
+          # rebase merges tie (giving vX...vX); rebuild links from adjacent headings.
+          heads <- grep("^## concert [0-9]", news)
+          vers <- sub("^## concert ([0-9.]+).*", "\\1", news[heads])
+          for (i in seq_along(heads)[-length(heads)]) {
+            rng <- heads[i]:(heads[i + 1] - 1)
+            news[rng] <- gsub("v[0-9.]+\\.\\.\\.v[0-9.]+", paste0("v", vers[i + 1], "...v", vers[i]), news[rng])
+          }
           writeLines(news, "NEWS.md")
 
       - name: Commit NEWS.md and finalize tag
