@@ -4,12 +4,14 @@ Service Registry Number (CASRN). It handles common data quality issues such
 as extra non-digit characters, missing hyphens, and leading zeros.
 The function extracts all digits, trims any leading zeros, formats the
 result into the standard &quot;xx-yy-z&quot; structure, and then validates it using
-the is_cas() check-digit algorithm."><meta property="og:description" content="This function attempts to convert a string into a valid Chemical Abstracts
+the is_cas() check-digit algorithm.
+EC-formatted and explicitly EC/EINECS/ELINCS-labelled identifiers are rejected."><meta property="og:description" content="This function attempts to convert a string into a valid Chemical Abstracts
 Service Registry Number (CASRN). It handles common data quality issues such
 as extra non-digit characters, missing hyphens, and leading zeros.
 The function extracts all digits, trims any leading zeros, formats the
 result into the standard &quot;xx-yy-z&quot; structure, and then validates it using
-the is_cas() check-digit algorithm."><meta property="og:image" content="https://seanthimons.github.io/concert/logo.png"></head><body>
+the is_cas() check-digit algorithm.
+EC-formatted and explicitly EC/EINECS/ELINCS-labelled identifiers are rejected."><meta property="og:image" content="https://seanthimons.github.io/concert/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -47,7 +49,7 @@ the is_cas() check-digit algorithm."><meta property="og:image" content="https://
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Coerces and validates a string to a standard CASRN format</h1>
-      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/v0.6.10/R/util_cas.R" class="external-link"><code>R/util_cas.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/main/R/util_cas.R" class="external-link"><code>R/util_cas.R</code></a></small>
       <div class="d-none name"><code>as_cas.Rd</code></div>
     </div>
 
@@ -57,7 +59,8 @@ Service Registry Number (CASRN). It handles common data quality issues such
 as extra non-digit characters, missing hyphens, and leading zeros.
 The function extracts all digits, trims any leading zeros, formats the
 result into the standard "xx-yy-z" structure, and then validates it using
-the <code><a href="is_cas.html">is_cas()</a></code> check-digit algorithm.</p>
+the <code><a href="is_cas.html">is_cas()</a></code> check-digit algorithm.
+EC-formatted and explicitly EC/EINECS/ELINCS-labelled identifiers are rejected.</p>
     </div>
 
     <div class="section level2">

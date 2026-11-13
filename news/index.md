@@ -1,14 +1,26 @@
 # Changelog
 
-## concert 0.6.10 (2026-11-11)
+## concert (development version)
 
-#### Bug fixes
+- `Remotes` no longer pins ComptoxR to a release tag, so installers such
+  as pak accept any ComptoxR that meets the `Imports` floor (\>= 4.0.3)
+  instead of failing when a consumer’s lockfile records a different
+  ComptoxR commit.
+
+- CAS cleaning rejects EC-formatted and explicitly
+  EC/EINECS/ELINCS-labelled identifiers instead of rebuilding their
+  digits into checksum-valid CAS numbers. Text extraction retains
+  genuine CAS values alongside those other identifiers.
+
+### concert 0.6.10 (2026-11-11)
+
+##### Bug fixes
 
 - retry unresolved CAS aliases with ComptoxR 4.0.3
   ([\#145](https://github.com/seanthimons/concert/issues/145))
   ([001bd17](https://github.com/seanthimons/concert/tree/001bd17f4ed569f138ea5dcb4b8faf3e1c9c91c1))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.6.10 \[skip ci\]
   ([ade995f](https://github.com/seanthimons/concert/tree/ade995f02915ea6ec3796c527ad7762932fa2c01))
@@ -16,22 +28,22 @@
 Full set of changes:
 [`v0.6.9...v0.6.10`](https://github.com/seanthimons/concert/compare/v0.6.9...v0.6.10)
 
-## concert 0.6.9 (2026-11-05)
+### concert 0.6.9 (2026-11-05)
 
-#### Bug fixes
+##### Bug fixes
 
 - handle environmental unit gaps
   ([\#142](https://github.com/seanthimons/concert/issues/142))
   ([83bd19c](https://github.com/seanthimons/concert/tree/83bd19c672b3ea5177bf385fdd44eaf75625fe03))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.6.9 \[skip ci\]
   ([ef90987](https://github.com/seanthimons/concert/tree/ef90987724c7986a706b27f1d5d6954a41ae155b))
 - index new synonym and bulk-audit helpers
   ([60fe748](https://github.com/seanthimons/concert/tree/60fe748b6a07edce026f5fbe1f2d7e96116ab2dd))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.6.9 \[skip ci\]
   ([1320cbc](https://github.com/seanthimons/concert/tree/1320cbcd412b13773594fc43123e5ff18e3c4378))
@@ -39,36 +51,36 @@ Full set of changes:
 Full set of changes:
 [`v0.6.8...v0.6.9`](https://github.com/seanthimons/concert/compare/v0.6.8...v0.6.9)
 
-## concert 0.6.8 (2026-11-04)
+### concert 0.6.8 (2026-11-04)
 
-#### New features
+##### New features
 
 - add Synonym tag for per-row synonym-list evidence
   ([bc6e86b](https://github.com/seanthimons/concert/tree/bc6e86bd4d7b0e18a028477851615535c307acd7))
 - audit bulk-accepted pins against current identity holds
   ([b96b05e](https://github.com/seanthimons/concert/tree/b96b05e0a0f3ab3e2ba84f9d3fc771f9a9c6f1af))
 
-#### Bug fixes
+##### Bug fixes
 
 - stop fuzzy tier crossing isomers and compounds
   ([d191339](https://github.com/seanthimons/concert/tree/d191339ead570edd21ce0ae5db67d52ff8841055))
 
-#### Tests
+##### Tests
 
 - validate expanded re-tag choices across line breaks
   ([6ecc81e](https://github.com/seanthimons/concert/tree/6ecc81e70119b54d56d2cbc72dd936434a98892f))
 
-#### CI
+##### CI
 
 - update R actions for current Ubuntu sudo
   ([2eaaa36](https://github.com/seanthimons/concert/tree/2eaaa36c81981036494f971bede03d3d38775ef3))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.6.8 \[skip ci\]
   ([1bf6c4d](https://github.com/seanthimons/concert/tree/1bf6c4d6ec5622d146b13d957d27f68e2ef40433))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.6.8 \[skip ci\]
   ([95ef07a](https://github.com/seanthimons/concert/tree/95ef07a310d3f299b245e79dfc5b22fb0dc19b55))
@@ -76,14 +88,14 @@ Full set of changes:
 Full set of changes:
 [`v0.6.7...v0.6.8`](https://github.com/seanthimons/concert/compare/v0.6.7...v0.6.8)
 
-## concert 0.6.7 (2026-10-30)
+### concert 0.6.7 (2026-10-30)
 
-#### New features
+##### New features
 
 - flag measurement qualifiers and hold fraction-qualified nutrients
   ([f2c8ba1](https://github.com/seanthimons/concert/tree/f2c8ba1bd3ca271822c1b47c4ab96f166f8c3077))
 
-#### Bug fixes
+##### Bug fixes
 
 - use standard Comptox detail projection
   ([7a3ebaf](https://github.com/seanthimons/concert/tree/7a3ebafab7f8bfcce031fe048118256076374ced))
@@ -98,17 +110,17 @@ Full set of changes:
 - hold WQX-conflict and name-drift rows in classify_auto_resolve
   ([6a6f0a5](https://github.com/seanthimons/concert/tree/6a6f0a56f689f42c91f3e10bdb045883de625731))
 
-#### Tests
+##### Tests
 
 - cover v4 fields and projection override
   ([89ccd7f](https://github.com/seanthimons/concert/tree/89ccd7f067aa0929bdebfbbcb934d2ae9138c9a0))
 
-#### CI
+##### CI
 
 - restore locked-review from the lockfile snapshot, not public RSPM
   ([46d5598](https://github.com/seanthimons/concert/tree/46d5598e660f150bcab3774374db4a6071f096e8))
 
-#### Docs
+##### Docs
 
 - update replacement v0.6.7 release notes \[skip ci\]
   ([7e9673c](https://github.com/seanthimons/concert/tree/7e9673c3b4daef17b1648a50d2de08f7d8a17b9e))
@@ -117,7 +129,7 @@ Full set of changes:
 - add harmonize_methodology to pkgdown reference index
   ([268f838](https://github.com/seanthimons/concert/tree/268f83898e99ca8be62e4844f5952daaa30e61b7))
 
-#### Other changes
+##### Other changes
 
 - remove retired planning and development artifacts \[skip ci\]
   ([18ee6fc](https://github.com/seanthimons/concert/tree/18ee6fcd79e3ff08f52fedf6a5355a72412ea656))
@@ -129,16 +141,16 @@ Full set of changes:
 Full set of changes:
 [`v0.6.6...v0.6.7`](https://github.com/seanthimons/concert/compare/v0.6.6...v0.6.7)
 
-## concert 0.6.6 (2026-10-16)
+### concert 0.6.6 (2026-10-16)
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.6.6 \[skip ci\]
   ([2b99609](https://github.com/seanthimons/concert/tree/2b996096077b85ef7857da1948c46254a0786151))
 - document ComptoxR pin, API key setup and deployment security
   ([c2f6205](https://github.com/seanthimons/concert/tree/c2f6205ad029232d44993c751f6711faaa0d63db))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.6.6 \[skip ci\]
   ([22fa4cd](https://github.com/seanthimons/concert/tree/22fa4cd5d23875a9912e27c17749536b3afeb93e))
@@ -146,19 +158,19 @@ Full set of changes:
 Full set of changes:
 [`v0.6.5...v0.6.6`](https://github.com/seanthimons/concert/compare/v0.6.5...v0.6.6)
 
-## concert 0.6.5 (2026-10-16)
+### concert 0.6.5 (2026-10-16)
 
-#### Bug fixes
+##### Bug fixes
 
 - scan full sheets when guessing column types
   ([7820c4b](https://github.com/seanthimons/concert/tree/7820c4b5e106efeef034024d778f69650a58a0a5))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.6.5 \[skip ci\]
   ([535f5fa](https://github.com/seanthimons/concert/tree/535f5fa7916fa3badfe7c5d7c937f5e735bdb442))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.6.5 \[skip ci\]
   ([80db5d4](https://github.com/seanthimons/concert/tree/80db5d4b61d5db32165af68d0f353378d97662b2))
@@ -166,26 +178,26 @@ Full set of changes:
 Full set of changes:
 [`v0.6.4...v0.6.5`](https://github.com/seanthimons/concert/compare/v0.6.4...v0.6.5)
 
-## concert 0.6.4 (2026-10-15)
+### concert 0.6.4 (2026-10-15)
 
-#### New features
+##### New features
 
 - harmonize analytical methods
   ([dbe736c](https://github.com/seanthimons/concert/tree/dbe736c0b2e0431ad7350331dc5b976f8fb3f1e8))
 - download pinned envharmonizer tables at startup
   ([eeb3fb6](https://github.com/seanthimons/concert/tree/eeb3fb682310dfeb9b75803c6e4625e7a71a6714))
 
-#### Bug fixes
+##### Bug fixes
 
 - validate inputs and correct media hit counts
   ([c87ca5e](https://github.com/seanthimons/concert/tree/c87ca5e0730b4fdb6db9f992f35e7730059cd325))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.6.4 \[skip ci\]
   ([cb7a3d6](https://github.com/seanthimons/concert/tree/cb7a3d6a333bd4a4906b07a859efe84d2041a2dc))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.6.4 \[skip ci\]
   ([0d492e6](https://github.com/seanthimons/concert/tree/0d492e6af52b289e8b352a6de2d9d0e89f23880a))
@@ -193,9 +205,9 @@ Full set of changes:
 Full set of changes:
 [`v0.6.3...v0.6.4`](https://github.com/seanthimons/concert/compare/v0.6.3...v0.6.4)
 
-## concert 0.6.3 (2026-10-15)
+### concert 0.6.3 (2026-10-15)
 
-#### New features
+##### New features
 
 - expose header detection thresholds and document tie-break
   ([\#12](https://github.com/seanthimons/concert/issues/12),
@@ -206,7 +218,7 @@ Full set of changes:
   ([\#35](https://github.com/seanthimons/concert/issues/35))
   ([48df247](https://github.com/seanthimons/concert/tree/48df2473eebf29a3aa152eaa225be1fbbf5c0a21))
 
-#### Bug fixes
+##### Bug fixes
 
 - detect CSV encoding and delimiter up front; add upload edge-case tests
   ([\#7](https://github.com/seanthimons/concert/issues/7))
@@ -218,17 +230,17 @@ Full set of changes:
   ([\#99](https://github.com/seanthimons/concert/issues/99))
   ([b4a6ccc](https://github.com/seanthimons/concert/tree/b4a6cccc2933b03d2c4d91699b97ead590fff060))
 
-#### Performance
+##### Performance
 
 - vectorize is_cas, as_cas and extract_cas
   ([2c4fe7c](https://github.com/seanthimons/concert/tree/2c4fe7c393157d34f3ead303d8fbf94f97cc06ba))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.6.3 \[skip ci\]
   ([5e0b838](https://github.com/seanthimons/concert/tree/5e0b838495a2cf56f2afe1def764fe7e50169937))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.6.3 \[skip ci\]
   ([a7d63b3](https://github.com/seanthimons/concert/tree/a7d63b3a608e25faebacbf9d50e46f7b8a2c3da5))
@@ -236,15 +248,15 @@ Full set of changes:
 Full set of changes:
 [`v0.6.2...v0.6.3`](https://github.com/seanthimons/concert/compare/v0.6.2...v0.6.3)
 
-## concert 0.6.2 (2026-10-13)
+### concert 0.6.2 (2026-10-13)
 
-#### Bug fixes
+##### Bug fixes
 
 - limit roman oxidation-state protection to real states and QC-flag
   lowercase
   ([fa2ec68](https://github.com/seanthimons/concert/tree/fa2ec685001195c9b55c348637bfd8c7291b07a3))
 
-#### Tests
+##### Tests
 
 - add extracted cleaning reference cases
   ([419bf83](https://github.com/seanthimons/concert/tree/419bf83e1bab1f1dbc29cac6540b1d1c3b49d05a))
@@ -255,12 +267,12 @@ Full set of changes:
   assertions
   ([b638e12](https://github.com/seanthimons/concert/tree/b638e1220c9ba7f872865617976f74002b611e19))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.6.2 \[skip ci\]
   ([91ab9b2](https://github.com/seanthimons/concert/tree/91ab9b2c43f3cf7870db32fbaf1dbc8126c0886c))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.6.2 \[skip ci\]
   ([484e08f](https://github.com/seanthimons/concert/tree/484e08f88a5fb6a64b3ac66a79c605039a71d680))
@@ -270,15 +282,15 @@ Full set of changes:
 Full set of changes:
 [`v0.6.1...v0.6.2`](https://github.com/seanthimons/concert/compare/v0.6.1...v0.6.2)
 
-## concert 0.6.1 (2026-10-08)
+### concert 0.6.1 (2026-10-08)
 
-#### New features
+##### New features
 
 - bulk staging and aligned editor for Rows Needing Review
   ([\#46](https://github.com/seanthimons/concert/issues/46))
   ([e8184f5](https://github.com/seanthimons/concert/tree/e8184f5147b3bc51b051dcddab3cacd7a0fb5876))
 
-#### Bug fixes
+##### Bug fixes
 
 - record repeated source CAS on scripted multi-analyte splits
   ([\#95](https://github.com/seanthimons/concert/issues/95))
@@ -293,7 +305,7 @@ Full set of changes:
   ([\#92](https://github.com/seanthimons/concert/issues/92))
   ([b4c6277](https://github.com/seanthimons/concert/tree/b4c6277c0801fa2a333e1053b32cbe5d5eb15cda))
 
-#### CI
+##### CI
 
 - push release commit and tag atomically with a scoped token
   ([7b7dd37](https://github.com/seanthimons/concert/tree/7b7dd370ee40e3c1f643c1622dc4aedbe4aa0782))
@@ -314,12 +326,12 @@ Full set of changes:
 - cut a patch release on merges to main except docs, site and CI changes
   ([aaac0c0](https://github.com/seanthimons/concert/tree/aaac0c07c0dc7c6111daf16646014e85b47992ad))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.6.1 \[skip ci\]
   ([dc6c708](https://github.com/seanthimons/concert/tree/dc6c708e0b25fbfbf17b8a7e6c89b5315d2f4fd3))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.6.1 \[skip ci\]
   ([d6f1ba0](https://github.com/seanthimons/concert/tree/d6f1ba0eae2c75c79723ee2f7ec8e0f64ca26ff9))
@@ -327,14 +339,14 @@ Full set of changes:
 Full set of changes:
 [`v0.6.1...v0.6.1`](https://github.com/seanthimons/concert/compare/v0.6.1...v0.6.1)
 
-## concert 0.6.0 (2026-10-08)
+### concert 0.6.0 (2026-10-08)
 
-#### New features
+##### New features
 
 - add scoped chemical identity review and acceptance
   ([399b6de](https://github.com/seanthimons/concert/tree/399b6de7ff94e11ebec796b7f7d5472f68ab95e2))
 
-#### Bug fixes
+##### Bug fixes
 
 - leave conflicting WQX aliases unresolved
   ([3597efc](https://github.com/seanthimons/concert/tree/3597efc74e2a55d7f3331f34db00b35fc6d04c6b))
@@ -355,21 +367,21 @@ Full set of changes:
 - preserve pinned manifest bytes and repair CAS assertion
   ([2947812](https://github.com/seanthimons/concert/tree/2947812802d98e90ba70c28bbbd9f71faee1bcff))
 
-#### Tests
+##### Tests
 
 - cover WQX candidate boundaries in locked CI
   ([bf9e725](https://github.com/seanthimons/concert/tree/bf9e725669c261585117b695efce107a17d616ca))
 - exercise WQX source decisions in the actual app
   ([23bcbcd](https://github.com/seanthimons/concert/tree/23bcbcd8d27a687bc55b31d94f7c564cfa7be2b3))
 
-#### CI
+##### CI
 
 - restore locked packages directly on disposable runners
   ([372ff4a](https://github.com/seanthimons/concert/tree/372ff4a9041cf6365c8a6e1ddd2eb7746344cfe4))
 - make cross-platform package checks opt-in
   ([90629b2](https://github.com/seanthimons/concert/tree/90629b260a26602674505e4a2c520d98dc620331))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.6.0 \[skip ci\]
   ([f359cac](https://github.com/seanthimons/concert/tree/f359cac1aabd9fefa87ecb45c9c9d929d6939aa9))
@@ -382,7 +394,7 @@ Full set of changes:
 - index identity review APIs for pkgdown
   ([d4b684d](https://github.com/seanthimons/concert/tree/d4b684d4ffc75d80d56a871d41e4a9845dce0fad))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.6.0 \[skip ci\]
   ([1a68cd1](https://github.com/seanthimons/concert/tree/1a68cd1b4203e0a42ceaec48187ec872a388267d))
@@ -390,9 +402,9 @@ Full set of changes:
 Full set of changes:
 [`v0.5.3...v0.6.0`](https://github.com/seanthimons/concert/compare/v0.5.3...v0.6.0)
 
-## concert 0.5.3 (2026-10-06)
+### concert 0.5.3 (2026-10-06)
 
-#### Bug fixes
+##### Bug fixes
 
 - stop reading alkyl chain lengths as carbon isotopes
   ([3493970](https://github.com/seanthimons/concert/tree/34939706d6ed6caee4c3ba220317cba2f5215e61))
@@ -402,7 +414,7 @@ Full set of changes:
   ([\#79](https://github.com/seanthimons/concert/issues/79))
   ([ab04b6d](https://github.com/seanthimons/concert/tree/ab04b6d2ee00535aa7c846ef62eed011f1fc90f2))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.5.3 \[skip ci\]
   ([890efdb](https://github.com/seanthimons/concert/tree/890efdb01dbb10f0bbd1c14a15b5f52d13c4db66))
@@ -413,7 +425,7 @@ Full set of changes:
   ([\#65](https://github.com/seanthimons/concert/issues/65))
   ([4306b81](https://github.com/seanthimons/concert/tree/4306b81136cc9d1210d1435923f25b4ac875b85f))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.5.3 \[skip ci\]
   ([872415c](https://github.com/seanthimons/concert/tree/872415ce589f1834a52a168a93d2168f17390c71))
@@ -421,9 +433,9 @@ Full set of changes:
 Full set of changes:
 [`v0.5.2...v0.5.3`](https://github.com/seanthimons/concert/compare/v0.5.2...v0.5.3)
 
-## concert 0.5.2 (2026-10-05)
+### concert 0.5.2 (2026-10-05)
 
-#### New features
+##### New features
 
 - merge v0.5.2 curation fixes
   ([\#78](https://github.com/seanthimons/concert/issues/78))
@@ -437,7 +449,7 @@ Full set of changes:
 - add structure-based parent columns via chemi standardizer
   ([5b7635c](https://github.com/seanthimons/concert/tree/5b7635c564243fc9a023fa3f580a57fbe8209b02))
 
-#### Bug fixes
+##### Bug fixes
 
 - send tied exact-name hits to review instead of a batch-dependent pick
   ([43b952d](https://github.com/seanthimons/concert/tree/43b952de49ad2d9973a3b5f15a47fa0e2b37ea7e))
@@ -450,12 +462,12 @@ Full set of changes:
 - keep name-attached enclosures during terminal stripping
   ([3ff20a0](https://github.com/seanthimons/concert/tree/3ff20a09908434fa3ffa54f48a94d57a6e42aaf2))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.5.2 \[skip ci\]
   ([76ee087](https://github.com/seanthimons/concert/tree/76ee087098db3a627c96ed7ae9ad53adb0d620bb))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.5.2 \[skip ci\]
   ([3738c6c](https://github.com/seanthimons/concert/tree/3738c6c2e4c5761f8e9eb1aa3f617a8119fa7eb9))
@@ -463,9 +475,9 @@ Full set of changes:
 Full set of changes:
 [`v0.5.1...v0.5.2`](https://github.com/seanthimons/concert/compare/v0.5.1...v0.5.2)
 
-## concert 0.5.1 (2026-10-04)
+### concert 0.5.1 (2026-10-04)
 
-#### Bug fixes
+##### Bug fixes
 
 - merge WQX review flags and chemical identity qualifier fixes
   ([ff8718b](https://github.com/seanthimons/concert/tree/ff8718b65388769c5b41936abaae1ac19ea7b62c))
@@ -481,18 +493,18 @@ Full set of changes:
   ([\#72](https://github.com/seanthimons/concert/issues/72))
   ([12ee869](https://github.com/seanthimons/concert/tree/12ee869fde818f23580ee5ed6b973edb647221cd))
 
-#### Tests
+##### Tests
 
 - cover identity qualifiers through full cleaning pipeline
   ([\#73](https://github.com/seanthimons/concert/issues/73))
   ([064794e](https://github.com/seanthimons/concert/tree/064794ee62468a441a8aa00f824bf2addfce123b))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.5.1 \[skip ci\]
   ([e2348fe](https://github.com/seanthimons/concert/tree/e2348fec89d40d44d98475d2b4320c5c17cb1bb0))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.5.1 \[skip ci\]
   ([3487db3](https://github.com/seanthimons/concert/tree/3487db37c6261b945b8bbdb500b1bf34efa69f7f))
@@ -500,19 +512,19 @@ Full set of changes:
 Full set of changes:
 [`v0.5.0...v0.5.1`](https://github.com/seanthimons/concert/compare/v0.5.0...v0.5.1)
 
-## concert 0.5.0 (2026-09-28)
+### concert 0.5.0 (2026-09-28)
 
-#### New features
+##### New features
 
 - add PubChem and salt parent candidates
   ([912a452](https://github.com/seanthimons/concert/tree/912a452ff957dfca56a2d081ad14885008c44cde))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.5.0 \[skip ci\]
   ([c74ffd4](https://github.com/seanthimons/concert/tree/c74ffd47fe20e17ed868fd618418b17ae1802387))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.5.0 \[skip ci\]
   ([4b4e106](https://github.com/seanthimons/concert/tree/4b4e1069e34d9857494d89fcb2a650f0b8e7c4b5))
@@ -520,9 +532,9 @@ Full set of changes:
 Full set of changes:
 [`v0.4.4...v0.5.0`](https://github.com/seanthimons/concert/compare/v0.4.4...v0.5.0)
 
-## concert 0.4.4 (2026-09-22)
+### concert 0.4.4 (2026-09-22)
 
-#### Bug fixes
+##### Bug fixes
 
 - merge semicolon-only synonym split and original_row_id keyed
   resolutions (v0.4.4)
@@ -531,14 +543,14 @@ Full set of changes:
   original_row_id
   ([49df31a](https://github.com/seanthimons/concert/tree/49df31a79c75e4560ba76c3d04c9195e09569f51))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.4.4 \[skip ci\]
   ([c8bf9d4](https://github.com/seanthimons/concert/tree/c8bf9d42f1aac8843b7ad0f882f8b9e8de017dbe))
 - document row_index keying and value_corrections ordering
   ([4bb9a97](https://github.com/seanthimons/concert/tree/4bb9a97c11314758f710446097bfab5cd545a3fb))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.4.4
   ([9743a63](https://github.com/seanthimons/concert/tree/9743a634aba7569e7456eecfb95dc7efa2c7b3c3))
@@ -546,23 +558,23 @@ Full set of changes:
 Full set of changes:
 [`v0.4.4...v0.4.4`](https://github.com/seanthimons/concert/compare/v0.4.4...v0.4.4)
 
-## concert 0.4.3 (2026-09-22)
+### concert 0.4.3 (2026-09-22)
 
-#### Bug fixes
+##### Bug fixes
 
 - merge split_synonyms CAS gate and synonyms step switch
   ([e849419](https://github.com/seanthimons/concert/tree/e8494192427f689050572e0d89546054c9bb0d06))
 - stop split_synonyms breaking IUPAC and registry names on commas
   ([daa7bfb](https://github.com/seanthimons/concert/tree/daa7bfb9ad8bfbe3e58c6bdee9f9d2f1aced2569))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.4.3 \[skip ci\]
   ([446f12b](https://github.com/seanthimons/concert/tree/446f12b72a566d3b998666ec14636d3b5c4666ce))
 - add pkgdown site and usage vignettes
   ([06c8396](https://github.com/seanthimons/concert/tree/06c83961516fcbba389a6183f06d8c95558cbce1))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.4.3 \[skip ci\]
   ([1398a4d](https://github.com/seanthimons/concert/tree/1398a4d2745c970c13ff1b4e5a54c171af71153f))
@@ -570,14 +582,14 @@ Full set of changes:
 Full set of changes:
 [`v0.4.2...v0.4.3`](https://github.com/seanthimons/concert/compare/v0.4.2...v0.4.3)
 
-## concert 0.4.2 (2026-09-15)
+### concert 0.4.2 (2026-09-15)
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.4.2 \[skip ci\]
   ([3ef373e](https://github.com/seanthimons/concert/tree/3ef373e52f6e2330814c8326734bc85138db86e1))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.4.2 \[skip ci\]
   ([200f8b9](https://github.com/seanthimons/concert/tree/200f8b993f4ed31ebbc6cd7d5110ee71b1758093))
@@ -585,9 +597,9 @@ Full set of changes:
 Full set of changes:
 [`v0.4.1...v0.4.2`](https://github.com/seanthimons/concert/compare/v0.4.1...v0.4.2)
 
-## concert 0.4.1 (2026-09-15)
+### concert 0.4.1 (2026-09-15)
 
-#### New features
+##### New features
 
 - runner installs latest release before each run
   ([0776f63](https://github.com/seanthimons/concert/tree/0776f634fac3ef104eed3f2a9543cce64e82be2b))
@@ -598,7 +610,7 @@ Full set of changes:
 - add value_corrections and cleaning_steps replay inputs
   ([7afb533](https://github.com/seanthimons/concert/tree/7afb533aa476d0919368efa31e31d95887d96d59))
 
-#### Bug fixes
+##### Bug fixes
 
 - runner survives failed release install and status.md flags
   low-similarity matches
@@ -612,22 +624,22 @@ Full set of changes:
 - normalize hyphen and zero-width space
   ([c283936](https://github.com/seanthimons/concert/tree/c283936075bc2b1ba8ecbcaafb3f4eef39886b80))
 
-#### Refactorings
+##### Refactorings
 
 - split curate_headless into composable stage functions
   ([1882a83](https://github.com/seanthimons/concert/tree/1882a836eb2f73e598a669a35dab5dc4cd76f3d9))
 
-#### Performance
+##### Performance
 
 - paginate review results and lock project dependencies
   ([cf749af](https://github.com/seanthimons/concert/tree/cf749af8ed84edf98b2b7c7f1fdd612a631dd0d5))
 
-#### Build
+##### Build
 
 - pin renv lock to dated PPM snapshot for binary restore
   ([9ebd68f](https://github.com/seanthimons/concert/tree/9ebd68f317c2f91efc73404662fab8279c79672a))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.4.1 \[skip ci\]
   ([326c3ca](https://github.com/seanthimons/concert/tree/326c3ca3abb44ea527b68a64bdd30d959f740696))
@@ -636,7 +648,7 @@ Full set of changes:
 - update NEWS.md for v0.4.1 \[skip ci\]
   ([d82c4cf](https://github.com/seanthimons/concert/tree/d82c4cf40793eb1c9cbdf3ed09c6aeb98804adf2))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.4.1 \[skip ci\]
   ([acc48f3](https://github.com/seanthimons/concert/tree/acc48f3cb6ca1749ac9984b3ce81117470340651))
@@ -644,9 +656,9 @@ Full set of changes:
 Full set of changes:
 [`v0.4.0...v0.4.1`](https://github.com/seanthimons/concert/compare/v0.4.0...v0.4.1)
 
-## concert 0.4.0 (2026-09-11)
+### concert 0.4.0 (2026-09-11)
 
-#### Breaking changes
+##### Breaking changes
 
 - integrate published media curation and compact replays
   ([\#61](https://github.com/seanthimons/concert/issues/61))
@@ -656,7 +668,7 @@ Full set of changes:
 - export canonical labels and preserve original input
   ([cbb4b18](https://github.com/seanthimons/concert/tree/cbb4b18610d6542a137a58278fc767e63499da9c))
 
-#### New features
+##### New features
 
 - expose published ontology context in the editor
   ([c0fb676](https://github.com/seanthimons/concert/tree/c0fb6765e09cbef22ca03f24fa0aa180d17ad1bc))
@@ -665,7 +677,7 @@ Full set of changes:
 - import pinned published media artifacts
   ([0c00ade](https://github.com/seanthimons/concert/tree/0c00adebb624f33082b2b545b34782380f2be3c8))
 
-#### Bug fixes
+##### Bug fixes
 
 - omit reconstructible metadata from media replay snapshots
   ([414031d](https://github.com/seanthimons/concert/tree/414031d0e9d83ebb6e0fd87df05148a7f036451a))
@@ -676,12 +688,12 @@ Full set of changes:
 - allow selecting WQX evidence candidates
   ([0d1c855](https://github.com/seanthimons/concert/tree/0d1c855477d50ff88fc1d23b4a5429cf2f27c2ed))
 
-#### Build
+##### Build
 
 - bump ComptoxR pin to v1.7.1
   ([6daa5c4](https://github.com/seanthimons/concert/tree/6daa5c48cc989bcbca2d630784c6ad323482832d))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.4.0 \[skip ci\]
   ([ab35c45](https://github.com/seanthimons/concert/tree/ab35c45ff88506ceb1fbd91cf75175b8fcd845b4))
@@ -694,7 +706,7 @@ Full set of changes:
 - assess environmental harmonization integration
   ([6b4ec6a](https://github.com/seanthimons/concert/tree/6b4ec6a7d9fbe168d1c715d557e932efedd4801f))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.4.0 \[skip ci\]
   ([04355a0](https://github.com/seanthimons/concert/tree/04355a0f88f71356a2cf926f462d2962a5f93ec6))
@@ -706,19 +718,19 @@ Full set of changes:
 Full set of changes:
 [`v0.3.2...v0.4.0`](https://github.com/seanthimons/concert/compare/v0.3.2...v0.4.0)
 
-## concert 0.3.2 (2026-08-12)
+### concert 0.3.2 (2026-08-12)
 
-#### Bug fixes
+##### Bug fixes
 
 - correct harmonizer failure handling
   ([3bea7e2](https://github.com/seanthimons/concert/tree/3bea7e221ebd45fd202226b1e6d68741bb5d93ad))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.3.2 \[skip ci\]
   ([0b878ca](https://github.com/seanthimons/concert/tree/0b878ca56554fcee8214e9cd492ab9b118ab375a))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.3.2 \[skip ci\]
   ([3d0797b](https://github.com/seanthimons/concert/tree/3d0797ba24e975f1a929d39aabd5e23c1685661d))
@@ -726,20 +738,20 @@ Full set of changes:
 Full set of changes:
 [`v0.3.1...v0.3.2`](https://github.com/seanthimons/concert/compare/v0.3.1...v0.3.2)
 
-## concert 0.3.1 (2026-07-21)
+### concert 0.3.1 (2026-07-21)
 
-#### Bug fixes
+##### Bug fixes
 
 - detect ’ & ’ and ’ / ’ multi-analyte separators
   ([\#54](https://github.com/seanthimons/concert/issues/54))
   ([dff9b54](https://github.com/seanthimons/concert/tree/dff9b545efb5649e062de07d78241d051d24cf4d))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.3.1 \[skip ci\]
   ([3ff24f2](https://github.com/seanthimons/concert/tree/3ff24f2f1bfa110c7f374a73eb6d230d0d67270c))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.3.1
   ([7b75317](https://github.com/seanthimons/concert/tree/7b75317e29880e88dad76f95e768a8007cfdffa6))
@@ -747,29 +759,29 @@ Full set of changes:
 Full set of changes:
 [`v0.3.0...v0.3.1`](https://github.com/seanthimons/concert/compare/v0.3.0...v0.3.1)
 
-## concert 0.3.0 (2026-07-21)
+### concert 0.3.0 (2026-07-21)
 
-#### New features
+##### New features
 
 - fan one review decision to all rows sharing name + CAS
   ([9216087](https://github.com/seanthimons/concert/tree/92160871617bc5da5b3ba8aed6407434df6f59ab))
 
-#### Bug fixes
+##### Bug fixes
 
 - use ASCII in review pairing label for R CMD check
   ([0ca7f62](https://github.com/seanthimons/concert/tree/0ca7f62e3d58286dc38cd3fdf608d5ccfde92084))
 
-#### Refactorings
+##### Refactorings
 
 - consolidate multi-analyte and multi-CAS review into one surface
   ([1587323](https://github.com/seanthimons/concert/tree/158732313cad4d49dbcd21488194d3c3e2fc1a5a))
 
-#### Tests
+##### Tests
 
 - prove review fan-out is CAS-column-order independent
   ([62dae53](https://github.com/seanthimons/concert/tree/62dae5377a71d6399a7845a40646ef02cc22cd48))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.3.0 \[skip ci\]
   ([4a49fb5](https://github.com/seanthimons/concert/tree/4a49fb57ebfe86d76c7f21cc828583fd57407ee3))
@@ -778,7 +790,7 @@ Full set of changes:
   [\#55](https://github.com/seanthimons/concert/issues/55))
   ([72205dc](https://github.com/seanthimons/concert/tree/72205dc0c615c34152fa85eefb3c1bc51d325576))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.3.0 \[skip ci\]
   ([124d961](https://github.com/seanthimons/concert/tree/124d9612a7d943d589b3e9b39c7373950f6e5ba8))
@@ -786,9 +798,9 @@ Full set of changes:
 Full set of changes:
 [`v0.2.0...v0.3.0`](https://github.com/seanthimons/concert/compare/v0.2.0...v0.3.0)
 
-## concert 0.2.0 (2026-07-20)
+### concert 0.2.0 (2026-07-20)
 
-#### New features
+##### New features
 
 - split embedded units out of measurement values
   ([4f4b2dd](https://github.com/seanthimons/concert/tree/4f4b2ddf5c8a40f7d569d268ccab7b910ac125f6))
@@ -797,7 +809,7 @@ Full set of changes:
 - add MFL fiber-concentration conversions to stable dictionary
   ([20342d9](https://github.com/seanthimons/concert/tree/20342d9b52a24308cec87161a981a22afeef310c))
 
-#### Bug fixes
+##### Bug fixes
 
 - harmonize microfiber units to MFL
   ([324841d](https://github.com/seanthimons/concert/tree/324841d999bfaa110b4483fc3ce4be5bf46ca0cb))
@@ -808,30 +820,30 @@ Full set of changes:
 - keep filter dropdowns above table
   ([17d90cc](https://github.com/seanthimons/concert/tree/17d90cc8a8b7dbe65aafe6876f98bb6cee59c0e7))
 
-#### Refactorings
+##### Refactorings
 
 - reorder editor panels — unmatched under unit map, parse issues above
   corrections
   ([820ab41](https://github.com/seanthimons/concert/tree/820ab419c8fb7a0af2e51a10525e6a0c0494c0f1))
 
-#### Build
+##### Build
 
 - pin ComptoxR to v1.5.1
   ([3978909](https://github.com/seanthimons/concert/tree/3978909a08a92c440b8088a02553f97035dfa7cb))
 
-#### CI
+##### CI
 
 - add workflow to track ComptoxR releases and open pin-bump PRs
   ([9e94f7a](https://github.com/seanthimons/concert/tree/9e94f7ac51be5bab7b783c5c7d7c9e551e9db2e7))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.2.0 \[skip ci\]
   ([d4010d3](https://github.com/seanthimons/concert/tree/d4010d329ae5d55a654b13ba9d27225c6fef9cfd))
 - mark internal editor/split helpers [@noRd](https://github.com/noRd)
   ([abfa3dd](https://github.com/seanthimons/concert/tree/abfa3dd4cc2450141fb8c697416e2d0fe7dcfe8e))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.2.0 \[skip ci\]
   ([c6648d3](https://github.com/seanthimons/concert/tree/c6648d3a1087c6f2108b86afe78683509c48d110))
@@ -839,41 +851,41 @@ Full set of changes:
 Full set of changes:
 [`v0.1.4...v0.2.0`](https://github.com/seanthimons/concert/compare/v0.1.4...v0.2.0)
 
-## concert 0.1.4 (2026-07-14)
+### concert 0.1.4 (2026-07-14)
 
-#### New features
+##### New features
 
 - clarify canonical site identity
   ([f0658bd](https://github.com/seanthimons/concert/tree/f0658bd45ceaf9a818934a8aaa3990b4bd6c6cfb))
 - add curated results dropdown filters
   ([c96f26c](https://github.com/seanthimons/concert/tree/c96f26c6453645599d73b5bf03dccbf7bf3b5fb9))
 
-#### Bug fixes
+##### Bug fixes
 
 - advance the replay baseline to the harmonized stage
   ([be17b01](https://github.com/seanthimons/concert/tree/be17b011eb8f2d0444df015a42019ef956c8c427))
 - reconstruct full replay when resuming a baseline-less workbook
   ([7eeff1b](https://github.com/seanthimons/concert/tree/7eeff1be7cb2a5af6587c8aaf5bafae0a2958c0c))
 
-#### Performance
+##### Performance
 
 - snapshot harmonization maps as provenance-blind deltas
   ([654f610](https://github.com/seanthimons/concert/tree/654f610c57429f62c7fcaf679212cf99b170cbf2))
 
-#### CI
+##### CI
 
 - align GitHub Actions across R package repos
   ([\#49](https://github.com/seanthimons/concert/issues/49))
   ([2ed41da](https://github.com/seanthimons/concert/tree/2ed41da0f5ff3503055c02ac87bc622a2150e678))
 
-#### Docs
+##### Docs
 
 - update NEWS.md for v0.1.4 \[skip ci\]
   ([eba7181](https://github.com/seanthimons/concert/tree/eba71818f52d21d70976b224152302e840d0559d))
 - track resume-replay bug analysis and id-keying follow-up
   ([4cc0a18](https://github.com/seanthimons/concert/tree/4cc0a18761377d6bef689067715c45ca06ced70d))
 
-#### Other changes
+##### Other changes
 
 - bump version to 0.1.4 \[skip ci\]
   ([b6f690b](https://github.com/seanthimons/concert/tree/b6f690bd5d64659846a2be40918badac75d004f9))
@@ -885,14 +897,14 @@ Full set of changes:
 Full set of changes:
 [`v0.1.3...v0.1.4`](https://github.com/seanthimons/concert/compare/v0.1.3...v0.1.4)
 
-## concert 0.1.3 (2026-07-10)
+### concert 0.1.3 (2026-07-10)
 
-#### Bug fixes
+##### Bug fixes
 
 - harmonize environmental units
   ([9e5452d](https://github.com/seanthimons/concert/tree/9e5452d5ae3254e474aa234a557de6f4586654eb))
 
-#### Other changes
+##### Other changes
 
 - bump package version to 0.1.3
   ([\#48](https://github.com/seanthimons/concert/issues/48))
@@ -901,26 +913,26 @@ Full set of changes:
 Full set of changes:
 [`v0.1.2...v0.1.3`](https://github.com/seanthimons/concert/compare/v0.1.2...v0.1.3)
 
-## concert 0.1.2 (2026-07-09)
+### concert 0.1.2 (2026-07-09)
 
-#### New features
+##### New features
 
 - salvage SSWQS-style numeric strings, zero-digit values become
   narrative
   ([7bc2bbf](https://github.com/seanthimons/concert/tree/7bc2bbfffab4f477a086e8532aa57ef81ca5a5e0))
 
-#### Bug fixes
+##### Bug fixes
 
 - address PR [\#47](https://github.com/seanthimons/concert/issues/47)
   review feedback
   ([bd39d73](https://github.com/seanthimons/concert/tree/bd39d73854e0d8b55d272a50886f4e43b35f9b4b))
 
-#### Tests
+##### Tests
 
 - pin SSWQS criterion-value corpus as parser regression fixture
   ([85a2069](https://github.com/seanthimons/concert/tree/85a20693745b3ce30c94550abf62c993fc647f4f))
 
-#### Other changes
+##### Other changes
 
 - bump package version to 0.1.2
   ([\#47](https://github.com/seanthimons/concert/issues/47))
@@ -929,9 +941,9 @@ Full set of changes:
 Full set of changes:
 [`v0.1.1...v0.1.2`](https://github.com/seanthimons/concert/compare/v0.1.1...v0.1.2)
 
-## concert 0.1.1 (2026-07-09)
+### concert 0.1.1 (2026-07-09)
 
-#### New features
+##### New features
 
 - show package version in app header
   ([0a20b73](https://github.com/seanthimons/concert/tree/0a20b7345bd7f5099fa9db65082e68c2e3589124))
@@ -968,7 +980,7 @@ Full set of changes:
 - add chemical curation workflow with ComptoxR integration
   ([4aebefa](https://github.com/seanthimons/concert/tree/4aebefa4792386b0f5347403b23016f123606578))
 
-#### Bug fixes
+##### Bug fixes
 
 - persist replay baseline across session export and import
   ([28aa0e5](https://github.com/seanthimons/concert/tree/28aa0e54b806eb059d13e0adf41cdf6b787b7996))
@@ -1105,14 +1117,14 @@ Full set of changes:
 - adjusted layout of cards.
   ([d779a6f](https://github.com/seanthimons/concert/tree/d779a6f524f123d875547a82d47771c3649b6929))
 
-#### Refactorings
+##### Refactorings
 
 - slim generated replay scripts
   ([637ef6a](https://github.com/seanthimons/concert/tree/637ef6a82f06d794b9dabc5d1f8850d17098974e))
 - migrate all tables from DT to reactable + reactable.extras
   ([1617577](https://github.com/seanthimons/concert/tree/1617577ff11b48a46f879f04e2803c8d7534f1bc))
 
-#### Performance
+##### Performance
 
 - finish replay export optimization
   ([78be50f](https://github.com/seanthimons/concert/tree/78be50f090fce6c04c1da3e9697df1aed473691f))
@@ -1127,7 +1139,7 @@ Full set of changes:
 - fix O(n²) list-growth in deduplicate_tagged_columns
   ([0874ece](https://github.com/seanthimons/concert/tree/0874ecee4e7d16a87c90e46b4ba1a03abfd2fd79))
 
-#### Tests
+##### Tests
 
 - add extracted problem cases
   ([90cb32c](https://github.com/seanthimons/concert/tree/90cb32c3abb972ed95bcf2de7532a435249ca41d))
@@ -1179,7 +1191,7 @@ Full set of changes:
 - complete UAT - 12 passed, 0 issues
   ([14e4813](https://github.com/seanthimons/concert/tree/14e48138ae2f8c531254ac0f2465c5859c05053d))
 
-#### CI
+##### CI
 
 - configure git user for release tags
   ([63f0472](https://github.com/seanthimons/concert/tree/63f04720abaf1d50f53bff0b955d2088a469ea56))
@@ -1198,7 +1210,7 @@ Full set of changes:
 - add gitleaks secret scanning
   ([16b5fa5](https://github.com/seanthimons/concert/tree/16b5fa58abe68dc375494eb622b09103da083ebe))
 
-#### Docs
+##### Docs
 
 - add auto-tag analyte id bean
   ([172dd04](https://github.com/seanthimons/concert/tree/172dd044b1c298cd1c5b1ce7e69417b608470517))
@@ -1749,12 +1761,12 @@ Full set of changes:
 - complete project research
   ([f248694](https://github.com/seanthimons/concert/tree/f248694b073978118acd78d8e456d2aa9fd6fb0a))
 
-#### Style
+##### Style
 
 - apply air formatting and jarl fixes to review module
   ([e9ea3bc](https://github.com/seanthimons/concert/tree/e9ea3bc4057785f1b8a0151fe0c73163daedddd2))
 
-#### Other changes
+##### Other changes
 
 - remove dead replay helper functions
   ([f136176](https://github.com/seanthimons/concert/tree/f136176b1fc77d5e2c0577d01cb5f7cbc0fc1330))

@@ -7,7 +7,8 @@ leading zeros. The function extracts all digits, trims any leading
 zeros, formats the result into the standard "xx-yy-z" structure, and
 then validates it using the
 [`is_cas()`](https://seanthimons.github.io/concert/reference/is_cas.md)
-check-digit algorithm.
+check-digit algorithm. EC-formatted and explicitly
+EC/EINECS/ELINCS-labelled identifiers are rejected.
 
 ## Usage
 
