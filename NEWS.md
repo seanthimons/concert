@@ -1,15 +1,22 @@
 
 
 
-# concert (development version)
+## concert 0.6.11 (2026-11-13)
 
-- `Remotes` no longer pins ComptoxR to a release tag, so installers such as pak
-  accept any ComptoxR that meets the `Imports` floor (>= 4.0.3) instead of
-  failing when a consumer's lockfile records a different ComptoxR commit.
+#### Bug fixes
 
-- CAS cleaning rejects EC-formatted and explicitly EC/EINECS/ELINCS-labelled
-  identifiers instead of rebuilding their digits into checksum-valid CAS numbers.
-  Text extraction retains genuine CAS values alongside those other identifiers.
+- reject EC/EINECS/ELINCS identifiers in CAS cleaning
+  ([f8dff1e](https://github.com/seanthimons/concert/tree/f8dff1eb7b69c9bd8e7f763bc9f16d022dc276c7))
+- drop release tag from ComptoxR remote
+  ([cdb4d5f](https://github.com/seanthimons/concert/tree/cdb4d5f03bad5f4b4de5c2886d9536038f8904b2))
+
+#### Other changes
+
+- bump version to 0.6.11 \[skip ci\]
+  ([535d6e4](https://github.com/seanthimons/concert/tree/535d6e4f372e35b5cee603a807754820f8084c58))
+
+Full set of changes:
+[`v0.6.11...v0.6.11`](https://github.com/seanthimons/concert/compare/v0.6.11...v0.6.11)
 
 ## concert 0.6.10 (2026-11-11)
 
@@ -17,6 +24,11 @@
 
 - retry unresolved CAS aliases with ComptoxR 4.0.3 (#145)
   ([001bd17](https://github.com/seanthimons/concert/tree/001bd17f4ed569f138ea5dcb4b8faf3e1c9c91c1))
+
+#### Docs
+
+- update NEWS.md for v0.6.10 \[skip ci\]
+  ([b302895](https://github.com/seanthimons/concert/tree/b3028955abb1b6657ad5d25580d956f303246777))
 
 #### Other changes
 
