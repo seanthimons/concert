@@ -236,5 +236,5 @@ test_that("name-only search caches are bypassed and refreshed results are reused
   expect_identical(first$resolution_state, fresh)
   expect_identical(second$resolution_state, fresh)
   expect_identical(calls, 1L)
-  expect_length(list.files(cache_dir, pattern = "^curation_"), 2L)
+  expect_length(list.files(cache_dir, pattern = "^curation_", recursive = TRUE), 2L)
 })

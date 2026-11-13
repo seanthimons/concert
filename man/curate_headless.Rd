@@ -43,7 +43,9 @@ curate_headless(
   desalt = FALSE,
   desalt_workflows = c("qsar-ready", "ms-ready"),
   ignored_identifier_cols = character(),
-  toxval_identity_mode = "lookup"
+  toxval_identity_mode = "lookup",
+  cache_dir = NULL,
+  refresh_cache = FALSE
 )
 }
 \arguments{
@@ -201,6 +203,22 @@ treated as metadata. These columns never supply identity evidence.}
 \item{toxval_identity_mode}{ToxVal identifier policy: "lookup" preserves
 the existing audit export default; "accepted" gates IDs and preserves
 every measurement row with NA IDs when blocked.}
+
+\item{cache_dir}{Optional directory for on-disk curation state. When set,
+the CompTox/PubChem search result, candidate enrichment, and structure
+parents are stored there and reused by later calls, so a re-run that only
+changes review inputs (\code{review_picks}, \code{row_flags}, \code{review_overrides},
+\code{accept_suggestions}, \code{review_decision_evidence}, \code{candidate_validation},
+\code{identity_decisions}) skips the search. File reading and cleaning always
+re-run, and the search is repeated whenever their output, the tag map, the
+search switches, the WQX dictionary, or the concert or ComptoxR version
+changes. A progress message says whether the search was reused. The cache
+is a snapshot of the external services: use \code{refresh_cache} to pick up
+upstream changes. Use one directory per dataset, not shared by concurrent
+runs. Default NULL: nothing is cached.}
+
+\item{refresh_cache}{Logical. If TRUE, discards the cached state in
+\code{cache_dir} and searches afresh.}
 }
 \value{
 Invisibly returns a list:
