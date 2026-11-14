@@ -335,6 +335,8 @@ test_that("captured candidate work reopens iteration and exact acknowledgments s
   expect_equal(second$pending$pending_type, "candidate_validation")
   expect_true(file.exists(file.path(fx$dir, "candidate_review.csv")))
   expect_true(file.exists(file.path(fx$dir, "identity_review.csv")))
+  # An "unverified" resolver lookup is a failed lookup, reported in status.md.
+  expect_true(any(readLines(file.path(fx$dir, "status.md")) == "| resolver | 1 | rows |"))
   expect_identical(second$state$review_decision_evidence, evidence)
   rs <- second$state$resolution_state
   rows <- which(rs$chemical_name == "Lead")

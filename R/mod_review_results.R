@@ -3751,6 +3751,9 @@ mod_review_results_server <- function(id, data_store) {
         )
 
         if (!is.null(retry_result)) {
+          degraded <- search_failure_message(search_failure_summary(retry_result),
+            "Re-curate these rows once the CompTox API recovers.")
+          if (!is.null(degraded)) notify_user(degraded, type = "warning", duration = NULL)
           incProgress(0.3, detail = "Merging results...")
 
           # Merge retry results back into main state

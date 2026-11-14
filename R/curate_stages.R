@@ -255,7 +255,8 @@ stage_curate <- function(
     })
   }
 
-  if (is.null(pipeline_result)) {
+  reused <- !is.null(pipeline_result)
+  if (!reused) {
     message("[headless] Running curation pipeline (CompTox API search)...")
     pipeline_result <- run_curation_pipeline(
       cleaned,
@@ -270,6 +271,14 @@ stage_curate <- function(
     if (!is.null(search_cache_path)) {
       saveRDS(pipeline_result, search_cache_path)
     }
+  }
+  # Loud, not strict: a cache with failures is still reused, so one query that
+  # always fails cannot disable the cache.
+  state$search_failures <- search_failure_summary(pipeline_result)
+  degraded <- search_failure_message(state$search_failures,
+    "Rerun with refresh_cache = TRUE once the CompTox API recovers.")
+  if (!is.null(degraded)) {
+    warning(if (reused) paste("Reusing cached search with failed lookups.", degraded) else degraded, call. = FALSE)
   }
   resolution_state <- pipeline_result$results
   state$source_identifier_evidence <- pipeline_result$source_identifier_evidence
@@ -295,7 +304,11 @@ stage_curate <- function(
     enrichment_cache <- postprocess_result$enrichment_cache
     enrichment_failed <- postprocess_result$enrichment_failed
     if (!is.null(enrichment_cache_path) && !is.null(enrichment_cache)) {
-      saveRDS(enrichment_cache, enrichment_cache_path)
+      # Rows a lookup left empty are fetched again next run rather than kept.
+      details <- intersect(c("preferredName", "casrn", "molecular_formula", "molecular_weight", "synonyms"),
+        names(enrichment_cache))
+      empty <- Reduce(`&`, lapply(enrichment_cache[details], is.na))
+      saveRDS(enrichment_cache[!empty, ], enrichment_cache_path)
     }
     message(sprintf(
       "[headless] Candidate postprocessing: %d auto-resolved, %d suggested",

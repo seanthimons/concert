@@ -142,3 +142,35 @@ test_that("upstream changes and refresh_cache repeat the search", {
   expect_equal(calls, 5L)
   expect_equal(out$data$result[1], "9")
 })
+
+test_that("a cached search with failed lookups is reused loudly and empty details are not kept", {
+  fx <- cache_fixture()
+  calls <- 0L
+  local_mocked_bindings(
+    run_curation_pipeline = function(cleaned_data, ...) {
+      calls <<- calls + 1L
+      result <- cache_pipeline_result(cleaned_data)
+      result$search_failures <- tibble::tibble(lookup = "cas", n_queries = 2L, message = "API down")
+      result
+    },
+    postprocess_curation_candidates = function(resolution_state, ...) {
+      cache <- tibble::tibble(dtxsid = c("DTXSID8021482", "DTXSID6024161"), preferredName = c("Acetone", NA),
+        casrn = c("67-64-1", NA), molecular_formula = NA_character_, molecular_weight = NA_real_)
+      empty_postprocess_result(resolution_state, cache, character(0))
+    }
+  )
+  run <- function(...) {
+    curate_headless(fx$input_path, NULL,
+      list(chemical_name = "Name", cas_number = "CASRN", result = "Result", unit = "Unit"),
+      header_row = 1L, write_files = FALSE, verbose = FALSE, cache_dir = fx$cache_dir,
+      postprocess_candidates = TRUE, ...)
+  }
+  expect_warning(run(), "^Degraded curation search: cas 2 queries failed\\. Rerun with refresh_cache = TRUE")
+  expect_warning(run(), "^Reusing cached search with failed lookups\\. Degraded curation search: cas 2 queries")
+  expect_equal(calls, 1L)
+  expect_warning(run(refresh_cache = TRUE), "^Degraded")
+  expect_equal(calls, 2L)
+
+  saved <- readRDS(list.files(fx$cache_dir, "^enrichment\\.rds$", recursive = TRUE, full.names = TRUE))
+  expect_equal(saved$dtxsid, "DTXSID8021482")
+})

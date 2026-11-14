@@ -466,6 +466,16 @@ write_status_md <- function(path, state, pending, done, decisions, error = NULL)
     "and accepted identity are separate; acknowledgments never clear flags.",
     "",
     if (!is.null(error)) c("## Error", "", "```", conditionMessage(error), "```", "") else character(0),
+    if (NROW(state$search_failures)) c(
+      "## Search failures",
+      "",
+      "These lookups failed and their hits are missing. Rerun with `refresh_cache = TRUE` once the API recovers.",
+      "",
+      "| lookup | failed | unit |",
+      "|---|---|---|",
+      paste0("| ", state$search_failures$lookup, " | ", state$search_failures$n, " | ", state$search_failures$unit, " |"),
+      ""
+    ) else character(0),
     "## Consensus",
     "",
     "| status | n |",
