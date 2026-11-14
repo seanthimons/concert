@@ -1116,3 +1116,14 @@ test_that("empty persisted review selection still preserves required action colu
 
   expect_equal(visible, "Resolution")
 })
+
+test_that("accepted DTXSIDs missing from the enrichment cache are fetched", {
+  seen <- NULL
+  local_mocked_bindings(enrich_candidates = function(dtxsids, existing_cache = NULL, ...) {
+    seen <<- dtxsids
+    list(cache = existing_cache, failed_dtxsids = character(0))
+  })
+  state <- tibble::tibble(consensus_dtxsid = c("DTXSID1020807", NA, "not-an-id", "DTXSID1020807"))
+  enrich_accepted_dtxsids(state, tibble::tibble(dtxsid = character(0)))
+  expect_equal(seen, "DTXSID1020807")
+})

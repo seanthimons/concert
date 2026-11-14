@@ -421,11 +421,10 @@ stage_review <- function(
   rs <- state$resolution_state
   changed <- changed || length(identity_decisions) > 0L
 
-  # Review can accept a DTXSID no search returned; enrich it so the export
-  # does not depend on what an earlier run left in the enrichment cache.
+  # Enriching accepted IDs keeps the export independent of what an earlier
+  # run left in the enrichment cache.
   if (isTRUE(state$postprocess_candidates) && "consensus_dtxsid" %in% names(rs)) {
-    accepted <- grep("^DTXSID[0-9]+$", unique(rs$consensus_dtxsid), value = TRUE)
-    enriched <- enrich_candidates(accepted, state$enrichment_cache)
+    enriched <- enrich_accepted_dtxsids(rs, state$enrichment_cache)
     state$enrichment_cache <- enriched$cache
     state$enrichment_failed <- union(state$enrichment_failed, enriched$failed_dtxsids)
     if (length(enriched$failed_dtxsids)) {
