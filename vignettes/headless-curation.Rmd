@@ -114,7 +114,11 @@ curate_headless(
 The file is always re-read and re-cleaned. The search is repeated whenever
 the cleaned data, the tag map, a search switch, the WQX dictionary, or the
 concert or ComptoxR version changes; the progress messages say which
-happened. The cache is a snapshot of the external services, so pass
+happened. Even then, each CompTox name and CAS search answered by an earlier
+run is reused, so appending rows only searches their new values; the
+consensus and review steps are always redone on the full table. A search
+that failed is never stored and a run that reuses failed lookups warns. The
+cache is a snapshot of the external services, so pass
 `refresh_cache = TRUE` to search afresh. Use one `cache_dir` per dataset and
 do not share it between concurrent runs.
 

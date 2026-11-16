@@ -183,7 +183,7 @@ search_exact <- function(unique_names) {
 
   message(sprintf("Exact search: %d unique names...", length(unique_names)))
 
-  raw <- ComptoxR::ct_chemical_search_equal_bulk(unique_names)
+  raw <- cached_lookup("search_equal_bulk", unique_names, ComptoxR::ct_chemical_search_equal_bulk, "exact_name")
 
   if (is.null(raw) || nrow(raw) == 0) {
     return(empty_result)
@@ -237,7 +237,7 @@ find_name_ties <- function(names, get_fn = ComptoxR::ct_chemical_search_equal) {
     return(empty)
   }
   message(sprintf("Exact search: checking %d synonym-level hits for ties...", length(names)))
-  hits <- tryCatch(suppressWarnings(get_fn(names)), error = function(e) {
+  hits <- tryCatch(suppressWarnings(cached_lookup("search_equal", names, get_fn, "name_ties")), error = function(e) {
     message("Exact search: tie check failed, keeping bulk picks: ", conditionMessage(e))
     record_search_failure("name_ties", length(names), conditionMessage(e))
     NULL
@@ -264,6 +264,60 @@ find_name_ties <- function(names, get_fn = ComptoxR::ct_chemical_search_equal) {
 
 # Session-level cache for starts-with results (survives across calls within session)
 .starts_with_cache <- new.env(parent = emptyenv())
+
+# Per-query store of raw search responses, so a run that adds rows only
+# searches the values no earlier run searched (#151). stage_curate() loads it
+# from cache_dir and enables it; when disabled every lookup goes to the API.
+.lookup_cache <- new.env(parent = emptyenv())
+.lookup_cache$enabled <- FALSE
+.lookup_cache$lookups <- list()
+
+# ComptoxR drops a failed chunk of a batched request with only a warning:
+# "API request to ... failed" (bulk POST) or "Request for ... failed" (single GET).
+is_dropped_chunk_warning <- function(w) grepl("^(API request to|Request for) .* failed", conditionMessage(w))
+
+#' Search values through the per-query cache
+#'
+#' Fetches only the values not already stored and returns the stored rows for
+#' all `values`, in `values` order, so a fresh and an incremental run assemble
+#' the same response. Errors propagate and are never stored. A value is stored
+#' as a miss only when no chunk of its request was dropped.
+#' @noRd
+cached_lookup <- function(lookup, values, fetch, failure_label = lookup) {
+  dropped <- FALSE
+  fetch_logged <- function(v) {
+    withCallingHandlers(fetch(v), warning = function(w) if (is_dropped_chunk_warning(w)) dropped <<- TRUE)
+  }
+  if (!isTRUE(.lookup_cache$enabled) || !length(values)) {
+    raw <- fetch_logged(values)
+    if (dropped) record_search_failure(failure_label, length(values), "a batch of the request failed")
+    return(raw)
+  }
+  store <- .lookup_cache$lookups[[lookup]] %||% list(rows = NULL, queried = character())
+  todo <- setdiff(values, store$queried)
+  if (length(todo)) {
+    raw <- fetch_logged(todo)
+    sv <- grep("^search.?value$", names(raw), ignore.case = TRUE, value = TRUE)[1]
+    # An empty response (all misses, or every chunk dropped) has no columns.
+    if (!is.data.frame(raw) || (NROW(raw) && is.na(sv))) return(raw)
+    returned <- if (NROW(raw)) intersect(todo, raw[[sv]]) else character()
+    # ponytail: counts misses from the surviving chunks too; bulk results carry no per-chunk failure list.
+    if (dropped) record_search_failure(failure_label, length(todo) - length(returned), "a batch of the request failed")
+    if (NROW(raw)) {
+      raw$.query <- raw[[sv]]
+      store$rows <- dplyr::bind_rows(store$rows, raw)
+    }
+    store$queried <- c(store$queried, if (dropped) returned else todo)
+    .lookup_cache$lookups[[lookup]] <- store
+  }
+  message(sprintf("[lookup cache] %s: %d cached, %d searched", lookup, length(values) - length(todo), length(todo)))
+  rows <- store$rows
+  if (is.null(rows)) return(tibble::tibble())
+  rows <- rows[rows$.query %in% values, , drop = FALSE]
+  rows <- rows[order(match(rows$.query, values)), , drop = FALSE]
+  rows$.query <- NULL
+  rows
+}
 
 #' Clear the starts-with cache
 #'
@@ -440,7 +494,8 @@ validate_and_lookup_cas <- function(unique_cas, preserve_candidates = FALSE, fai
     tryCatch(
       {
         message(sprintf("Looking up DTXSID for %d valid CAS numbers...", length(valid_cas_values)))
-        cas_lookup <- ComptoxR::ct_chemical_search_equal_bulk(valid_cas_values)
+        cas_lookup <- cached_lookup("search_equal_bulk", valid_cas_values, ComptoxR::ct_chemical_search_equal_bulk,
+          failure_label)
         if (preserve_candidates && (!is.data.frame(cas_lookup) ||
           !any(grepl("^search.?value$", names(cas_lookup), ignore.case = TRUE)) ||
           !any(grepl("^dtxsid$", names(cas_lookup), ignore.case = TRUE)))) {

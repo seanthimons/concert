@@ -258,6 +258,23 @@ stage_curate <- function(
   reused <- !is.null(pipeline_result)
   if (!reused) {
     message("[headless] Running curation pipeline (CompTox API search)...")
+    if (!is.null(cache_dir)) {
+      # Per-query responses survive input edits that miss the cache above, so
+      # appended rows only search their new values (#151). Saved even when the
+      # run fails, keeping what a long run fetched before the error.
+      lookup_path <- file.path(cache_dir, "lookups.rds")
+      saved <- if (file.exists(lookup_path)) tryCatch(readRDS(lookup_path), error = function(e) NULL)
+      comptoxr_version <- as.character(utils::packageVersion("ComptoxR"))
+      .lookup_cache$lookups <- if (identical(saved$comptoxr_version, comptoxr_version)) saved$lookups else list()
+      .lookup_cache$enabled <- TRUE
+      on.exit({
+        .lookup_cache$enabled <- FALSE
+        tmp <- tempfile(tmpdir = cache_dir, fileext = ".rds")
+        saveRDS(list(comptoxr_version = comptoxr_version, lookups = .lookup_cache$lookups), tmp)
+        file.rename(tmp, lookup_path)
+        .lookup_cache$lookups <- list()
+      }, add = TRUE)
+    }
     pipeline_result <- run_curation_pipeline(
       cleaned,
       state$merged_chemical_tags,

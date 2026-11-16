@@ -174,3 +174,90 @@ test_that("a cached search with failed lookups is reused loudly and empty detail
   saved <- readRDS(list.files(fx$cache_dir, "^enrichment\\.rds$", recursive = TRUE, full.names = TRUE))
   expect_equal(saved$dtxsid, "DTXSID8021482")
 })
+
+test_that("appended rows search only their new values and match a fresh run (#151)", {
+  fx <- cache_fixture()
+  known <- tibble::tibble(
+    searchValue = c("Acetone", "67-64-1", "Lead", "7439-92-1", "Benzene", "71-43-2"),
+    dtxsid = c("DTXSID8021482", "DTXSID8021482", "DTXSID2024161", "DTXSID2024161", "DTXSID3039242", "DTXSID3039242"),
+    preferredName = c("Acetone", "Acetone", "Lead", "Lead", "Benzene", "Benzene"),
+    searchName = "Approved Name",
+    rank = 9L
+  )
+  queried <- character()
+  local_mocked_bindings(
+    ct_chemical_search_equal_bulk = function(query) {
+      queried <<- c(queried, query)
+      known[known$searchValue %in% query, ]
+    },
+    .package = "ComptoxR"
+  )
+  local_mocked_bindings(
+    resolve_curation_reference_cache_dir = function() tempdir(),
+    load_wqx_dictionary = function(...) NULL,
+    match_wqx = function(query, ...) tibble::tibble(input_name = query, match_tier = "none", match_distance = NA_real_),
+    add_resolver_candidates = function(df, ...) df
+  )
+  run <- function(cache_dir) {
+    curate_headless(fx$input_path, NULL,
+      list(chemical_name = "Name", cas_number = "CASRN", result = "Result", unit = "Unit"),
+      header_row = 1L, write_files = FALSE, verbose = FALSE, cache_dir = cache_dir)
+  }
+  run(fx$cache_dir)
+  expect_setequal(queried, c("Acetone", "Chromium", "Lead", "67-64-1", "7439-92-1"))
+
+  readr::write_csv(tibble::tibble(chemical_name = "Benzene", cas_number = "71-43-2", result = "4", unit = "mg/L"),
+    fx$input_path, append = TRUE)
+  queried <- character()
+  incremental <- run(fx$cache_dir)
+  expect_setequal(queried, c("Benzene", "71-43-2"))
+
+  fresh <- run(file.path(fx$dir, "fresh"))
+  expect_equal(incremental, fresh)
+  expect_equal(incremental$data$consensus_dtxsid[incremental$data$chemical_name == "Benzene"], "DTXSID3039242")
+})
+
+test_that("values from a dropped batch are searched again and recorded as failures", {
+  withr::defer({
+    .lookup_cache$enabled <- FALSE
+    .lookup_cache$lookups <- list()
+  })
+  .lookup_cache$enabled <- TRUE
+  .lookup_cache$lookups <- list()
+  .search_failures$rows <- list()
+  asked <- list()
+  fetch <- function(query) {
+    asked[[length(asked) + 1L]] <<- query
+    if (length(asked) == 1L) warning("API request to \"x\" failed for \"b\" with status 503")
+    tibble::tibble(searchValue = intersect(query, "a"), dtxsid = "DTXSID1")
+  }
+  first <- suppressMessages(suppressWarnings(cached_lookup("t", c("a", "b", "c"), fetch, "exact_name")))
+  expect_equal(first$searchValue, "a")
+  expect_equal(collected_search_failures()$n_queries, 2L)
+  suppressMessages(cached_lookup("t", c("a", "b", "c"), fetch))
+  expect_equal(asked[[2]], c("b", "c"))
+  # With no dropped batch, b and c are confirmed misses and are not asked again.
+  suppressMessages(cached_lookup("t", c("c", "b", "a"), fetch))
+  expect_length(asked, 2L)
+
+  # ComptoxR returns a columnless tibble when every new value misses or every
+  # chunk drops; cached hits survive, and a single-GET drop is not stored.
+  none <- function(query) {
+    asked[[length(asked) + 1L]] <<- query
+    if ("y" %in% query) warning("Request for y failed: HTTP 503")
+    tibble::tibble()
+  }
+  expect_equal(suppressMessages(cached_lookup("t", c("a", "z"), none))$searchValue, "a")
+  suppressMessages(cached_lookup("t", c("a", "z"), none))
+  expect_length(asked, 3L)
+  expect_equal(suppressMessages(suppressWarnings(cached_lookup("t", c("a", "y"), none)))$searchValue, "a")
+  suppressMessages(suppressWarnings(cached_lookup("t", c("a", "y"), none)))
+  expect_equal(asked[[5]], "y")
+
+  # Time budget: serving a fully cached 25k-value lookup stays cheap.
+  values <- sprintf("name %05d", seq_len(25000))
+  suppressMessages(cached_lookup("big", values, function(q) tibble::tibble(searchValue = q, rank = 1L)))
+  elapsed <- system.time(out <- suppressMessages(cached_lookup("big", rev(values), stop)))[["elapsed"]]
+  expect_equal(out$searchValue, rev(values))
+  expect_lt(elapsed, 2)
+})
