@@ -19,7 +19,7 @@ Imports:
     bsicons,
     bslib,
     cli,
-    ComptoxR (>= 4.0.3),
+    ComptoxR (>= 4.0.5),
     DBI,
     digest,
     dplyr (>= 1.1.0),
