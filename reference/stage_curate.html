@@ -55,7 +55,8 @@
 <span>  cache_dir <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  pubchem <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  desalt <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  desalt_workflows <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"qsar-ready"</span>, <span class="st">"ms-ready"</span><span class="op">)</span></span>
+<span>  desalt_workflows <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"qsar-ready"</span>, <span class="st">"ms-ready"</span><span class="op">)</span>,</span>
+<span>  refresh_cache <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -84,9 +85,11 @@ curation. Default FALSE for backward compatibility.</p></dd>
 
 <dt id="arg-cache-dir">cache_dir<a class="anchor" aria-label="anchor" href="#arg-cache-dir"></a></dt>
 <dd><p>Optional directory. When set, the CompTox search result is
-cached by a hash of the cleaned chemical columns and search settings, and
-the candidate enrichment cache persists across runs. Used by
-<code><a href="curate_iterate.html">curate_iterate()</a></code> so re-runs after review edits skip the API.</p></dd>
+cached by a hash of the cleaned data, the detected input data, and the
+search settings, and the candidate enrichment and structure-parent caches
+persist across runs, so a re-run after review edits skips the API. Files
+live in a per-concert-version subdirectory. Use one directory per dataset
+and do not share it between concurrent runs.</p></dd>
 
 
 <dt id="arg-pubchem">pubchem<a class="anchor" aria-label="anchor" href="#arg-pubchem"></a></dt>
@@ -104,6 +107,12 @@ rows via the chemi standardizer. Independent of <code>pubchem</code>.</p></dd>
 <dt id="arg-desalt-workflows">desalt_workflows<a class="anchor" aria-label="anchor" href="#arg-desalt-workflows"></a></dt>
 <dd><p>Standardizer workflows used when <code>desalt = TRUE</code>:
 "qsar-ready", "ms-ready", or both (default).</p></dd>
+
+
+<dt id="arg-refresh-cache">refresh_cache<a class="anchor" aria-label="anchor" href="#arg-refresh-cache"></a></dt>
+<dd><p>Logical. If TRUE, deletes this concert version's cache
+under <code>cache_dir</code> first, forcing a fresh search. Caches written by other
+concert versions are left in place.</p></dd>
 
 </dl></div>
     <div class="section level2">

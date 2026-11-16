@@ -195,12 +195,43 @@ upstream corrections change the row order.</p>
 <span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
+<h2 id="re-running-after-review-edits">Re-running after review edits<a class="anchor" aria-label="anchor" href="#re-running-after-review-edits"></a>
+</h2>
+<p>The CompTox, PubChem, and desalt lookups dominate the run time. Pass
+<code>cache_dir</code> to keep their results on disk; a later call that
+changes only review inputs (<code>review_picks</code>,
+<code>row_flags</code>, <code>review_overrides</code>,
+<code>accept_suggestions</code>, <code>review_decision_evidence</code>,
+<code>candidate_validation</code>, <code>identity_decisions</code>) then
+skips the search and redoes review, harmonization, and export.</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/curate_headless.html">curate_headless</a></span><span class="op">(</span></span>
+<span>  input_path <span class="op">=</span> <span class="st">"data/inventory.csv"</span>,</span>
+<span>  output_path <span class="op">=</span> <span class="st">"output/inventory_curated.xlsx"</span>,</span>
+<span>  tag_map <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>chemical_name <span class="op">=</span> <span class="st">"Name"</span>, cas_number <span class="op">=</span> <span class="st">"CASRN"</span><span class="op">)</span>,</span>
+<span>  postprocess_candidates <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  review_picks <span class="op">=</span> <span class="va">review_picks</span>,</span>
+<span>  cache_dir <span class="op">=</span> <span class="st">"output/concert-cache"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>The file is always re-read and re-cleaned. The search is repeated
+whenever the cleaned data, the tag map, a search switch, the WQX
+dictionary, or the concert or ComptoxR version changes; the progress
+messages say which happened. Even then, each CompTox name and CAS search
+answered by an earlier run is reused, so appending rows only searches
+their new values; the consensus and review steps are always redone on
+the full table. A search that failed is never stored and a run that
+reuses failed lookups warns. The cache is a snapshot of the external
+services, so pass <code>refresh_cache = TRUE</code> to search afresh.
+Use one <code>cache_dir</code> per dataset and do not share it between
+concurrent runs.</p>
+</div>
+<div class="section level2">
 <h2 id="stages">Stages<a class="anchor" aria-label="anchor" href="#stages"></a>
 </h2>
 <p><code><a href="../reference/curate_headless.html">curate_headless()</a></code> is a composition of six stage
 functions. Call them yourself when you want to stop partway, inspect
 state, or swap a step.</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">state</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/stage_ingest.html">stage_ingest</a></span><span class="op">(</span>input_path <span class="op">=</span> <span class="st">"data/inventory.xlsx"</span>, tag_map <span class="op">=</span> <span class="va">tag_map</span><span class="op">)</span></span>
 <span><span class="va">state</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/stage_clean.html">stage_clean</a></span><span class="op">(</span><span class="va">state</span><span class="op">)</span></span>
 <span><span class="va">state</span><span class="op">$</span><span class="va">cleaning_result</span><span class="op">$</span><span class="va">audit_trail</span></span>
@@ -222,7 +253,7 @@ that reproduces a run with one <code><a href="../reference/curate_headless.html"
 embeds every decision plus compact snapshots of the reference lists,
 unit map, and media map, so the replay is pinned even after package
 defaults change.</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">script</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/generate_concert_script.html">generate_concert_script</a></span><span class="op">(</span></span>
 <span>  input_path <span class="op">=</span> <span class="st">"data/inventory.xlsx"</span>,</span>
 <span>  output_path <span class="op">=</span> <span class="st">"output/inventory_curated.xlsx"</span>,</span>
@@ -243,12 +274,12 @@ with the data. It is the reproducibility record.</p>
 <p>For unattended curation, the package ships a decide-run-inspect loop.
 An agent (or you) edits one file, <code>decisions.R</code>, and re-runs
 until no row is pending.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/curate_decisions_template.html">curate_decisions_template</a></span><span class="op">(</span><span class="st">"data/inventory.xlsx"</span>, out_dir <span class="op">=</span> <span class="st">"output/loop"</span><span class="op">)</span></span></code></pre></div>
 <p>This writes <code>output/loop/decisions.R</code> with the detected
 header row, suggested tags, a pinned reference-list snapshot, and a
 commented schema for every other decision object. Then:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/curate_iterate.html">curate_iterate</a></span><span class="op">(</span><span class="st">"output/loop/decisions.R"</span><span class="op">)</span></span></code></pre></div>
 <p>Each run writes:</p>
 <ul>
@@ -276,11 +307,11 @@ re-query changed names.</li>
 reference-list overrides), then re-run. Root-cause fixes that clear many
 rows beat per-row picks.</p>
 <p>A command-line runner and an agent skill document the same loop:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"scripts/curate_loop.R"</span>, package <span class="op">=</span> <span class="st">"concert"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"skills/concert-curate/SKILL.md"</span>, package <span class="op">=</span> <span class="st">"concert"</span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="ex">Rscript</span> <span class="op">&lt;</span>runner<span class="op">&gt;</span> --template input.csv output/loop</span>
-<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a><span class="ex">Rscript</span> <span class="op">&lt;</span>runner<span class="op">&gt;</span> output/loop/decisions.R   <span class="co"># exit 0 = done, exit 2 = rows pending</span></span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="ex">Rscript</span> <span class="op">&lt;</span>runner<span class="op">&gt;</span> --template input.csv output/loop</span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a><span class="ex">Rscript</span> <span class="op">&lt;</span>runner<span class="op">&gt;</span> output/loop/decisions.R   <span class="co"># exit 0 = done, exit 2 = rows pending</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="review-evidence-and-accepted-identities">Review evidence and accepted identities<a class="anchor" aria-label="anchor" href="#review-evidence-and-accepted-identities"></a>
@@ -301,7 +332,7 @@ contract and never manufacture a DTXSID.</p>
 <code>baseline_missing</code>, regardless of the reason’s wording. To
 record evidence actually inspected at an explicit decision, use the
 shared portable object:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">run</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/curate_iterate.html">curate_iterate</a></span><span class="op">(</span><span class="st">"output/loop/decisions.R"</span><span class="op">)</span></span>
 <span><span class="va">review_decision_evidence</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/capture_review_state.html">capture_review_state</a></span><span class="op">(</span></span>
 <span>  <span class="va">run</span><span class="op">$</span><span class="va">state</span>, name <span class="op">=</span> <span class="st">"Reviewed analyte"</span>, disposition <span class="op">=</span> <span class="st">"deferred"</span>,</span>
@@ -324,7 +355,7 @@ Registry membership is validated independently of source-identity
 correspondence; successful source, resolver and PubChem agreement does
 not promote a source ID. Untagged ID columns warn, while deliberate
 metadata can be retained without queries:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/curate_headless.html">curate_headless</a></span><span class="op">(</span></span>
 <span>  input_path <span class="op">=</span> <span class="st">"input.csv"</span>, output_path <span class="op">=</span> <span class="st">"curated.xlsx"</span>,</span>
 <span>  tag_map <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>chemical_name <span class="op">=</span> <span class="st">"Name"</span>, source_dtxsid <span class="op">=</span> <span class="st">"DTXSID"</span><span class="op">)</span></span>
@@ -378,7 +409,7 @@ blanks IDs if current alignment cannot be verified.</p>
 <p>A small development demo uses the actual Review Results module with
 synthetic rows and mocked registry responses. From the repository
 root:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/source.html" class="external-link">source</a></span><span class="op">(</span><span class="st">"inst/examples/identity-review-demo.R"</span><span class="op">)</span></span>
 <span><span class="fu">run_identity_review_demo</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>Try a registered mixture, two grouped source rows, unavailable source

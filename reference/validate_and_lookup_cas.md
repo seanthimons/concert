@@ -5,7 +5,11 @@ Validate CAS numbers and lookup DTXSID for valid ones
 ## Usage
 
 ``` r
-validate_and_lookup_cas(unique_cas, preserve_candidates = FALSE)
+validate_and_lookup_cas(
+  unique_cas,
+  preserve_candidates = FALSE,
+  failure_label = "cas"
+)
 ```
 
 ## Arguments
@@ -18,6 +22,11 @@ validate_and_lookup_cas(unique_cas, preserve_candidates = FALSE)
 
   Keep all lookup hits and explicit lookup outcomes for provisional
   review evidence instead of choosing the best-ranked hit.
+
+- failure_label:
+
+  Lookup name recorded when the API call fails (only when
+  `preserve_candidates` is FALSE; otherwise the status column says so).
 
 ## Value
 

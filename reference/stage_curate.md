@@ -14,7 +14,8 @@ stage_curate(
   cache_dir = NULL,
   pubchem = FALSE,
   desalt = FALSE,
-  desalt_workflows = c("qsar-ready", "ms-ready")
+  desalt_workflows = c("qsar-ready", "ms-ready"),
+  refresh_cache = FALSE
 )
 ```
 
@@ -43,10 +44,11 @@ stage_curate(
 - cache_dir:
 
   Optional directory. When set, the CompTox search result is cached by a
-  hash of the cleaned chemical columns and search settings, and the
-  candidate enrichment cache persists across runs. Used by
-  [`curate_iterate()`](https://seanthimons.github.io/concert/reference/curate_iterate.md)
-  so re-runs after review edits skip the API.
+  hash of the cleaned data, the detected input data, and the search
+  settings, and the candidate enrichment and structure-parent caches
+  persist across runs, so a re-run after review edits skips the API.
+  Files live in a per-concert-version subdirectory. Use one directory
+  per dataset and do not share it between concurrent runs.
 
 - pubchem:
 
@@ -65,6 +67,12 @@ stage_curate(
 
   Standardizer workflows used when `desalt = TRUE`: "qsar-ready",
   "ms-ready", or both (default).
+
+- refresh_cache:
+
+  Logical. If TRUE, deletes this concert version's cache under
+  `cache_dir` first, forcing a fresh search. Caches written by other
+  concert versions are left in place.
 
 ## Value
 

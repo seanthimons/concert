@@ -196,6 +196,8 @@ Curate a file without the Shiny app, or drive it from an agent loop.
 - [`run_curation_pipeline()`](https://seanthimons.github.io/concert/reference/run_curation_pipeline.md)
   : Orchestrate the full curation pipeline: dedup -\> search -\> map -\>
   consensus -\> resolution
+- [`search_failure_summary()`](https://seanthimons.github.io/concert/reference/search_failure_summary.md)
+  : Count degraded lookups in a curation pipeline result
 - [`generate_concert_script()`](https://seanthimons.github.io/concert/reference/generate_concert_script.md)
   : Generate a CONCERT replay script
 - [`write_curation_output()`](https://seanthimons.github.io/concert/reference/write_curation_output.md)

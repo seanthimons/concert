@@ -92,5 +92,7 @@ run_curation_pipeline(
 
 ## Value
 
-List with results, dedup_summary, search_summary, consensus_summary, and
-synonym_diagnostics (columns that look comma-delimited)
+List with results, dedup_summary, search_summary, consensus_summary,
+synonym_diagnostics (columns that look comma-delimited), and
+search_failures (lookups whose API call failed; see
+[`search_failure_summary()`](https://seanthimons.github.io/concert/reference/search_failure_summary.md))

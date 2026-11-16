@@ -101,7 +101,9 @@ output alongside the XLSX.</p>
 <span>  desalt <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  desalt_workflows <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"qsar-ready"</span>, <span class="st">"ms-ready"</span><span class="op">)</span>,</span>
 <span>  ignored_identifier_cols <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  toxval_identity_mode <span class="op">=</span> <span class="st">"lookup"</span></span>
+<span>  toxval_identity_mode <span class="op">=</span> <span class="st">"lookup"</span>,</span>
+<span>  cache_dir <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  refresh_cache <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -339,6 +341,26 @@ treated as metadata. These columns never supply identity evidence.</p></dd>
 <dd><p>ToxVal identifier policy: "lookup" preserves
 the existing audit export default; "accepted" gates IDs and preserves
 every measurement row with NA IDs when blocked.</p></dd>
+
+
+<dt id="arg-cache-dir">cache_dir<a class="anchor" aria-label="anchor" href="#arg-cache-dir"></a></dt>
+<dd><p>Optional directory for on-disk curation state. When set,
+the CompTox/PubChem search result, candidate enrichment, and structure
+parents are stored there and reused by later calls, so a re-run that only
+changes review inputs (<code>review_picks</code>, <code>row_flags</code>, <code>review_overrides</code>,
+<code>accept_suggestions</code>, <code>review_decision_evidence</code>, <code>candidate_validation</code>,
+<code>identity_decisions</code>) skips the search. File reading and cleaning always
+re-run, and the search is repeated whenever their output, the tag map, the
+search switches, the WQX dictionary, or the concert or ComptoxR version
+changes. A progress message says whether the search was reused. The cache
+is a snapshot of the external services: use <code>refresh_cache</code> to pick up
+upstream changes. Use one directory per dataset, not shared by concurrent
+runs. Default NULL: nothing is cached.</p></dd>
+
+
+<dt id="arg-refresh-cache">refresh_cache<a class="anchor" aria-label="anchor" href="#arg-refresh-cache"></a></dt>
+<dd><p>Logical. If TRUE, discards the cached state in
+<code>cache_dir</code> and searches afresh.</p></dd>
 
 </dl></div>
     <div class="section level2">
