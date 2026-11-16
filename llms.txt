@@ -114,7 +114,7 @@ organization’s SSO or an auth layer such as
 
 ## Development
 
-From a checkout, start R (4.5.1) in the repository root; renv bootstraps
+From a checkout, start R (4.6.1) in the repository root; renv bootstraps
 on first launch. Restore the locked environment, which includes test
 dependencies:
 
@@ -128,7 +128,7 @@ After deliberately changing dependencies, run `renv::snapshot()` and
 commit `renv.lock`. `renv::status()` checks for drift.
 
 Routine CI runs the locked review and module-rendering tests on Windows
-with R 4.5.1 and the dependencies in `renv.lock`, plus commit and secret
+with R 4.6.1 and the dependencies in `renv.lock`, plus commit and secret
 checks. The Linux, Windows, and macOS package-check matrix runs only
 when **R-CMD-check** is started manually in GitHub Actions. The release
 workflow independently runs `R CMD check` on Linux and rejects errors or
