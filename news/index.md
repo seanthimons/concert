@@ -1,5 +1,26 @@
 # Changelog
 
+## concert 0.6.12 (2026-11-16)
+
+#### New features
+
+- reuse cached curation search and per-query lookups
+  ([\#149](https://github.com/seanthimons/concert/issues/149))
+  ([0e2553d](https://github.com/seanthimons/concert/tree/0e2553d67370fb20ec5b85c3317fce22639de103))
+
+#### CI
+
+- rebuild NEWS compare links from release headings
+  ([95bdf8e](https://github.com/seanthimons/concert/tree/95bdf8ee8abb6e9ab3fd51fa4902f997c0db0455))
+
+#### Other changes
+
+- bump version to 0.6.12 \[skip ci\]
+  ([3605af1](https://github.com/seanthimons/concert/tree/3605af1f512eeda4e553970098fd76fa5cdb08f1))
+
+Full set of changes:
+[`v0.6.11...v0.6.12`](https://github.com/seanthimons/concert/compare/v0.6.11...v0.6.12)
+
 ## concert 0.6.11 (2026-11-13)
 
 #### Bug fixes
@@ -8,6 +29,11 @@
   ([f8dff1e](https://github.com/seanthimons/concert/tree/f8dff1eb7b69c9bd8e7f763bc9f16d022dc276c7))
 - drop release tag from ComptoxR remote
   ([cdb4d5f](https://github.com/seanthimons/concert/tree/cdb4d5f03bad5f4b4de5c2886d9536038f8904b2))
+
+#### Docs
+
+- update NEWS.md for v0.6.11 \[skip ci\]
+  ([8b7aa37](https://github.com/seanthimons/concert/tree/8b7aa37c6d3a355ef625e824a166062f0f9d6809))
 
 #### Other changes
 
