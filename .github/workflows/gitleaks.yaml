@@ -19,6 +19,11 @@ concurrency:
 jobs:
   gitleaks:
     name: Gitleaks
-    uses: seanthimons/baseline/.github/workflows/gitleaks.yaml@733a6e4554870ab2fa8dd7495fa67bea029bb38c # v1.3.0
+    # The shared workflow lists the PR's commits through the API; it fails at startup if the
+    # calling job grants less than this.
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: seanthimons/baseline/.github/workflows/gitleaks.yaml@ad7b0409c5ae8d28f293826fef0819bd74c7b9e0 # v2.2.0
     secrets:
       GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
