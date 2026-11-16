@@ -1,5 +1,30 @@
 # Changelog
 
+## concert 0.6.13 (2026-11-16)
+
+#### Build
+
+- bump ComptoxR to v4.0.5 and lock R 4.6.1
+  ([\#155](https://github.com/seanthimons/concert/issues/155))
+  ([575cc60](https://github.com/seanthimons/concert/tree/575cc6006238268a12d2aab0f773cb4b2d425114))
+
+#### CI
+
+- remove track-comptoxr-release workflow
+  ([\#153](https://github.com/seanthimons/concert/issues/153))
+  ([9f7c2c7](https://github.com/seanthimons/concert/tree/9f7c2c70873a8b8969823861c4eadbf7f2b419c3))
+- pin baseline callers to v2.2.0 and grant pull-requests read to
+  gitleaks ([\#152](https://github.com/seanthimons/concert/issues/152))
+  ([d3d5721](https://github.com/seanthimons/concert/tree/d3d57210445c4054a654616a4ff4209008afd10d))
+
+#### Other changes
+
+- bump version to 0.6.13 \[skip ci\]
+  ([0965ff9](https://github.com/seanthimons/concert/tree/0965ff9806e748f8179901b5f3ad2f726caee999))
+
+Full set of changes:
+[`v0.6.12...v0.6.13`](https://github.com/seanthimons/concert/compare/v0.6.12...v0.6.13)
+
 ## concert 0.6.12 (2026-11-16)
 
 #### New features
@@ -12,6 +37,11 @@
 
 - rebuild NEWS compare links from release headings
   ([95bdf8e](https://github.com/seanthimons/concert/tree/95bdf8ee8abb6e9ab3fd51fa4902f997c0db0455))
+
+#### Docs
+
+- update NEWS.md for v0.6.12 \[skip ci\]
+  ([1baca7f](https://github.com/seanthimons/concert/tree/1baca7fa472bccc12e4ada64c66323c8c30141ea))
 
 #### Other changes
 
