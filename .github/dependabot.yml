@@ -15,3 +15,7 @@ updates:
       actions:
         patterns:
           - "*"
+    # Baseline pins are bumped by track-release-pr.yaml; third-party actions
+    # keep their Dependabot PRs.
+    ignore:
+      - dependency-name: "seanthimons/baseline*"

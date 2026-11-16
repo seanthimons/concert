@@ -1,0 +1,35 @@
+# Caller: open a PR in this repo when an upstream repo publishes a release.
+# Copy to .github/workflows/track-release-pr.yaml. Permissions: contents: read.
+# Secret BUMP_PAT: fine-grained PAT on this repo (Contents and Pull requests read/write;
+# add Workflows read/write for pin-type workflow-sha). Store it as BUMP_PAT, or map an
+# existing secret on the line below.
+# The upstream sends the repository_dispatch event with notify-downstream.yaml; the
+# weekly schedule is only a backstop for a missed event. Change the cron minute per repo.
+#   Follow baseline:  upstream seanthimons/baseline,  pin-type workflow-sha,        event baseline-release
+#   Follow ComptoxR:  upstream seanthimons/ComptoxR,  pin-type description-remote,  event comptoxr-release
+# Repository names containing a word such as `ai` fail commit-lint's branch rule.
+name: Track release PR
+
+on:
+  repository_dispatch:
+    types: [baseline-release]
+  workflow_dispatch:
+  schedule:
+    - cron: '23 6 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: track-release-pr-baseline
+  cancel-in-progress: false
+
+jobs:
+  track:
+    name: Track release PR
+    uses: seanthimons/baseline/.github/workflows/track-release-pr.yaml@ad7b0409c5ae8d28f293826fef0819bd74c7b9e0 # v2.2.0
+    with:
+      upstream: seanthimons/baseline
+      pin-type: workflow-sha
+    secrets:
+      BUMP_PAT: ${{ secrets.BUMP_PAT }}
