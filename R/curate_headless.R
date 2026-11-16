@@ -120,6 +120,20 @@
 #' @param write_files Logical. If TRUE (default), writes XLSX and optional
 #'   parquet/CSV outputs. If FALSE, runs fully in memory and returns the same
 #'   list without requiring or creating output files.
+#' @param cache_dir Optional directory for on-disk curation state. When set,
+#'   the CompTox/PubChem search result, candidate enrichment, and structure
+#'   parents are stored there and reused by later calls, so a re-run that only
+#'   changes review inputs (`review_picks`, `row_flags`, `review_overrides`,
+#'   `accept_suggestions`, `review_decision_evidence`, `candidate_validation`,
+#'   `identity_decisions`) skips the search. File reading and cleaning always
+#'   re-run, and the search is repeated whenever their output, the tag map, the
+#'   search switches, the WQX dictionary, or the concert or ComptoxR version
+#'   changes. A progress message says whether the search was reused. The cache
+#'   is a snapshot of the external services: use `refresh_cache` to pick up
+#'   upstream changes. Use one directory per dataset, not shared by concurrent
+#'   runs. Default NULL: nothing is cached.
+#' @param refresh_cache Logical. If TRUE, discards the cached state in
+#'   `cache_dir` and searches afresh.
 #' @param source_name Optional dataset identifier for ToxVal `source`. Defaults
 #'   to the input filename stem.
 #'
@@ -191,7 +205,9 @@ curate_headless <- function(
   desalt = FALSE,
   desalt_workflows = c("qsar-ready", "ms-ready"),
   ignored_identifier_cols = character(),
-  toxval_identity_mode = "lookup"
+  toxval_identity_mode = "lookup",
+  cache_dir = NULL,
+  refresh_cache = FALSE
 ) {
   # skip_flags reserved for future use; isotope_match skip is handled internally by run_curation_pipeline()
 
@@ -230,7 +246,9 @@ curate_headless <- function(
       pubchem = pubchem,
       desalt = desalt,
       desalt_workflows = desalt_workflows,
-      postprocess_candidates = postprocess_candidates
+      postprocess_candidates = postprocess_candidates,
+      cache_dir = cache_dir,
+      refresh_cache = refresh_cache
     )
     state <- stage_review(
       state,

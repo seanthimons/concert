@@ -41,6 +41,7 @@ reference:
       - curate_decisions_template
       - starts_with("stage_")
       - run_curation_pipeline
+      - search_failure_summary
       - generate_concert_script
       - write_curation_output
       - parse_concert_export

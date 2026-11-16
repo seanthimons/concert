@@ -29,6 +29,13 @@ collect_candidate_dtxsids <- function(resolution_state, dtxsid_cols = NULL) {
   unique(all_unique_dtxsids[keep])
 }
 
+# Review can accept a DTXSID no search returned. Fetch details for every
+# accepted ID missing from the cache so app exports and their replays agree.
+enrich_accepted_dtxsids <- function(resolution_state, enrichment_cache = NULL) {
+  ids <- resolution_state$consensus_dtxsid
+  enrich_candidates(grep("^DTXSID[0-9]+$", unique(ids), value = TRUE), enrichment_cache)
+}
+
 empty_postprocess_result <- function(resolution_state, enrichment_cache, enrichment_failed) {
   list(
     resolution_state = resolution_state,

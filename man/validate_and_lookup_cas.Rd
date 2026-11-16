@@ -4,13 +4,20 @@
 \alias{validate_and_lookup_cas}
 \title{Validate CAS numbers and lookup DTXSID for valid ones}
 \usage{
-validate_and_lookup_cas(unique_cas, preserve_candidates = FALSE)
+validate_and_lookup_cas(
+  unique_cas,
+  preserve_candidates = FALSE,
+  failure_label = "cas"
+)
 }
 \arguments{
 \item{unique_cas}{Character vector of CAS-like strings}
 
 \item{preserve_candidates}{Keep all lookup hits and explicit lookup outcomes
 for provisional review evidence instead of choosing the best-ranked hit.}
+
+\item{failure_label}{Lookup name recorded when the API call fails (only
+when \code{preserve_candidates} is FALSE; otherwise the status column says so).}
 }
 \value{
 Tibble with original_cas, validated_cas, is_valid, dtxsid, preferredName

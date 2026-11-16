@@ -183,7 +183,7 @@ search_exact <- function(unique_names) {
 
   message(sprintf("Exact search: %d unique names...", length(unique_names)))
 
-  raw <- ComptoxR::ct_chemical_search_equal_bulk(unique_names)
+  raw <- cached_lookup("search_equal_bulk", unique_names, ComptoxR::ct_chemical_search_equal_bulk, "exact_name")
 
   if (is.null(raw) || nrow(raw) == 0) {
     return(empty_result)
@@ -237,8 +237,9 @@ find_name_ties <- function(names, get_fn = ComptoxR::ct_chemical_search_equal) {
     return(empty)
   }
   message(sprintf("Exact search: checking %d synonym-level hits for ties...", length(names)))
-  hits <- tryCatch(suppressWarnings(get_fn(names)), error = function(e) {
+  hits <- tryCatch(suppressWarnings(cached_lookup("search_equal", names, get_fn, "name_ties")), error = function(e) {
     message("Exact search: tie check failed, keeping bulk picks: ", conditionMessage(e))
+    record_search_failure("name_ties", length(names), conditionMessage(e))
     NULL
   })
   if (is.null(hits) || nrow(hits) == 0) {
@@ -263,6 +264,60 @@ find_name_ties <- function(names, get_fn = ComptoxR::ct_chemical_search_equal) {
 
 # Session-level cache for starts-with results (survives across calls within session)
 .starts_with_cache <- new.env(parent = emptyenv())
+
+# Per-query store of raw search responses, so a run that adds rows only
+# searches the values no earlier run searched (#151). stage_curate() loads it
+# from cache_dir and enables it; when disabled every lookup goes to the API.
+.lookup_cache <- new.env(parent = emptyenv())
+.lookup_cache$enabled <- FALSE
+.lookup_cache$lookups <- list()
+
+# ComptoxR drops a failed chunk of a batched request with only a warning:
+# "API request to ... failed" (bulk POST) or "Request for ... failed" (single GET).
+is_dropped_chunk_warning <- function(w) grepl("^(API request to|Request for) .* failed", conditionMessage(w))
+
+#' Search values through the per-query cache
+#'
+#' Fetches only the values not already stored and returns the stored rows for
+#' all `values`, in `values` order, so a fresh and an incremental run assemble
+#' the same response. Errors propagate and are never stored. A value is stored
+#' as a miss only when no chunk of its request was dropped.
+#' @noRd
+cached_lookup <- function(lookup, values, fetch, failure_label = lookup) {
+  dropped <- FALSE
+  fetch_logged <- function(v) {
+    withCallingHandlers(fetch(v), warning = function(w) if (is_dropped_chunk_warning(w)) dropped <<- TRUE)
+  }
+  if (!isTRUE(.lookup_cache$enabled) || !length(values)) {
+    raw <- fetch_logged(values)
+    if (dropped) record_search_failure(failure_label, length(values), "a batch of the request failed")
+    return(raw)
+  }
+  store <- .lookup_cache$lookups[[lookup]] %||% list(rows = NULL, queried = character())
+  todo <- setdiff(values, store$queried)
+  if (length(todo)) {
+    raw <- fetch_logged(todo)
+    sv <- grep("^search.?value$", names(raw), ignore.case = TRUE, value = TRUE)[1]
+    # An empty response (all misses, or every chunk dropped) has no columns.
+    if (!is.data.frame(raw) || (NROW(raw) && is.na(sv))) return(raw)
+    returned <- if (NROW(raw)) intersect(todo, raw[[sv]]) else character()
+    # ponytail: counts misses from the surviving chunks too; bulk results carry no per-chunk failure list.
+    if (dropped) record_search_failure(failure_label, length(todo) - length(returned), "a batch of the request failed")
+    if (NROW(raw)) {
+      raw$.query <- raw[[sv]]
+      store$rows <- dplyr::bind_rows(store$rows, raw)
+    }
+    store$queried <- c(store$queried, if (dropped) returned else todo)
+    .lookup_cache$lookups[[lookup]] <- store
+  }
+  message(sprintf("[lookup cache] %s: %d cached, %d searched", lookup, length(values) - length(todo), length(todo)))
+  rows <- store$rows
+  if (is.null(rows)) return(tibble::tibble())
+  rows <- rows[rows$.query %in% values, , drop = FALSE]
+  rows <- rows[order(match(rows$.query, values)), , drop = FALSE]
+  rows$.query <- NULL
+  rows
+}
 
 #' Clear the starts-with cache
 #'
@@ -369,6 +424,7 @@ search_starts_with <- function(missed_names) {
         },
         error = function(e) {
           message(sprintf("  Warning: starts-with failed for '%s': %s", name, e$message))
+          record_search_failure("starts_with", 1L, e$message)
           # Do NOT cache - allow retry on later runs
         }
       )
@@ -393,8 +449,10 @@ search_starts_with <- function(missed_names) {
 #' @param unique_cas Character vector of CAS-like strings
 #' @param preserve_candidates Keep all lookup hits and explicit lookup outcomes
 #'   for provisional review evidence instead of choosing the best-ranked hit.
+#' @param failure_label Lookup name recorded when the API call fails (only
+#'   when `preserve_candidates` is FALSE; otherwise the status column says so).
 #' @return Tibble with original_cas, validated_cas, is_valid, dtxsid, preferredName
-validate_and_lookup_cas <- function(unique_cas, preserve_candidates = FALSE) {
+validate_and_lookup_cas <- function(unique_cas, preserve_candidates = FALSE, failure_label = "cas") {
   empty_result <- tibble::tibble(
     original_cas = character(0),
     validated_cas = character(0),
@@ -436,7 +494,8 @@ validate_and_lookup_cas <- function(unique_cas, preserve_candidates = FALSE) {
     tryCatch(
       {
         message(sprintf("Looking up DTXSID for %d valid CAS numbers...", length(valid_cas_values)))
-        cas_lookup <- ComptoxR::ct_chemical_search_equal_bulk(valid_cas_values)
+        cas_lookup <- cached_lookup("search_equal_bulk", valid_cas_values, ComptoxR::ct_chemical_search_equal_bulk,
+          failure_label)
         if (preserve_candidates && (!is.data.frame(cas_lookup) ||
           !any(grepl("^search.?value$", names(cas_lookup), ignore.case = TRUE)) ||
           !any(grepl("^dtxsid$", names(cas_lookup), ignore.case = TRUE)))) {
@@ -476,11 +535,17 @@ validate_and_lookup_cas <- function(unique_cas, preserve_candidates = FALSE) {
             if (preserve_candidates) result$lookup_status[!is.na(result$dtxsid)] <- "candidate"
           } else if (preserve_candidates) {
             result$lookup_status[result$is_valid %in% TRUE] <- "unavailable"
+          } else {
+            record_search_failure(failure_label, length(valid_cas_values), "malformed CAS lookup response")
           }
         }
       },
       error = function(e) {
-        if (preserve_candidates) result$lookup_status[result$is_valid %in% TRUE] <<- "unavailable"
+        if (preserve_candidates) {
+          result$lookup_status[result$is_valid %in% TRUE] <<- "unavailable"
+        } else {
+          record_search_failure(failure_label, length(valid_cas_values), e$message)
+        }
         message(sprintf("  Warning: CAS DTXSID lookup failed: %s", e$message))
       }
     )
@@ -870,6 +935,77 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
 }
 
 # ============================================================================
+# Search failures
+# ============================================================================
+
+# Lookups below swallow API failures so one bad call does not end a long run.
+# ponytail: a package-level collector, reset by each run_curation_pipeline()
+# call; pass a collector through the call chain if pipelines ever run
+# concurrently in one process.
+.search_failures <- new.env(parent = emptyenv())
+.search_failures$rows <- list()
+
+record_search_failure <- function(lookup, n_queries, message) {
+  .search_failures$rows[[length(.search_failures$rows) + 1L]] <-
+    tibble::tibble(lookup = lookup, n_queries = as.integer(n_queries), message = message)
+}
+
+collected_search_failures <- function() {
+  rows <- dplyr::bind_rows(.search_failures$rows)
+  if (!nrow(rows)) return(tibble::tibble(lookup = character(), n_queries = integer(), message = character()))
+  rows |>
+    dplyr::group_by(lookup) |>
+    dplyr::summarise(n_queries = sum(n_queries), message = dplyr::first(message), .groups = "drop")
+}
+
+#' Count degraded lookups in a curation pipeline result
+#'
+#' Combines the failures `run_curation_pipeline()` swallowed (counted in
+#' queries) with the per-row failure statuses of the WQX CAS, PubChem, desalt,
+#' resolver and source-identifier lookups (counted in rows).
+#'
+#' @param pipeline_result A list returned by [run_curation_pipeline()].
+#' @return A tibble with columns lookup, n and unit; zero rows when nothing failed.
+#' @export
+search_failure_summary <- function(pipeline_result) {
+  rs <- pipeline_result$results
+  # Status cells can hold several "; "-joined statuses, one per query.
+  failed_rows <- function(cols, statuses) {
+    cols <- intersect(cols, names(rs))
+    if (!length(cols)) return(0L)
+    sum(Reduce(`|`, lapply(cols, function(col) {
+      vapply(strsplit(as.character(rs[[col]]), "; ", fixed = TRUE), function(x) any(x %in% statuses), logical(1))
+    })))
+  }
+  searched <- pipeline_result$search_failures
+  status <- tibble::tibble(
+    lookup = c("wqx_cas", "pubchem", "desalt", "resolver", "source_identifier"),
+    n = c(
+      failed_rows(wqx_review_columns(rs, "wqx_cas_lookup_status"), "unavailable"),
+      failed_rows("pubchem_lookup_status", c("error", "synonyms_error")),
+      failed_rows("parent_lookup_status", "error"),
+      failed_rows("resolver_lookup_status", c("error", "unverified")),
+      sum(pipeline_result$source_identifier_evidence$validation_status %in% "unavailable")
+    ),
+    unit = "rows"
+  )
+  dplyr::bind_rows(
+    if (NROW(searched)) tibble::tibble(lookup = searched$lookup, n = searched$n_queries, unit = "queries"),
+    status[status$n > 0, ]
+  )
+}
+
+# NULL when nothing failed, else one line naming each failed lookup and count.
+search_failure_message <- function(summary, hint) {
+  if (!NROW(summary)) return(NULL)
+  paste0(
+    "Degraded curation search: ",
+    paste(sprintf("%s %d %s", summary$lookup, as.integer(summary$n), summary$unit), collapse = ", "),
+    " failed. ", hint
+  )
+}
+
+# ============================================================================
 # run_curation_pipeline
 # ============================================================================
 
@@ -903,7 +1039,8 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
 #'   `wqx_match_distance` is lossless 17-digit decimal text for portable evidence
 #'   fingerprints; the matcher's `match_distance` remains numeric.
 #' @return List with results, dedup_summary, search_summary, consensus_summary,
-#'   and synonym_diagnostics (columns that look comma-delimited)
+#'   synonym_diagnostics (columns that look comma-delimited), and
+#'   search_failures (lookups whose API call failed; see [search_failure_summary()])
 #' @export
 run_curation_pipeline <- function(
   clean_data,
@@ -920,6 +1057,7 @@ run_curation_pipeline <- function(
   wqx_cas_lookup_fn = validate_and_lookup_cas
 ) {
   validate_source_identifier_config(clean_data, column_tags, ignored_identifier_cols)
+  .search_failures$rows <- list()
   source_tags <- column_tags
   identifier_diagnostics <- unused_source_identifier_diagnostics(clean_data, column_tags, ignored_identifier_cols)
   if (nrow(identifier_diagnostics)) warning("Unused source identifier columns: ",
@@ -1010,7 +1148,7 @@ run_curation_pipeline <- function(
 
     # Tier 2: CAS validation on exact misses (NEW POSITION)
     if (length(missed_names) > 0) {
-      cas_from_names <- validate_and_lookup_cas(missed_names)
+      cas_from_names <- validate_and_lookup_cas(missed_names, failure_label = "cas_from_names")
 
       if (nrow(cas_from_names) > 0) {
         n_cas_from_names <- sum(!is.na(cas_from_names$dtxsid))
@@ -1230,6 +1368,7 @@ run_curation_pipeline <- function(
     source_identifier_evidence = source_result$evidence,
     identifier_diagnostics = identifier_diagnostics,
     synonym_diagnostics = synonym_diagnostics,
+    search_failures = collected_search_failures(),
     dedup_summary = list(
       n_names = length(dedup_result$unique_names),
       n_cas = length(dedup_result$unique_cas)

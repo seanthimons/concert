@@ -12,7 +12,8 @@ stage_curate(
   cache_dir = NULL,
   pubchem = FALSE,
   desalt = FALSE,
-  desalt_workflows = c("qsar-ready", "ms-ready")
+  desalt_workflows = c("qsar-ready", "ms-ready"),
+  refresh_cache = FALSE
 )
 }
 \arguments{
@@ -28,9 +29,11 @@ similarity scoring, and auto-resolve pass used by the Shiny app after
 curation. Default FALSE for backward compatibility.}
 
 \item{cache_dir}{Optional directory. When set, the CompTox search result is
-cached by a hash of the cleaned chemical columns and search settings, and
-the candidate enrichment cache persists across runs. Used by
-\code{\link[=curate_iterate]{curate_iterate()}} so re-runs after review edits skip the API.}
+cached by a hash of the cleaned data, the detected input data, and the
+search settings, and the candidate enrichment and structure-parent caches
+persist across runs, so a re-run after review edits skips the API. Files
+live in a per-concert-version subdirectory. Use one directory per dataset
+and do not share it between concurrent runs.}
 
 \item{pubchem}{Logical. If TRUE, searches unresolved names in PubChem and
 exports candidates without assigning DTXSIDs.}
@@ -42,6 +45,10 @@ rows via the chemi standardizer. Independent of \code{pubchem}.}
 
 \item{desalt_workflows}{Standardizer workflows used when \code{desalt = TRUE}:
 "qsar-ready", "ms-ready", or both (default).}
+
+\item{refresh_cache}{Logical. If TRUE, deletes this concert version's cache
+under \code{cache_dir} first, forcing a fresh search. Caches written by other
+concert versions are left in place.}
 }
 \value{
 The state with \code{resolution_state}, \code{consensus_summary},

@@ -2016,6 +2016,22 @@ mod_review_results_server <- function(id, data_store) {
       source_identifier_review_panel(data_store$resolution_state, row, data_store$column_tags)
     })
 
+    # Picks can name a DTXSID no search returned; fetch its details so the
+    # export matches a curate_headless() replay of the same review.
+    enrich_accepted <- function() {
+      enriched <- enrich_accepted_dtxsids(data_store$resolution_state, data_store$enrichment_cache)
+      data_store$enrichment_cache <- enriched$cache
+      data_store$enrichment_failed <- union(data_store$enrichment_failed, enriched$failed_dtxsids)
+      if (length(enriched$failed_dtxsids) > 0) {
+        notify_user(
+          sprintf("Could not fetch details for %d DTXSID(s); CASRN, formula, and MW stay blank.",
+                  length(enriched$failed_dtxsids)),
+          type = "warning",
+          duration = 8
+        )
+      }
+    }
+
     observeEvent(input$identity_scope_save, {
       tryCatch({
         context <- data_store$identity_modal_context[[input$identity_scope_target %||% ""]]
@@ -2029,6 +2045,7 @@ mod_review_results_server <- function(id, data_store) {
         data_store$identity_decisions <- result$identity_decisions
         data_store$review_decision_evidence <- result$review_decision_evidence
         data_store$consensus_summary <- recalc_consensus_summary(result$resolution_state)
+        enrich_accepted()
         state <- identity_review_state(result$resolution_state[result$row, , drop = FALSE])
         notify_user(paste("Source decision saved. Identity:", state$identity_status,
           if (nzchar(state$identity_blockers)) paste("\u2014", state$identity_blockers) else ""), type = "message")
@@ -3155,6 +3172,10 @@ mod_review_results_server <- function(id, data_store) {
         )
 
         data_store$resolution_state <- apply_result$resolution_state
+        if (apply_result$valid_rows > 0) {
+          incProgress(0.1, detail = "Fetching details for picked DTXSIDs...")
+          enrich_accepted()
+        }
 
         # Clear queue
         data_store$manual_queue <- list()
@@ -3730,6 +3751,9 @@ mod_review_results_server <- function(id, data_store) {
         )
 
         if (!is.null(retry_result)) {
+          degraded <- search_failure_message(search_failure_summary(retry_result),
+            "Re-curate these rows once the CompTox API recovers.")
+          if (!is.null(degraded)) notify_user(degraded, type = "warning", duration = NULL)
           incProgress(0.3, detail = "Merging results...")
 
           # Merge retry results back into main state

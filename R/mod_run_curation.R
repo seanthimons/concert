@@ -281,6 +281,10 @@ mod_run_curation_server <- function(id, data_store, on_curation_complete = NULL)
               ignored_identifier_cols = data_store$ignored_identifier_cols %||% character()
             )
 
+            degraded <- search_failure_message(search_failure_summary(pipeline_result),
+              "Re-run curation once the CompTox API recovers.")
+            if (!is.null(degraded)) notify_user(degraded, type = "warning", duration = NULL)
+
             # Store results
             data_store$consensus_data <- pipeline_result$results
             data_store$source_identifier_evidence <- pipeline_result$source_identifier_evidence

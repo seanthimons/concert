@@ -61,7 +61,8 @@ fingerprints; the matcher's \code{match_distance} remains numeric.}
 }
 \value{
 List with results, dedup_summary, search_summary, consensus_summary,
-and synonym_diagnostics (columns that look comma-delimited)
+synonym_diagnostics (columns that look comma-delimited), and
+search_failures (lookups whose API call failed; see \code{\link[=search_failure_summary]{search_failure_summary()}})
 }
 \description{
 Orchestrate the full curation pipeline: dedup -> search -> map -> consensus -> resolution
