@@ -789,23 +789,25 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
     dplyr::filter(!is.na(dedup_key) & dedup_key != "")
 
   tag_cols <- unique(dedup_key_map$column_name)
-  generated <- character()
-  generated_suffix <- stats::setNames(character(length(tag_cols)), tag_cols)
-  for (col in tag_cols) {
-    suffix <- if (length(tag_cols) == 1L) "" else paste0("_", col)
-    if (any(paste0(reserved_fields, suffix) %in% names(df))) {
-      suffix <- paste0("_lookup_", col)
-      while (any(paste0(reserved_fields, suffix) %in% names(df))) suffix <- paste0(suffix, "_lookup")
-    }
-    generated_suffix[[col]] <- suffix
-    generated <- c(generated, paste0("dtxsid", suffix))
-  }
-  df$lookup_evidence_columns <- rep(paste(generated, collapse = ";"), input_rows)
+  base_cols <- tag_cols[!startsWith(as.character(tag_cols), "cas_extract_")]
+  input_names <- names(df)
+  registry <- character(input_rows)
+  df$lookup_evidence_columns <- registry
 
-  # For each tagged column, populate result vectors by direct indexing (no joins)
   for (col in tag_cols) {
     col_keys <- dedup_key_map |>
       dplyr::filter(column_name == col)
+    suffix <- if (identical(base_cols, col) || length(tag_cols) == 1L) "" else paste0("_", col)
+    if (any(paste0(reserved_fields, suffix) %in% input_names)) {
+      suffix <- paste0("_lookup_", col)
+      while (any(paste0(reserved_fields, suffix) %in% input_names)) {
+        suffix <- paste0(suffix, "_lookup")
+      }
+    }
+    # Base tags always count. An extracted CAS counts only where the input supplied one.
+    rows <- if (col %in% base_cols) seq_len(input_rows) else unique(col_keys$row_idx)
+    lookup_col <- paste0("dtxsid", suffix)
+    registry[rows] <- ifelse(nzchar(registry[rows]), paste(registry[rows], lookup_col, sep = ";"), lookup_col)
 
     # Pre-allocate result vectors matching df row count
     dtxsid_vec <- rep(NA_character_, input_rows)
@@ -876,59 +878,31 @@ map_results_to_rows <- function(df, dedup_key_map, lookup_results, pre_resolved 
       }
     }
 
-    for (field in wqx_fields) df[[paste0(field, generated_suffix[[col]])]] <- wqx_vectors[[field]]
+    if (NROW(pre_resolved) > 0L) {
+      picks <- if (col %in% base_cols) pre_resolved else pre_resolved[pre_resolved$row_idx %in% rows, , drop = FALSE]
+      idx <- picks$row_idx
+      dtxsid_vec[idx] <- picks$dtxsid
+      pref_vec[idx] <- picks$preferredName
+      search_vec[idx] <- NA_character_
+      rank_vec[idx] <- 0L
+      tier_vec[idx] <- picks$source_tier
+    }
+
+    for (field in wqx_fields) {
+      df[[paste0(field, suffix)]] <- wqx_vectors[[field]]
+    }
 
     # Assign columns to df (no joins - row count cannot change)
-    if (identical(generated_suffix[[col]], "")) {
-      df$dtxsid <- dtxsid_vec
-      df$preferredName <- pref_vec
-      df$searchName <- search_vec
-      df$rank <- rank_vec
-      df$source_tier <- tier_vec
-      df$wqx_confidence <- wqx_conf_vec
-      df$tied_dtxsids <- tied_vec
-    } else {
-      suffix <- generated_suffix[[col]]
-      df[[paste0("dtxsid", suffix)]] <- dtxsid_vec
-      df[[paste0("preferredName", suffix)]] <- pref_vec
-      df[[paste0("searchName", suffix)]] <- search_vec
-      df[[paste0("rank", suffix)]] <- rank_vec
-      df[[paste0("source_tier", suffix)]] <- tier_vec
-      df[[paste0("wqx_confidence", suffix)]] <- wqx_conf_vec
-      df[[paste0("tied_dtxsids", suffix)]] <- tied_vec
-    }
+    df[[lookup_col]] <- dtxsid_vec
+    df[[paste0("preferredName", suffix)]] <- pref_vec
+    df[[paste0("searchName", suffix)]] <- search_vec
+    df[[paste0("rank", suffix)]] <- rank_vec
+    df[[paste0("source_tier", suffix)]] <- tier_vec
+    df[[paste0("wqx_confidence", suffix)]] <- wqx_conf_vec
+    df[[paste0("tied_dtxsids", suffix)]] <- tied_vec
   }
 
-  # Inject pre-resolved rows (e.g. isotope_match) - override any API results
-
-  if (!is.null(pre_resolved) && nrow(pre_resolved) > 0) {
-    message(sprintf("[map_results_to_rows] Injecting %d pre-resolved rows (isotope_match)", nrow(pre_resolved)))
-
-    for (i in seq_len(nrow(pre_resolved))) {
-      ridx <- pre_resolved$row_idx[i]
-      pr_dtxsid <- pre_resolved$dtxsid[i]
-      pr_pref <- pre_resolved$preferredName[i]
-      pr_tier <- pre_resolved$source_tier[i]
-
-      if (length(tag_cols) == 1 && identical(generated_suffix[[tag_cols[1]]], "")) {
-        df$dtxsid[ridx] <- pr_dtxsid
-        df$preferredName[ridx] <- pr_pref
-        df$searchName[ridx] <- NA_character_
-        df$rank[ridx] <- 0L
-        df$source_tier[ridx] <- pr_tier
-      } else {
-        # Apply to all tagged columns for this row
-        for (col in tag_cols) {
-          suffix <- generated_suffix[[col]]
-          df[[paste0("dtxsid", suffix)]][ridx] <- pr_dtxsid
-          df[[paste0("preferredName", suffix)]][ridx] <- pr_pref
-          df[[paste0("searchName", suffix)]][ridx] <- NA_character_
-          df[[paste0("rank", suffix)]][ridx] <- 0L
-          df[[paste0("source_tier", suffix)]][ridx] <- pr_tier
-        }
-      }
-    }
-  }
+  df$lookup_evidence_columns <- registry
 
   message(sprintf("[map_results_to_rows] Output: %d rows (no joins used)", nrow(df)))
   df

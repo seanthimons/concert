@@ -823,13 +823,9 @@ normalize_cas_fields <- function(df, tag_map) {
     }
 
     max_count <- max(cas_counts, na.rm = TRUE)
-    df[[col_name]] <- vapply(
-      seq_along(extracted),
-      function(i) {
-        if (length(extracted[[i]]) >= 1) extracted[[i]][1] else as.character(df[[col_name]][i])
-      },
-      character(1)
-    )
+    multi <- which(cas_counts > 1L)
+    df[[col_name]] <- as.character(df[[col_name]])
+    df[[col_name]][multi] <- vapply(extracted[multi], `[[`, character(1), 1L)
 
     for (cas_idx in seq.int(2L, max_count)) {
       new_col_name <- paste0("cas_extract_", col_name, "_", cas_idx)
@@ -984,12 +980,13 @@ rescue_cas_from_text <- function(df, tag_map) {
       new_tags[[new_col_name]] <- "CASRN"
 
       # Strip CAS pattern from source text
-      df_result[[col_name]] <- df[[col_name]] %>%
+      extracted_idx <- which(!is.na(extracted_cas))
+      df_result[[col_name]] <- as.character(df[[col_name]])
+      df_result[[col_name]][extracted_idx] <- df[[col_name]][extracted_idx] %>%
         stringr::str_remove_all("\\s*[\\(\\[]?\\d{1,7}-\\d{2}-\\d[\\)\\]]?\\s*") %>%
         stringr::str_squish()
 
       # Build audit trail for extractions (vectorized)
-      extracted_idx <- which(!is.na(extracted_cas))
       if (length(extracted_idx) > 0) {
         audit_rows[[length(audit_rows) + 1]] <- tibble::tibble(
           row_id = as.integer(extracted_idx),

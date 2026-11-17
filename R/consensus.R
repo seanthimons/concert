@@ -145,7 +145,17 @@ compute_qc_tier <- function(status, n_matched, n_total) {
 #'         consensus_source, qc_tier
 #' @export
 classify_consensus <- function(df, dtxsid_cols) {
-  k <- length(dtxsid_cols)
+  row_k <- rep.int(length(dtxsid_cols), nrow(df))
+  if ("lookup_evidence_columns" %in% names(df)) {
+    registry <- as.character(df$lookup_evidence_columns)
+    patterns <- unique(registry)
+    counts <- vapply(
+      strsplit(patterns, ";", fixed = TRUE),
+      function(cols) length(intersect(cols, dtxsid_cols)),
+      integer(1)
+    )
+    row_k <- counts[match(registry, patterns)]
+  }
 
   # Compute per-row classification
   consensus_status <- character(nrow(df))
@@ -179,6 +189,7 @@ classify_consensus <- function(df, dtxsid_cols) {
   tier_cols_exist <- tier_cols %in% names(df)
 
   for (i in seq_len(nrow(df))) {
+    k <- row_k[i]
     # Extract DTXSIDs for this row across all tagged columns
     values <- vapply(
       dtxsid_cols,
@@ -271,7 +282,7 @@ classify_consensus <- function(df, dtxsid_cols) {
   consensus_status[tie_conflict] <- "disagree"
   consensus_dtxsid[tie_conflict] <- NA_character_
   consensus_source[tie_conflict] <- NA_character_
-  qc_tier[tie_conflict] <- compute_qc_tier("disagree", 0L, k)
+  qc_tier[tie_conflict] <- compute_qc_tier("disagree", 0L, row_k[tie_conflict])
 
   df$consensus_status <- consensus_status
   df$consensus_dtxsid <- consensus_dtxsid
