@@ -1,6 +1,26 @@
 
 
 
+## concert 0.6.14 (2026-11-17)
+
+#### Bug fixes
+
+- preserve reviewed evidence when other rows add CAS lookups
+  ([5e1b4f4](https://github.com/seanthimons/concert/tree/5e1b4f4186297069c2142c43d61f7ef1536136dd))
+
+#### CI
+
+- track baseline releases (#156)
+  ([4e379e7](https://github.com/seanthimons/concert/tree/4e379e74aef3fc83db6f56d26e183b66e1b0c3b0))
+
+#### Other changes
+
+- bump version to 0.6.14 \[skip ci\]
+  ([c6f7a34](https://github.com/seanthimons/concert/tree/c6f7a34ad31bc7429e66e525ba5082923d88c586))
+
+Full set of changes:
+[`v0.6.13...v0.6.14`](https://github.com/seanthimons/concert/compare/v0.6.13...v0.6.14)
+
 ## concert 0.6.13 (2026-11-16)
 
 #### Build
@@ -15,6 +35,11 @@
 - pin baseline callers to v2.2.0 and grant pull-requests read to
   gitleaks (#152)
   ([d3d5721](https://github.com/seanthimons/concert/tree/d3d57210445c4054a654616a4ff4209008afd10d))
+
+#### Docs
+
+- update NEWS.md for v0.6.13 \[skip ci\]
+  ([588416e](https://github.com/seanthimons/concert/tree/588416ead487f50f0b2a7dfb125442bfbaf87233))
 
 #### Other changes
 
