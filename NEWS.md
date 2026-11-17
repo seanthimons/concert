@@ -1,6 +1,21 @@
 
 
 
+## concert 0.6.15 (2026-11-17)
+
+#### Bug fixes
+
+- preserve source-review fingerprints when other rows add CAS lookups
+  ([b5be537](https://github.com/seanthimons/concert/tree/b5be5375a3730b1ffd033336eb893c2a834281c6))
+
+#### Other changes
+
+- bump version to 0.6.15 \[skip ci\]
+  ([4976e2e](https://github.com/seanthimons/concert/tree/4976e2e760c1d47ff59e609bef3142a96d67f77c))
+
+Full set of changes:
+[`v0.6.14...v0.6.15`](https://github.com/seanthimons/concert/compare/v0.6.14...v0.6.15)
+
 ## concert 0.6.14 (2026-11-17)
 
 #### Bug fixes
@@ -12,6 +27,11 @@
 
 - track baseline releases (#156)
   ([4e379e7](https://github.com/seanthimons/concert/tree/4e379e74aef3fc83db6f56d26e183b66e1b0c3b0))
+
+#### Docs
+
+- update NEWS.md for v0.6.14 \[skip ci\]
+  ([e0b2997](https://github.com/seanthimons/concert/tree/e0b2997e7023fbbe5245deb21f641acee00a8b80))
 
 #### Other changes
 
