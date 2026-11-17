@@ -234,6 +234,7 @@ stage_curate <- function(
       "source-id-v1",
       "synonym-list-v1",
       "resolver-source-cas-v1",
+      "row-local-cas-evidence-v1",
       identity_policy_version(),
       as.character(utils::packageVersion("ComptoxR")),
       unname(tools::md5sum(file.path(resolve_curation_reference_cache_dir(), "wqx_dictionary.rds"))),
