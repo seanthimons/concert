@@ -7,10 +7,18 @@ review_evidence_text <- function(x) {
   x
 }
 
-review_evidence_canonical <- function(x) {
+review_evidence_canonical <- function(x, omit_by_row = NULL) {
   if (is.data.frame(x)) {
     x <- x[, sort(names(x)), drop = FALSE]
-    rows <- lapply(seq_len(nrow(x)), function(i) review_evidence_canonical(as.list(x[i, , drop = FALSE])))
+    rows <- lapply(seq_len(nrow(x)), function(i) {
+      row <- as.list(x[i, , drop = FALSE])
+      if (length(omit_by_row)) {
+        # Keep any populated value visible even if a registry is inconsistent.
+        omitted <- row[intersect(names(row), omit_by_row[[i]])]
+        row[names(omitted)[vapply(omitted, function(value) all(is.na(value)), logical(1))]] <- NULL
+      }
+      review_evidence_canonical(row)
+    })
     keys <- vapply(rows, function(row) digest::digest(row, algo = "sha256"), character(1))
     return(rows[order(keys)])
   }
@@ -239,11 +247,29 @@ review_evidence_snapshot <- function(automated, final = automated,
   for (col in grep("^tied_dtxsids($|_)", names(lookup), value = TRUE)) {
     lookup[[col]] <- review_tie_text(lookup[[col]])
   }
+  omit_by_row <- NULL
+  extract_ids <- grep("^dtxsid_(lookup_)?cas_extract_", names(lookup), value = TRUE)
+  # A similarly named source identifier alone is not a generated lookup family.
+  extract_ids <- extract_ids[sub("^dtxsid_", "source_tier_", extract_ids) %in% names(lookup)]
+  if (length(extract_ids) && "lookup_evidence_columns" %in% names(automated)) {
+    fields <- c("dtxsid", "preferredName", "source_tier", "match_tier", "tied_dtxsids", wqx_candidate_fields())
+    projections <- lapply(extract_ids, function(id) paste0(fields, sub("^dtxsid", "", id)))
+    registry <- as.character(automated$lookup_evidence_columns[row_indices])
+    patterns <- unique(registry)
+    omitted <- lapply(strsplit(patterns, ";", fixed = TRUE), function(ids) {
+      if (anyNA(ids)) {
+        return(character())
+      }
+      setdiff(unlist(projections[!extract_ids %in% ids], use.names = FALSE), scope_cols)
+    })
+    omit_by_row <- omitted[match(registry, patterns)]
+  }
   list(schema_version = 1L, automated = selected(automated), final = selected(final),
     candidate_scope = candidate_scope,
     candidates = normalize_review_candidates(automated, row_indices, source_id_cols),
     validation = normalize_review_validation(validation),
-    lookup = review_evidence_canonical(lookup))
+    lookup = review_evidence_canonical(lookup, omit_by_row)
+  )
 }
 
 validate_review_evidence <- function(evidence) {
