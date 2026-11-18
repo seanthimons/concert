@@ -144,8 +144,10 @@ curate_decisions_template <- function(input_path, out_dir, harmonize = FALSE) {
     "# )",
     "",
     "# Multi-analyte rows from pending.csv (pending_type == \"multi_analyte\"). action: split, keep, rename.",
+    "# name and casrn as shown in pending.csv; a blank casrn matches rows with a blank CAS only.",
     "# multi_analyte_resolutions <- tibble::tibble(",
-    "#   row_index = c(12L, 40L),",
+    "#   name = c(\"Lead + Zinc\", \"Chromium and compounds\"),",
+    "#   casrn = c(NA, \"7440-47-3\"),",
     "#   action = c(\"split\", \"rename\"),",
     "#   value = c(NA, \"Chromium (VI)\")",
     "# )",
@@ -523,10 +525,80 @@ write_status_md <- function(path, state, pending, done, decisions, error = NULL)
   writeLines(lines, path)
 }
 
+#' Read a decision table written next to a replay script
+#'
+#' Reads `decisions/*.csv` as written by [curate_iterate()]. Every column is
+#' read as text, so names and CASRNs arrive exactly as written. Stops when a
+#' `casrn` value is not CAS-shaped, which is what a spreadsheet leaves behind
+#' after rewriting a CASRN as a date (`103-02-6` becomes `0103-02-06`).
+#'
+#' @param path Path to a decision table CSV.
+#' @return A tibble of character columns.
+#' @export
+read_decision_table <- function(path) {
+  # as.list() drops readr's column-spec class, leaving a plain tibble.
+  out <- tibble::as_tibble(as.list(readr::read_csv(
+    path,
+    col_types = readr::cols(.default = "c"),
+    na = "",
+    trim_ws = FALSE,
+    progress = FALSE
+  )))
+  if ("casrn" %in% names(out)) {
+    bad <- which(!is_cas_shaped(out$casrn))
+    if (length(bad)) {
+      stop(
+        sprintf(
+          "%s: casrn is not CAS-shaped on line(s) %s: %s. A spreadsheet may have rewritten it as a date.",
+          path,
+          paste(bad + 1L, collapse = ", "),
+          paste(unique(out$casrn[bad]), collapse = ", ")
+        ),
+        call. = FALSE
+      )
+    }
+  }
+  out
+}
+
+# NA counts as CAS-shaped: a blank casrn is a valid key.
+is_cas_shaped <- function(x) {
+  is.na(x) | stringr::str_detect(as.character(x), "^\\d{2,7}-\\d{2}-\\d$")
+}
+
+# Write the decision tables replay.R reads and return their paths by object
+# name. A table read_decision_table() could not return as written (list
+# columns, or a casrn it would reject) is left out and stays inline in the script.
+write_decision_tables <- function(dir, tables) {
+  files <- c(
+    multi_analyte_resolutions = "multi_analyte.csv",
+    review_picks = "review_picks.csv",
+    row_flags = "row_flags.csv"
+  )
+  unlink(file.path(dir, files))
+  keep <- vapply(
+    tables[names(files)],
+    function(x) {
+      x <- tibble::as_tibble(x)
+      NROW(x) > 0 && !any(vapply(x, is.list, logical(1))) && all(is_cas_shaped(x[["casrn"]]))
+    },
+    logical(1)
+  )
+  paths <- file.path(dir, files[keep])
+  names(paths) <- names(files)[keep]
+  if (length(paths)) fs::dir_create(dir)
+  for (key in names(paths)) {
+    readr::write_csv(tibble::as_tibble(tables[[key]]), paths[[key]], na = "")
+  }
+  paths
+}
+
 #' Run one iteration of the agent curation loop
 #'
 #' Sources `decisions.R`, runs the staged headless pipeline with a curation
 #' cache, and writes `status.md`, `pending.csv`, and `replay.R` next to it.
+#' `replay.R` reads its decision tables from `decisions/*.csv`, written
+#' alongside; multi-analyte resolutions are recorded there by name and CASRN.
 #' When no rows are pending it also writes the curated workbook (and ToxVal
 #' files when `harmonize` is set). Re-run after editing `decisions.R` until
 #' `status.md` reports `done: TRUE`.
@@ -618,7 +690,13 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
   readr::write_csv(identity_report, file.path(out_dir, "identity_review.csv"), na = "")
   readr::write_csv(pending, file.path(out_dir, "pending.csv"), na = "")
 
+  replay_tables <- list(
+    multi_analyte_resolutions = state$multi_analyte_resolutions_replay,
+    review_picks = d$review_picks,
+    row_flags = d$row_flags
+  )
   replay <- generate_concert_script(
+    decision_files = write_decision_tables(file.path(out_dir, "decisions"), replay_tables),
     input_path = d$input_path,
     output_path = d$output_path %||% file.path(out_dir, "curated.xlsx"),
     tag_map = d$tag_map,
@@ -642,7 +720,7 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
     site_alias_map = d$site_alias_map,
     value_corrections = d$value_corrections,
     cleaning_steps = d$cleaning_steps,
-    multi_analyte_resolutions = d$multi_analyte_resolutions,
+    multi_analyte_resolutions = state$multi_analyte_resolutions_replay,
     accept_suggestions = d$accept_suggestions,
     review_picks = d$review_picks,
     row_flags = d$row_flags,

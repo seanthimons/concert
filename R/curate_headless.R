@@ -84,8 +84,9 @@
 #'   `"suggested"` after candidate postprocessing (same as the Review Results
 #'   bulk accept).
 #' @param review_picks Optional data frame with `name`, `dtxsid`, and optional
-#'   `casrn` columns. Rows whose cleaned Name (and CAS, when given) match are
-#'   resolved to that DTXSID after validation against CompTox.
+#'   `casrn` and `note` columns. Rows whose cleaned Name (and CAS, when given)
+#'   match are resolved to that DTXSID after validation against CompTox. A
+#'   `note` is written to the workbook's `review_note` column.
 #' @param row_flags Optional data frame with `name`, `flag`, and optional
 #'   `casrn` and `reason` columns. Matching rows get the row flag (one of
 #'   `valid_row_flags()`).
@@ -108,10 +109,13 @@
 #'   steps on or off: `unicode`, `whitespace`, `cas`, `names`, `synonyms`, `isotopes`,
 #'   `multi`, `chiral`, `truncated`, `bare_formula`, `reference_flags`.
 #'   Omitted names keep their defaults.
-#' @param multi_analyte_resolutions Optional data frame/list with `row_index`
-#'   (or `row`), `action`, and optional `value`/`values` columns. `row_index` is
-#'   the `original_row_id` as written to `pending.csv`, so it stays valid after
-#'   synonym or multi-analyte splits. Applied after cleaning and before curation.
+#' @param multi_analyte_resolutions Optional data frame/list with `name`,
+#'   optional `casrn`, `action`, and optional `value` and `note` columns. Every
+#'   row whose cleaned Name and CAS match is resolved; a blank `casrn` matches
+#'   rows with a blank CAS only. `row_index` (the `original_row_id` written to
+#'   `pending.csv`) is still accepted in place of `name`, but depends on input
+#'   row order. Applied after cleaning and before curation. See
+#'   [apply_multi_analyte_resolutions()].
 #' @param media_map Optional media harmonization map passed to
 #'   `harmonize_media()`.
 #' @param media_map_snapshot Optional compact replay snapshot from

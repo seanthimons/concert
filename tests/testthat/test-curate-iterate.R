@@ -278,7 +278,7 @@ test_that("iterated review keeps stale VERIFIED ties pending until an explicit d
   expect_false(first$done)
   expect_equal(first$pending$pending_type, "verified_unresolved")
   expect_equal(first$pending$row_flag_reason, "Historical review")
-  expect_match(paste(readLines(file.path(fx$dir, "replay.R")), collapse = "\n"), "VERIFIED", fixed = TRUE)
+  expect_equal(read_decision_table(file.path(fx$dir, "decisions", "row_flags.csv"))$flag, "VERIFIED")
   replayed <- source(file.path(fx$dir, "replay.R"), local = new.env())$value
   expect_equal(replayed$data$row_flag[2], "VERIFIED")
   expect_equal(replayed$data$row_flag_reason[2], "Historical review")
@@ -406,4 +406,72 @@ test_that("only FOLLOW-UP/BAD dispositions hide scope blockers from pending (#11
   expect_equal(pending$row_index, 1:2)
   expect_equal(pending$pending_type, rep("identity_scope", 2))
   expect_equal(pending$row_flag, c("VERIFIED", NA))
+})
+
+test_that("replay.R reads keyed decision tables that reproduce the decisions", {
+  dir <- withr::local_tempdir()
+  input_path <- file.path(dir, "inventory.csv")
+  readr::write_csv(
+    tibble::tibble(
+      chemical_name = c("Acetone", "Lead + Zinc", "Lead + Zinc"),
+      cas_number = c("67-64-1", NA, NA)
+    ),
+    input_path
+  )
+  local_mocked_bindings(
+    run_curation_pipeline = function(cleaned_data, ...) {
+      cleaned_data$consensus_status <- "single"
+      cleaned_data$consensus_dtxsid <- "DTXSID8021482"
+      cleaned_data$consensus_source <- "chemical_name"
+      list(results = init_resolution_state(cleaned_data), consensus_summary = list())
+    },
+    postprocess_curation_candidates = mock_postprocess,
+    enrich_candidates = mock_enrich,
+    validate_manual_dtxsids = mock_validate
+  )
+  decisions <- file.path(dir, "decisions.R")
+  writeLines(
+    c(
+      sprintf("input_path <- %s", deparse(input_path)),
+      "tag_map <- list(chemical_name = \"Name\", cas_number = \"CASRN\")",
+      "multi_analyte_resolutions <- tibble::tibble(row_index = 2:3, action = \"keep\")",
+      "review_picks <- tibble::tibble(name = \"Acetone\", casrn = \"67-64-1\", dtxsid = \"DTXSID8021482\",",
+      "  note = \"confirmed against the SDS\")",
+      "row_flags <- tibble::tibble(name = \"NA\", flag = \"FOLLOW-UP\", reason = \"a, \\\"quoted\\\" reason\")"
+    ),
+    decisions
+  )
+  result <- curate_iterate(decisions, verbose = FALSE)
+
+  replay <- readLines(file.path(dir, "replay.R"))
+  expect_false(any(grepl("row_index", replay)))
+  tables <- new.env()
+  eval(parse(text = grep("read_decision_table", replay, value = TRUE)), tables)
+  expect_equal(tables$multi_analyte_resolutions, tibble::tibble(name = "Lead + Zinc", action = "keep"))
+  expect_equal(tables$review_picks$note, "confirmed against the SDS")
+  # A chemical literally named "NA" and awkward text come back as written.
+  expect_equal(tables$row_flags, tibble::tibble(name = "NA", flag = "FOLLOW-UP", reason = "a, \"quoted\" reason"))
+
+  rs <- result$state$resolution_state
+  expect_equal(rs$review_note, c("confirmed against the SDS", NA, NA))
+
+  # Dropping a table removes its file, so a stale one is never replayed.
+  writeLines(grep("^review_picks|^  note", readLines(decisions), value = TRUE, invert = TRUE), decisions)
+  curate_iterate(decisions, verbose = FALSE)
+  expect_false(file.exists(file.path(dir, "decisions", "review_picks.csv")))
+})
+
+test_that("read_decision_table stops on a casrn a spreadsheet rewrote as a date", {
+  path <- withr::local_tempfile(fileext = ".csv")
+  writeLines(c("name,casrn,flag", "Acetone,67-64-1,VERIFIED", "Blank is fine,,VERIFIED", "Odd,0103-02-06,BAD"), path)
+  expect_error(read_decision_table(path), "line\\(s\\) 4: 0103-02-06")
+  writeLines(c("name,casrn,flag", "Acetone,67-64-1,VERIFIED"), path)
+  expect_equal(read_decision_table(path)$casrn, "67-64-1")
+
+  # A table whose casrn the reader would reject is never written; it stays inline.
+  dir <- withr::local_tempdir()
+  odd <- tibble::tibble(name = "Odd", casrn = "NOCAS_1", dtxsid = "DTXSID1")
+  flags <- tibble::tibble(name = "Acetone", flag = "VERIFIED")
+  expect_equal(names(write_decision_tables(dir, list(review_picks = odd, row_flags = flags))), "row_flags")
+  expect_equal(list.files(dir), "row_flags.csv")
 })

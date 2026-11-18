@@ -135,7 +135,7 @@ build_export_sheets <- function(
 
   curated_data_sheet <- curated_data_sheet %>%
     dplyr::relocate(
-      tidyselect::any_of(c(".resolution_method", ".resolution_reason", "row_flag", "row_flag_reason")),
+      tidyselect::any_of(c(".resolution_method", ".resolution_reason", "row_flag", "row_flag_reason", "review_note")),
       .after = tidyselect::any_of("consensus_source")
     )
 

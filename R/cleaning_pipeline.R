@@ -4237,10 +4237,18 @@ resolve_multi_analyte_row <- function(df, name_cols, row_index, action, values =
 #'
 #' @param df Cleaned data frame.
 #' @param name_cols Character vector of Name-tagged column names.
-#' @param resolutions Data frame/list with `row` or `row_index`, `action`, and
-#'   optional `value` or `values`. When `df` has an `original_row_id` column the
-#'   row key is matched against it (as written by `pending.csv`); otherwise it is
-#'   a 1-based row position.
+#' @param resolutions Data frame/list with `action`, optional `value` or
+#'   `values`, optional `note`, and one of two row keys:
+#'   * `name` and optional `casrn`: every row whose first Name column equals
+#'     `name` and whose first CASRN column equals `casrn`. A blank `casrn`
+#'     matches rows with a blank CAS only. This key survives rows moving in
+#'     the input.
+#'   * `row_index` (or `row`): when `df` has an `original_row_id` column the
+#'     key is matched against it (as written by `pending.csv`); otherwise it
+#'     is a 1-based row position.
+#'
+#'   `value` holds the rename value, or split parts separated by `;`. A `note`
+#'   is appended to the audit trail reason.
 #' @inheritParams resolve_multi_analyte_row
 #' @return List with `cleaned_data` and `audit_trail`.
 #' @export
@@ -4251,13 +4259,34 @@ apply_multi_analyte_resolutions <- function(df, name_cols, resolutions = NULL, c
 
   spec <- tibble::as_tibble(resolutions)
   row_col <- intersect(c("row_index", "row"), names(spec))[1]
-  if (is.na(row_col) || !"action" %in% names(spec)) {
-    stop("resolutions must include row_index (or row) and action columns.", call. = FALSE)
+  keyed <- is.na(row_col) && "name" %in% names(spec)
+  if (!(keyed || !is.na(row_col)) || !"action" %in% names(spec)) {
+    stop("resolutions must include name (or row_index) and action columns.", call. = FALSE)
   }
 
-  # pending.csv keys rows by original_row_id, which drifts from row position
-  # after any split. Resolve ids to positions once, against the frame as it is now.
-  if ("original_row_id" %in% names(df)) {
+  if (keyed) {
+    # One name + CASRN key resolves every row that carries it.
+    if (!"casrn" %in% names(spec)) {
+      spec$casrn <- NA_character_
+    }
+    spec$casrn[is_blank_text(spec$casrn)] <- NA_character_
+    rows <- lapply(seq_len(nrow(spec)), function(i) {
+      keyed_resolution_rows(df, name_cols[1], cas_cols[1], spec$name[i], spec$casrn[i])
+    })
+    bad <- lengths(rows) == 0L | duplicated(spec[c("name", "casrn")])
+    if (any(bad)) {
+      stop(
+        "multi_analyte_resolutions keys must be unique and match a row; bad keys: ",
+        paste(sprintf("name=%s casrn=%s", spec$name[bad], spec$casrn[bad]), collapse = "; "),
+        call. = FALSE
+      )
+    }
+    spec <- spec[rep(seq_len(nrow(spec)), lengths(rows)), , drop = FALSE]
+    spec$row_index <- unlist(rows)
+    row_col <- "row_index"
+  } else if ("original_row_id" %in% names(df)) {
+    # pending.csv keys rows by original_row_id, which drifts from row position
+    # after any split. Resolve ids to positions once, against the frame as it is now.
     ids <- suppressWarnings(as.integer(spec[[row_col]]))
     hits <- match(ids, df$original_row_id)
     dup <- ids %in% df$original_row_id[duplicated(df$original_row_id)]
@@ -4294,6 +4323,9 @@ apply_multi_analyte_resolutions <- function(df, name_cols, resolutions = NULL, c
       cas_cols = cas_cols
     )
     df_result <- resolved$cleaned_data
+    if ("note" %in% names(spec) && !is_blank_text(spec$note[[i]])) {
+      resolved$audit_trail$reason <- paste0(resolved$audit_trail$reason, " (note: ", spec$note[[i]], ")")
+    }
     audit_parts[[length(audit_parts) + 1L]] <- resolved$audit_trail
   }
 
@@ -4301,6 +4333,71 @@ apply_multi_analyte_resolutions <- function(df, name_cols, resolutions = NULL, c
     cleaned_data = df_result,
     audit_trail = dplyr::bind_rows(audit_parts)
   )
+}
+
+is_blank_text <- function(x) {
+  is.na(x) | !nzchar(trimws(as.character(x)))
+}
+
+# Row positions whose first Name and first CASRN column equal a resolution key.
+# A blank casrn matches a blank CAS only, so a decision never spreads to a
+# same-named row that carries its own CAS.
+keyed_resolution_rows <- function(df, name_col, cas_col, name, casrn) {
+  cas <- if (is.na(cas_col)) rep(NA_character_, nrow(df)) else as.character(df[[cas_col]])
+  same_name <- !is.na(df[[name_col]]) & as.character(df[[name_col]]) == name
+  which(same_name & if (is_blank_text(casrn)) is_blank_text(cas) else !is.na(cas) & cas == casrn)
+}
+
+# Rewrite row-keyed resolutions by name + CASRN so a replay survives rows
+# moving in the input. Returns NULL when the rewrite would change which rows
+# are resolved or how: rows sharing a key decided differently or only in part.
+key_multi_analyte_resolutions <- function(df, resolutions, name_col, cas_col) {
+  spec <- tibble::as_tibble(resolutions)
+  row_col <- intersect(c("row_index", "row"), names(spec))[1]
+  if (is.na(row_col)) {
+    return(spec)
+  }
+  if (is.na(name_col)) {
+    return(NULL)
+  }
+
+  pos <- suppressWarnings(as.integer(spec[[row_col]]))
+  if ("original_row_id" %in% names(df)) {
+    pos <- match(pos, df$original_row_id)
+  }
+  parts <- if ("values" %in% names(spec)) {
+    lapply(spec$values, normalize_multi_analyte_values)
+  } else if ("value" %in% names(spec)) {
+    lapply(spec$value, normalize_multi_analyte_values)
+  } else {
+    rep(list(character(0)), nrow(spec))
+  }
+  value <- vapply(parts, paste, character(1), collapse = "; ")
+
+  keyed <- tibble::tibble(
+    name = as.character(df[[name_col]][pos]),
+    casrn = if (is.na(cas_col)) NA_character_ else as.character(df[[cas_col]][pos]),
+    action = vapply(spec$action, normalize_multi_analyte_action, character(1), USE.NAMES = FALSE),
+    value = value,
+    note = if ("note" %in% names(spec)) as.character(spec$note) else NA_character_
+  )
+  for (col in c("casrn", "value", "note")) {
+    keyed[[col]][is_blank_text(keyed[[col]])] <- NA_character_
+  }
+  keyed <- dplyr::distinct(keyed)
+
+  # A part holding ";" would be re-split on the way back in.
+  round_trips <- identical(lapply(value, normalize_multi_analyte_values), parts)
+  if (!round_trips || anyDuplicated(pos) || anyNA(keyed$name) || anyDuplicated(keyed[c("name", "casrn")])) {
+    return(NULL)
+  }
+  rows <- lapply(seq_len(nrow(keyed)), function(i) {
+    keyed_resolution_rows(df, name_col, cas_col, keyed$name[i], keyed$casrn[i])
+  })
+  if (!setequal(unlist(rows), pos)) {
+    return(NULL)
+  }
+  keyed[!vapply(keyed, function(x) all(is.na(x)), logical(1))]
 }
 
 #' Apply staged review decisions in one batch

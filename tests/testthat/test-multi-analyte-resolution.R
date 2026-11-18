@@ -230,3 +230,92 @@ test_that("scripted splits record repeated source CAS and keep children provisio
   cols <- c("Name", "CASRN", "multi_analyte_source_cas", "component_cas_unresolved")
   expect_identical(scripted[cols], coordinated[cols])
 })
+
+keyed_fixture <- function(lead_rows = 0L) {
+  df <- tibble::tibble(
+    Name = c(rep("Lead", lead_rows), "Alpha + Beta", "Alpha + Beta", "Alpha + Beta", "Nitrate and nitrite"),
+    CASRN = c(rep("7439-92-1", lead_rows), NA, "64-17-5", NA, "")
+  )
+  df$original_row_id <- seq_len(nrow(df))
+  flag_multi_analyte(df, "Name")$cleaned_data
+}
+
+test_that("name + casrn resolutions survive rows inserted ahead of the decided rows", {
+  keyed <- tibble::tibble(
+    name = c("Alpha + Beta", "Alpha + Beta", "Nitrate and nitrite"),
+    casrn = c(NA, "64-17-5", NA),
+    action = c("split", "keep", "rename"),
+    value = c("Alpha; Beta", NA, "Nitrate-nitrite")
+  )
+  by_row <- tibble::tibble(
+    row_index = 1:4,
+    action = c("split", "keep", "split", "rename"),
+    value = c("Alpha; Beta", NA, "Alpha; Beta", "Nitrate-nitrite")
+  )
+  cols <- c("Name", "CASRN", "multi_analyte_resolution", "multi_analyte_part_index")
+
+  base <- apply_multi_analyte_resolutions(keyed_fixture(), "Name", by_row, cas_cols = "CASRN")
+  same <- apply_multi_analyte_resolutions(keyed_fixture(), "Name", keyed, cas_cols = "CASRN")
+  expect_identical(same$cleaned_data[cols], base$cleaned_data[cols])
+  expect_identical(same$audit_trail, base$audit_trail)
+
+  # The row_index table now points at the wrong rows; the keyed one does not.
+  shifted <- apply_multi_analyte_resolutions(keyed_fixture(lead_rows = 2L), "Name", keyed, cas_cols = "CASRN")
+  expect_identical(shifted$cleaned_data[-(1:2), cols], base$cleaned_data[cols])
+  expect_equal(shifted$cleaned_data$Name[1:2], c("Lead", "Lead"))
+})
+
+test_that("keyed resolutions stop on unmatched or duplicated keys and carry notes", {
+  df <- keyed_fixture()
+  # Blank casrn means blank CAS only, so a CAS that matches nothing is an error.
+  expect_error(
+    apply_multi_analyte_resolutions(
+      df,
+      "Name",
+      tibble::tibble(name = "Alpha + Beta", casrn = "50-00-0", action = "keep"),
+      cas_cols = "CASRN"
+    ),
+    "bad keys: name=Alpha \\+ Beta casrn=50-00-0"
+  )
+  expect_error(
+    apply_multi_analyte_resolutions(
+      df,
+      "Name",
+      tibble::tibble(name = rep("Alpha + Beta", 2), casrn = c(NA, ""), action = "keep"),
+      cas_cols = "CASRN"
+    ),
+    "must be unique"
+  )
+  noted <- apply_multi_analyte_resolutions(
+    df,
+    "Name",
+    tibble::tibble(name = "Alpha + Beta", casrn = "64-17-5", action = "keep", note = "sold as a blend"),
+    cas_cols = "CASRN"
+  )
+  expect_equal(noted$audit_trail$reason, "Kept as combined analyte (note: sold as a blend)")
+  expect_equal(sum(noted$cleaned_data$multi_analyte_resolution %in% "keep_combined"), 1L)
+})
+
+test_that("row_index resolutions are rekeyed only when that changes nothing", {
+  df <- keyed_fixture()
+  rekey <- function(resolutions) key_multi_analyte_resolutions(df, resolutions, "Name", "CASRN")
+  keyed <- rekey(tibble::tibble(
+    row_index = c(1L, 3L, 2L),
+    action = c("split", "split", "keep"),
+    values = I(list(c("Alpha", "Beta"), c("Alpha", "Beta"), NULL))
+  ))
+  expect_equal(
+    keyed,
+    tibble::tibble(
+      name = "Alpha + Beta",
+      casrn = c(NA, "64-17-5"),
+      action = c("split", "keep"),
+      value = c("Alpha; Beta", NA)
+    )
+  )
+  # Same key decided two ways, or only one of its rows decided: keep row_index.
+  expect_null(rekey(tibble::tibble(row_index = c(1L, 3L), action = c("split", "keep"))))
+  expect_null(rekey(tibble::tibble(row_index = 1L, action = "split")))
+  # A split part holding ";" cannot be written as text.
+  expect_null(rekey(tibble::tibble(row_index = 2L, action = "split", values = I(list(c("a;b", "c"))))))
+})

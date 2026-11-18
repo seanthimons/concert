@@ -14,10 +14,13 @@ stage_clean(
 \arguments{
 \item{state}{State list from \code{\link[=stage_ingest]{stage_ingest()}}.}
 
-\item{multi_analyte_resolutions}{Optional data frame/list with \code{row_index}
-(or \code{row}), \code{action}, and optional \code{value}/\code{values} columns. \code{row_index} is
-the \code{original_row_id} as written to \code{pending.csv}, so it stays valid after
-synonym or multi-analyte splits. Applied after cleaning and before curation.}
+\item{multi_analyte_resolutions}{Optional data frame/list with \code{name},
+optional \code{casrn}, \code{action}, and optional \code{value} and \code{note} columns. Every
+row whose cleaned Name and CAS match is resolved; a blank \code{casrn} matches
+rows with a blank CAS only. \code{row_index} (the \code{original_row_id} written to
+\code{pending.csv}) is still accepted in place of \code{name}, but depends on input
+row order. Applied after cleaning and before curation. See
+\code{\link[=apply_multi_analyte_resolutions]{apply_multi_analyte_resolutions()}}.}
 
 \item{value_corrections}{Optional data frame with \code{column}, \code{pattern},
 \code{replacement}, and optional \code{match_mode} columns. Applied to the detected
