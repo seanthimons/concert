@@ -24,6 +24,8 @@ Invisibly, a list with \code{done}, \code{pending}, and \code{state}.
 \description{
 Sources \code{decisions.R}, runs the staged headless pipeline with a curation
 cache, and writes \code{status.md}, \code{pending.csv}, and \code{replay.R} next to it.
+\code{replay.R} reads its decision tables from \verb{decisions/*.csv}, written
+alongside; multi-analyte resolutions are recorded there by name and CASRN.
 When no rows are pending it also writes the curated workbook (and ToxVal
 files when \code{harmonize} is set). Re-run after editing \code{decisions.R} until
 \code{status.md} reports \code{done: TRUE}.

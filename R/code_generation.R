@@ -1361,9 +1361,12 @@ format_curate_call_args <- function(args) {
   arg_lines
 }
 
-append_optional_script_object <- function(lines, name, value) {
+append_optional_script_object <- function(lines, name, value, file = NA_character_) {
   if (is.null(value)) {
     return(lines)
+  }
+  if (!is.na(file)) {
+    return(c(lines, paste0(name, " <- read_decision_table(", script_literal(file), ")")))
   }
 
   c(lines, "", paste0(name, " <- ", script_literal(value, exact = TRUE)))
@@ -1416,6 +1419,10 @@ append_optional_script_object <- function(lines, name, value) {
 #' @param review_decision_evidence Portable immutable review evidence contract.
 #' @param identity_decisions Explicit structured source-identity decisions.
 #' @param candidate_validation Structured candidate validation outcomes.
+#' @param decision_files Optional named character vector of CSV paths, named
+#'   `multi_analyte_resolutions`, `review_picks`, or `row_flags`. A named table
+#'   is read from its file with [read_decision_table()] instead of being
+#'   written into the script.
 #' @param ignored_identifier_cols Retained identifier columns deliberately
 #'   treated as metadata, persisted in the replay call.
 #'
@@ -1453,7 +1460,8 @@ generate_concert_script <- function(
   review_decision_evidence = NULL,
   identity_decisions = NULL,
   candidate_validation = NULL,
-  toxval_identity_mode = "lookup"
+  toxval_identity_mode = "lookup",
+  decision_files = NULL
 ) {
   has_review_overrides <- review_overrides_present(review_overrides)
   if (!is.null(review_picks) && NROW(review_picks) == 0) {
@@ -1537,9 +1545,13 @@ generate_concert_script <- function(
 
   setup_lines <- append_optional_script_object(setup_lines, "value_corrections", value_corrections)
   setup_lines <- append_optional_script_object(setup_lines, "cleaning_steps", cleaning_steps)
-  setup_lines <- append_optional_script_object(setup_lines, "multi_analyte_resolutions", multi_analyte_resolutions)
-  setup_lines <- append_optional_script_object(setup_lines, "review_picks", review_picks)
-  setup_lines <- append_optional_script_object(setup_lines, "row_flags", row_flags)
+  if (length(decision_files)) {
+    setup_lines <- c(setup_lines, "", "# Decision tables are CSV files; edit them there. Every column is read as text.")
+  }
+  for (key in c("multi_analyte_resolutions", "review_picks", "row_flags")) {
+    file <- if (key %in% names(decision_files)) decision_files[[key]] else NA_character_
+    setup_lines <- append_optional_script_object(setup_lines, key, get(key), file)
+  }
   if (!is.null(review_decision_evidence)) validate_review_evidence(review_decision_evidence)
   setup_lines <- append_optional_script_object(setup_lines, "review_decision_evidence", review_decision_evidence)
   setup_lines <- append_optional_script_object(setup_lines, "identity_decisions", identity_decisions)

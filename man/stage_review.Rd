@@ -28,8 +28,9 @@ replay Review Results edits.}
 bulk accept).}
 
 \item{review_picks}{Optional data frame with \code{name}, \code{dtxsid}, and optional
-\code{casrn} columns. Rows whose cleaned Name (and CAS, when given) match are
-resolved to that DTXSID after validation against CompTox.}
+\code{casrn} and \code{note} columns. Rows whose cleaned Name (and CAS, when given)
+match are resolved to that DTXSID after validation against CompTox. A
+\code{note} is written to the workbook's \code{review_note} column.}
 
 \item{row_flags}{Optional data frame with \code{name}, \code{flag}, and optional
 \code{casrn} and \code{reason} columns. Matching rows get the row flag (one of

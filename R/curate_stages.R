@@ -165,12 +165,30 @@ stage_clean <- function(state, multi_analyte_resolutions = NULL, value_correctio
   if (!is.null(multi_analyte_resolutions) && length(multi_analyte_resolutions) > 0) {
     message("[headless] Applying multi-analyte resolutions...")
     name_cols <- names(merged_chemical_tags)[merged_chemical_tags == "Name"]
+    cas_cols <- names(merged_chemical_tags)[merged_chemical_tags == "CASRN"]
     multi_result <- apply_multi_analyte_resolutions(
       cleaning_result$cleaned_data,
       name_cols,
       multi_analyte_resolutions,
-      cas_cols = names(merged_chemical_tags)[merged_chemical_tags == "CASRN"]
+      cas_cols = cas_cols
     )
+    # The replay script records the name + CASRN form, which survives rows
+    # moving in the input.
+    keyed <- key_multi_analyte_resolutions(
+      cleaning_result$cleaned_data,
+      multi_analyte_resolutions,
+      name_cols[1],
+      cas_cols[1]
+    )
+    if (is.null(keyed)) {
+      warning(
+        "multi_analyte_resolutions could not be keyed by name and CASRN (rows sharing a name and CASRN ",
+        "are decided differently or only in part); the replay keeps row_index and depends on input row order.",
+        call. = FALSE
+      )
+      keyed <- multi_analyte_resolutions
+    }
+    state$multi_analyte_resolutions_replay <- keyed
     cleaning_result$cleaned_data <- multi_result$cleaned_data
     cleaning_result$audit_trail <- dplyr::bind_rows(
       cleaning_result$audit_trail,
@@ -389,8 +407,11 @@ stage_review <- function(
     if (!all(c("name", "dtxsid") %in% names(picks))) {
       stop("review_picks must have name and dtxsid columns (casrn optional).", call. = FALSE)
     }
-    if (!"casrn" %in% names(picks)) {
-      picks$casrn <- NA_character_
+    for (col in setdiff(c("casrn", "note"), names(picks))) {
+      picks[[col]] <- NA_character_
+    }
+    if (!all(is_blank_text(picks$note)) && !"review_note" %in% names(rs)) {
+      rs$review_note <- NA_character_
     }
     message(sprintf("[headless] Applying %d review picks...", nrow(picks)))
     validation <- validate_manual_dtxsids(unique(picks$dtxsid))
@@ -419,6 +440,7 @@ stage_review <- function(
       rs$.manual_entry[mask] <- TRUE
       rs$.pinned[mask] <- TRUE
       rs$.resolution_method[mask] <- "manual"
+      if (!is_blank_text(picks$note[i])) rs$review_note[mask] <- picks$note[i]
     }
     changed <- TRUE
   }

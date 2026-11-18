@@ -16,10 +16,20 @@ apply_multi_analyte_resolutions(
 
 \item{name_cols}{Character vector of Name-tagged column names.}
 
-\item{resolutions}{Data frame/list with \code{row} or \code{row_index}, \code{action}, and
-optional \code{value} or \code{values}. When \code{df} has an \code{original_row_id} column the
-row key is matched against it (as written by \code{pending.csv}); otherwise it is
-a 1-based row position.}
+\item{resolutions}{Data frame/list with \code{action}, optional \code{value} or
+\code{values}, optional \code{note}, and one of two row keys:
+\itemize{
+\item \code{name} and optional \code{casrn}: every row whose first Name column equals
+\code{name} and whose first CASRN column equals \code{casrn}. A blank \code{casrn}
+matches rows with a blank CAS only. This key survives rows moving in
+the input.
+\item \code{row_index} (or \code{row}): when \code{df} has an \code{original_row_id} column the
+key is matched against it (as written by \code{pending.csv}); otherwise it
+is a 1-based row position.
+}
+
+\code{value} holds the rename value, or split parts separated by \verb{;}. A \code{note}
+is appended to the audit trail reason.}
 
 \item{cas_cols}{CASRN-tagged column names. CAS values are left unchanged, but
 a repeated source CAS is recorded and requires component review.}

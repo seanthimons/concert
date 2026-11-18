@@ -134,8 +134,9 @@ replay Review Results edits.}
 bulk accept).}
 
 \item{review_picks}{Optional data frame with \code{name}, \code{dtxsid}, and optional
-\code{casrn} columns. Rows whose cleaned Name (and CAS, when given) match are
-resolved to that DTXSID after validation against CompTox.}
+\code{casrn} and \code{note} columns. Rows whose cleaned Name (and CAS, when given)
+match are resolved to that DTXSID after validation against CompTox. A
+\code{note} is written to the workbook's \code{review_note} column.}
 
 \item{row_flags}{Optional data frame with \code{name}, \code{flag}, and optional
 \code{casrn} and \code{reason} columns. Matching rows get the row flag (one of
@@ -157,10 +158,13 @@ in the workbook export.}
 \item{site_alias_map}{Optional Dataset Context raw-label alias map to include
 in the workbook export.}
 
-\item{multi_analyte_resolutions}{Optional data frame/list with \code{row_index}
-(or \code{row}), \code{action}, and optional \code{value}/\code{values} columns. \code{row_index} is
-the \code{original_row_id} as written to \code{pending.csv}, so it stays valid after
-synonym or multi-analyte splits. Applied after cleaning and before curation.}
+\item{multi_analyte_resolutions}{Optional data frame/list with \code{name},
+optional \code{casrn}, \code{action}, and optional \code{value} and \code{note} columns. Every
+row whose cleaned Name and CAS match is resolved; a blank \code{casrn} matches
+rows with a blank CAS only. \code{row_index} (the \code{original_row_id} written to
+\code{pending.csv}) is still accepted in place of \code{name}, but depends on input
+row order. Applied after cleaning and before curation. See
+\code{\link[=apply_multi_analyte_resolutions]{apply_multi_analyte_resolutions()}}.}
 
 \item{value_corrections}{Optional data frame with \code{column}, \code{pattern},
 \code{replacement}, and optional \code{match_mode} columns. Applied to the detected

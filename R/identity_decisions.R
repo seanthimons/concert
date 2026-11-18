@@ -20,7 +20,7 @@ identity_evidence_fingerprint <- function(df, row) {
 }
 
 identity_evidence_columns <- function(df) {
-  excluded <- c("row_flag", "row_flag_reason", "needs_review", "identity_scope", "identity_conflict",
+  excluded <- c("row_flag", "row_flag_reason", "review_note", "needs_review", "identity_scope", "identity_conflict",
     "identity_scope_reviewed", "identity_decision_current", "identity_decision_fingerprint",
     "identity_decision_record", "identity_status", "identity_blockers", "identity_eligible", "accepted_dtxsid",
     "consensus_casrn", "consensus_formula", "consensus_mw")
@@ -67,7 +67,7 @@ identity_fingerprint_v2 <- function(df, row, columns = NULL) {
 }
 
 identity_fingerprint_v1 <- function(df, row) {
-  excluded <- c("row_flag", "row_flag_reason", "needs_review", "identity_scope", "identity_conflict",
+  excluded <- c("row_flag", "row_flag_reason", "review_note", "needs_review", "identity_scope", "identity_conflict",
     "identity_scope_reviewed", "identity_decision_current", "identity_decision_fingerprint",
     "identity_decision_record", "identity_status", "identity_blockers", "identity_eligible", "accepted_dtxsid",
     "consensus_casrn", "consensus_formula", "consensus_mw")
