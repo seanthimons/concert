@@ -27,7 +27,7 @@ concurrency:
 jobs:
   track:
     name: Track release PR
-    uses: seanthimons/baseline/.github/workflows/track-release-pr.yaml@ad7b0409c5ae8d28f293826fef0819bd74c7b9e0 # v2.2.0
+    uses: seanthimons/baseline/.github/workflows/track-release-pr.yaml@067b932909c9ca4cdce189717c99a62a812d3db9 # v2.2.1
     with:
       upstream: seanthimons/baseline
       pin-type: workflow-sha
