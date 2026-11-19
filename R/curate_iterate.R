@@ -529,11 +529,12 @@ write_status_md <- function(path, state, pending, done, decisions, error = NULL)
 #'
 #' Reads a decision table from CSV, either the text block a replay script
 #' carries or a file. Every column is read as text, so names and CASRNs arrive
-#' exactly as written. Stops when a `casrn` value is not CAS-shaped, which is
-#' what a spreadsheet leaves behind after rewriting a CASRN as a date
-#' (`103-02-6` becomes `0103-02-06`). Also stops when a line does not have the
-#' header's number of fields, which is what an unquoted comma in a hand-edited
-#' value leaves behind: write `"1,2-Dichloroethane"`, quotes included.
+#' exactly as written. Stops when a `casrn` or `cas_value` value is not
+#' CAS-shaped, which is what a spreadsheet leaves behind after rewriting a
+#' CASRN as a date (`103-02-6` becomes `0103-02-06`). Also stops when a line
+#' does not have the header's number of fields, which is what an unquoted comma
+#' in a hand-edited value leaves behind: write `"1,2-Dichloroethane"`, quotes
+#' included.
 #'
 #' @param path Path to a decision table CSV.
 #' @param text CSV text to read instead of a file. One leading newline is
@@ -565,15 +566,16 @@ read_decision_table <- function(path = NULL, text = NULL) {
   }
   # as.list() drops readr's column-spec class, leaving a plain tibble.
   out <- tibble::as_tibble(as.list(raw))
-  if ("casrn" %in% names(out)) {
-    bad <- which(!is_cas_shaped(out$casrn))
+  for (col in intersect(c("casrn", "cas_value"), names(out))) {
+    bad <- which(!is_cas_shaped(out[[col]]))
     if (length(bad)) {
       stop(
         sprintf(
-          "%s: casrn is not CAS-shaped on line(s) %s: %s. A spreadsheet may have rewritten it as a date.",
+          "%s: %s is not CAS-shaped on line(s) %s: %s. A spreadsheet may have rewritten it as a date.",
           label,
+          col,
           paste(bad + 1L, collapse = ", "),
-          paste(unique(out$casrn[bad]), collapse = ", ")
+          paste(unique(out[[col]][bad]), collapse = ", ")
         ),
         call. = FALSE
       )
@@ -582,16 +584,19 @@ read_decision_table <- function(path = NULL, text = NULL) {
   out
 }
 
-# NA counts as CAS-shaped: a blank casrn is a valid key.
+# NA counts as CAS-shaped: a blank casrn is a valid key. A cas_value may list
+# several CAS numbers separated by ";".
 is_cas_shaped <- function(x) {
-  is.na(x) | stringr::str_detect(as.character(x), "^\\d{2,7}-\\d{2}-\\d$")
+  cas <- "\\d{2,7}-\\d{2}-\\d"
+  is.na(x) | stringr::str_detect(as.character(x), paste0("^", cas, "(\\s*;\\s*", cas, ")*$"))
 }
 
 # TRUE when read_decision_table() returns the table as written, so replay.R
-# can carry it as CSV text: no list columns, and no casrn the reader rejects.
+# can carry it as CSV text: no list columns, and no CAS value the reader rejects.
 decision_table_is_csv <- function(x) {
   x <- tibble::as_tibble(x)
-  NROW(x) > 0 && !any(vapply(x, is.list, logical(1))) && all(is_cas_shaped(x[["casrn"]]))
+  cas <- unlist(x[intersect(c("casrn", "cas_value"), names(x))])
+  NROW(x) > 0 && !any(vapply(x, is.list, logical(1))) && all(is_cas_shaped(cas))
 }
 
 #' Run one iteration of the agent curation loop

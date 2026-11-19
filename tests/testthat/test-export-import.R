@@ -1338,3 +1338,28 @@ test_that("100k-row export parses in budget with full-sheet type guessing", {
   expect_lt(elapsed, 15, label = sprintf("%.2fs elapsed", elapsed))
   expect_identical(parsed$curated_data$multi_analyte_resolution[1e5], "keep_combined")
 })
+
+test_that("review notes survive a workbook upload and replay as review overrides", {
+  test_data <- create_test_data()
+  test_data$resolution_state$review_note <- c("picked by hand", NA, NA)
+
+  sheets <- build_export_sheets(
+    raw = test_data$raw,
+    resolution_state = test_data$resolution_state,
+    consensus_summary = test_data$consensus_summary,
+    cleaning_audit = test_data$cleaning_audit,
+    reference_lists = test_data$reference_lists,
+    column_tags = test_data$column_tags,
+    detection = test_data$detection,
+    file_info = test_data$file_info
+  )
+  temp_file <- withr::local_tempfile(fileext = ".xlsx")
+  writexl::write_xlsx(sheets, temp_file)
+
+  state <- suppressMessages(hydrate_session_state(parse_concert_export(temp_file)))$state
+  expect_equal(state$resolution_state$review_note, c("picked by hand", NA, NA))
+
+  overrides <- build_review_overrides(state$script_baseline_state, state$resolution_state)
+  expect_true("review_note" %in% overrides$column)
+  expect_true("review_note" %in% review_signature_excluded_columns())
+})

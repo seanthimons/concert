@@ -3315,6 +3315,7 @@ mod_review_results_server <- function(id, data_store) {
 
     replay_script_text <- function() {
       req(data_store$resolution_state)
+      tags <- data_store$column_tags %||% list()
 
       file_name <- if (!is.null(data_store$file_info) && !is.null(data_store$file_info$name)) {
         data_store$file_info$name
@@ -3364,6 +3365,12 @@ mod_review_results_server <- function(id, data_store) {
         identity_decisions = data_store$identity_decisions,
         candidate_validation = data_store$candidate_validation,
         toxval_identity_mode = data_store$toxval_identity_mode %||% "lookup",
+        multi_analyte_resolutions = multi_analyte_resolutions_from_lineage(
+          data_store$cleaned_data,
+          names(tags)[tags == "Name"][1],
+          names(tags)[tags == "CASRN"][1],
+          data_store$cleaning_audit
+        ),
         row_flags = data_store$review_row_flags
       )
     }

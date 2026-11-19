@@ -18,9 +18,10 @@ A tibble of character columns.
 \description{
 Reads a decision table from CSV, either the text block a replay script
 carries or a file. Every column is read as text, so names and CASRNs arrive
-exactly as written. Stops when a \code{casrn} value is not CAS-shaped, which is
-what a spreadsheet leaves behind after rewriting a CASRN as a date
-(\code{103-02-6} becomes \code{0103-02-06}). Also stops when a line does not have the
-header's number of fields, which is what an unquoted comma in a hand-edited
-value leaves behind: write \code{"1,2-Dichloroethane"}, quotes included.
+exactly as written. Stops when a \code{casrn} or \code{cas_value} value is not
+CAS-shaped, which is what a spreadsheet leaves behind after rewriting a
+CASRN as a date (\code{103-02-6} becomes \code{0103-02-06}). Also stops when a line
+does not have the header's number of fields, which is what an unquoted comma
+in a hand-edited value leaves behind: write \code{"1,2-Dichloroethane"}, quotes
+included.
 }

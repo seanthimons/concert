@@ -29,7 +29,9 @@ is a 1-based row position.
 }
 
 \code{value} holds the rename value, or split parts separated by \verb{;}. A \code{note}
-is appended to the audit trail reason.}
+is appended to the audit trail reason. An optional \code{cas_value} holds CAS
+numbers separated by \verb{;} to assign to the resulting rows by position (one
+per part, or one for all parts); without it CAS values are left unchanged.}
 
 \item{cas_cols}{CASRN-tagged column names. CAS values are left unchanged, but
 a repeated source CAS is recorded and requires component review.}

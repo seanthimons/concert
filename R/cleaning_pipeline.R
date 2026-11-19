@@ -4148,6 +4148,10 @@ resolve_review_row <- function(df, name_cols, row_index, spec, cas_cols = charac
   expanded$multi_analyte_source_value <- original_value
   expanded$multi_analyte_part_index <- seq_len(part_count)
   expanded$multi_analyte_part_count <- part_count
+  # Recorded only for position pairing, so a replay can repeat the CAS assignment.
+  if (assign_cas) {
+    expanded$multi_analyte_cas_parts <- paste(cas_parts, collapse = "; ")
+  }
   # Resolving the row clears the multi-CAS review flag regardless of disposition.
   if ("multi_cas" %in% names(expanded)) {
     expanded$multi_cas <- FALSE
@@ -4248,7 +4252,9 @@ resolve_multi_analyte_row <- function(df, name_cols, row_index, action, values =
 #'     is a 1-based row position.
 #'
 #'   `value` holds the rename value, or split parts separated by `;`. A `note`
-#'   is appended to the audit trail reason.
+#'   is appended to the audit trail reason. An optional `cas_value` holds CAS
+#'   numbers separated by `;` to assign to the resulting rows by position (one
+#'   per part, or one for all parts); without it CAS values are left unchanged.
 #' @inheritParams resolve_multi_analyte_row
 #' @return List with `cleaned_data` and `audit_trail`.
 #' @export
@@ -4314,12 +4320,17 @@ apply_multi_analyte_resolutions <- function(df, name_cols, resolutions = NULL, c
       NULL
     }
 
-    resolved <- resolve_multi_analyte_row(
+    cas_value <- if ("cas_value" %in% names(spec)) spec$cas_value[[i]] else NA_character_
+    resolved <- resolve_review_row(
       df_result,
-      name_cols,
+      name_cols = name_cols,
       row_index = spec[[row_col]][[i]],
-      action = spec$action[[i]],
-      values = values,
+      spec = list(
+        name_action = spec$action[[i]],
+        name_parts = values,
+        cas_parts = cas_value,
+        pairing = if (all(is_blank_text(cas_value))) "broadcast" else "position"
+      ),
       cas_cols = cas_cols
     )
     df_result <- resolved$cleaned_data
@@ -4379,9 +4390,10 @@ key_multi_analyte_resolutions <- function(df, resolutions, name_col, cas_col) {
     casrn = if (is.na(cas_col)) NA_character_ else as.character(df[[cas_col]][pos]),
     action = vapply(spec$action, normalize_multi_analyte_action, character(1), USE.NAMES = FALSE),
     value = value,
+    cas_value = if ("cas_value" %in% names(spec)) as.character(spec$cas_value) else NA_character_,
     note = if ("note" %in% names(spec)) as.character(spec$note) else NA_character_
   )
-  for (col in c("casrn", "value", "note")) {
+  for (col in c("casrn", "value", "cas_value", "note")) {
     keyed[[col]][is_blank_text(keyed[[col]])] <- NA_character_
   }
   keyed <- dplyr::distinct(keyed)
@@ -4397,6 +4409,85 @@ key_multi_analyte_resolutions <- function(df, resolutions, name_col, cas_col) {
   if (!setequal(unlist(rows), pos)) {
     return(NULL)
   }
+  keyed[!vapply(keyed, function(x) all(is.na(x)), logical(1))]
+}
+
+# Rebuild the keyed resolution table from the lineage columns that
+# resolve_review_row() leaves on resolved rows, so the app can replay decisions
+# it applied by row position, also after a workbook upload. Stops when
+# replaying the table would not give this data back.
+# ponytail: one round of decisions and the first Name column only. A child row
+# resolved again, or a mixture in a later Name column, stops here; record the
+# decisions at apply time if those cases matter.
+multi_analyte_resolutions_from_lineage <- function(df, name_col, cas_col, audit = NULL) {
+  done <- which(!is.na(df[["multi_analyte_resolution"]]))
+  if (!length(done) || is.na(name_col)) {
+    return(NULL)
+  }
+  lineage <- function(col) {
+    if (col %in% names(df)) as.character(df[[col]][done]) else rep(NA_character_, length(done))
+  }
+  audit <- tibble::as_tibble(audit %||% empty_cleaning_audit())
+  audit <- audit[audit$step %in% "multi_analyte_resolution", , drop = FALSE]
+  rows <- tibble::tibble(
+    name = lineage("multi_analyte_source_value"),
+    casrn = lineage("multi_analyte_source_cas"),
+    action = sub("keep_combined", "keep", lineage("multi_analyte_resolution"), fixed = TRUE),
+    part = as.integer(df$multi_analyte_part_index[done]),
+    count = as.integer(df$multi_analyte_part_count[done]),
+    part_name = as.character(df[[name_col]][done]),
+    cas_value = lineage("multi_analyte_cas_parts"),
+    note = stringr::str_match(audit$reason, " \\(note: (.*)\\)$")[, 2][
+      match(multi_analyte_row_id(df, done), audit$row_id)
+    ]
+  )
+  rows$casrn[is_blank_text(rows$casrn)] <- NA_character_
+  open <- df[-done, , drop = FALSE]
+
+  keyed <- lapply(split(rows, vctrs::vec_group_id(rows[c("name", "casrn")])), function(g) {
+    n <- g$count[1]
+    part_names <- lapply(seq_len(n), function(i) unique(g$part_name[g$part %in% i]))
+    reproducible <- !is.na(g$name[1]) &&
+      length(unique(g$action)) == 1L &&
+      length(unique(g$cas_value)) == 1L &&
+      all(g$count %in% n) &&
+      all(lengths(part_names) == 1L) &&
+      all(tabulate(g$part, n) == nrow(g) / n) &&
+      # A kept name that is not the source value was read from another column.
+      (g$action[1] != "keep" || all(g$part_name %in% g$name[1])) &&
+      !length(keyed_resolution_rows(open, name_col, cas_col, g$name[1], g$casrn[1]))
+    value <- switch(
+      g$action[1],
+      keep = NA_character_,
+      rename = part_names[[1]][1],
+      paste(unlist(part_names), collapse = "; ")
+    )
+    # A part holding ";" would be re-split on the way back in.
+    if (reproducible && g$action[1] == "split") {
+      reproducible <- identical(normalize_multi_analyte_values(value), unlist(part_names))
+    }
+    tibble::tibble(
+      name = g$name[1],
+      casrn = g$casrn[1],
+      action = g$action[1],
+      value = value,
+      cas_value = g$cas_value[1],
+      note = g$note[!is.na(g$note)][1],
+      reproducible = reproducible
+    )
+  })
+  keyed <- dplyr::bind_rows(keyed)
+  bad <- !keyed$reproducible
+  if (any(bad) || !all(audit$field %in% c(name_col, cas_col))) {
+    stop(
+      "Multi-analyte decisions cannot be replayed by name and CASRN",
+      if (any(bad)) paste0(" for: ", paste(keyed$name[bad], collapse = " | ")),
+      ". Rows sharing a name and CASRN were resolved differently, only in part, more than once, ",
+      "or outside the first Name column.",
+      call. = FALSE
+    )
+  }
+  keyed$reproducible <- NULL
   keyed[!vapply(keyed, function(x) all(is.na(x)), logical(1))]
 }
 

@@ -82,7 +82,8 @@ system.file("skills/concert-curate/SKILL.md", package = "concert")
 
 ### Replay scripts
 
-A curation run leaves one self-contained `replay.R` that reproduces it. Review
+A curation run leaves one self-contained `replay.R` that reproduces it; the
+app's **Download R script** gives the same file. Review
 decisions sit inside the script as CSV blocks, one decision per line, keyed by
 chemical name and CASRN, not by row position, so they still apply after rows
 are added to or removed from the input:
