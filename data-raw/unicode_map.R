@@ -132,6 +132,7 @@ math_symbols <- c(
   "\u00f7" = "/",
   "\u2212" = "-", # Minus sign
   "\u2010" = "-", # Hyphen
+  "\u2011" = "-", # Non-breaking hyphen
   "\u2013" = "-", # En dash
   "\u2014" = "-", # Em dash
   "\u2219" = "*",
@@ -176,6 +177,8 @@ misc_map <- c(
   "\u00ae" = "", # Registered
   "\u00a9" = "", # Copyright
   "\u2026" = "...",
+  "\uff08" = "(", # Fullwidth parentheses
+  "\uff09" = ")",
   "\u2032" = "'", # Prime
   "\u00b4" = "'", # Acute accent
   "\u201c" = "\"",
