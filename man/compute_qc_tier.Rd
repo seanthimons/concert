@@ -11,7 +11,10 @@ compute_qc_tier(status, n_matched, n_total)
 
 \item{n_matched}{Integer: number of columns that matched (had same DTXSID)}
 
-\item{n_total}{Integer: total number of tagged columns (K)}
+\item{n_total}{Integer: number of tagged columns that apply to the row (K).
+\code{\link[=classify_consensus]{classify_consensus()}} counts only the columns listed in the row's
+\code{lookup_evidence_columns}, so a row without an extracted CAS does not
+count that column and its tier number is one smaller than before 0.6.14.}
 }
 \value{
 Integer QC tier (1 = best, K+1 = worst)
