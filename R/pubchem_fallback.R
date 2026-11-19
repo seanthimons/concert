@@ -382,42 +382,65 @@ add_resolver_candidates <- function(
   keep <- !is.na(info$names) & nzchar(info$names)
   queries <- unique(info$names[keep])
   if (!length(queries)) return(df)
-  hits <- tryCatch(lookup_fn(queries, tidy = FALSE), error = function(e) e)
+  # One request for every query lost all resolver evidence to a single failed
+  # call. Chunks limit a failure to its own queries, and each is tried twice.
+  # ponytail: fixed chunk size and one retry; make them arguments if the API needs tuning.
+  hits <- list()
+  failed_queries <- character()
+  failure <- NULL
+  for (chunk in split(queries, ceiling(seq_along(queries) / 1000))) {
+    response <- tryCatch(lookup_fn(chunk, tidy = FALSE), error = function(e) e)
+    if (inherits(response, "error")) {
+      Sys.sleep(1)
+      response <- tryCatch(lookup_fn(chunk, tidy = FALSE), error = function(e) e)
+    }
+    if (inherits(response, "error")) {
+      failed_queries <- c(failed_queries, chunk)
+      failure <- failure %||% conditionMessage(response)
+    } else {
+      hits <- c(hits, response)
+    }
+  }
+  if (length(failed_queries)) {
+    message(sprintf(
+      "[resolver] Lookup failed for %d of %d queries: %s",
+      length(failed_queries),
+      length(queries),
+      failure
+    ))
+  }
   statuses <- stats::setNames(rep("no_hit", length(queries)), queries)
   candidate_results <- name_results <- stats::setNames(vector("list", length(queries)), queries)
   public <- character()
-  if (inherits(hits, "error")) {
-    statuses[] <- "error"
-  } else {
-    # Identifier matches only; an InChIKey inferred from the name is not proof
-    # of source identity. DUPLICATE still carries an attributed candidate.
-    ok <- Filter(function(h) isTRUE(h$result %in% c("FOUND", "DUPLICATE")) &&
-      !is.null(h$chemical$sid) && isTRUE(h$resolvedBy %in% c("Name", "CAS", "DTXSID")), hits)
-    hit <- tibble::tibble(
-      query = vapply(ok, function(h) as.character(h$query), character(1)),
-      sid = vapply(ok, function(h) as.character(h$chemical$sid), character(1)),
-      name = vapply(ok, function(h) as.character(h$chemical$name %||% NA_character_), character(1)))
-    hit <- hit[!duplicated(hit[c("query", "sid")]), ]
-    if (nrow(hit)) {
-      public <- tryCatch(public_fn(unique(hit$sid)), error = function(e) {
-        message("[resolver] Hits left unverified: ", conditionMessage(e)); e
-      })
-    }
-    for (query in queries) {
-      selected <- hit[hit$query == query, ]
-      responses <- Filter(function(h) identical(as.character(h$query), query), hits)
-      failed <- any(vapply(responses, function(h) isTRUE(h$result %in% c("ERROR", "FAILED")), logical(1)))
-      if (nrow(selected)) {
-        candidate_results[[query]] <- selected$sid
-        name_results[[query]] <- selected$name
-        statuses[query] <- if (inherits(public, "error")) "unverified" else {
-          n <- sum(selected$sid %in% public)
-          if (n == nrow(selected)) "public" else if (n == 0L) "not_public" else "some_public"
-        }
-        if (failed) statuses[query] <- paste(statuses[query], "error", sep = "; ")
-      } else if (failed) statuses[query] <- "error"
-    }
+  # Identifier matches only; an InChIKey inferred from the name is not proof
+  # of source identity. DUPLICATE still carries an attributed candidate.
+  ok <- Filter(function(h) isTRUE(h$result %in% c("FOUND", "DUPLICATE")) &&
+    !is.null(h$chemical$sid) && isTRUE(h$resolvedBy %in% c("Name", "CAS", "DTXSID")), hits)
+  hit <- tibble::tibble(
+    query = vapply(ok, function(h) as.character(h$query), character(1)),
+    sid = vapply(ok, function(h) as.character(h$chemical$sid), character(1)),
+    name = vapply(ok, function(h) as.character(h$chemical$name %||% NA_character_), character(1)))
+  hit <- hit[!duplicated(hit[c("query", "sid")]), ]
+  if (nrow(hit)) {
+    public <- tryCatch(public_fn(unique(hit$sid)), error = function(e) {
+      message("[resolver] Hits left unverified: ", conditionMessage(e)); e
+    })
   }
+  for (query in queries) {
+    selected <- hit[hit$query == query, ]
+    responses <- Filter(function(h) identical(as.character(h$query), query), hits)
+    failed <- any(vapply(responses, function(h) isTRUE(h$result %in% c("ERROR", "FAILED")), logical(1)))
+    if (nrow(selected)) {
+      candidate_results[[query]] <- selected$sid
+      name_results[[query]] <- selected$name
+      statuses[query] <- if (inherits(public, "error")) "unverified" else {
+        n <- sum(selected$sid %in% public)
+        if (n == nrow(selected)) "public" else if (n == 0L) "not_public" else "some_public"
+      }
+      if (failed) statuses[query] <- paste(statuses[query], "error", sep = "; ")
+    } else if (failed) statuses[query] <- "error"
+  }
+  statuses[failed_queries] <- "error"
   for (row in unique(info$rows[keep])) {
     indices <- which(keep & info$rows == row)
     query <- unique(info$names[indices])
