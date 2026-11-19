@@ -1130,7 +1130,8 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
           "multi_cas_count",
           "multi_analyte_source_value",
           "multi_analyte_part_index",
-          "multi_analyte_part_count"
+          "multi_analyte_part_count",
+          "multi_analyte_cas_parts"
         ),
         names(df)
       )
@@ -1293,6 +1294,7 @@ mod_clean_data_server <- function(id, data_store, on_cleaning_complete = NULL) {
           "multi_analyte_source_value",
           "multi_analyte_part_index",
           "multi_analyte_part_count",
+          "multi_analyte_cas_parts",
           "multi_analyte_resolution"
         ),
         names(review_rows)

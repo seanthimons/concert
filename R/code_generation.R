@@ -14,6 +14,7 @@ review_override_columns <- function() {
     "manual_preferredName",
     "row_flag",
     "row_flag_reason",
+    "review_note",
     "wqx_override_name"
   )
 }
