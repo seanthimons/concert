@@ -4249,7 +4249,8 @@ resolve_multi_analyte_row <- function(df, name_cols, row_index, action, values =
 #'     the input.
 #'   * `row_index` (or `row`): when `df` has an `original_row_id` column the
 #'     key is matched against it (as written by `pending.csv`); otherwise it
-#'     is a 1-based row position.
+#'     is a 1-based row position. It takes precedence, with a warning, when
+#'     `name` is also present.
 #'
 #'   `value` holds the rename value, or split parts separated by `;`. A `note`
 #'   is appended to the audit trail reason. An optional `cas_value` holds CAS
@@ -4268,6 +4269,17 @@ apply_multi_analyte_resolutions <- function(df, name_cols, resolutions = NULL, c
   keyed <- is.na(row_col) && "name" %in% names(spec)
   if (!(keyed || !is.na(row_col)) || !"action" %in% names(spec)) {
     stop("resolutions must include name (or row_index) and action columns.", call. = FALSE)
+  }
+  if (!is.na(row_col) && "name" %in% names(spec)) {
+    warning(
+      sprintf(
+        "resolutions has both %s and name; rows are matched by %s. Drop %s to match by name and CASRN.",
+        row_col,
+        row_col,
+        row_col
+      ),
+      call. = FALSE
+    )
   }
 
   if (keyed) {

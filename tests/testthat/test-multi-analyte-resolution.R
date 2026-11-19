@@ -319,3 +319,12 @@ test_that("row_index resolutions are rekeyed only when that changes nothing", {
   # A split part holding ";" cannot be written as text.
   expect_null(rekey(tibble::tibble(row_index = 2L, action = "split", values = I(list(c("a;b", "c"))))))
 })
+
+test_that("apply_multi_analyte_resolutions warns when row_index overrides a name key", {
+  df <- multi_analyte_fixture(c("lead and arsenic", "nitrate + nitrite"))
+  spec <- tibble::tibble(row_index = 2L, name = "lead and arsenic", action = "keep")
+
+  expect_warning(result <- apply_multi_analyte_resolutions(df, "analyte", spec), "matched by row_index")
+
+  expect_equal(result$cleaned_data$multi_analyte_resolution[2], "keep_combined")
+})

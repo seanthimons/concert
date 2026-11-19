@@ -25,7 +25,8 @@ matches rows with a blank CAS only. This key survives rows moving in
 the input.
 \item \code{row_index} (or \code{row}): when \code{df} has an \code{original_row_id} column the
 key is matched against it (as written by \code{pending.csv}); otherwise it
-is a 1-based row position.
+is a 1-based row position. It takes precedence, with a warning, when
+\code{name} is also present.
 }
 
 \code{value} holds the rename value, or split parts separated by \verb{;}. A \code{note}
