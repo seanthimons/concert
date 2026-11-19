@@ -1735,19 +1735,37 @@ test_that("tied name hits are broken by other sources or sent to review", {
 })
 
 test_that("find_name_ties keeps only names with several top-rank DTXSIDs", {
+  # The API echoes the matched synonym, not the query, as searchValue.
   stub <- function(names) {
-    tibble::tibble(
-      searchValue = c("PFOA", "PFOA", "PFOA", "Atrazine"),
+    all <- tibble::tibble(
+      searchValue = c("Pfoa", "Pfoa", "Pfoa", "atrazine"),
       dtxsid = c("DTXSID8031865", "DTXSID40892486", "DTXSID0000001", "DTXSID9020112"),
       preferredName = c("Perfluorooctanoic acid", "Perfluorooctanoate", "Other", "Atrazine"),
       rank = c(15L, 15L, 16L, 15L)
     )
+    all[tolower(all$searchValue) %in% tolower(names), ]
   }
   ties <- find_name_ties(c("PFOA", "Atrazine"), get_fn = stub)
   expect_equal(ties$searchValue, "PFOA")
   expect_equal(ties$tied_dtxsids, "DTXSID40892486; DTXSID8031865")
   expect_equal(ties$tied_names, "Perfluorooctanoate; Perfluorooctanoic acid")
   expect_equal(nrow(find_name_ties("PFOA", get_fn = function(x) stop("down"))), 0)
+  # With the lookup cache on, answers are stored under the name that was asked.
+  withr::defer({
+    .lookup_cache$enabled <- FALSE
+    .lookup_cache$lookups <- list()
+  })
+  .lookup_cache$enabled <- TRUE
+  .lookup_cache$lookups <- list()
+  expect_equal(suppressMessages(find_name_ties(c("PFOA", "Atrazine"), get_fn = stub))$searchValue, "PFOA")
+  cached <- suppressMessages(find_name_ties(c("PFOA", "Atrazine"), get_fn = function(x) stop("must come from cache")))
+  expect_equal(cached$tied_dtxsids, "DTXSID40892486; DTXSID8031865")
+  .lookup_cache$enabled <- FALSE
+  # Names holding "/" are never sent: the endpoint rejects them.
+  expect_message(
+    expect_equal(nrow(find_name_ties("(+/-)PFOA", get_fn = function(x) stop("must not be called"))), 0),
+    "1 names contain \"/\""
+  )
 })
 
 test_that("VERIFIED decisions require a current identity and preserve reviewed WQX names", {

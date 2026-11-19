@@ -236,8 +236,25 @@ find_name_ties <- function(names, get_fn = ComptoxR::ct_chemical_search_equal) {
   if (length(names) == 0) {
     return(empty)
   }
+  # ponytail: the GET endpoint answers 404 for any name holding "/", encoded or not; these keep the bulk pick.
+  slashed <- grepl("/", names, fixed = TRUE)
+  if (any(slashed)) {
+    message(sprintf("Exact search: %d names contain \"/\" and cannot be checked for ties", sum(slashed)))
+    names <- names[!slashed]
+  }
   message(sprintf("Exact search: checking %d synonym-level hits for ties...", length(names)))
-  hits <- tryCatch(suppressWarnings(cached_lookup("search_equal", names, get_fn, "name_ties")), error = function(e) {
+  # The GET echoes the matched synonym as searchValue ("AMMONIA" comes back as
+  # "Ammonia"), so each response is keyed back to the name that was asked.
+  # The store name differs from the one older caches keyed by that echo.
+  get_each <- function(queries) {
+    dplyr::bind_rows(lapply(queries, function(query) {
+      hit <- get_fn(query)
+      if (NROW(hit)) hit$searchValue <- query
+      hit
+    }))
+  }
+  lookup <- function() cached_lookup("search_equal_by_query", names, get_each, "name_ties")
+  hits <- tryCatch(suppressWarnings(lookup()), error = function(e) {
     message("Exact search: tie check failed, keeping bulk picks: ", conditionMessage(e))
     record_search_failure("name_ties", length(names), conditionMessage(e))
     NULL
@@ -335,7 +352,10 @@ cached_lookup <- function(lookup, values, fetch, failure_label = lookup) {
       failure <<- first_failure
       # ponytail: counts misses from the surviving chunks too; bulk results carry no per-chunk failure list.
       n_failed <- length(v) - length(got)
-      message(sprintf("[lookup] %s: %d queries failed after one retry: %s", failure_label, n_failed, failure))
+      message(sprintf(
+        "[lookup] %s: lookup failed for %d of %d queries after one retry: %s",
+        failure_label, n_failed, length(v), failure
+      ))
       record_search_failure(failure_label, n_failed, failure)
     }
     raw
