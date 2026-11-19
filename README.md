@@ -80,6 +80,25 @@ system.file("scripts/curate_loop.R", package = "concert")
 system.file("skills/concert-curate/SKILL.md", package = "concert")
 ```
 
+### Replay scripts
+
+A curation run leaves one self-contained `replay.R` that reproduces it. Review
+decisions sit inside the script as CSV blocks, one decision per line, keyed by
+chemical name and CASRN, not by row position, so they still apply after rows
+are added to or removed from the input:
+
+```r
+multi_analyte_resolutions <- read_decision_table(text = r"---(
+name,casrn,action,value,note
+Lead + Zinc,,split,Lead; Zinc,confirmed against the SDS
+"1,2-Dichloroethane and water",,keep,,
+)---")
+```
+
+Edit a decision by editing its line. A value that contains a comma goes in
+double quotes; a line with the wrong number of fields, or a CASRN that a
+spreadsheet rewrote as a date, stops the replay instead of being applied.
+
 ## Export Re-Import
 
 CONCERT exports include a `Pipeline Config` sheet with a `concert_export`
