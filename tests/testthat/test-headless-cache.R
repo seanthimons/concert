@@ -237,7 +237,7 @@ test_that("values from a dropped batch are retried once, then recorded as failur
   # The first call and its retry both drop a batch: b and c stay unconfirmed.
   expect_message(
     first <- suppressWarnings(cached_lookup("t", c("a", "b", "c"), fetch, "exact_name")),
-    "exact_name: 2 queries failed after one retry: API request to .* with status 503"
+    "exact_name: lookup failed for 2 of 3 queries after one retry: API request to .* with status 503"
   )
   expect_equal(first$searchValue, "a")
   expect_equal(asked[[2]], c("b", "c"))
