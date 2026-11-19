@@ -2,19 +2,23 @@
 % Please edit documentation in R/curate_iterate.R
 \name{read_decision_table}
 \alias{read_decision_table}
-\title{Read a decision table written next to a replay script}
+\title{Read a decision table}
 \usage{
-read_decision_table(path)
+read_decision_table(path = NULL, text = NULL)
 }
 \arguments{
 \item{path}{Path to a decision table CSV.}
+
+\item{text}{CSV text to read instead of a file. One leading newline is
+dropped, so the header can start on its own line.}
 }
 \value{
 A tibble of character columns.
 }
 \description{
-Reads \verb{decisions/*.csv} as written by \code{\link[=curate_iterate]{curate_iterate()}}. Every column is
-read as text, so names and CASRNs arrive exactly as written. Stops when a
-\code{casrn} or \code{cas_value} value is not CAS-shaped, which is what a spreadsheet leaves behind
-after rewriting a CASRN as a date (\code{103-02-6} becomes \code{0103-02-06}).
+Reads a decision table from CSV, either the text block a replay script
+carries or a file. Every column is read as text, so names and CASRNs arrive
+exactly as written. Stops when a \code{casrn} or \code{cas_value} value is not
+CAS-shaped, which is what a spreadsheet leaves behind after rewriting a
+CASRN as a date (\code{103-02-6} becomes \code{0103-02-06}).
 }

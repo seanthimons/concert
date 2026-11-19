@@ -525,20 +525,23 @@ write_status_md <- function(path, state, pending, done, decisions, error = NULL)
   writeLines(lines, path)
 }
 
-#' Read a decision table written next to a replay script
+#' Read a decision table
 #'
-#' Reads `decisions/*.csv` as written by [curate_iterate()]. Every column is
-#' read as text, so names and CASRNs arrive exactly as written. Stops when a
-#' `casrn` or `cas_value` value is not CAS-shaped, which is what a spreadsheet leaves behind
-#' after rewriting a CASRN as a date (`103-02-6` becomes `0103-02-06`).
+#' Reads a decision table from CSV, either the text block a replay script
+#' carries or a file. Every column is read as text, so names and CASRNs arrive
+#' exactly as written. Stops when a `casrn` or `cas_value` value is not
+#' CAS-shaped, which is what a spreadsheet leaves behind after rewriting a
+#' CASRN as a date (`103-02-6` becomes `0103-02-06`).
 #'
 #' @param path Path to a decision table CSV.
+#' @param text CSV text to read instead of a file. One leading newline is
+#'   dropped, so the header can start on its own line.
 #' @return A tibble of character columns.
 #' @export
-read_decision_table <- function(path) {
+read_decision_table <- function(path = NULL, text = NULL) {
   # as.list() drops readr's column-spec class, leaving a plain tibble.
   out <- tibble::as_tibble(as.list(readr::read_csv(
-    path,
+    if (is.null(text)) path else I(sub("^\r?\n", "", text)),
     col_types = readr::cols(.default = "c"),
     na = "",
     trim_ws = FALSE,
@@ -550,7 +553,7 @@ read_decision_table <- function(path) {
       stop(
         sprintf(
           "%s: %s is not CAS-shaped on line(s) %s: %s. A spreadsheet may have rewritten it as a date.",
-          path,
+          path %||% "decision table",
           col,
           paste(bad + 1L, collapse = ", "),
           paste(unique(out[[col]][bad]), collapse = ", ")
@@ -569,40 +572,21 @@ is_cas_shaped <- function(x) {
   is.na(x) | stringr::str_detect(as.character(x), paste0("^", cas, "(\\s*;\\s*", cas, ")*$"))
 }
 
-# Write the decision tables replay.R reads and return their paths by object
-# name. A table read_decision_table() could not return as written (list
-# columns, or a casrn it would reject) is left out and stays inline in the script.
-write_decision_tables <- function(dir, tables) {
-  files <- c(
-    multi_analyte_resolutions = "multi_analyte.csv",
-    review_picks = "review_picks.csv",
-    row_flags = "row_flags.csv"
-  )
-  unlink(file.path(dir, files))
-  keep <- vapply(
-    tables[names(files)],
-    function(x) {
-      x <- tibble::as_tibble(x)
-      cas <- unlist(x[intersect(c("casrn", "cas_value"), names(x))])
-      NROW(x) > 0 && !any(vapply(x, is.list, logical(1))) && all(is_cas_shaped(cas))
-    },
-    logical(1)
-  )
-  paths <- file.path(dir, files[keep])
-  names(paths) <- names(files)[keep]
-  if (length(paths)) fs::dir_create(dir)
-  for (key in names(paths)) {
-    readr::write_csv(tibble::as_tibble(tables[[key]]), paths[[key]], na = "")
-  }
-  paths
+# TRUE when read_decision_table() returns the table as written, so replay.R
+# can carry it as CSV text: no list columns, and no CAS value the reader rejects.
+decision_table_is_csv <- function(x) {
+  x <- tibble::as_tibble(x)
+  cas <- unlist(x[intersect(c("casrn", "cas_value"), names(x))])
+  NROW(x) > 0 && !any(vapply(x, is.list, logical(1))) && all(is_cas_shaped(cas))
 }
 
 #' Run one iteration of the agent curation loop
 #'
 #' Sources `decisions.R`, runs the staged headless pipeline with a curation
 #' cache, and writes `status.md`, `pending.csv`, and `replay.R` next to it.
-#' `replay.R` reads its decision tables from `decisions/*.csv`, written
-#' alongside; multi-analyte resolutions are recorded there by name and CASRN.
+#' `replay.R` is one self-contained file: its decision tables are CSV text
+#' blocks, one decision per line, with multi-analyte resolutions recorded by
+#' name and CASRN.
 #' When no rows are pending it also writes the curated workbook (and ToxVal
 #' files when `harmonize` is set). Re-run after editing `decisions.R` until
 #' `status.md` reports `done: TRUE`.
@@ -694,13 +678,7 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
   readr::write_csv(identity_report, file.path(out_dir, "identity_review.csv"), na = "")
   readr::write_csv(pending, file.path(out_dir, "pending.csv"), na = "")
 
-  replay_tables <- list(
-    multi_analyte_resolutions = state$multi_analyte_resolutions_replay,
-    review_picks = d$review_picks,
-    row_flags = d$row_flags
-  )
   replay <- generate_concert_script(
-    decision_files = write_decision_tables(file.path(out_dir, "decisions"), replay_tables),
     input_path = d$input_path,
     output_path = d$output_path %||% file.path(out_dir, "curated.xlsx"),
     tag_map = d$tag_map,

@@ -332,15 +332,10 @@ test_that("decisions applied in the app replay from lineage as a name + casrn ta
   expect_equal(keyed$action, c("split", "keep", "rename"))
   expect_equal(keyed$cas_value, c("13252-13-6; 62037-80-3", "375-73-5; 45187-15-3", NA))
 
-  # The table survives the CSV files the replay download writes.
-  dir <- withr::local_tempdir()
-  paths <- write_decision_tables(dir, list(multi_analyte_resolutions = keyed))
-  replay <- apply_multi_analyte_resolutions(
-    df,
-    "analyte",
-    read_decision_table(paths[["multi_analyte_resolutions"]]),
-    lineage_cas_cols
-  )
+  # The table survives the CSV text block the replay script carries.
+  block <- append_decision_table(character(), "keyed", keyed)
+  expect_true(any(grepl("read_decision_table", block)))
+  replay <- apply_multi_analyte_resolutions(df, "analyte", eval(parse(text = block)), lineage_cas_cols)
   expect_identical(replay$cleaned_data, gui$cleaned_data)
   expect_identical(replay$audit_trail, gui$audit_trail)
 })

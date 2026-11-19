@@ -1362,15 +1362,33 @@ format_curate_call_args <- function(args) {
   arg_lines
 }
 
-append_optional_script_object <- function(lines, name, value, file = NA_character_) {
+append_optional_script_object <- function(lines, name, value) {
   if (is.null(value)) {
     return(lines)
   }
-  if (!is.na(file)) {
-    return(c(lines, paste0(name, " <- read_decision_table(", script_literal(file), ")")))
-  }
 
   c(lines, "", paste0(name, " <- ", script_literal(value, exact = TRUE)))
+}
+
+# A decision table as CSV text in a raw string: one decision per line, and no
+# escaping, because the delimiter grows dashes until the text cannot close it.
+append_decision_table <- function(lines, name, value) {
+  if (is.null(value) || !decision_table_is_csv(value)) {
+    return(append_optional_script_object(lines, name, value))
+  }
+  csv <- sub("\n$", "", readr::format_csv(tibble::as_tibble(value), na = ""))
+  dashes <- "---"
+  while (grepl(paste0(")", dashes, "\""), csv, fixed = TRUE)) {
+    dashes <- paste0(dashes, "-")
+  }
+  c(
+    lines,
+    "",
+    "# One decision per line, as CSV. Every column is read as text.",
+    paste0(name, " <- read_decision_table(text = r\"", dashes, "("),
+    csv,
+    paste0(")", dashes, "\")")
+  )
 }
 
 #' Generate a CONCERT replay script
@@ -1420,10 +1438,6 @@ append_optional_script_object <- function(lines, name, value, file = NA_characte
 #' @param review_decision_evidence Portable immutable review evidence contract.
 #' @param identity_decisions Explicit structured source-identity decisions.
 #' @param candidate_validation Structured candidate validation outcomes.
-#' @param decision_files Optional named character vector of CSV paths, named
-#'   `multi_analyte_resolutions`, `review_picks`, or `row_flags`. A named table
-#'   is read from its file with [read_decision_table()] instead of being
-#'   written into the script.
 #' @param ignored_identifier_cols Retained identifier columns deliberately
 #'   treated as metadata, persisted in the replay call.
 #'
@@ -1461,8 +1475,7 @@ generate_concert_script <- function(
   review_decision_evidence = NULL,
   identity_decisions = NULL,
   candidate_validation = NULL,
-  toxval_identity_mode = "lookup",
-  decision_files = NULL
+  toxval_identity_mode = "lookup"
 ) {
   has_review_overrides <- review_overrides_present(review_overrides)
   if (!is.null(review_picks) && NROW(review_picks) == 0) {
@@ -1546,12 +1559,8 @@ generate_concert_script <- function(
 
   setup_lines <- append_optional_script_object(setup_lines, "value_corrections", value_corrections)
   setup_lines <- append_optional_script_object(setup_lines, "cleaning_steps", cleaning_steps)
-  if (length(decision_files)) {
-    setup_lines <- c(setup_lines, "", "# Decision tables are CSV files; edit them there. Every column is read as text.")
-  }
   for (key in c("multi_analyte_resolutions", "review_picks", "row_flags")) {
-    file <- if (key %in% names(decision_files)) decision_files[[key]] else NA_character_
-    setup_lines <- append_optional_script_object(setup_lines, key, get(key), file)
+    setup_lines <- append_decision_table(setup_lines, key, get(key))
   }
   if (!is.null(review_decision_evidence)) validate_review_evidence(review_decision_evidence)
   setup_lines <- append_optional_script_object(setup_lines, "review_decision_evidence", review_decision_evidence)

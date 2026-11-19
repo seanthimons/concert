@@ -35,7 +35,7 @@ Imports:
     purrr,
     reactable (>= 0.4.5.9000),
     reactable.extras,
-    readr,
+    readr (>= 2.0.0),
     readxl,
     rio,
     shiny,
@@ -51,8 +51,7 @@ Imports:
     units (>= 0.8-0),
     V8,
     vctrs,
-    writexl,
-    zip
+    writexl
 Suggests:
     knitr,
     rmarkdown,
