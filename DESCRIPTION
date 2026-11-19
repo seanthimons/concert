@@ -35,7 +35,7 @@ Imports:
     purrr,
     reactable (>= 0.4.5.9000),
     reactable.extras,
-    readr,
+    readr (>= 2.0.0),
     readxl,
     rio,
     shiny,

@@ -278,7 +278,7 @@ test_that("iterated review keeps stale VERIFIED ties pending until an explicit d
   expect_false(first$done)
   expect_equal(first$pending$pending_type, "verified_unresolved")
   expect_equal(first$pending$row_flag_reason, "Historical review")
-  expect_equal(read_decision_table(file.path(fx$dir, "decisions", "row_flags.csv"))$flag, "VERIFIED")
+  expect_true("Chromium,VERIFIED,Historical review" %in% readLines(file.path(fx$dir, "replay.R")))
   replayed <- source(file.path(fx$dir, "replay.R"), local = new.env())$value
   expect_equal(replayed$data$row_flag[2], "VERIFIED")
   expect_equal(replayed$data$row_flag_reason[2], "Historical review")
@@ -408,7 +408,7 @@ test_that("only FOLLOW-UP/BAD dispositions hide scope blockers from pending (#11
   expect_equal(pending$row_flag, c("VERIFIED", NA))
 })
 
-test_that("replay.R reads keyed decision tables that reproduce the decisions", {
+test_that("replay.R carries keyed decision tables that reproduce the decisions", {
   dir <- withr::local_tempdir()
   input_path <- file.path(dir, "inventory.csv")
   readr::write_csv(
@@ -445,8 +445,13 @@ test_that("replay.R reads keyed decision tables that reproduce the decisions", {
 
   replay <- readLines(file.path(dir, "replay.R"))
   expect_false(any(grepl("row_index", replay)))
+  # One file, one decision per line.
+  expect_false(dir.exists(file.path(dir, "decisions")))
+  expect_true("Lead + Zinc,keep" %in% replay)
   tables <- new.env()
-  eval(parse(text = grep("read_decision_table", replay, value = TRUE)), tables)
+  for (expr in as.list(parse(text = replay))) {
+    if (grepl("read_decision_table", deparse(expr)[1], fixed = TRUE)) eval(expr, tables)
+  }
   expect_equal(tables$multi_analyte_resolutions, tibble::tibble(name = "Lead + Zinc", action = "keep"))
   expect_equal(tables$review_picks$note, "confirmed against the SDS")
   # A chemical literally named "NA" and awkward text come back as written.
@@ -454,11 +459,6 @@ test_that("replay.R reads keyed decision tables that reproduce the decisions", {
 
   rs <- result$state$resolution_state
   expect_equal(rs$review_note, c("confirmed against the SDS", NA, NA))
-
-  # Dropping a table removes its file, so a stale one is never replayed.
-  writeLines(grep("^review_picks|^  note", readLines(decisions), value = TRUE, invert = TRUE), decisions)
-  curate_iterate(decisions, verbose = FALSE)
-  expect_false(file.exists(file.path(dir, "decisions", "review_picks.csv")))
 })
 
 test_that("read_decision_table stops on a casrn a spreadsheet rewrote as a date", {
@@ -468,10 +468,15 @@ test_that("read_decision_table stops on a casrn a spreadsheet rewrote as a date"
   writeLines(c("name,casrn,flag", "Acetone,67-64-1,VERIFIED"), path)
   expect_equal(read_decision_table(path)$casrn, "67-64-1")
 
-  # A table whose casrn the reader would reject is never written; it stays inline.
-  dir <- withr::local_tempdir()
+  expect_error(read_decision_table(text = "\nname,casrn\nOdd,0103-02-06\n"), "decision table: casrn")
+
+  # A table whose casrn the reader would reject stays an inline literal.
   odd <- tibble::tibble(name = "Odd", casrn = "NOCAS_1", dtxsid = "DTXSID1")
-  flags <- tibble::tibble(name = "Acetone", flag = "VERIFIED")
-  expect_equal(names(write_decision_tables(dir, list(review_picks = odd, row_flags = flags))), "row_flags")
-  expect_equal(list.files(dir), "row_flags.csv")
+  expect_false(any(grepl("read_decision_table", append_decision_table(character(), "review_picks", odd))))
+
+  # Text that would close the raw string, blanks, and line breaks come back as written.
+  awkward <- tibble::tibble(name = c("a )---\" b", "two\nlines", "NA"), casrn = c("67-64-1", NA, NA), note = c(NA, "", "x"))
+  block <- append_decision_table(character(), "awkward", awkward)
+  expect_true(is_blank_text(eval(parse(text = block))$note[2]))
+  expect_equal(eval(parse(text = block))[c("name", "casrn")], awkward[c("name", "casrn")])
 })

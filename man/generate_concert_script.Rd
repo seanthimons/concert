@@ -36,8 +36,7 @@ generate_concert_script(
   review_decision_evidence = NULL,
   identity_decisions = NULL,
   candidate_validation = NULL,
-  toxval_identity_mode = "lookup",
-  decision_files = NULL
+  toxval_identity_mode = "lookup"
 )
 }
 \arguments{
@@ -119,11 +118,6 @@ treated as metadata, persisted in the replay call.}
 \item{candidate_validation}{Structured candidate validation outcomes.}
 
 \item{toxval_identity_mode}{ToxVal policy: lookup (compatibility default) or accepted.}
-
-\item{decision_files}{Optional named character vector of CSV paths, named
-\code{multi_analyte_resolutions}, \code{review_picks}, or \code{row_flags}. A named table
-is read from its file with \code{\link[=read_decision_table]{read_decision_table()}} instead of being
-written into the script.}
 }
 \value{
 Complete R script as a character scalar.
