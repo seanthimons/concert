@@ -529,7 +529,7 @@ write_status_md <- function(path, state, pending, done, decisions, error = NULL)
 #'
 #' Reads `decisions/*.csv` as written by [curate_iterate()]. Every column is
 #' read as text, so names and CASRNs arrive exactly as written. Stops when a
-#' `casrn` value is not CAS-shaped, which is what a spreadsheet leaves behind
+#' `casrn` or `cas_value` value is not CAS-shaped, which is what a spreadsheet leaves behind
 #' after rewriting a CASRN as a date (`103-02-6` becomes `0103-02-06`).
 #'
 #' @param path Path to a decision table CSV.
@@ -544,15 +544,16 @@ read_decision_table <- function(path) {
     trim_ws = FALSE,
     progress = FALSE
   )))
-  if ("casrn" %in% names(out)) {
-    bad <- which(!is_cas_shaped(out$casrn))
+  for (col in intersect(c("casrn", "cas_value"), names(out))) {
+    bad <- which(!is_cas_shaped(out[[col]]))
     if (length(bad)) {
       stop(
         sprintf(
-          "%s: casrn is not CAS-shaped on line(s) %s: %s. A spreadsheet may have rewritten it as a date.",
+          "%s: %s is not CAS-shaped on line(s) %s: %s. A spreadsheet may have rewritten it as a date.",
           path,
+          col,
           paste(bad + 1L, collapse = ", "),
-          paste(unique(out$casrn[bad]), collapse = ", ")
+          paste(unique(out[[col]][bad]), collapse = ", ")
         ),
         call. = FALSE
       )
@@ -561,9 +562,11 @@ read_decision_table <- function(path) {
   out
 }
 
-# NA counts as CAS-shaped: a blank casrn is a valid key.
+# NA counts as CAS-shaped: a blank casrn is a valid key. A cas_value may list
+# several CAS numbers separated by ";".
 is_cas_shaped <- function(x) {
-  is.na(x) | stringr::str_detect(as.character(x), "^\\d{2,7}-\\d{2}-\\d$")
+  cas <- "\\d{2,7}-\\d{2}-\\d"
+  is.na(x) | stringr::str_detect(as.character(x), paste0("^", cas, "(\\s*;\\s*", cas, ")*$"))
 }
 
 # Write the decision tables replay.R reads and return their paths by object
@@ -580,7 +583,8 @@ write_decision_tables <- function(dir, tables) {
     tables[names(files)],
     function(x) {
       x <- tibble::as_tibble(x)
-      NROW(x) > 0 && !any(vapply(x, is.list, logical(1))) && all(is_cas_shaped(x[["casrn"]]))
+      cas <- unlist(x[intersect(c("casrn", "cas_value"), names(x))])
+      NROW(x) > 0 && !any(vapply(x, is.list, logical(1))) && all(is_cas_shaped(cas))
     },
     logical(1)
   )

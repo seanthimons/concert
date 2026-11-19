@@ -15,6 +15,6 @@ A tibble of character columns.
 \description{
 Reads \verb{decisions/*.csv} as written by \code{\link[=curate_iterate]{curate_iterate()}}. Every column is
 read as text, so names and CASRNs arrive exactly as written. Stops when a
-\code{casrn} value is not CAS-shaped, which is what a spreadsheet leaves behind
+\code{casrn} or \code{cas_value} value is not CAS-shaped, which is what a spreadsheet leaves behind
 after rewriting a CASRN as a date (\code{103-02-6} becomes \code{0103-02-06}).
 }

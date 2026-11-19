@@ -51,7 +51,8 @@ Imports:
     units (>= 0.8-0),
     V8,
     vctrs,
-    writexl
+    writexl,
+    zip
 Suggests:
     knitr,
     rmarkdown,

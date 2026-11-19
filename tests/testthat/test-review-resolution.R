@@ -301,3 +301,105 @@ test_that("Rows Needing Review stages one bulk action for every selected row (#4
     expect_equal(nrow(ds$cleaned_data), 5L)
   }))
 })
+
+# ---- replaying app decisions from lineage ----
+
+lineage_cas_cols <- c("casrn", "cas_extract_casrn_2")
+genx_spec <- list(
+  name_action = "split",
+  name_parts = c("HFPO Dimer Acid", "HFPO Dimer Acid Ammonium Salt"),
+  cas_parts = c("13252-13-6", "62037-80-3"),
+  pairing = "position"
+)
+
+lineage_table <- function(result, name_col = "analyte") {
+  multi_analyte_resolutions_from_lineage(result$cleaned_data, name_col, "casrn", result$audit_trail)
+}
+
+test_that("decisions applied in the app replay from lineage as a name + casrn table", {
+  # Row 4 repeats row 1, so one key covers two rows.
+  df <- dplyr::bind_rows(review_fixture(), review_fixture()[1, ])
+  df$original_row_id <- seq_len(nrow(df))
+  decisions <- list(
+    "1" = genx_spec,
+    "4" = genx_spec,
+    "2" = list(name_action = "keep", cas_parts = c("375-73-5", "45187-15-3"), pairing = "position"),
+    "3" = list(name_action = "rename", name_parts = "propanone", pairing = "broadcast")
+  )
+  gui <- apply_review_resolutions(df, "analyte", decisions, lineage_cas_cols)
+
+  keyed <- lineage_table(gui)
+  expect_equal(keyed$action, c("split", "keep", "rename"))
+  expect_equal(keyed$cas_value, c("13252-13-6; 62037-80-3", "375-73-5; 45187-15-3", NA))
+
+  # The table survives the CSV files the replay download writes.
+  dir <- withr::local_tempdir()
+  paths <- write_decision_tables(dir, list(multi_analyte_resolutions = keyed))
+  replay <- apply_multi_analyte_resolutions(
+    df,
+    "analyte",
+    read_decision_table(paths[["multi_analyte_resolutions"]]),
+    lineage_cas_cols
+  )
+  expect_identical(replay$cleaned_data, gui$cleaned_data)
+  expect_identical(replay$audit_trail, gui$audit_trail)
+})
+
+test_that("lineage replay reproduces each CAS pairing the editor allows", {
+  specs <- list(
+    one_cas_for_all_parts = modifyList(genx_spec, list(cas_parts = "13252-13-6")),
+    source_cas_reassigned = list(name_action = "keep", cas_parts = "13252-13-6", pairing = "position"),
+    broadcast_split = modifyList(genx_spec, list(pairing = "broadcast"))
+  )
+  for (label in names(specs)) {
+    gui <- apply_review_resolutions(review_fixture(), "analyte", list("1" = specs[[label]]), lineage_cas_cols)
+    replay <- apply_multi_analyte_resolutions(review_fixture(), "analyte", lineage_table(gui), lineage_cas_cols)
+    expect_identical(replay$cleaned_data, gui$cleaned_data, label = label)
+    expect_identical(replay$audit_trail, gui$audit_trail, label = label)
+  }
+})
+
+test_that("lineage replay stops when a name + casrn table would not reproduce the data", {
+  df <- dplyr::bind_rows(review_fixture(), review_fixture()[1, ])
+  df$original_row_id <- seq_len(nrow(df))
+  stop_text <- "cannot be replayed by name and CASRN"
+
+  # Row 4 shares row 1's key but was left unresolved.
+  partial <- apply_review_resolutions(df, "analyte", list("1" = genx_spec), lineage_cas_cols)
+  expect_error(lineage_table(partial), stop_text)
+
+  # A child of the split is resolved a second time.
+  first <- apply_review_resolutions(review_fixture(), "analyte", list("1" = genx_spec), lineage_cas_cols)
+  again <- apply_review_resolutions(
+    first$cleaned_data,
+    "analyte",
+    list("1" = list(name_action = "rename", name_parts = "GenX", pairing = "broadcast")),
+    lineage_cas_cols
+  )
+  again$audit_trail <- dplyr::bind_rows(first$audit_trail, again$audit_trail)
+  expect_error(lineage_table(again), stop_text)
+
+  # The mixture sits in the second Name column, which the key does not cover.
+  two_names <- dplyr::mutate(review_fixture(), label = "sample", .before = "analyte")
+  second <- apply_review_resolutions(two_names, c("label", "analyte"), list("1" = genx_spec), lineage_cas_cols)
+  expect_error(lineage_table(second, name_col = "label"), stop_text)
+  keep_cas <- list(name_action = "keep", cas_parts = c("13252-13-6", "62037-80-3"), pairing = "position")
+  kept <- apply_review_resolutions(two_names, c("label", "analyte"), list("1" = keep_cas), lineage_cas_cols)
+  expect_error(lineage_table(kept, name_col = "label"), stop_text)
+
+  expect_null(multi_analyte_resolutions_from_lineage(review_fixture(), "analyte", "casrn"))
+})
+
+test_that("lineage replay recovers notes and the reader rejects a date-like cas_value", {
+  noted <- apply_multi_analyte_resolutions(
+    review_fixture(),
+    "analyte",
+    tibble::tibble(name = review_fixture()$analyte[1], casrn = "13252-13-6", action = "keep", note = "one product (GenX)"),
+    lineage_cas_cols
+  )
+  expect_equal(lineage_table(noted)$note, "one product (GenX)")
+
+  path <- withr::local_tempfile(fileext = ".csv")
+  writeLines(c("name,casrn,action,cas_value", "a and b,13252-13-6,keep,Jan-64; 62037-80-3"), path)
+  expect_error(read_decision_table(path), "cas_value is not CAS-shaped")
+})

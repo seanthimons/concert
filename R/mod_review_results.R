@@ -3313,7 +3313,29 @@ mod_review_results_server <- function(id, data_store) {
       )
     })
 
-    replay_script_text <- function() {
+    # Decision tables the app can write as CSV files next to the replay script.
+    replay_decision_tables <- function() {
+      tags <- data_store$column_tags %||% list()
+      list(
+        multi_analyte_resolutions = multi_analyte_resolutions_from_lineage(
+          data_store$cleaned_data,
+          names(tags)[tags == "Name"][1],
+          names(tags)[tags == "CASRN"][1],
+          data_store$cleaning_audit
+        ),
+        row_flags = data_store$review_row_flags
+      )
+    }
+
+    replay_file_base <- function() {
+      if (!is.null(data_store$file_info) && !is.null(data_store$file_info$name)) {
+        tools::file_path_sans_ext(data_store$file_info$name)
+      } else {
+        "concert"
+      }
+    }
+
+    replay_script_text <- function(tables = replay_decision_tables(), decision_files = NULL) {
       req(data_store$resolution_state)
 
       file_name <- if (!is.null(data_store$file_info) && !is.null(data_store$file_info$name)) {
@@ -3364,7 +3386,9 @@ mod_review_results_server <- function(id, data_store) {
         identity_decisions = data_store$identity_decisions,
         candidate_validation = data_store$candidate_validation,
         toxval_identity_mode = data_store$toxval_identity_mode %||% "lookup",
-        row_flags = data_store$review_row_flags
+        multi_analyte_resolutions = tables$multi_analyte_resolutions,
+        row_flags = tables$row_flags,
+        decision_files = decision_files
       )
     }
 
@@ -3408,7 +3432,7 @@ mod_review_results_server <- function(id, data_store) {
           ),
           downloadButton(
             session$ns("download_replay_script"),
-            "Download R script",
+            "Download replay",
             class = "btn-primary d-inline-flex align-items-center justify-content-center",
             style = "line-height:1.5;"
           ),
@@ -3424,16 +3448,23 @@ mod_review_results_server <- function(id, data_store) {
     })
 
     output$download_replay_script <- downloadHandler(
+      # A zip of replay.R and decisions/*.csv when there are decision tables,
+      # otherwise the script alone.
       filename = function() {
-        file_base <- if (!is.null(data_store$file_info) && !is.null(data_store$file_info$name)) {
-          tools::file_path_sans_ext(data_store$file_info$name)
-        } else {
-          "concert"
-        }
-        paste0(file_base, "_replay.R")
+        ext <- if (any(vapply(replay_decision_tables(), NROW, integer(1)) > 0L)) ".zip" else ".R"
+        paste0(replay_file_base(), "_replay", ext)
       },
       content = function(file) {
-        writeLines(replay_script_text(), con = file)
+        tables <- replay_decision_tables()
+        if (!any(vapply(tables, NROW, integer(1)) > 0L)) {
+          return(writeLines(replay_script_text(tables), con = file))
+        }
+        dir <- tempfile("replay")
+        on.exit(unlink(dir, recursive = TRUE), add = TRUE)
+        paths <- write_decision_tables(file.path(dir, "decisions"), tables)
+        paths[] <- file.path("decisions", basename(paths))
+        writeLines(replay_script_text(tables, paths), con = file.path(dir, "replay.R"))
+        zip::zipr(file, list.files(dir, full.names = TRUE))
       }
     )
 
