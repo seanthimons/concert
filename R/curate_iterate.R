@@ -531,7 +531,9 @@ write_status_md <- function(path, state, pending, done, decisions, error = NULL)
 #' carries or a file. Every column is read as text, so names and CASRNs arrive
 #' exactly as written. Stops when a `casrn` value is not CAS-shaped, which is
 #' what a spreadsheet leaves behind after rewriting a CASRN as a date
-#' (`103-02-6` becomes `0103-02-06`).
+#' (`103-02-6` becomes `0103-02-06`). Also stops when a line does not have the
+#' header's number of fields, which is what an unquoted comma in a hand-edited
+#' value leaves behind: write `"1,2-Dichloroethane"`, quotes included.
 #'
 #' @param path Path to a decision table CSV.
 #' @param text CSV text to read instead of a file. One leading newline is
@@ -539,21 +541,37 @@ write_status_md <- function(path, state, pending, done, decisions, error = NULL)
 #' @return A tibble of character columns.
 #' @export
 read_decision_table <- function(path = NULL, text = NULL) {
-  # as.list() drops readr's column-spec class, leaving a plain tibble.
-  out <- tibble::as_tibble(as.list(readr::read_csv(
+  label <- path %||% "decision table"
+  # readr only warns about a malformed line and shifts its columns; stop instead.
+  raw <- suppressWarnings(readr::read_csv(
     if (is.null(text)) path else I(sub("^\r?\n", "", text)),
     col_types = readr::cols(.default = "c"),
     na = "",
     trim_ws = FALSE,
+    name_repair = "check_unique",
     progress = FALSE
-  )))
+  ))
+  malformed <- unique(readr::problems(raw)$row)
+  if (length(malformed)) {
+    stop(
+      sprintf(
+        "%s: line(s) %s do not have %d fields. Put a value that contains a comma in double quotes: \"1,2-Dichloroethane\".",
+        label,
+        paste(malformed, collapse = ", "),
+        ncol(raw)
+      ),
+      call. = FALSE
+    )
+  }
+  # as.list() drops readr's column-spec class, leaving a plain tibble.
+  out <- tibble::as_tibble(as.list(raw))
   if ("casrn" %in% names(out)) {
     bad <- which(!is_cas_shaped(out$casrn))
     if (length(bad)) {
       stop(
         sprintf(
           "%s: casrn is not CAS-shaped on line(s) %s: %s. A spreadsheet may have rewritten it as a date.",
-          path %||% "decision table",
+          label,
           paste(bad + 1L, collapse = ", "),
           paste(unique(out$casrn[bad]), collapse = ", ")
         ),

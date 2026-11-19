@@ -1384,6 +1384,7 @@ append_decision_table <- function(lines, name, value) {
     lines,
     "",
     "# One decision per line, as CSV. Every column is read as text.",
+    "# A value that contains a comma goes in double quotes: \"1,2-Dichloroethane\".",
     paste0(name, " <- read_decision_table(text = r\"", dashes, "("),
     csv,
     paste0(")", dashes, "\")")
