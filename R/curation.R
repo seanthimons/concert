@@ -280,34 +280,82 @@ is_dropped_chunk_warning <- function(w) grepl("^(API request to|Request for) .* 
 #'
 #' Fetches only the values not already stored and returns the stored rows for
 #' all `values`, in `values` order, so a fresh and an incremental run assemble
-#' the same response. Errors propagate and are never stored. A value is stored
-#' as a miss only when no chunk of its request was dropped.
+#' the same response. Errors propagate and are never stored. Values a dropped
+#' chunk left unanswered are asked once more; a value is stored as a miss only
+#' when no chunk of its last request was dropped.
 #' @noRd
 cached_lookup <- function(lookup, values, fetch, failure_label = lookup) {
-  dropped <- FALSE
+  failure <- NULL
   fetch_logged <- function(v) {
-    withCallingHandlers(fetch(v), warning = function(w) if (is_dropped_chunk_warning(w)) dropped <<- TRUE)
+    failure <<- NULL
+    withCallingHandlers(
+      fetch(v),
+      warning = function(w) if (is_dropped_chunk_warning(w)) failure <<- failure %||% conditionMessage(w)
+    )
+  }
+  # Values the response answered; NULL when its shape gives no way to tell.
+  answered <- function(raw, v) {
+    if (!is.data.frame(raw)) {
+      return(NULL)
+    }
+    # An empty response (all misses, or every chunk dropped) has no columns.
+    if (!NROW(raw)) {
+      return(character())
+    }
+    sv <- grep("^search.?value$", names(raw), ignore.case = TRUE, value = TRUE)[1]
+    if (is.na(sv)) NULL else intersect(v, raw[[sv]])
+  }
+  # ponytail: one immediate retry, no backoff; add a delay if the API needs time to recover.
+  fetch_retry <- function(v) {
+    raw <- fetch_logged(v)
+    if (is.null(failure)) {
+      return(raw)
+    }
+    first_failure <- failure
+    got <- answered(raw, v)
+    if (!is.null(got)) {
+      failure <<- NULL
+      unanswered <- setdiff(v, got)
+      again <- if (length(unanswered)) {
+        tryCatch(fetch_logged(unanswered), error = function(e) {
+          failure <<- conditionMessage(e)
+          NULL
+        })
+      }
+      if (NROW(again)) {
+        # A retry that cannot be merged (column types differ) leaves the first response standing.
+        raw <- tryCatch(dplyr::bind_rows(raw, again), error = function(e) {
+          failure <<- conditionMessage(e)
+          raw
+        })
+      }
+      got <- answered(raw, v)
+    }
+    if (!is.null(failure)) {
+      failure <<- first_failure
+      # ponytail: counts misses from the surviving chunks too; bulk results carry no per-chunk failure list.
+      n_failed <- length(v) - length(got)
+      message(sprintf("[lookup] %s: %d queries failed after one retry: %s", failure_label, n_failed, failure))
+      record_search_failure(failure_label, n_failed, failure)
+    }
+    raw
   }
   if (!isTRUE(.lookup_cache$enabled) || !length(values)) {
-    raw <- fetch_logged(values)
-    if (dropped) record_search_failure(failure_label, length(values), "a batch of the request failed")
-    return(raw)
+    return(fetch_retry(values))
   }
   store <- .lookup_cache$lookups[[lookup]] %||% list(rows = NULL, queried = character())
   todo <- setdiff(values, store$queried)
   if (length(todo)) {
-    raw <- fetch_logged(todo)
-    sv <- grep("^search.?value$", names(raw), ignore.case = TRUE, value = TRUE)[1]
-    # An empty response (all misses, or every chunk dropped) has no columns.
-    if (!is.data.frame(raw) || (NROW(raw) && is.na(sv))) return(raw)
-    returned <- if (NROW(raw)) intersect(todo, raw[[sv]]) else character()
-    # ponytail: counts misses from the surviving chunks too; bulk results carry no per-chunk failure list.
-    if (dropped) record_search_failure(failure_label, length(todo) - length(returned), "a batch of the request failed")
+    raw <- fetch_retry(todo)
+    returned <- answered(raw, todo)
+    if (is.null(returned)) {
+      return(raw)
+    }
     if (NROW(raw)) {
-      raw$.query <- raw[[sv]]
+      raw$.query <- raw[[grep("^search.?value$", names(raw), ignore.case = TRUE, value = TRUE)[1]]]
       store$rows <- dplyr::bind_rows(store$rows, raw)
     }
-    store$queried <- c(store$queried, if (dropped) returned else todo)
+    store$queried <- c(store$queried, if (is.null(failure)) todo else returned)
     .lookup_cache$lookups[[lookup]] <- store
   }
   message(sprintf("[lookup cache] %s: %d cached, %d searched", lookup, length(values) - length(todo), length(todo)))

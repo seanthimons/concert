@@ -217,7 +217,7 @@ test_that("appended rows search only their new values and match a fresh run (#15
   expect_equal(incremental$data$consensus_dtxsid[incremental$data$chemical_name == "Benzene"], "DTXSID3039242")
 })
 
-test_that("values from a dropped batch are searched again and recorded as failures", {
+test_that("values from a dropped batch are retried once, then recorded as failures", {
   withr::defer({
     .lookup_cache$enabled <- FALSE
     .lookup_cache$lookups <- list()
@@ -226,33 +226,66 @@ test_that("values from a dropped batch are searched again and recorded as failur
   .lookup_cache$lookups <- list()
   .search_failures$rows <- list()
   asked <- list()
+  failing <- 1:2
   fetch <- function(query) {
     asked[[length(asked) + 1L]] <<- query
-    if (length(asked) == 1L) warning("API request to \"x\" failed for \"b\" with status 503")
+    if (length(asked) %in% failing) {
+      warning("API request to \"x\" failed for \"b\" with status 503")
+    }
     tibble::tibble(searchValue = intersect(query, "a"), dtxsid = "DTXSID1")
   }
-  first <- suppressMessages(suppressWarnings(cached_lookup("t", c("a", "b", "c"), fetch, "exact_name")))
+  # The first call and its retry both drop a batch: b and c stay unconfirmed.
+  expect_message(
+    first <- suppressWarnings(cached_lookup("t", c("a", "b", "c"), fetch, "exact_name")),
+    "exact_name: 2 queries failed after one retry: API request to .* with status 503"
+  )
   expect_equal(first$searchValue, "a")
-  expect_equal(collected_search_failures()$n_queries, 2L)
-  suppressMessages(cached_lookup("t", c("a", "b", "c"), fetch))
   expect_equal(asked[[2]], c("b", "c"))
-  # With no dropped batch, b and c are confirmed misses and are not asked again.
+  failures <- collected_search_failures()
+  expect_equal(failures$n_queries, 2L)
+  expect_match(failures$message, "status 503")
+  # The next run drops a batch once; the retry succeeds, so nothing is recorded.
+  failing <- 3L
+  .search_failures$rows <- list()
+  suppressMessages(suppressWarnings(cached_lookup("t", c("a", "b", "c"), fetch)))
+  expect_equal(asked[3:4], list(c("b", "c"), c("b", "c")))
+  expect_equal(nrow(collected_search_failures()), 0L)
+  # b and c are now confirmed misses and are not asked again.
   suppressMessages(cached_lookup("t", c("c", "b", "a"), fetch))
-  expect_length(asked, 2L)
+  expect_length(asked, 4L)
+  # A retry that errors keeps the first response and records the failure.
+  .lookup_cache$enabled <- FALSE
+  calls <- 0L
+  flaky <- function(query) {
+    calls <<- calls + 1L
+    if (calls == 2L) {
+      stop("down")
+    }
+    warning("Request for q failed: HTTP 503")
+    tibble::tibble(searchValue = "p", dtxsid = "DTXSID2")
+  }
+  kept <- suppressMessages(suppressWarnings(cached_lookup("u", c("p", "q"), flaky, "name_ties")))
+  expect_equal(kept$searchValue, "p")
+  expect_equal(collected_search_failures()$n_queries, 1L)
+  expect_match(collected_search_failures()$message, "HTTP 503")
+  .lookup_cache$enabled <- TRUE
 
   # ComptoxR returns a columnless tibble when every new value misses or every
   # chunk drops; cached hits survive, and a single-GET drop is not stored.
   none <- function(query) {
     asked[[length(asked) + 1L]] <<- query
-    if ("y" %in% query) warning("Request for y failed: HTTP 503")
+    if ("y" %in% query) {
+      warning("Request for y failed: HTTP 503")
+    }
     tibble::tibble()
   }
   expect_equal(suppressMessages(cached_lookup("t", c("a", "z"), none))$searchValue, "a")
   suppressMessages(cached_lookup("t", c("a", "z"), none))
-  expect_length(asked, 3L)
+  expect_length(asked, 5L)
   expect_equal(suppressMessages(suppressWarnings(cached_lookup("t", c("a", "y"), none)))$searchValue, "a")
   suppressMessages(suppressWarnings(cached_lookup("t", c("a", "y"), none)))
-  expect_equal(asked[[5]], "y")
+  # Each run asks y and retries it once.
+  expect_equal(asked[6:9], rep(list("y"), 4L))
 
   # Time budget: serving a fully cached 25k-value lookup stays cheap.
   values <- sprintf("name %05d", seq_len(25000))
