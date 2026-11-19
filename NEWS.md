@@ -1,6 +1,36 @@
 
 
 
+## concert 0.6.17 (2026-11-19)
+
+#### Bug fixes
+
+- print failed lookups as a message so they are not lost among truncated
+  warnings
+  ([731edec](https://github.com/seanthimons/concert/tree/731edec70d2eb8c5f63fbb74de5144e683d74313))
+- send resolver lookups in chunks with one retry so a failed call no
+  longer marks every row as an error
+  ([14576aa](https://github.com/seanthimons/concert/tree/14576aa8db273663c3cbe42430f0145c2e882638))
+- warn when a multi-analyte decision table has both row_index and name,
+  since row_index wins
+  ([f50de41](https://github.com/seanthimons/concert/tree/f50de412e78ba196733a64281a4bc37ebdb59687))
+
+#### Docs
+
+- note that qc_tier counts only the lookup columns on each row since
+  0.6.14, so existing tiers are one smaller
+  ([860ebd4](https://github.com/seanthimons/concert/tree/860ebd472373827cdb96be22d3178894da52706c))
+- correct the ComptoxR version floor and unpinned remote in the README
+  ([9c819c2](https://github.com/seanthimons/concert/tree/9c819c231f3c30e94aee6088d0d9b6c27e355524))
+
+#### Other changes
+
+- bump version to 0.6.17 \[skip ci\]
+  ([e8f6c14](https://github.com/seanthimons/concert/tree/e8f6c14c2ba9fe5c8e3c192e8a7b0f67ba232f9f))
+
+Full set of changes:
+[`v0.6.16...v0.6.17`](https://github.com/seanthimons/concert/compare/v0.6.16...v0.6.17)
+
 ## concert 0.6.16 (2026-11-19)
 
 #### New features
@@ -27,6 +57,8 @@
 
 #### Docs
 
+- update NEWS.md for v0.6.16 \[skip ci\]
+  ([179b1b6](https://github.com/seanthimons/concert/tree/179b1b646774f80ec790d7323c403567c2c1e860))
 - describe the single-file replay script and its decision blocks in the
   README
   ([8948e02](https://github.com/seanthimons/concert/tree/8948e020db8319a22d9d8d5fea982f1931e158b2))
