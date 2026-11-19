@@ -470,6 +470,17 @@ test_that("read_decision_table stops on a casrn a spreadsheet rewrote as a date"
 
   expect_error(read_decision_table(text = "\nname,casrn\nOdd,0103-02-06\n"), "decision table: casrn")
 
+  # A hand-edited value with an unquoted comma stops, with or without a casrn column.
+  expect_error(
+    read_decision_table(text = "\nname,casrn,action\nAcetone,67-64-1,keep\n1,2-Dichloroethane,107-06-2,keep\n"),
+    "line\\(s\\) 3 do not have 3 fields"
+  )
+  expect_error(read_decision_table(text = "name,flag\n1,2-Dichloroethane,VERIFIED\n"), "line\\(s\\) 2 do not have 2")
+  expect_error(read_decision_table(text = "name,flag,reason\nAcetone,VERIFIED\n"), "do not have 3 fields")
+  expect_error(read_decision_table(text = "name,flag\n\"Acetone,VERIFIED\nLead,VERIFIED\n"), "do not have 2 fields")
+  expect_error(read_decision_table(text = "name,name\nAcetone,VERIFIED\n"), "unique")
+  expect_equal(read_decision_table(text = "name,flag\n\"1,2-Dichloroethane\",VERIFIED\n")$name, "1,2-Dichloroethane")
+
   # A table whose casrn the reader would reject stays an inline literal.
   odd <- tibble::tibble(name = "Odd", casrn = "NOCAS_1", dtxsid = "DTXSID1")
   expect_false(any(grepl("read_decision_table", append_decision_table(character(), "review_picks", odd))))
