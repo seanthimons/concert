@@ -314,7 +314,10 @@ stage_curate <- function(
   degraded <- search_failure_message(state$search_failures,
     "Rerun with refresh_cache = TRUE once the CompTox API recovers.")
   if (!is.null(degraded)) {
-    warning(if (reused) paste("Reusing cached search with failed lookups.", degraded) else degraded, call. = FALSE)
+    if (reused) degraded <- paste("Reusing cached search with failed lookups.", degraded)
+    # Also a message: R keeps only the first 50 warnings of a long run.
+    message("[headless] ", degraded)
+    warning(degraded, call. = FALSE)
   }
   resolution_state <- pipeline_result$results
   state$source_identifier_evidence <- pipeline_result$source_identifier_evidence
