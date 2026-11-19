@@ -39,6 +39,7 @@ reference:
       - curate_headless
       - curate_iterate
       - curate_decisions_template
+      - read_decision_table
       - starts_with("stage_")
       - run_curation_pipeline
       - search_failure_summary
