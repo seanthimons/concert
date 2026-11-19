@@ -424,3 +424,27 @@ test_that("registered misses cannot treat raw WQX-shaped metadata as canonical q
     lookup_evidence_columns = "dtxsid", consensus_status = "error", consensus_dtxsid = NA_character_)
   expect_identical(unresolved_name_queries(df, "name")$names, "Actual unresolved source")
 })
+
+test_that("resolver lookup retries a failed call and confines a failure to its chunk", {
+  frame <- function(names) {
+    tibble::tibble(raw_name = names, consensus_status = "error", consensus_dtxsid = NA_character_)
+  }
+  hit <- function(q) list(result = "FOUND", query = q, resolvedBy = "Name", chemical = list(sid = "DTXSID1", name = q))
+  calls <- 0L
+  flaky <- function(ids, tidy) {
+    calls <<- calls + 1L
+    if (calls == 1L) stop("timeout")
+    lapply(ids, hit)
+  }
+  retried <- add_resolver_candidates(frame(c("A", "B")), "raw_name", lookup_fn = flaky, public_fn = identity)
+  expect_equal(calls, 2L)
+  expect_equal(retried$resolver_lookup_status, c("public", "public"))
+
+  names <- paste0("chem", 1:1500)
+  second_chunk_down <- function(ids, tidy) if ("chem1001" %in% ids) stop("gateway timeout") else lapply(ids, hit)
+  expect_message(
+    partial <- add_resolver_candidates(frame(names), "raw_name", lookup_fn = second_chunk_down, public_fn = identity),
+    "Lookup failed for 500 of 1500 queries: gateway timeout"
+  )
+  expect_equal(partial$resolver_lookup_status, rep(c("public", "error"), c(1000L, 500L)))
+})
