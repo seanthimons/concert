@@ -11,7 +11,7 @@ License: MIT + file LICENSE
 URL: https://seanthimons.github.io/concert/, https://github.com/seanthimons/concert
 BugReports: https://github.com/seanthimons/concert/issues
 Depends:
-    R (>= 4.1.0)
+    R (>= 4.4.0)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 Imports:
