@@ -2,9 +2,11 @@
 
 Sources `decisions.R`, runs the staged headless pipeline with a curation
 cache, and writes `status.md`, `pending.csv`, and `replay.R` next to it.
-When no rows are pending it also writes the curated workbook (and ToxVal
-files when `harmonize` is set). Re-run after editing `decisions.R` until
-`status.md` reports `done: TRUE`.
+`replay.R` is one self-contained file: its decision tables are CSV text
+blocks, one decision per line, with multi-analyte resolutions recorded
+by name and CASRN. When no rows are pending it also writes the curated
+workbook (and ToxVal files when `harmonize` is set). Re-run after
+editing `decisions.R` until `status.md` reports `done: TRUE`.
 
 ## Usage
 

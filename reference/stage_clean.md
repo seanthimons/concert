@@ -22,11 +22,13 @@ stage_clean(
 
 - multi_analyte_resolutions:
 
-  Optional data frame/list with `row_index` (or `row`), `action`, and
-  optional `value`/`values` columns. `row_index` is the
-  `original_row_id` as written to `pending.csv`, so it stays valid after
-  synonym or multi-analyte splits. Applied after cleaning and before
-  curation.
+  Optional data frame/list with `name`, optional `casrn`, `action`, and
+  optional `value` and `note` columns. Every row whose cleaned Name and
+  CAS match is resolved; a blank `casrn` matches rows with a blank CAS
+  only. `row_index` (the `original_row_id` written to `pending.csv`) is
+  still accepted in place of `name`, but depends on input row order.
+  Applied after cleaning and before curation. See
+  [`apply_multi_analyte_resolutions()`](https://seanthimons.github.io/concert/reference/apply_multi_analyte_resolutions.md).
 
 - value_corrections:
 

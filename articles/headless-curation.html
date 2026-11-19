@@ -19,7 +19,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.15</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.17</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -62,7 +62,7 @@
       <img src="../logo.png" class="logo" alt=""><h1>Headless curation</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/v0.6.15/vignettes/headless-curation.Rmd" class="external-link"><code>vignettes/headless-curation.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/main/vignettes/headless-curation.Rmd" class="external-link"><code>vignettes/headless-curation.Rmd</code></a></small>
       <div class="d-none name"><code>headless-curation.Rmd</code></div>
     </div>
 
@@ -295,7 +295,11 @@ look.</li>
 <code>suggested</code>, <code>no_match</code>), the suggested DTXSID or
 split, and the candidate list.</li>
 <li>
-<code>replay.R</code>: the standalone reproduction script.</li>
+<code>replay.R</code>: the standalone reproduction script, one
+self-contained file. Its decision tables are CSV text blocks, one
+decision per line, keyed by name and CASRN so they still apply after
+rows move in the input. A <code>note</code> column in the multi-analyte
+or picks table is carried into the workbook.</li>
 <li>
 <code>cache/</code>: CompTox search results, so re-runs only
 re-query changed names.</li>

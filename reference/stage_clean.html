@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.15</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.17</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -37,7 +37,7 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Stage 2: run the cleaning pipeline</h1>
-      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/v0.6.15/R/curate_stages.R" class="external-link"><code>R/curate_stages.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/main/R/curate_stages.R" class="external-link"><code>R/curate_stages.R</code></a></small>
       <div class="d-none name"><code>stage_clean.Rd</code></div>
     </div>
 
@@ -64,10 +64,13 @@
 
 
 <dt id="arg-multi-analyte-resolutions">multi_analyte_resolutions<a class="anchor" aria-label="anchor" href="#arg-multi-analyte-resolutions"></a></dt>
-<dd><p>Optional data frame/list with <code>row_index</code>
-(or <code>row</code>), <code>action</code>, and optional <code>value</code>/<code>values</code> columns. <code>row_index</code> is
-the <code>original_row_id</code> as written to <code>pending.csv</code>, so it stays valid after
-synonym or multi-analyte splits. Applied after cleaning and before curation.</p></dd>
+<dd><p>Optional data frame/list with <code>name</code>,
+optional <code>casrn</code>, <code>action</code>, and optional <code>value</code> and <code>note</code> columns. Every
+row whose cleaned Name and CAS match is resolved; a blank <code>casrn</code> matches
+rows with a blank CAS only. <code>row_index</code> (the <code>original_row_id</code> written to
+<code>pending.csv</code>) is still accepted in place of <code>name</code>, but depends on input
+row order. Applied after cleaning and before curation. See
+<code><a href="apply_multi_analyte_resolutions.html">apply_multi_analyte_resolutions()</a></code>.</p></dd>
 
 
 <dt id="arg-value-corrections">value_corrections<a class="anchor" aria-label="anchor" href="#arg-value-corrections"></a></dt>

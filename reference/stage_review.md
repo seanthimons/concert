@@ -40,9 +40,10 @@ stage_review(
 
 - review_picks:
 
-  Optional data frame with `name`, `dtxsid`, and optional `casrn`
-  columns. Rows whose cleaned Name (and CAS, when given) match are
-  resolved to that DTXSID after validation against CompTox.
+  Optional data frame with `name`, `dtxsid`, and optional `casrn` and
+  `note` columns. Rows whose cleaned Name (and CAS, when given) match
+  are resolved to that DTXSID after validation against CompTox. A `note`
+  is written to the workbook's `review_note` column.
 
 - row_flags:
 

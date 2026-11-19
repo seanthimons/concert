@@ -20,9 +20,10 @@ pak::pak("seanthimons/concert")
 
 GitHub-only dependencies (ComptoxR and a pinned reactable revision) are
 installed automatically from `Remotes` in `DESCRIPTION`. CONCERT
-requires ComptoxR 4.0.3 or newer. The GitHub install target and lockfile
-use `v4.0.3`; the `track-comptoxr-release` workflow opens a PR to bump
-the pin when ComptoxR publishes a new stable release.
+requires ComptoxR 4.0.5 or newer. The ComptoxR remote is not pinned to a
+release, so a fresh install takes the current ComptoxR default branch;
+pin a release in your own lockfile if you need one. This repo’s lockfile
+uses `v4.0.5`.
 
 ### CompTox API key
 
@@ -91,6 +92,28 @@ skill:
 system.file("scripts/curate_loop.R", package = "concert")
 system.file("skills/concert-curate/SKILL.md", package = "concert")
 ```
+
+### Replay scripts
+
+A curation run leaves one self-contained `replay.R` that reproduces it;
+the app’s **Download R script** gives the same file. Review decisions
+sit inside the script as CSV blocks, one decision per line, keyed by
+chemical name and CASRN, not by row position, so they still apply after
+rows are added to or removed from the input:
+
+``` r
+
+multi_analyte_resolutions <- read_decision_table(text = r"---(
+name,casrn,action,value,note
+Lead + Zinc,,split,Lead; Zinc,confirmed against the SDS
+"1,2-Dichloroethane and water",,keep,,
+)---")
+```
+
+Edit a decision by editing its line. A value that contains a comma goes
+in double quotes; a line with the wrong number of fields, or a CASRN
+that a spreadsheet rewrote as a date, stops the replay instead of being
+applied.
 
 ## Export Re-Import
 

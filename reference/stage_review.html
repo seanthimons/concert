@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.15</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.17</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -37,7 +37,7 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Stage 4: apply Review Results edits</h1>
-      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/v0.6.15/R/curate_stages.R" class="external-link"><code>R/curate_stages.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/main/R/curate_stages.R" class="external-link"><code>R/curate_stages.R</code></a></small>
       <div class="d-none name"><code>stage_review.Rd</code></div>
     </div>
 
@@ -82,8 +82,9 @@ bulk accept).</p></dd>
 
 <dt id="arg-review-picks">review_picks<a class="anchor" aria-label="anchor" href="#arg-review-picks"></a></dt>
 <dd><p>Optional data frame with <code>name</code>, <code>dtxsid</code>, and optional
-<code>casrn</code> columns. Rows whose cleaned Name (and CAS, when given) match are
-resolved to that DTXSID after validation against CompTox.</p></dd>
+<code>casrn</code> and <code>note</code> columns. Rows whose cleaned Name (and CAS, when given)
+match are resolved to that DTXSID after validation against CompTox. A
+<code>note</code> is written to the workbook's <code>review_note</code> column.</p></dd>
 
 
 <dt id="arg-row-flags">row_flags<a class="anchor" aria-label="anchor" href="#arg-row-flags"></a></dt>

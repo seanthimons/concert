@@ -15,6 +15,8 @@ Curate a file without the Shiny app, or drive it from an agent loop.
   : Run one iteration of the agent curation loop
 - [`curate_decisions_template()`](https://seanthimons.github.io/concert/reference/curate_decisions_template.md)
   : Write a starter decisions.R for the agent curation loop
+- [`read_decision_table()`](https://seanthimons.github.io/concert/reference/read_decision_table.md)
+  : Read a decision table
 - [`stage_clean()`](https://seanthimons.github.io/concert/reference/stage_clean.md)
   : Stage 2: run the cleaning pipeline
 - [`stage_curate()`](https://seanthimons.github.io/concert/reference/stage_curate.md)

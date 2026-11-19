@@ -200,7 +200,11 @@ Each run writes:
   (`multi_analyte`, `verified_unresolved`, `candidate_validation`,
   `identity_scope`, `disagree`, `suggested`, `no_match`), the suggested
   DTXSID or split, and the candidate list.
-- `replay.R`: the standalone reproduction script.
+- `replay.R`: the standalone reproduction script, one self-contained
+  file. Its decision tables are CSV text blocks, one decision per line,
+  keyed by name and CASRN so they still apply after rows move in the
+  input. A `note` column in the multi-analyte or picks table is carried
+  into the workbook.
 - `cache/`: CompTox search results, so re-runs only re-query changed
   names.
 

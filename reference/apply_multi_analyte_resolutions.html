@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.15</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.17</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -37,7 +37,7 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Apply multiple multi-analyte resolutions</h1>
-      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/v0.6.15/R/cleaning_pipeline.R" class="external-link"><code>R/cleaning_pipeline.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/seanthimons/concert/blob/main/R/cleaning_pipeline.R" class="external-link"><code>R/cleaning_pipeline.R</code></a></small>
       <div class="d-none name"><code>apply_multi_analyte_resolutions.Rd</code></div>
     </div>
 
@@ -68,10 +68,19 @@
 
 
 <dt id="arg-resolutions">resolutions<a class="anchor" aria-label="anchor" href="#arg-resolutions"></a></dt>
-<dd><p>Data frame/list with <code>row</code> or <code>row_index</code>, <code>action</code>, and
-optional <code>value</code> or <code>values</code>. When <code>df</code> has an <code>original_row_id</code> column the
-row key is matched against it (as written by <code>pending.csv</code>); otherwise it is
-a 1-based row position.</p></dd>
+<dd><p>Data frame/list with <code>action</code>, optional <code>value</code> or
+<code>values</code>, optional <code>note</code>, and one of two row keys:</p><ul><li><p><code>name</code> and optional <code>casrn</code>: every row whose first Name column equals
+<code>name</code> and whose first CASRN column equals <code>casrn</code>. A blank <code>casrn</code>
+matches rows with a blank CAS only. This key survives rows moving in
+the input.</p></li>
+<li><p><code>row_index</code> (or <code>row</code>): when <code>df</code> has an <code>original_row_id</code> column the
+key is matched against it (as written by <code>pending.csv</code>); otherwise it
+is a 1-based row position. It takes precedence, with a warning, when
+<code>name</code> is also present.</p></li>
+</ul><p><code>value</code> holds the rename value, or split parts separated by <code>;</code>. A <code>note</code>
+is appended to the audit trail reason. An optional <code>cas_value</code> holds CAS
+numbers separated by <code>;</code> to assign to the resulting rows by position (one
+per part, or one for all parts); without it CAS values are left unchanged.</p></dd>
 
 
 <dt id="arg-cas-cols">cas_cols<a class="anchor" aria-label="anchor" href="#arg-cas-cols"></a></dt>

@@ -25,10 +25,24 @@ apply_multi_analyte_resolutions(
 
 - resolutions:
 
-  Data frame/list with `row` or `row_index`, `action`, and optional
-  `value` or `values`. When `df` has an `original_row_id` column the row
-  key is matched against it (as written by `pending.csv`); otherwise it
-  is a 1-based row position.
+  Data frame/list with `action`, optional `value` or `values`, optional
+  `note`, and one of two row keys:
+
+  - `name` and optional `casrn`: every row whose first Name column
+    equals `name` and whose first CASRN column equals `casrn`. A blank
+    `casrn` matches rows with a blank CAS only. This key survives rows
+    moving in the input.
+
+  - `row_index` (or `row`): when `df` has an `original_row_id` column
+    the key is matched against it (as written by `pending.csv`);
+    otherwise it is a 1-based row position. It takes precedence, with a
+    warning, when `name` is also present.
+
+  `value` holds the rename value, or split parts separated by `;`. A
+  `note` is appended to the audit trail reason. An optional `cas_value`
+  holds CAS numbers separated by `;` to assign to the resulting rows by
+  position (one per part, or one for all parts); without it CAS values
+  are left unchanged.
 
 - cas_cols:
 

@@ -1,11 +1,87 @@
 # Changelog
 
+## concert 0.6.17 (2026-11-19)
+
+#### Bug fixes
+
+- print failed lookups as a message so they are not lost among truncated
+  warnings
+  ([731edec](https://github.com/seanthimons/concert/tree/731edec70d2eb8c5f63fbb74de5144e683d74313))
+- send resolver lookups in chunks with one retry so a failed call no
+  longer marks every row as an error
+  ([14576aa](https://github.com/seanthimons/concert/tree/14576aa8db273663c3cbe42430f0145c2e882638))
+- warn when a multi-analyte decision table has both row_index and name,
+  since row_index wins
+  ([f50de41](https://github.com/seanthimons/concert/tree/f50de412e78ba196733a64281a4bc37ebdb59687))
+
+#### Docs
+
+- note that qc_tier counts only the lookup columns on each row since
+  0.6.14, so existing tiers are one smaller
+  ([860ebd4](https://github.com/seanthimons/concert/tree/860ebd472373827cdb96be22d3178894da52706c))
+- correct the ComptoxR version floor and unpinned remote in the README
+  ([9c819c2](https://github.com/seanthimons/concert/tree/9c819c231f3c30e94aee6088d0d9b6c27e355524))
+
+#### Other changes
+
+- bump version to 0.6.17 \[skip ci\]
+  ([e8f6c14](https://github.com/seanthimons/concert/tree/e8f6c14c2ba9fe5c8e3c192e8a7b0f67ba232f9f))
+
+Full set of changes:
+[`v0.6.16...v0.6.17`](https://github.com/seanthimons/concert/compare/v0.6.16...v0.6.17)
+
+## concert 0.6.16 (2026-11-19)
+
+#### New features
+
+- carry app multi-analyte decisions and review notes into the replay
+  script by name and CASRN
+  ([\#162](https://github.com/seanthimons/concert/issues/162))
+  ([a0494e0](https://github.com/seanthimons/concert/tree/a0494e0c195780ef4630a5d871c273636a48be7b))
+- embed decision tables in replay.R as CSV text instead of sidecar files
+  ([02d0785](https://github.com/seanthimons/concert/tree/02d0785c0b154666a6ac564566c1e1df5c5118a3))
+- key multi-analyte decisions by name and CASRN and read decision tables
+  from CSV
+  ([a1fdc10](https://github.com/seanthimons/concert/tree/a1fdc10d6f9d808cdd026472fc85f3636ca4ca84))
+
+#### Bug fixes
+
+- stop on a decision line with the wrong number of fields instead of
+  shifting its columns
+  ([932168b](https://github.com/seanthimons/concert/tree/932168b54e45889894775f39799574835d391aa0))
+
+#### Build
+
+- require R 4.4.0 for the base null-default operator
+  ([cb0b9dd](https://github.com/seanthimons/concert/tree/cb0b9dd89a6578bbad5735cf0b1d7236c638b7cf))
+
+#### Docs
+
+- update NEWS.md for v0.6.16 \[skip ci\]
+  ([179b1b6](https://github.com/seanthimons/concert/tree/179b1b646774f80ec790d7323c403567c2c1e860))
+- describe the single-file replay script and its decision blocks in the
+  README
+  ([8948e02](https://github.com/seanthimons/concert/tree/8948e020db8319a22d9d8d5fea982f1931e158b2))
+
+#### Other changes
+
+- bump version to 0.6.16 \[skip ci\]
+  ([bafba96](https://github.com/seanthimons/concert/tree/bafba9646e1af16a850255dc009f1faead00d671))
+
+Full set of changes:
+[`v0.6.15...v0.6.16`](https://github.com/seanthimons/concert/compare/v0.6.15...v0.6.16)
+
 ## concert 0.6.15 (2026-11-17)
 
 #### Bug fixes
 
 - preserve source-review fingerprints when other rows add CAS lookups
   ([b5be537](https://github.com/seanthimons/concert/tree/b5be5375a3730b1ffd033336eb893c2a834281c6))
+
+#### Docs
+
+- update NEWS.md for v0.6.15 \[skip ci\]
+  ([a319b7d](https://github.com/seanthimons/concert/tree/a319b7d5c6fff4833e8f6dd78fd39fbfae9e66c4))
 
 #### Other changes
 
