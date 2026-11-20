@@ -1,6 +1,36 @@
 
 
 
+## concert 0.6.18 (2026-11-20)
+
+#### Bug fixes
+
+- check name ties for names the API returns in a different spelling,
+  which were skipped before
+  ([75320c8](https://github.com/seanthimons/concert/tree/75320c8911276f8c811bdb29bcd6769e2baa05eb))
+- retry lookups a dropped batch left unanswered and report the API error
+  text when they still fail
+  ([fdfe3c6](https://github.com/seanthimons/concert/tree/fdfe3c683fe93827a866c7457c506792f5d12e80))
+- convert fullwidth parentheses and the non-breaking hyphen to their
+  ASCII forms
+  ([9039519](https://github.com/seanthimons/concert/tree/9039519b27c282bad217bdaedcbf9601d1d12267))
+- list read_decision_table in the reference index so the site builds
+  ([86496df](https://github.com/seanthimons/concert/tree/86496df99deb6b27cfffe73a39466f932c7082d8))
+
+#### Docs
+
+- note that review fingerprints saved by 0.6.14 or earlier read as
+  changed once on 0.6.15 and later
+  ([31a86d6](https://github.com/seanthimons/concert/tree/31a86d670df329e64c3a212cfe0a4fdaf76056a9))
+
+#### Other changes
+
+- bump version to 0.6.18 \[skip ci\]
+  ([8bae09c](https://github.com/seanthimons/concert/tree/8bae09c859538a88edc76bb73ab2d437b36341b3))
+
+Full set of changes:
+[`v0.6.17...v0.6.18`](https://github.com/seanthimons/concert/compare/v0.6.17...v0.6.18)
+
 ## concert 0.6.17 (2026-11-19)
 
 #### Bug fixes
@@ -17,6 +47,8 @@
 
 #### Docs
 
+- update NEWS.md for v0.6.17 \[skip ci\]
+  ([e2ae66b](https://github.com/seanthimons/concert/tree/e2ae66b9cbc3425e39ce6ca3eddaf3a8f4a3a0ed))
 - note that qc_tier counts only the lookup columns on each row since
   0.6.14, so existing tiers are one smaller
   ([860ebd4](https://github.com/seanthimons/concert/tree/860ebd472373827cdb96be22d3178894da52706c))
