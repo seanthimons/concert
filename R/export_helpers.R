@@ -367,8 +367,13 @@ write_curation_output <- function(path, format = c("xlsx", "csv", "parquet"), sh
   switch(
     format,
     xlsx = {
-      writexl::write_xlsx(sheets, path)
-      check_xlsx_readable(path)
+      # Stage beside the destination and rename only a workbook that reads back, so a failed write
+      # leaves any existing workbook untouched.
+      staged <- tempfile("concert-", tmpdir = dirname(path), fileext = ".xlsx")
+      on.exit(unlink(staged), add = TRUE)
+      writexl::write_xlsx(sheets, staged)
+      check_xlsx_readable(staged, path)
+      if (!file.rename(staged, path)) stop(sprintf("Could not move the written workbook to %s.", path), call. = FALSE)
     },
     csv = readr::write_csv(toxval_tibble, path),
     parquet = arrow::write_parquet(toxval_tibble, path)
@@ -378,18 +383,29 @@ write_curation_output <- function(path, format = c("xlsx", "csv", "parquet"), sh
 
 # writexl stages the workbook in tempdir() and reports success even when that disk is full,
 # leaving a file whose parts are empty.
-check_xlsx_readable <- function(path) {
-  tryCatch(readxl::excel_sheets(path), error = function(e) {
+# ponytail: checks the sheet list and for empty parts; a sheet cut short mid-file passes. Parse the
+# sheet XML here if that is ever seen.
+check_xlsx_readable <- function(path, label = path) {
+  problem <- tryCatch(
+    {
+      readxl::excel_sheets(path)
+      empty <- utils::unzip(path, list = TRUE)
+      empty <- empty$Name[empty$Length == 0]
+      if (length(empty)) sprintf("empty parts: %s", paste(empty, collapse = ", "))
+    },
+    error = conditionMessage
+  )
+  if (!is.null(problem)) {
     stop(
       sprintf(
-        "Workbook %s was written but cannot be read back (%s). Check free space in tempdir() (%s) and rerun.",
-        path,
-        conditionMessage(e),
+        "Workbook %s could not be written in a readable form (%s). Check free space in tempdir() (%s) and rerun.",
+        label,
+        problem,
         tempdir()
       ),
       call. = FALSE
     )
-  })
+  }
   invisible(path)
 }
 

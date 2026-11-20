@@ -76,11 +76,34 @@ test_that("write_curation_output xlsx builds the multi-sheet workbook", {
   expect_setequal(readxl::excel_sheets(xlsx_path), names(sheets))
 })
 
-test_that("write_curation_output rejects a workbook that cannot be read back", {
-  good <- withr::local_tempfile(fileext = ".xlsx")
-  expect_identical(write_curation_output(good, "xlsx", sheets = list(a = data.frame(x = 1))), good)
+test_that("write_curation_output keeps the existing workbook when the new one cannot be read back", {
+  dir <- withr::local_tempdir()
+  path <- file.path(dir, "out.xlsx")
+  expect_identical(write_curation_output(path, "xlsx", sheets = list(a = data.frame(x = 1))), path)
+  before <- tools::md5sum(path)
 
-  empty <- withr::local_tempfile(fileext = ".xlsx")
-  file.create(empty)
-  expect_error(check_xlsx_readable(empty), "cannot be read back")
+  # Stand in for writexl on a full temp disk: no error, a file with nothing in it.
+  local_mocked_bindings(write_xlsx = function(x, path, ...) file.create(path), .package = "writexl")
+  expect_error(
+    write_curation_output(path, "xlsx", sheets = list(a = data.frame(x = 2))),
+    "out.xlsx could not be written"
+  )
+  expect_identical(tools::md5sum(path), before)
+  expect_identical(readxl::read_excel(path)$x, 1)
+  expect_identical(list.files(dir), "out.xlsx")
+})
+
+test_that("check_xlsx_readable rejects a workbook with an empty part", {
+  skip_if(!nzchar(Sys.which("zip")))
+  dir <- withr::local_tempdir()
+  good <- file.path(dir, "good.xlsx")
+  writexl::write_xlsx(list(a = data.frame(x = 1), b = data.frame()), good)
+  expect_identical(check_xlsx_readable(good), good)
+
+  parts <- file.path(dir, "parts")
+  utils::unzip(good, exdir = parts)
+  file.create(file.path(parts, "xl", "worksheets", "sheet1.xml"))
+  bad <- file.path(dir, "bad.xlsx")
+  withr::with_dir(parts, utils::zip(bad, list.files(".", recursive = TRUE, all.files = TRUE), flags = "-q"))
+  expect_error(check_xlsx_readable(bad), "empty parts: xl/worksheets/sheet1.xml")
 })
