@@ -279,7 +279,10 @@ test_that("iterated review keeps stale VERIFIED ties pending until an explicit d
   expect_equal(first$pending$pending_type, "verified_unresolved")
   expect_equal(first$pending$row_flag_reason, "Historical review")
   expect_true("Chromium,VERIFIED,Historical review" %in% readLines(file.path(fx$dir, "replay.R")))
-  replayed <- source(file.path(fx$dir, "replay.R"), local = new.env())$value
+  expect_message(
+    replayed <- source(file.path(fx$dir, "replay.R"), local = new.env())$value,
+    "1 VERIFIED rows have no current identity"
+  )
   expect_equal(replayed$data$row_flag[2], "VERIFIED")
   expect_equal(replayed$data$row_flag_reason[2], "Historical review")
   expect_true(is.na(replayed$data$consensus_dtxsid[2]))
