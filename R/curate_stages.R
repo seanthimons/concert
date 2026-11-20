@@ -476,6 +476,14 @@ stage_review <- function(
   state <- apply_identity_decisions(state, identity_decisions)
   rs <- state$resolution_state
   changed <- changed || length(identity_decisions) > 0L
+  # A verification outlives the pick it confirmed (a name that now ties); the workbook marks these needs_review.
+  stale_verified <- if ("row_flag" %in% names(rs)) sum(verified_unresolved_rows(rs)) else 0L
+  if (stale_verified) {
+    message(sprintf(
+      "[headless] %d VERIFIED rows have no current identity and need a review pick or a FOLLOW-UP/BAD flag",
+      stale_verified
+    ))
+  }
 
   # Enriching accepted IDs keeps the export independent of what an earlier
   # run left in the enrichment cache.
