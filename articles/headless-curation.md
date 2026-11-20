@@ -257,7 +257,11 @@ State preserve its immutable revisions.
 binds an explicit acknowledgment to the decision revision, exact
 source/content scope and current evidence fingerprint. It resolves that
 reconciliation event, without clearing FOLLOW-UP or accepting an
-identity. A later evidence or scope change reopens work. Use
+identity. A later evidence or scope change reopens work. Since 0.6.15 a
+row’s fingerprint leaves out the empty extracted-CAS lookup columns that
+only other rows used. A decision saved by 0.6.14 or earlier on such a
+row is reported as changed once after the upgrade; acknowledge it again.
+Use
 [`validate_review_candidates()`](https://seanthimons.github.io/concert/reference/validate_review_candidates.md)
 with an explicit configured validator to recheck saved candidates
 independently of name discovery. It returns structured outcomes and a
