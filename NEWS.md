@@ -1,6 +1,26 @@
 
 
 
+## concert 0.6.20 (2026-11-20)
+
+#### Bug fixes
+
+- write the workbook beside its destination and replace the old one only
+  after the new one reads back, so a failed write keeps the existing
+  workbook
+  ([0654d43](https://github.com/seanthimons/concert/tree/0654d43d726a8d9d4fb5cb2522b5bbcdaf8848df))
+- stop with an error when the written workbook cannot be read back, as
+  happens when the temp directory is full
+  ([56678eb](https://github.com/seanthimons/concert/tree/56678eb93e253d66bf3ceccc5325351511ac37fc))
+
+#### Other changes
+
+- bump version to 0.6.20 \[skip ci\]
+  ([aa271f6](https://github.com/seanthimons/concert/tree/aa271f6f0d4fea618b73f9bb046c0a6f57fc78ad))
+
+Full set of changes:
+[`v0.6.19...v0.6.20`](https://github.com/seanthimons/concert/compare/v0.6.19...v0.6.20)
+
 ## concert 0.6.19 (2026-11-20)
 
 #### Bug fixes
@@ -8,6 +28,11 @@
 - report VERIFIED rows left without an identity during a staged replay,
   which went unmentioned before
   ([de96c61](https://github.com/seanthimons/concert/tree/de96c618e87600d4a10fa695ff22333c1c083ea3))
+
+#### Docs
+
+- update NEWS.md for v0.6.19 \[skip ci\]
+  ([fd58a99](https://github.com/seanthimons/concert/tree/fd58a995f57aaf07d96c55d8a77ec656d0d880bc))
 
 #### Other changes
 
