@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.19</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.20</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -37,14 +37,31 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/seanthimons/concert/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/seanthimons/concert/blob/v0.6.20/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.6.20" id="concert-0620-2026-11-20">concert 0.6.20 (2026-11-20)<a class="anchor" aria-label="anchor" href="#concert-0620-2026-11-20"></a></h2>
+<div class="section level4">
+<h4 id="bug-fixes-0-6-20">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-6-20"></a></h4>
+<ul><li>write the workbook beside its destination and replace the old one only after the new one reads back, so a failed write keeps the existing workbook (<a href="https://github.com/seanthimons/concert/tree/0654d43d726a8d9d4fb5cb2522b5bbcdaf8848df" class="external-link">0654d43</a>)</li>
+<li>stop with an error when the written workbook cannot be read back, as happens when the temp directory is full (<a href="https://github.com/seanthimons/concert/tree/56678eb93e253d66bf3ceccc5325351511ac37fc" class="external-link">56678eb</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="other-changes-0-6-20">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-20"></a></h4>
+<ul><li>bump version to 0.6.20 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/aa271f6f0d4fea618b73f9bb046c0a6f57fc78ad" class="external-link">aa271f6</a>)</li>
+</ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.6.19...v0.6.20" class="external-link"><code>v0.6.19...v0.6.20</code></a></p>
+</div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.6.19" id="concert-0619-2026-11-20">concert 0.6.19 (2026-11-20)<a class="anchor" aria-label="anchor" href="#concert-0619-2026-11-20"></a></h2>
 <div class="section level4">
 <h4 id="bug-fixes-0-6-19">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-6-19"></a></h4>
 <ul><li>report VERIFIED rows left without an identity during a staged replay, which went unmentioned before (<a href="https://github.com/seanthimons/concert/tree/de96c618e87600d4a10fa695ff22333c1c083ea3" class="external-link">de96c61</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="docs-0-6-19">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-19"></a></h4>
+<ul><li>update NEWS.md for v0.6.19 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/fd58a995f57aaf07d96c55d8a77ec656d0d880bc" class="external-link">fd58a99</a>)</li>
 </ul></div>
 <div class="section level4">
 <h4 id="other-changes-0-6-19">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-19"></a></h4>
