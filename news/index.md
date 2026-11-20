@@ -1,5 +1,21 @@
 # Changelog
 
+## concert 0.6.19 (2026-11-20)
+
+#### Bug fixes
+
+- report VERIFIED rows left without an identity during a staged replay,
+  which went unmentioned before
+  ([de96c61](https://github.com/seanthimons/concert/tree/de96c618e87600d4a10fa695ff22333c1c083ea3))
+
+#### Other changes
+
+- bump version to 0.6.19 \[skip ci\]
+  ([b80a17b](https://github.com/seanthimons/concert/tree/b80a17b0669baa5341fb2f78fac1df592098f28d))
+
+Full set of changes:
+[`v0.6.18...v0.6.19`](https://github.com/seanthimons/concert/compare/v0.6.18...v0.6.19)
+
 ## concert 0.6.18 (2026-11-20)
 
 #### Bug fixes
@@ -18,6 +34,8 @@
 
 #### Docs
 
+- update NEWS.md for v0.6.18 \[skip ci\]
+  ([1f85877](https://github.com/seanthimons/concert/tree/1f85877ad258c7654a7b3f9e970656001ad13640))
 - note that review fingerprints saved by 0.6.14 or earlier read as
   changed once on 0.6.15 and later
   ([31a86d6](https://github.com/seanthimons/concert/tree/31a86d670df329e64c3a212cfe0a4fdaf76056a9))
