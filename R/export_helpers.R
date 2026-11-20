@@ -366,10 +366,30 @@ write_curation_output <- function(path, format = c("xlsx", "csv", "parquet"), sh
   format <- match.arg(format)
   switch(
     format,
-    xlsx = writexl::write_xlsx(sheets, path),
+    xlsx = {
+      writexl::write_xlsx(sheets, path)
+      check_xlsx_readable(path)
+    },
     csv = readr::write_csv(toxval_tibble, path),
     parquet = arrow::write_parquet(toxval_tibble, path)
   )
+  invisible(path)
+}
+
+# writexl stages the workbook in tempdir() and reports success even when that disk is full,
+# leaving a file whose parts are empty.
+check_xlsx_readable <- function(path) {
+  tryCatch(readxl::excel_sheets(path), error = function(e) {
+    stop(
+      sprintf(
+        "Workbook %s was written but cannot be read back (%s). Check free space in tempdir() (%s) and rerun.",
+        path,
+        conditionMessage(e),
+        tempdir()
+      ),
+      call. = FALSE
+    )
+  })
   invisible(path)
 }
 

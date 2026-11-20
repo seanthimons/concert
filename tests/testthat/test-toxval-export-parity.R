@@ -75,3 +75,12 @@ test_that("write_curation_output xlsx builds the multi-sheet workbook", {
   expect_true(file.exists(xlsx_path))
   expect_setequal(readxl::excel_sheets(xlsx_path), names(sheets))
 })
+
+test_that("write_curation_output rejects a workbook that cannot be read back", {
+  good <- withr::local_tempfile(fileext = ".xlsx")
+  expect_identical(write_curation_output(good, "xlsx", sheets = list(a = data.frame(x = 1))), good)
+
+  empty <- withr::local_tempfile(fileext = ".xlsx")
+  file.create(empty)
+  expect_error(check_xlsx_readable(empty), "cannot be read back")
+})
