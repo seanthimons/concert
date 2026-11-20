@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.17</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.18</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -37,9 +37,28 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/seanthimons/concert/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/seanthimons/concert/blob/v0.6.18/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.6.18" id="concert-0618-2026-11-20">concert 0.6.18 (2026-11-20)<a class="anchor" aria-label="anchor" href="#concert-0618-2026-11-20"></a></h2>
+<div class="section level4">
+<h4 id="bug-fixes-0-6-18">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-6-18"></a></h4>
+<ul><li>check name ties for names the API returns in a different spelling, which were skipped before (<a href="https://github.com/seanthimons/concert/tree/75320c8911276f8c811bdb29bcd6769e2baa05eb" class="external-link">75320c8</a>)</li>
+<li>retry lookups a dropped batch left unanswered and report the API error text when they still fail (<a href="https://github.com/seanthimons/concert/tree/fdfe3c683fe93827a866c7457c506792f5d12e80" class="external-link">fdfe3c6</a>)</li>
+<li>convert fullwidth parentheses and the non-breaking hyphen to their ASCII forms (<a href="https://github.com/seanthimons/concert/tree/9039519b27c282bad217bdaedcbf9601d1d12267" class="external-link">9039519</a>)</li>
+<li>list read_decision_table in the reference index so the site builds (<a href="https://github.com/seanthimons/concert/tree/86496df99deb6b27cfffe73a39466f932c7082d8" class="external-link">86496df</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="docs-0-6-18">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-18"></a></h4>
+<ul><li>note that review fingerprints saved by 0.6.14 or earlier read as changed once on 0.6.15 and later (<a href="https://github.com/seanthimons/concert/tree/31a86d670df329e64c3a212cfe0a4fdaf76056a9" class="external-link">31a86d6</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="other-changes-0-6-18">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-18"></a></h4>
+<ul><li>bump version to 0.6.18 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/8bae09c859538a88edc76bb73ab2d437b36341b3" class="external-link">8bae09c</a>)</li>
+</ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.6.17...v0.6.18" class="external-link"><code>v0.6.17...v0.6.18</code></a></p>
+</div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.6.17" id="concert-0617-2026-11-19">concert 0.6.17 (2026-11-19)<a class="anchor" aria-label="anchor" href="#concert-0617-2026-11-19"></a></h2>
 <div class="section level4">
@@ -50,7 +69,8 @@
 </ul></div>
 <div class="section level4">
 <h4 id="docs-0-6-17">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-17"></a></h4>
-<ul><li>note that qc_tier counts only the lookup columns on each row since 0.6.14, so existing tiers are one smaller (<a href="https://github.com/seanthimons/concert/tree/860ebd472373827cdb96be22d3178894da52706c" class="external-link">860ebd4</a>)</li>
+<ul><li>update NEWS.md for v0.6.17 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/e2ae66b9cbc3425e39ce6ca3eddaf3a8f4a3a0ed" class="external-link">e2ae66b</a>)</li>
+<li>note that qc_tier counts only the lookup columns on each row since 0.6.14, so existing tiers are one smaller (<a href="https://github.com/seanthimons/concert/tree/860ebd472373827cdb96be22d3178894da52706c" class="external-link">860ebd4</a>)</li>
 <li>correct the ComptoxR version floor and unpinned remote in the README (<a href="https://github.com/seanthimons/concert/tree/9c819c231f3c30e94aee6088d0d9b6c27e355524" class="external-link">9c819c2</a>)</li>
 </ul></div>
 <div class="section level4">
