@@ -1,6 +1,25 @@
 
 
 
+## concert 0.6.22 (2026-11-24)
+
+#### Bug fixes
+
+- keep raw lookups and candidate enrichment per ComptoxR version, so a
+  concert upgrade no longer repeats the CompTox calls
+  ([3f7c3a7](https://github.com/seanthimons/concert/tree/3f7c3a7fbd0533b8b6546effdd00fbe6889dcba8))
+- check synonym-level names for ties when the search responses differ in
+  column types, instead of keeping every bulk pick
+  ([cf9f373](https://github.com/seanthimons/concert/tree/cf9f373580637613f87b391d368f7153c6ad3f08))
+
+#### Other changes
+
+- bump version to 0.6.22 \[skip ci\]
+  ([9909523](https://github.com/seanthimons/concert/tree/9909523bbef33d25846875530025ae9c3ed1de6a))
+
+Full set of changes:
+[`v0.6.21...v0.6.22`](https://github.com/seanthimons/concert/compare/v0.6.21...v0.6.22)
+
 ## concert 0.6.21 (2026-11-24)
 
 #### Bug fixes
@@ -9,6 +28,11 @@
   ([51a396e](https://github.com/seanthimons/concert/tree/51a396e6e6d4d26d2edeb3e37b54c3473b2db507))
 - treat C12-LAS style names as alkyl chain lengths, not carbon isotopes
   ([b58a95f](https://github.com/seanthimons/concert/tree/b58a95f06e1fdddb3d82e3a5be9949088243b78a))
+
+#### Docs
+
+- update NEWS.md for v0.6.21 \[skip ci\]
+  ([9990170](https://github.com/seanthimons/concert/tree/9990170b139ccb9ff2dd6aba4e5faff3de68b825))
 
 #### Other changes
 
