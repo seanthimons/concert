@@ -1768,6 +1768,41 @@ test_that("find_name_ties keeps only names with several top-rank DTXSIDs", {
   )
 })
 
+test_that("find_name_ties binds responses whose other columns differ in type or are missing", {
+  .search_failures$rows <- list()
+  # An all-NA column arrives logical; the next response has it as character.
+  stub <- function(name) {
+    switch(name,
+      PFOA = tibble::tibble(searchValue = "Pfoa", dtxsid = c("DTXSID8031865", "DTXSID40892486"),
+        preferredName = c("Perfluorooctanoic acid", "Perfluorooctanoate"), rank = c(15, 15), smiles = c("C", "CC")),
+      Atrazine = tibble::tibble(searchValue = "atrazine", dtxsid = "DTXSID9020112", preferredName = "Atrazine",
+        rank = 15L, smiles = NA),
+      Lead = tibble::tibble(searchValue = "lead", dtxsid = c("DTXSID2024161", "DTXSID0000002"), rank = c(10L, 10L)),
+      Nothing = tibble::tibble()
+    )
+  }
+  ties <- suppressMessages(find_name_ties(c("PFOA", "Atrazine", "Lead", "Nothing"), get_fn = stub))
+  expect_equal(nrow(collected_search_failures()), 0L)
+  expect_equal(ties$searchValue, c("Lead", "PFOA"))
+  expect_equal(ties$tied_dtxsids, c("DTXSID0000002; DTXSID2024161", "DTXSID40892486; DTXSID8031865"))
+  expect_equal(ties$tied_names, c("NA; NA", "Perfluorooctanoate; Perfluorooctanoic acid"))
+})
+
+test_that("cached_lookup stores a response whose all-NA column differs in type from the stored rows", {
+  withr::defer({
+    .lookup_cache$enabled <- FALSE
+    .lookup_cache$lookups <- list()
+  })
+  .lookup_cache$enabled <- TRUE
+  .lookup_cache$lookups <- list()
+  fetch <- function(query) {
+    tibble::tibble(searchValue = query, dtxsid = "DTXSID1", smiles = if (identical(query, "a")) NA else "CC")
+  }
+  suppressMessages(cached_lookup("t", "a", fetch))
+  both <- suppressMessages(cached_lookup("t", c("a", "b"), fetch))
+  expect_equal(both$smiles, c(NA, "CC"))
+})
+
 test_that("VERIFIED decisions require a current identity and preserve reviewed WQX names", {
   state <- tibble::tibble(
     row_flag = c(rep("VERIFIED", 12), "FOLLOW-UP", "BAD"),
