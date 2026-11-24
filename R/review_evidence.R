@@ -405,7 +405,7 @@ review_observed_validation <- function(df, rows, source_id_cols) {
     status <- if ("resolver_lookup_status" %in% names(df)) as.character(df$resolver_lookup_status[row]) else NA_character_
     if (!length(ids)) next
     outcome <- if (status %in% c("unverified", "error")) "unavailable" else
-      if (status %in% "public") "valid" else "unknown"
+      if (isTRUE(nzchar(status)) && all(strsplit(status, "; ", fixed = TRUE)[[1]] %in% c("public", "ctx_public"))) "valid" else "unknown"
     pieces[[length(pieces) + 1L]] <- data.frame(dtxsid = ids, outcome = outcome,
       authority = "Legacy resolver public-membership check", version = "unversioned",
       reason = paste("Observed resolver status:", status), stringsAsFactors = FALSE)
