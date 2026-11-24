@@ -1,6 +1,27 @@
 
 
 
+## concert 0.6.24 (2026-11-24)
+
+#### Bug fixes
+
+- match local DSSTox names in any letter case, so a name written in
+  another case is no longer left as a tie
+  ([6acbe1d](https://github.com/seanthimons/concert/tree/6acbe1d6078bf56bef5634239dc3ae9d2d05f7d9))
+
+#### Build
+
+- require ComptoxR 4.0.7 and lock it at v4.0.7
+  ([9f4771c](https://github.com/seanthimons/concert/tree/9f4771c5bb0339cbd0feaaab43ab47ebee8db48b))
+
+#### Other changes
+
+- bump version to 0.6.24 \[skip ci\]
+  ([64c6d11](https://github.com/seanthimons/concert/tree/64c6d11deb750b256df99bab0de80c3df703131e))
+
+Full set of changes:
+[`v0.6.23...v0.6.24`](https://github.com/seanthimons/concert/compare/v0.6.23...v0.6.24)
+
 ## concert 0.6.23 (2026-11-24)
 
 #### New features
@@ -17,6 +38,11 @@
 - ask the CTX exact search for the names of a failed resolver batch, so
   one bad name no longer marks them all as errors
   ([a556fba](https://github.com/seanthimons/concert/tree/a556fba27b2aa681f7802f001782a2cde991e1ad))
+
+#### Docs
+
+- update NEWS.md for v0.6.23 \[skip ci\]
+  ([3304806](https://github.com/seanthimons/concert/tree/330480695937d983a0904eb0cc1404fe1056d44f))
 
 #### Other changes
 
