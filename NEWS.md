@@ -1,6 +1,23 @@
 
 
 
+## concert 0.6.21 (2026-11-24)
+
+#### Bug fixes
+
+- gate isotope expansion on what the step would rewrite
+  ([51a396e](https://github.com/seanthimons/concert/tree/51a396e6e6d4d26d2edeb3e37b54c3473b2db507))
+- treat C12-LAS style names as alkyl chain lengths, not carbon isotopes
+  ([b58a95f](https://github.com/seanthimons/concert/tree/b58a95f06e1fdddb3d82e3a5be9949088243b78a))
+
+#### Other changes
+
+- bump version to 0.6.21 \[skip ci\]
+  ([5c834d3](https://github.com/seanthimons/concert/tree/5c834d3f20f008af3b09312357f0e016e39e5530))
+
+Full set of changes:
+[`v0.6.20...v0.6.21`](https://github.com/seanthimons/concert/compare/v0.6.20...v0.6.21)
+
 ## concert 0.6.20 (2026-11-20)
 
 #### Bug fixes
@@ -12,6 +29,11 @@
 - stop with an error when the written workbook cannot be read back, as
   happens when the temp directory is full
   ([56678eb](https://github.com/seanthimons/concert/tree/56678eb93e253d66bf3ceccc5325351511ac37fc))
+
+#### Docs
+
+- update NEWS.md for v0.6.20 \[skip ci\]
+  ([2d48327](https://github.com/seanthimons/concert/tree/2d483270019e0121f45e3ceaa46964a278ccc898))
 
 #### Other changes
 
