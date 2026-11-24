@@ -435,13 +435,14 @@ test_that("expand_isotope_shortcodes does NOT expand alkyl chain lengths in quat
     "BENZYL C12-16",
     "Alkyl (C14, 50%; C12, 40%; C16-10%)",
     "Alkyl (C12-C14) dimethyl benzyl ammonium chloride",
-    "n-alkyl(C12 60%, C14 30%) benzyl"
+    "n-alkyl(C12 60%, C14 30%) benzyl",
+    "C12-LAS"
   )
   df <- tibble::tibble(chemical_name = c(quats, "C14", "C14-labelled glucose"))
   result <- expand_isotope_shortcodes(df, c("chemical_name"))
 
-  expect_equal(result$cleaned_data$chemical_name[1:4], quats)
-  expect_equal(result$cleaned_data$chemical_name[5:6], c("Carbon-14", "Carbon-14-labelled glucose"))
+  expect_equal(result$cleaned_data$chemical_name[1:5], quats)
+  expect_equal(result$cleaned_data$chemical_name[6:7], c("Carbon-14", "Carbon-14-labelled glucose"))
 })
 
 test_that("flag_measurement_qualifier flags fraction and basis terms but not standard parameter names (#129)", {
