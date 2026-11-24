@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.22</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.23</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -37,15 +37,34 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/seanthimons/concert/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/seanthimons/concert/blob/v0.6.23/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.6.23" id="concert-0623-2026-11-24">concert 0.6.23 (2026-11-24)<a class="anchor" aria-label="anchor" href="#concert-0623-2026-11-24"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-6-23">New features<a class="anchor" aria-label="anchor" href="#new-features-0-6-23"></a></h4>
+<ul><li>count resolver candidates confirmed by the local DSSTox build as valid evidence (<a href="https://github.com/seanthimons/concert/tree/a461caed6f33a15fb59302cbe5b3216e4ec9a7c7" class="external-link">a461cae</a>)</li>
+<li>look up the names of a failed resolver batch in the local DSSTox build first, so the CTX search is only asked for what the build does not hold (<a href="https://github.com/seanthimons/concert/tree/b8126af2354ac60558d6ae0d935f51046b791a8c" class="external-link">b8126af</a>)</li>
+<li>count CTX-confirmed resolver candidates as valid evidence (<a href="https://github.com/seanthimons/concert/tree/f58e8e3250443fb3be7883fe00b982de1b62cf78" class="external-link">f58e8e3</a>)</li>
+<li>ask the CTX exact search for the names of a failed resolver batch, so one bad name no longer marks them all as errors (<a href="https://github.com/seanthimons/concert/tree/a556fba27b2aa681f7802f001782a2cde991e1ad" class="external-link">a556fba</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="other-changes-0-6-23">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-23"></a></h4>
+<ul><li>bump version to 0.6.23 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/61a0b5b80a0720575d9a9dfa3e5912151fed89f8" class="external-link">61a0b5b</a>)</li>
+</ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.6.22...v0.6.23" class="external-link"><code>v0.6.22...v0.6.23</code></a></p>
+</div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.6.22" id="concert-0622-2026-11-24">concert 0.6.22 (2026-11-24)<a class="anchor" aria-label="anchor" href="#concert-0622-2026-11-24"></a></h2>
 <div class="section level4">
 <h4 id="bug-fixes-0-6-22">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-6-22"></a></h4>
 <ul><li>keep raw lookups and candidate enrichment per ComptoxR version, so a concert upgrade no longer repeats the CompTox calls (<a href="https://github.com/seanthimons/concert/tree/3f7c3a7fbd0533b8b6546effdd00fbe6889dcba8" class="external-link">3f7c3a7</a>)</li>
 <li>check synonym-level names for ties when the search responses differ in column types, instead of keeping every bulk pick (<a href="https://github.com/seanthimons/concert/tree/cf9f373580637613f87b391d368f7153c6ad3f08" class="external-link">cf9f373</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="docs-0-6-22">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-22"></a></h4>
+<ul><li>update NEWS.md for v0.6.22 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/883f2948d3e92b2197728d7dcf85a0e05e215c2f" class="external-link">883f294</a>)</li>
 </ul></div>
 <div class="section level4">
 <h4 id="other-changes-0-6-22">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-22"></a></h4>
