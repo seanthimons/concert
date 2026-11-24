@@ -239,7 +239,9 @@ test_that("name-only search caches are bypassed and refreshed results are reused
   expect_length(list.files(cache_dir, pattern = "^curation_", recursive = TRUE), 2L)
 })
 
-# A failed resolver batch falls back to one exact-match CTX GET per query.
+# A failed resolver batch falls back to one exact-match CTX GET per query; these tests have no
+# local DSSTox copy.
+no_local <- function(...) stop("no local copy")
 ctx_stub <- function(asked) {
   function(query) {
     asked$queries <- c(asked$queries, query)
@@ -273,8 +275,14 @@ test_that("a failed resolver batch is answered per query by the CTX exact search
   )
   asked <- new.env()
   expect_message(
-    out <- add_resolver_candidates(df, "name", lookup_fn = function(...) stop("502"), ctx_fn = ctx_stub(asked)),
-    "CTX answered 2 of the 5 failed queries"
+    out <- add_resolver_candidates(
+      df,
+      "name",
+      lookup_fn = function(...) stop("502"),
+      ctx_fn = ctx_stub(asked),
+      local_fn = no_local
+    ),
+    "CTX answered 2 of the 5 failed queries left"
   )
   expect_identical(out$resolver_lookup_status, c("ctx_public", "ctx_no_hit", "error", "error", "error", NA))
   # Every hit at the best rank is a candidate; none is chosen and the consensus is untouched.
@@ -319,7 +327,13 @@ test_that("CTX fallback answers, misses included, are cached; failed queries are
   )
   run <- function(asked) {
     down <- function(...) stop("502")
-    suppressMessages(add_resolver_candidates(df, "name", lookup_fn = down, ctx_fn = ctx_stub(asked)))
+    suppressMessages(add_resolver_candidates(
+      df,
+      "name",
+      lookup_fn = down,
+      ctx_fn = ctx_stub(asked),
+      local_fn = no_local
+    ))
   }
   first <- run(new.env())
   asked <- new.env()
@@ -347,7 +361,8 @@ test_that("resolver and CTX candidates on one row keep separate statuses", {
     "name",
     lookup_fn = lookup,
     public_fn = function(ids) character(),
-    ctx_fn = ctx_stub(new.env())
+    ctx_fn = ctx_stub(new.env()),
+    local_fn = no_local
   ))
   expect_identical(out$resolver_dtxsid_candidate[1], "DTXSID70880215; DTXSID40108559; DTXSID1")
   expect_identical(out$resolver_lookup_status[1], "not_public; ctx_public")
@@ -358,4 +373,80 @@ test_that("a name without an exact match is a miss for the tie check, not a fail
   .search_failures$rows <- list()
   expect_equal(nrow(suppressMessages(find_name_ties("Tantalum", get_fn = ctx_stub(new.env())))), 0)
   expect_equal(nrow(collected_search_failures()), 0)
+})
+
+# The local DSSTox build is asked first; the CTX search only gets what it does not hold.
+local_stub <- function(queries) {
+  tibble::tibble(
+    searchValue = c("GenX", "GenX", "GenX", "A/B"),
+    dtxsid = c("DTXSID70880215", "DTXSID40108559", "DTXSID9", "DTXSID5"),
+    rank = c(7L, 7L, 8L, 1L),
+    preferredName = c("Acid", "Ammonium salt", "Lower rank", "Mixture")
+  )[c("GenX", "GenX", "GenX", "A/B") %in% queries, ]
+}
+
+test_that("a failed resolver batch is answered by the local DSSTox build before the CTX search", {
+  .search_failures$rows <- list()
+  df <- tibble::tibble(
+    name = c("GenX", "A/B", "Tantalum", "Flaky", "C/D"),
+    wqx_name_name = c("Tantalum", rep(NA, 4)),
+    consensus_status = c("wqx", rep("error", 4)),
+    consensus_dtxsid = NA_character_
+  )
+  asked <- new.env()
+  run <- function(local_fn) {
+    down <- function(...) stop("502")
+    add_resolver_candidates(df, "name", lookup_fn = down, ctx_fn = ctx_stub(asked), local_fn = local_fn)
+  }
+  expect_message(out <- run(local_stub), "Local DSSTox answered 2 of the 5 failed queries")
+  # Local hits are final, "/" names included; a local miss still goes to the CTX search, and a
+  # "/" name the build does not hold stays an error.
+  expect_identical(out$resolver_lookup_status, c("dsstox_public", "dsstox_public", "ctx_no_hit", "error", "error"))
+  expect_identical(out$resolver_dtxsid_candidate, c("DTXSID70880215; DTXSID40108559", "DTXSID5", NA, NA, NA))
+  expect_identical(out$resolver_name[1:2], c("Acid; Ammonium salt", "Mixture"))
+  expect_identical(sort(unique(asked$queries)), c("Flaky", "Tantalum"))
+  summary <- search_failure_summary(list(results = out, search_failures = NULL))
+  expect_identical(summary$n[summary$lookup == "resolver"], 2L)
+
+  # Without a local copy every query without "/" goes to the CTX search.
+  asked$queries <- NULL
+  expect_message(out <- run(no_local), "Local DSSTox not used: no local copy")
+  expect_identical(out$resolver_lookup_status, c("ctx_public", "error", "ctx_no_hit", "error", "error"))
+  expect_identical(sort(unique(asked$queries)), c("Flaky", "GenX", "Tantalum"))
+  .search_failures$rows <- list()
+})
+
+test_that("the CTX search is not asked when the local DSSTox build answers every failed query", {
+  df <- tibble::tibble(name = "GenX", consensus_status = "error", consensus_dtxsid = NA_character_)
+  out <- suppressMessages(add_resolver_candidates(
+    df,
+    "name",
+    lookup_fn = function(...) stop("502"),
+    ctx_fn = function(...) stop("must not be called"),
+    local_fn = local_stub
+  ))
+  expect_identical(out$resolver_lookup_status, "dsstox_public")
+})
+
+test_that("local DSSTox matches ignore letter case and matches on a structure field", {
+  resolve <- function(query) {
+    expect_setequal(query, c("Co", "CO", "nope", "NOPE"))
+    tibble::tibble(
+      input = c("Co", "CO", "CO", "CO", "nope", "NOPE"),
+      DTXSID = c("DTXSID1", "DTXSID1", "DTXSID2", "DTXSID3", NA, NA),
+      PREFERRED_NAME = c("Cobalt", "Cobalt", "CO", "Methanol", NA, NA),
+      CASRN = NA_character_,
+      matched_on = c("IDENTIFIER", "ident_upper", "PREFERRED_NAME", "SMILES", NA, NA)
+    )
+  }
+  testthat::local_mocked_bindings(ensure_dsstox = function() invisible())
+  testthat::local_mocked_bindings(dss_resolve = resolve, .package = "ComptoxR")
+  out <- dsstox_name_hits(c("Co", "CO", "nope"))
+  expect_setequal(out$searchValue, c("Co", "CO"))
+  expect_setequal(out$dtxsid[out$searchValue == "Co"], c("DTXSID1", "DTXSID2"))
+  expect_setequal(out$dtxsid[out$searchValue == "CO"], c("DTXSID1", "DTXSID2"))
+  # An approved name reached only by upper-casing "Co" does not outrank the match as written.
+  expect_identical(unique(out$rank[out$searchValue == "Co"]), 7L)
+  expect_identical(out$rank[out$searchValue == "CO" & out$dtxsid == "DTXSID2"], 1L)
+  expect_identical(out$preferredName[match("DTXSID2", out$dtxsid)], "CO")
 })

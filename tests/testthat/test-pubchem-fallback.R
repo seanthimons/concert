@@ -258,7 +258,7 @@ test_that("resolver fallback flags hits missing from the public CTX API", {
                                   public_fn = function(ids) stop("503"))
   expect_equal(down$resolver_lookup_status[1:2], c("unverified", "unverified"))
   down <- function(...) stop("down")
-  err <- add_resolver_candidates(df, "raw_name", lookup_fn = down, ctx_fn = down)
+  err <- add_resolver_candidates(df, "raw_name", lookup_fn = down, ctx_fn = down, local_fn = down)
   expect_equal(err$resolver_lookup_status, c("error", "error", NA, "error", "error"))
 })
 
@@ -449,7 +449,8 @@ test_that("resolver lookup retries a failed call and confines a failure to its c
       "raw_name",
       lookup_fn = second_chunk_down,
       public_fn = identity,
-      ctx_fn = function(...) stop("down")
+      ctx_fn = function(...) stop("down"),
+      local_fn = function(...) stop("down")
     ),
     "Lookup failed for 500 of 1500 queries: gateway timeout"
   )
