@@ -216,7 +216,9 @@ changes review inputs (\code{review_picks}, \code{row_flags}, \code{review_overr
 \code{identity_decisions}) skips the search. File reading and cleaning always
 re-run, and the search is repeated whenever their output, the tag map, the
 search switches, the WQX dictionary, or the concert or ComptoxR version
-changes. A progress message says whether the search was reused. The cache
+changes. After a concert upgrade the repeated search still reuses the
+stored per-query lookups and enrichment, which are kept per ComptoxR
+version. A progress message says whether the search was reused. The cache
 is a snapshot of the external services: use \code{refresh_cache} to pick up
 upstream changes. Use one directory per dataset, not shared by concurrent
 runs. Default NULL: nothing is cached.}

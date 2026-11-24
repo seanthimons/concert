@@ -31,9 +31,13 @@ curation. Default FALSE for backward compatibility.}
 \item{cache_dir}{Optional directory. When set, the CompTox search result is
 cached by a hash of the cleaned data, the detected input data, and the
 search settings, and the candidate enrichment and structure-parent caches
-persist across runs, so a re-run after review edits skips the API. Files
-live in a per-concert-version subdirectory. Use one directory per dataset
-and do not share it between concurrent runs.}
+persist across runs, so a re-run after review edits skips the API. The
+search result and structure parents live in a per-concert-version
+subdirectory (\verb{concert-<version>/}). The raw per-query lookups and the
+candidate enrichment live in a subdirectory keyed on the ComptoxR version
+(\verb{comptoxr-<version>-v1/}), so a concert upgrade repeats the search logic
+without repeating the API calls. Use one directory per dataset and do not
+share it between concurrent runs.}
 
 \item{pubchem}{Logical. If TRUE, searches unresolved names in PubChem and
 exports candidates without assigning DTXSIDs.}
@@ -47,8 +51,9 @@ rows via the chemi standardizer. Independent of \code{pubchem}.}
 "qsar-ready", "ms-ready", or both (default).}
 
 \item{refresh_cache}{Logical. If TRUE, deletes this concert version's cache
-under \code{cache_dir} first, forcing a fresh search. Caches written by other
-concert versions are left in place.}
+and the lookups and enrichment for the installed ComptoxR version under
+\code{cache_dir} first, forcing a fresh search. Caches written by other concert
+or ComptoxR versions are left in place.}
 }
 \value{
 The state with \code{resolution_state}, \code{consensus_summary},
