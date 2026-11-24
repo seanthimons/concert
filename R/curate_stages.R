@@ -202,6 +202,9 @@ stage_clean <- function(state, multi_analyte_resolutions = NULL, value_correctio
   state
 }
 
+# The ComptoxR version the lookup caches are keyed on.
+comptoxr_cache_version <- function() as.character(utils::packageVersion("ComptoxR"))
+
 #' Stage 3: run the CompTox curation search and optional candidate postprocessing
 #'
 #' @param state State list from [stage_clean()].
@@ -209,12 +212,17 @@ stage_clean <- function(state, multi_analyte_resolutions = NULL, value_correctio
 #' @param cache_dir Optional directory. When set, the CompTox search result is
 #'   cached by a hash of the cleaned data, the detected input data, and the
 #'   search settings, and the candidate enrichment and structure-parent caches
-#'   persist across runs, so a re-run after review edits skips the API. Files
-#'   live in a per-concert-version subdirectory. Use one directory per dataset
-#'   and do not share it between concurrent runs.
+#'   persist across runs, so a re-run after review edits skips the API. The
+#'   search result and structure parents live in a per-concert-version
+#'   subdirectory (`concert-<version>/`). The raw per-query lookups and the
+#'   candidate enrichment live in a subdirectory keyed on the ComptoxR version
+#'   (`comptoxr-<version>-v1/`), so a concert upgrade repeats the search logic
+#'   without repeating the API calls. Use one directory per dataset and do not
+#'   share it between concurrent runs.
 #' @param refresh_cache Logical. If TRUE, deletes this concert version's cache
-#'   under `cache_dir` first, forcing a fresh search. Caches written by other
-#'   concert versions are left in place.
+#'   and the lookups and enrichment for the installed ComptoxR version under
+#'   `cache_dir` first, forcing a fresh search. Caches written by other concert
+#'   or ComptoxR versions are left in place.
 #' @return The state with `resolution_state`, `consensus_summary`,
 #'   `enrichment_cache`, `enrichment_failed`, and `script_baseline_state` added.
 #' @export
@@ -234,14 +242,19 @@ stage_curate <- function(
   enrichment_cache_path <- NULL
   pipeline_result <- NULL
   if (!is.null(cache_dir)) {
-    # A concert upgrade invalidates every cache file. Within one version (e.g.
+    # Raw lookups and candidate enrichment hold API responses, so they outlive a concert upgrade and
+    # follow the ComptoxR version instead. Bump the "-v1" format token when the stored shape changes:
+    # the columns kept by find_name_ties(), or what enrich_candidates(), enrich_synonyms(),
+    # flatten_synonym_tiers() and normalize_candidate_detail_cache() put in the enrichment cache.
+    shared_dir <- file.path(cache_dir, paste0("comptoxr-", comptoxr_cache_version(), "-v1"))
+    # A concert upgrade invalidates the search result. Within one version (e.g.
     # under load_all) code changes rely on the "-v1" tokens in the key below.
     cache_dir <- file.path(cache_dir, paste0("concert-", utils::packageVersion("concert")))
     if (isTRUE(refresh_cache)) {
       message("[headless] refresh_cache = TRUE: discarding cached curation state")
-      unlink(cache_dir, recursive = TRUE)
+      unlink(c(cache_dir, shared_dir), recursive = TRUE)
     }
-    fs::dir_create(cache_dir, recurse = TRUE)
+    fs::dir_create(c(cache_dir, shared_dir), recurse = TRUE)
     # The cached result carries every column, so the key covers the whole
     # cleaned and detected frames, not only the searched columns.
     key <- digest::digest(list(
@@ -254,7 +267,7 @@ stage_curate <- function(
       "resolver-source-cas-v1",
       "row-local-cas-evidence-v1",
       identity_policy_version(),
-      as.character(utils::packageVersion("ComptoxR")),
+      comptoxr_cache_version(),
       unname(tools::md5sum(file.path(resolve_curation_reference_cache_dir(), "wqx_dictionary.rds"))),
       wqx_threshold,
       starts_with,
@@ -262,7 +275,7 @@ stage_curate <- function(
       desalt
     ))
     search_cache_path <- file.path(cache_dir, paste0("curation_", key, ".rds"))
-    enrichment_cache_path <- file.path(cache_dir, "enrichment.rds")
+    enrichment_cache_path <- file.path(shared_dir, "enrichment.rds")
     if (file.exists(search_cache_path)) {
       pipeline_result <- readRDS(search_cache_path)
       if (any(pipeline_result$source_identifier_evidence$validation_status %in% "unavailable")) pipeline_result <- NULL
@@ -281,14 +294,14 @@ stage_curate <- function(
       # Per-query responses survive input edits that miss the cache above, so
       # appended rows only search their new values (#151). Saved even when the
       # run fails, keeping what a long run fetched before the error.
-      lookup_path <- file.path(cache_dir, "lookups.rds")
+      lookup_path <- file.path(shared_dir, "lookups.rds")
       saved <- if (file.exists(lookup_path)) tryCatch(readRDS(lookup_path), error = function(e) NULL)
-      comptoxr_version <- as.character(utils::packageVersion("ComptoxR"))
+      comptoxr_version <- comptoxr_cache_version()
       .lookup_cache$lookups <- if (identical(saved$comptoxr_version, comptoxr_version)) saved$lookups else list()
       .lookup_cache$enabled <- TRUE
       on.exit({
         .lookup_cache$enabled <- FALSE
-        tmp <- tempfile(tmpdir = cache_dir, fileext = ".rds")
+        tmp <- tempfile(tmpdir = shared_dir, fileext = ".rds")
         saveRDS(list(comptoxr_version = comptoxr_version, lookups = .lookup_cache$lookups), tmp)
         file.rename(tmp, lookup_path)
         .lookup_cache$lookups <- list()

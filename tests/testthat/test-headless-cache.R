@@ -294,3 +294,53 @@ test_that("values from a dropped batch are retried once, then recorded as failur
   expect_equal(out$searchValue, rev(values))
   expect_lt(elapsed, 2)
 })
+
+test_that("raw lookups survive a concert upgrade but not a ComptoxR upgrade", {
+  fx <- cache_fixture()
+  known <- tibble::tibble(
+    searchValue = c("Acetone", "67-64-1", "Lead", "7439-92-1"),
+    dtxsid = c("DTXSID8021482", "DTXSID8021482", "DTXSID2024161", "DTXSID2024161"),
+    preferredName = c("Acetone", "Acetone", "Lead", "Lead"),
+    searchName = "Approved Name",
+    rank = 9L
+  )
+  queried <- character()
+  local_mocked_bindings(
+    ct_chemical_search_equal_bulk = function(query) {
+      queried <<- c(queried, query)
+      known[known$searchValue %in% query, ]
+    },
+    .package = "ComptoxR"
+  )
+  comptoxr <- "1.0.0"
+  local_mocked_bindings(
+    comptoxr_cache_version = function() comptoxr,
+    resolve_curation_reference_cache_dir = function() tempdir(),
+    load_wqx_dictionary = function(...) NULL,
+    match_wqx = function(query, ...) tibble::tibble(input_name = query, match_tier = "none", match_distance = NA_real_),
+    add_resolver_candidates = function(df, ...) df
+  )
+  run <- function(...) {
+    queried <<- character()
+    curate_headless(fx$input_path, NULL,
+      list(chemical_name = "Name", cas_number = "CASRN", result = "Result", unit = "Unit"),
+      header_row = 1L, write_files = FALSE, verbose = FALSE, cache_dir = fx$cache_dir, ...)
+    queried
+  }
+  all_values <- c("Acetone", "Chromium", "Lead", "67-64-1", "7439-92-1")
+  expect_setequal(run(), all_values)
+  expect_setequal(list.files(fx$cache_dir, recursive = TRUE, pattern = "^(lookups|enrichment)"),
+    "comptoxr-1.0.0-v1/lookups.rds")
+
+  # A concert upgrade starts a new concert-<version> folder: the search reruns from the stored lookups.
+  version_dir <- list.files(fx$cache_dir, pattern = "^concert-", full.names = TRUE)
+  expect_length(version_dir, 1L)
+  unlink(version_dir, recursive = TRUE)
+  expect_length(run(), 0L)
+
+  comptoxr <- "2.0.0"
+  expect_setequal(run(), all_values)
+  expect_length(run(), 0L)
+  expect_setequal(run(refresh_cache = TRUE), all_values)
+  expect_true(file.exists(file.path(fx$cache_dir, "comptoxr-1.0.0-v1", "lookups.rds")))
+})
