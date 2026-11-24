@@ -273,6 +273,44 @@ test_that("SKIP-03: precheck_isotope_shortcodes uses word boundaries to avoid fa
   expect_equal(result_boundary$est_changes, 1L)
 })
 
+# The gate must agree with the step: a spelled-out name is rewritten, so it
+# counts; an alkyl chain length is not rewritten, so it does not.
+test_that("precheck_isotope_shortcodes counts exactly what expand_isotope_shortcodes rewrites", {
+  isotope_lookup <- list(
+    lookup = tibble::tibble(
+      symbol = c("Cs", "C"),
+      mass = c("137", "14"),
+      element_name = c("Cesium", "Carbon"),
+      shortcode = c("cs137", "c14"),
+      canonical = c("Cesium-137", "Carbon-14"),
+      dtxsid = c("DTXSID8040985", NA),
+      source = "wqx_radiochemical"
+    ),
+    elem_alt_names = character()
+  )
+  spelled <- precheck_isotope_shortcodes(tibble::tibble(name = "Cesium 137"), "name", isotope_lookup)
+  expect_true(spelled$should_run)
+  expect_equal(spelled$est_changes, 1L)
+
+  chain <- tibble::tibble(name = c("Medium-chained chloroalkanes, (C14-17)", "C14-LAS", "acetone"))
+  result <- precheck_isotope_shortcodes(chain, "name", isotope_lookup)
+  expect_false(result$should_run)
+  expect_equal(result$est_changes, 0L)
+
+  unat <- precheck_isotope_shortcodes(tibble::tibble(name = c("unat", "acetone")), "name", isotope_lookup)
+  expect_true(unat$should_run)
+
+  # a row's cleaning does not depend on unrelated rows
+  clean <- function(names) {
+    run_cleaning_pipeline_masked(
+      tibble::tibble(name = names),
+      c(name = "Name"),
+      list(isotope_lookup = isotope_lookup)
+    )$cleaned_data$name[1]
+  }
+  expect_identical(clean("Cesium 137"), clean(c("Cesium 137", "Medium-chained chloroalkanes, (C14-17)")))
+})
+
 # ==============================================================================
 # precheck_multi_analyte tests
 # ==============================================================================
