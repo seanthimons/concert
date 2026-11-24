@@ -11,13 +11,19 @@ precheck_isotope_shortcodes(df, name_cols, isotope_lookup)
 
 \item{name_cols}{Character vector of name column names.}
 
-\item{isotope_lookup}{Dataframe with a \code{shortcode} column, or NULL.}
+\item{isotope_lookup}{Isotope lookup (a list with \code{lookup}, or a data frame with
+\code{symbol}/\code{mass} or legacy \code{shortcode} columns), or NULL.}
 }
 \value{
 list(should_run = logical, est_changes = integer).
 }
 \description{
-Uses a compiled word-boundary regex from the isotope lookup shortcodes to
-count values that contain a recognizable isotope abbreviation.
+With a symbol/mass lookup (the WQX radiochemical cache), dry-runs
+\code{expand_isotope_shortcodes()} on the distinct names and counts the values it
+would change or flag (a bare "unat"), so
+the gate sees exactly what the step rewrites: spelled-out names such as
+"Cesium 137", but not alkyl chain lengths such as "(C14-17)". A narrower
+gate made one row's cleaning depend on unrelated rows. A legacy
+\code{shortcode} lookup still uses a word-boundary regex.
 }
 \keyword{internal}

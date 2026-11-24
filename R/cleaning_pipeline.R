@@ -510,12 +510,18 @@ precheck_split_synonyms <- function(df, name_cols, tag_map) {
 
 #' Pre-check predicate for expand_isotope_shortcodes step
 #'
-#' Uses a compiled word-boundary regex from the isotope lookup shortcodes to
-#' count values that contain a recognizable isotope abbreviation.
+#' With a symbol/mass lookup (the WQX radiochemical cache), dry-runs
+#' \code{expand_isotope_shortcodes()} on the distinct names and counts the values it
+#' would change or flag (a bare "unat"), so
+#' the gate sees exactly what the step rewrites: spelled-out names such as
+#' "Cesium 137", but not alkyl chain lengths such as "(C14-17)". A narrower
+#' gate made one row's cleaning depend on unrelated rows. A legacy
+#' \code{shortcode} lookup still uses a word-boundary regex.
 #'
 #' @param df Dataframe to check.
 #' @param name_cols Character vector of name column names.
-#' @param isotope_lookup Dataframe with a \code{shortcode} column, or NULL.
+#' @param isotope_lookup Isotope lookup (a list with \code{lookup}, or a data frame with
+#'   \code{symbol}/\code{mass} or legacy \code{shortcode} columns), or NULL.
 #' @return list(should_run = logical, est_changes = integer).
 #' @keywords internal
 precheck_isotope_shortcodes <- function(df, name_cols, isotope_lookup) {
@@ -530,21 +536,17 @@ precheck_isotope_shortcodes <- function(df, name_cols, isotope_lookup) {
     return(list(should_run = FALSE, est_changes = 0L))
   }
   if (all(c("symbol", "mass") %in% names(lookup_df))) {
-    lookup_df <- lookup_df[order(nchar(lookup_df$symbol), decreasing = TRUE), , drop = FALSE]
-    token_patterns <- paste0(
-      "(?<![0-9A-Za-z])(?i:",
-      stringr::str_escape(lookup_df$symbol),
-      ")(?:\\s*[- ]\\s*)?",
-      stringr::str_escape(lookup_df$mass),
-      "\\b(?![A-Z])"
-    )
-    pattern <- paste(token_patterns, collapse = "|")
-  } else {
-    shortcodes <- lookup_df$shortcode
-    # Sort by length descending so longer prefixes match first (greedy)
-    shortcodes <- shortcodes[order(nchar(shortcodes), decreasing = TRUE)]
-    pattern <- paste0("(?i)\\b(", paste(stringr::str_escape(shortcodes), collapse = "|"), ")\\b")
+    # The step decides each value alone, so distinct names give the same answer for less work;
+    # a bare "unat" changes no value but gets a warning flag, so it counts too.
+    names_df <- unique(df[intersect(name_cols, names(df))])
+    est_changes <- nrow(expand_isotope_shortcodes(names_df, name_cols, isotope_lookup)$audit_trail) +
+      sum(vapply(names_df, function(v) sum(grepl("^unat$", v, ignore.case = TRUE)), integer(1)))
+    return(list(should_run = est_changes > 0L, est_changes = as.integer(est_changes)))
   }
+  shortcodes <- lookup_df$shortcode
+  # Sort by length descending so longer prefixes match first (greedy)
+  shortcodes <- shortcodes[order(nchar(shortcodes), decreasing = TRUE)]
+  pattern <- paste0("(?i)\\b(", paste(stringr::str_escape(shortcodes), collapse = "|"), ")\\b")
   est_changes <- as.integer(sum(vapply(
     name_cols,
     function(col) sum(stringr::str_detect(df[[col]], pattern), na.rm = TRUE),
