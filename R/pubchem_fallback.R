@@ -567,23 +567,21 @@ dsstox_public_ids <- function(ids) {
   unique(suppressMessages(ComptoxR::dss_synonyms(ids))$DTXSID)
 }
 
-# Exact matches of names and CAS RNs in the local DSSTox build, in the shape of search_equal_each().
-# Each query is tried as written and in upper case (the build keeps an upper-case copy of every
-# identifier), and matches on a formula, SMILES or InChIKey are dropped: "CO" is a name here.
-# The build has no synonym quality, so rank only says which field matched: approved name, CAS RN,
-# IUPAC name, then any other identifier. A match found only in upper case ranks with the last.
-# ponytail: toupper() follows the R locale; a non-ASCII name it folds differently from the build
-# is a miss and goes to the CTX search.
+# Matches of names and CAS RNs in the local DSSTox build, in the shape of search_equal_each().
+# Names match in any letter case, and matches on a formula, SMILES or InChIKey are left out: "CO" is
+# a name here. The build has no synonym quality, so rank only says which field matched: approved
+# name, CAS RN, IUPAC name, then any other identifier. An approved name that differs from the query
+# in letter case ranks with the last ("Co" is not "CO").
 dsstox_name_hits <- function(queries) {
   ensure_dsstox()
-  tier <- c(PREFERRED_NAME = 1L, CASRN = 2L, IUPAC_NAME = 5L, IDENTIFIER = 7L, ident_upper = 7L)
-  probes <- unique(data.frame(searchValue = c(queries, queries), input = c(queries, toupper(queries))))
-  hits <- as.data.frame(suppressMessages(ComptoxR::dss_resolve(probes$input)))
-  out <- merge(probes, hits[hits$matched_on %in% names(tier), ], by = "input")
+  tier <- c(PREFERRED_NAME = 1L, CASRN = 2L, IUPAC_NAME = 5L, IDENTIFIER = 7L)
+  hits <- suppressMessages(ComptoxR::dss_resolve(queries, ignore_case = TRUE, fields = names(tier)))
+  hits <- hits[!is.na(hits$DTXSID), ]
+  folded <- hits$matched_on == "PREFERRED_NAME" & hits$PREFERRED_NAME != hits$input
   tibble::tibble(
-    searchValue = out$searchValue,
-    dtxsid = out$DTXSID,
-    rank = ifelse(out$input == out$searchValue, unname(tier[out$matched_on]), 7L),
-    preferredName = out$PREFERRED_NAME
+    searchValue = hits$input,
+    dtxsid = hits$DTXSID,
+    rank = ifelse(folded, 7L, unname(tier[hits$matched_on])),
+    preferredName = hits$PREFERRED_NAME
   )
 }

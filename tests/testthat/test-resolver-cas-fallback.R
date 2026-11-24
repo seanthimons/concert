@@ -429,24 +429,27 @@ test_that("the CTX search is not asked when the local DSSTox build answers every
 })
 
 test_that("local DSSTox matches ignore letter case and matches on a structure field", {
-  resolve <- function(query) {
-    expect_setequal(query, c("Co", "CO", "nope", "NOPE"))
+  resolve <- function(query, ignore_case, fields) {
+    expect_identical(query, c("Co", "CO", "acetic acid", "nope"))
+    expect_true(ignore_case)
+    expect_setequal(fields, c("PREFERRED_NAME", "CASRN", "IUPAC_NAME", "IDENTIFIER"))
     tibble::tibble(
-      input = c("Co", "CO", "CO", "CO", "nope", "NOPE"),
-      DTXSID = c("DTXSID1", "DTXSID1", "DTXSID2", "DTXSID3", NA, NA),
-      PREFERRED_NAME = c("Cobalt", "Cobalt", "CO", "Methanol", NA, NA),
+      input = c("Co", "Co", "CO", "CO", "acetic acid", "acetic acid", "nope"),
+      DTXSID = c("DTXSID1", "DTXSID2", "DTXSID1", "DTXSID2", "DTXSID4", "DTXSID4", NA),
+      PREFERRED_NAME = c("Cobalt", "CO", "Cobalt", "CO", "Acetic acid", "Acetic acid", NA),
       CASRN = NA_character_,
-      matched_on = c("IDENTIFIER", "ident_upper", "PREFERRED_NAME", "SMILES", NA, NA)
+      matched_on = c("IDENTIFIER", "PREFERRED_NAME", "IDENTIFIER", "PREFERRED_NAME", "PREFERRED_NAME", "IUPAC_NAME", NA)
     )
   }
   testthat::local_mocked_bindings(ensure_dsstox = function() invisible())
   testthat::local_mocked_bindings(dss_resolve = resolve, .package = "ComptoxR")
-  out <- dsstox_name_hits(c("Co", "CO", "nope"))
-  expect_setequal(out$searchValue, c("Co", "CO"))
+  out <- dsstox_name_hits(c("Co", "CO", "acetic acid", "nope"))
+  expect_setequal(out$searchValue, c("Co", "CO", "acetic acid"))
   expect_setequal(out$dtxsid[out$searchValue == "Co"], c("DTXSID1", "DTXSID2"))
-  expect_setequal(out$dtxsid[out$searchValue == "CO"], c("DTXSID1", "DTXSID2"))
-  # An approved name reached only by upper-casing "Co" does not outrank the match as written.
+  # An approved name that only matches "Co" in another letter case does not outrank the synonym.
   expect_identical(unique(out$rank[out$searchValue == "Co"]), 7L)
   expect_identical(out$rank[out$searchValue == "CO" & out$dtxsid == "DTXSID2"], 1L)
+  # The IUPAC name still counts when the approved name differs in letter case.
+  expect_identical(min(out$rank[out$searchValue == "acetic acid"]), 5L)
   expect_identical(out$preferredName[match("DTXSID2", out$dtxsid)], "CO")
 })
