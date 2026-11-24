@@ -1,6 +1,31 @@
 
 
 
+## concert 0.6.23 (2026-11-24)
+
+#### New features
+
+- count resolver candidates confirmed by the local DSSTox build as valid
+  evidence
+  ([a461cae](https://github.com/seanthimons/concert/tree/a461caed6f33a15fb59302cbe5b3216e4ec9a7c7))
+- look up the names of a failed resolver batch in the local DSSTox build
+  first, so the CTX search is only asked for what the build does not
+  hold
+  ([b8126af](https://github.com/seanthimons/concert/tree/b8126af2354ac60558d6ae0d935f51046b791a8c))
+- count CTX-confirmed resolver candidates as valid evidence
+  ([f58e8e3](https://github.com/seanthimons/concert/tree/f58e8e3250443fb3be7883fe00b982de1b62cf78))
+- ask the CTX exact search for the names of a failed resolver batch, so
+  one bad name no longer marks them all as errors
+  ([a556fba](https://github.com/seanthimons/concert/tree/a556fba27b2aa681f7802f001782a2cde991e1ad))
+
+#### Other changes
+
+- bump version to 0.6.23 \[skip ci\]
+  ([61a0b5b](https://github.com/seanthimons/concert/tree/61a0b5b80a0720575d9a9dfa3e5912151fed89f8))
+
+Full set of changes:
+[`v0.6.22...v0.6.23`](https://github.com/seanthimons/concert/compare/v0.6.22...v0.6.23)
+
 ## concert 0.6.22 (2026-11-24)
 
 #### Bug fixes
@@ -11,6 +36,11 @@
 - check synonym-level names for ties when the search responses differ in
   column types, instead of keeping every bulk pick
   ([cf9f373](https://github.com/seanthimons/concert/tree/cf9f373580637613f87b391d368f7153c6ad3f08))
+
+#### Docs
+
+- update NEWS.md for v0.6.22 \[skip ci\]
+  ([883f294](https://github.com/seanthimons/concert/tree/883f2948d3e92b2197728d7dcf85a0e05e215c2f))
 
 #### Other changes
 
