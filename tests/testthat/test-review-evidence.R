@@ -134,3 +134,13 @@ test_that("snapshots observe current source validation and ignore audit timestam
   expect_equal(now$validation$outcome, "unavailable")
   expect_false(identical(review_evidence_fingerprint(original), review_evidence_fingerprint(now)))
 })
+
+test_that("CTX-confirmed resolver candidates count as valid evidence", {
+  df <- data.frame(resolver_dtxsid_candidate = "DTXSID1", resolver_lookup_status = c("ctx_public", "public; ctx_public", "not_public; ctx_public", NA, ""), stringsAsFactors = FALSE)
+  outcome <- function(row) review_observed_validation(df, row, character())$outcome
+  expect_identical(outcome(1L), "valid")
+  expect_identical(outcome(2L), "valid")
+  expect_identical(outcome(3L), "unknown")
+  expect_identical(outcome(4L), "unknown")
+  expect_identical(outcome(5L), "unknown")
+})
