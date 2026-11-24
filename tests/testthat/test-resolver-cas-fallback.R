@@ -238,3 +238,124 @@ test_that("name-only search caches are bypassed and refreshed results are reused
   expect_identical(calls, 1L)
   expect_length(list.files(cache_dir, pattern = "^curation_", recursive = TRUE), 2L)
 })
+
+# A failed resolver batch falls back to one exact-match CTX GET per query.
+ctx_stub <- function(asked) {
+  function(query) {
+    asked$queries <- c(asked$queries, query)
+    switch(
+      query,
+      GenX = tibble::tibble(
+        dtxsid = c("DTXSID70880215", "DTXSID40108559", "DTXSID70880215", "DTXSID9"),
+        rank = c(15L, 15L, 15L, 20L),
+        preferredName = c("Acid", "Ammonium salt", "Acid", "Lower rank"),
+        smiles = NA
+      ),
+      Flaky = {
+        warning("Request for Flaky failed: HTTP 502 text/html response", call. = FALSE)
+        data.frame()
+      },
+      Broken = stop("timeout"),
+      {
+        warning(sprintf("Request for %s failed: HTTP 400 application/problem+json response", query), call. = FALSE)
+        data.frame()
+      }
+    )
+  }
+}
+
+test_that("a failed resolver batch is answered per query by the CTX exact search", {
+  .search_failures$rows <- list()
+  df <- tibble::tibble(
+    name = c("GenX", "Tantalum", "Flaky", "Broken", "A/B", "Solved"),
+    consensus_status = c(rep("error", 5), "resolved"),
+    consensus_dtxsid = c(rep(NA_character_, 5), "DTXSID1")
+  )
+  asked <- new.env()
+  expect_message(
+    out <- add_resolver_candidates(df, "name", lookup_fn = function(...) stop("502"), ctx_fn = ctx_stub(asked)),
+    "CTX answered 2 of the 5 failed queries"
+  )
+  expect_identical(out$resolver_lookup_status, c("ctx_public", "ctx_no_hit", "error", "error", "error", NA))
+  # Every hit at the best rank is a candidate; none is chosen and the consensus is untouched.
+  expect_identical(out$resolver_dtxsid_candidate[1], "DTXSID70880215; DTXSID40108559")
+  expect_identical(out$resolver_name[1], "Acid; Ammonium salt")
+  expect_true(all(is.na(out$resolver_dtxsid_candidate[-1])))
+  expect_identical(out$consensus_dtxsid, df$consensus_dtxsid)
+  expect_identical(jsonlite::fromJSON(out$resolver_query_details[1])$status, "ctx_public")
+  # The "/" name is never sent, and only the two failed requests are tried again.
+  expect_false("A/B" %in% asked$queries)
+  expect_identical(sort(asked$queries), c("Broken", "Broken", "Flaky", "Flaky", "GenX", "Tantalum"))
+  failures <- collected_search_failures()
+  expect_identical(failures$n_queries[failures$lookup == "resolver_ctx"], 2L)
+  summary <- search_failure_summary(list(results = out, search_failures = NULL))
+  expect_identical(summary$n[summary$lookup == "resolver"], 3L)
+  .search_failures$rows <- list()
+})
+
+test_that("the CTX search is not asked when the resolver answers", {
+  df <- tibble::tibble(name = "GenX", consensus_status = "error", consensus_dtxsid = NA_character_)
+  out <- add_resolver_candidates(
+    df,
+    "name",
+    lookup_fn = function(ids, tidy) list(list(query = "GenX", result = "NOT_RESOLVED")),
+    ctx_fn = function(...) stop("must not be called")
+  )
+  expect_identical(out$resolver_lookup_status, "no_hit")
+})
+
+test_that("CTX fallback answers, misses included, are cached; failed queries are asked again", {
+  withr::defer({
+    .lookup_cache$enabled <- FALSE
+    .lookup_cache$lookups <- list()
+    .search_failures$rows <- list()
+  })
+  .lookup_cache$enabled <- TRUE
+  .lookup_cache$lookups <- list()
+  df <- tibble::tibble(
+    name = c("GenX", "Tantalum", "Flaky"),
+    consensus_status = "error",
+    consensus_dtxsid = NA_character_
+  )
+  run <- function(asked) {
+    down <- function(...) stop("502")
+    suppressMessages(add_resolver_candidates(df, "name", lookup_fn = down, ctx_fn = ctx_stub(asked)))
+  }
+  first <- run(new.env())
+  asked <- new.env()
+  second <- run(asked)
+  expect_identical(asked$queries, c("Flaky", "Flaky"))
+  expect_identical(second, first)
+  expect_identical(second$resolver_lookup_status, c("ctx_public", "ctx_no_hit", "error"))
+  # The tie check reads the same store.
+  ties <- suppressMessages(find_name_ties("GenX", get_fn = function(...) stop("must come from cache")))
+  expect_identical(ties$tied_dtxsids, "DTXSID40108559; DTXSID70880215")
+})
+
+test_that("resolver and CTX candidates on one row keep separate statuses", {
+  df <- tibble::tibble(
+    name = c("GenX", paste0("chem", 1:1000)),
+    wqx_name_name = c("chem1000", rep(NA, 1000)),
+    consensus_status = c("wqx", rep("error", 1000)),
+    consensus_dtxsid = NA_character_
+  )
+  hit <- function(q) list(result = "FOUND", query = q, resolvedBy = "Name", chemical = list(sid = "DTXSID1", name = q))
+  # GenX is in the first chunk of 1000, which fails; its canonical name chem1000 is answered in the second.
+  lookup <- function(ids, tidy) if ("GenX" %in% ids) stop("502") else lapply(ids, hit)
+  out <- suppressMessages(add_resolver_candidates(
+    df,
+    "name",
+    lookup_fn = lookup,
+    public_fn = function(ids) character(),
+    ctx_fn = ctx_stub(new.env())
+  ))
+  expect_identical(out$resolver_dtxsid_candidate[1], "DTXSID70880215; DTXSID40108559; DTXSID1")
+  expect_identical(out$resolver_lookup_status[1], "not_public; ctx_public")
+  expect_identical(out$resolver_lookup_status[c(2, 1001)], c("ctx_no_hit", "not_public"))
+})
+
+test_that("a name without an exact match is a miss for the tie check, not a failed lookup", {
+  .search_failures$rows <- list()
+  expect_equal(nrow(suppressMessages(find_name_ties("Tantalum", get_fn = ctx_stub(new.env())))), 0)
+  expect_equal(nrow(collected_search_failures()), 0)
+})

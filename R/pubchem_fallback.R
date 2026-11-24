@@ -343,13 +343,17 @@ add_structure_parents <- function(df, cache = NULL, workflows = DESALT_WORKFLOWS
 # Prochloraz-d4, DTXSID801539501), so hits are review candidates only and
 # carry whether the DTXSIDs are in the public DSSTox build (public, not_public,
 # some_public when a query has several hits, unverified, no_hit, error).
+# Queries in a resolver batch that failed are asked of the public CTX search instead, one exact-match
+# GET each: ctx_public marks the candidates it found and ctx_no_hit a query it answered without one,
+# so only the queries neither service answered are left as error.
 add_resolver_candidates <- function(
   df,
   name_cols,
   original_data = NULL,
   lookup_fn = ComptoxR::chemi_resolver_lookup_bulk,
   public_fn = dsstox_public_ids,
-  cas_cols = character()
+  cas_cols = character(),
+  ctx_fn = ComptoxR::ct_chemical_search_equal
 ) {
   df$resolver_dtxsid_candidate <- NA_character_
   df$resolver_name <- NA_character_
@@ -386,7 +390,8 @@ add_resolver_candidates <- function(
   # call. Chunks limit a failure to its own queries, and each is tried twice.
   # ponytail: fixed chunk size and one retry; make them arguments if the API needs tuning.
   hits <- list()
-  failed_queries <- character()
+  failed_queries <- ctx_answered <- character()
+  ctx_rows <- NULL
   failure <- NULL
   for (chunk in split(queries, ceiling(seq_along(queries) / 1000))) {
     response <- tryCatch(lookup_fn(chunk, tidy = FALSE), error = function(e) e)
@@ -408,6 +413,30 @@ add_resolver_candidates <- function(
       length(queries),
       failure
     ))
+    # The GET endpoint answers 404 for any name holding "/", so those stay failed.
+    askable <- failed_queries[!grepl("/", failed_queries, fixed = TRUE)]
+    ctx_failed <- character()
+    fetch <- function(asked) {
+      out <- search_equal_each(asked, ctx_fn)
+      ctx_failed <<- union(setdiff(ctx_failed, asked), attr(out, "failed"))
+      out
+    }
+    # The store is shared with the tie check: same request, same rows.
+    ctx_rows <- tryCatch(
+      suppressWarnings(cached_lookup("search_equal_by_query", askable, fetch, "resolver_ctx")),
+      error = function(e) {
+        message("[resolver] CTX fallback failed: ", conditionMessage(e))
+        NULL
+      }
+    )
+    if (!is.null(ctx_rows)) {
+      ctx_answered <- setdiff(askable, ctx_failed)
+      message(sprintf(
+        "[resolver] CTX answered %d of the %d failed queries",
+        length(ctx_answered),
+        length(failed_queries)
+      ))
+    }
   }
   statuses <- stats::setNames(rep("no_hit", length(queries)), queries)
   candidate_results <- name_results <- stats::setNames(vector("list", length(queries)), queries)
@@ -441,6 +470,16 @@ add_resolver_candidates <- function(
     } else if (failed) statuses[query] <- "error"
   }
   statuses[failed_queries] <- "error"
+  ctx_candidates <- list()
+  for (query in ctx_answered) {
+    # Every hit at the best rank: the GET returns ties, and none is chosen here.
+    selected <- ctx_rows[ctx_rows$searchValue %in% query & !is.na(ctx_rows$dtxsid) & !is.na(ctx_rows$rank), ]
+    selected <- selected[selected$rank == suppressWarnings(min(selected$rank)), ]
+    selected <- selected[!duplicated(selected$dtxsid), ]
+    candidate_results[[query]] <- ctx_candidates[[query]] <- selected$dtxsid
+    name_results[[query]] <- selected$preferredName
+    statuses[query] <- if (nrow(selected)) "ctx_public" else "ctx_no_hit"
+  }
   for (row in unique(info$rows[keep])) {
     indices <- which(keep & info$rows == row)
     query <- unique(info$names[indices])
@@ -450,10 +489,14 @@ add_resolver_candidates <- function(
     df$resolver_name[row] <- fallback_join(unlist(name_results[query], use.names = FALSE))
     status <- unique(unname(statuses[query]))
     if (length(candidates)) {
-      status <- if (inherits(public, "error")) "unverified" else {
-        n <- sum(candidates %in% public)
-        if (n == length(candidates)) "public" else if (n == 0L) "not_public" else "some_public"
+      # CTX candidates are public by construction and keep their own status.
+      from_ctx <- unlist(ctx_candidates[query], use.names = FALSE)
+      checked <- setdiff(candidates, from_ctx)
+      status <- if (!length(checked)) character() else if (inherits(public, "error")) "unverified" else {
+        n <- sum(checked %in% public)
+        if (n == length(checked)) "public" else if (n == 0L) "not_public" else "some_public"
       }
+      if (length(from_ctx)) status <- c(status, "ctx_public")
       if (any(grepl("error", statuses[query], fixed = TRUE))) status <- c(status, "error")
     }
     df$resolver_lookup_status[row] <- fallback_join(status)

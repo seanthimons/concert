@@ -227,6 +227,49 @@ search_exact <- function(unique_names) {
   result
 }
 
+# One single-name GET per query, for cached_lookup(). The GET echoes the matched synonym as
+# searchValue ("AMMONIA" comes back as "Ammonia"), so each response is keyed back to the name
+# that was asked. Only the columns read by the callers are kept, in fixed types: the raw responses
+# do not row-bind (an all-NA column such as smiles arrives logical in one response and character
+# in the next).
+# The endpoint answers HTTP 400 ("Found 0 results") for a name with no exact match, which ComptoxR
+# reports like a dropped request; that is a miss, not a failure. Queries whose request really
+# failed are returned in the "failed" attribute, so one bad name costs only itself.
+# ponytail: any HTTP 400 counts as a miss; ComptoxR does not pass the response body on.
+search_equal_each <- function(queries, get_fn = ComptoxR::ct_chemical_search_equal) {
+  failed <- character()
+  rows <- lapply(queries, function(query) {
+    hit <- withCallingHandlers(
+      tryCatch(get_fn(query), error = function(e) {
+        warning(sprintf("Request for %s failed: %s", query, conditionMessage(e)), call. = FALSE)
+        NULL
+      }),
+      warning = function(w) {
+        if (!is_dropped_chunk_warning(w)) {
+          return()
+        }
+        if (grepl("failed: HTTP 400 ", conditionMessage(w), fixed = TRUE)) {
+          invokeRestart("muffleWarning")
+        }
+        failed <<- c(failed, query)
+      }
+    )
+    if (!NROW(hit)) {
+      return(NULL)
+    }
+    col <- function(name, as) if (name %in% names(hit)) as(hit[[name]]) else as(rep(NA, NROW(hit)))
+    tibble::tibble(
+      searchValue = query,
+      dtxsid = col("dtxsid", as.character),
+      rank = col("rank", as.integer),
+      preferredName = col("preferredName", as.character)
+    )
+  })
+  out <- dplyr::bind_rows(rows)
+  attr(out, "failed") <- unique(failed)
+  out
+}
+
 # Names whose top rank holds more than one DTXSID, via the single-name GET,
 # which (unlike the bulk POST) returns every tied hit.
 # ponytail: one GET per name (840 names took ~50 s in UAT); batch in parallel if that hurts.
@@ -243,26 +286,7 @@ find_name_ties <- function(names, get_fn = ComptoxR::ct_chemical_search_equal) {
     names <- names[!slashed]
   }
   message(sprintf("Exact search: checking %d synonym-level hits for ties...", length(names)))
-  # The GET echoes the matched synonym as searchValue ("AMMONIA" comes back as
-  # "Ammonia"), so each response is keyed back to the name that was asked.
-  # The store name differs from the one older caches keyed by that echo.
-  # Only the columns read below are kept, in fixed types: the raw responses do not row-bind
-  # (an all-NA column such as smiles arrives logical in one response and character in the next).
-  get_each <- function(queries) {
-    dplyr::bind_rows(lapply(queries, function(query) {
-      hit <- get_fn(query)
-      if (!NROW(hit)) {
-        return(NULL)
-      }
-      col <- function(name, as) if (name %in% names(hit)) as(hit[[name]]) else as(rep(NA, NROW(hit)))
-      tibble::tibble(
-        searchValue = query,
-        dtxsid = col("dtxsid", as.character),
-        rank = col("rank", as.integer),
-        preferredName = col("preferredName", as.character)
-      )
-    }))
-  }
+  get_each <- function(queries) search_equal_each(queries, get_fn)
   lookup <- function() cached_lookup("search_equal_by_query", names, get_each, "name_ties")
   hits <- tryCatch(suppressWarnings(lookup()), error = function(e) {
     message("Exact search: tie check failed, keeping bulk picks: ", conditionMessage(e))
@@ -355,9 +379,11 @@ cached_lookup <- function(lookup, values, fetch, failure_label = lookup) {
     }
     first_failure <- failure
     got <- answered(raw, v)
+    # A fetch that names its failed values (the "failed" attribute) is retried for those alone.
+    named <- attr(raw, "failed")
     if (!is.null(got)) {
       failure <<- NULL
-      unanswered <- setdiff(v, got)
+      unanswered <- named %||% setdiff(v, got)
       again <- if (length(unanswered)) {
         tryCatch(fetch_logged(unanswered), error = function(e) {
           failure <<- conditionMessage(e)
@@ -368,15 +394,18 @@ cached_lookup <- function(lookup, values, fetch, failure_label = lookup) {
         # A retry that cannot be merged (column types differ) leaves the first response standing.
         raw <- tryCatch(bind_lookup_rows(raw, again), error = function(e) {
           failure <<- conditionMessage(e)
+          again <<- NULL
           raw
         })
       }
+      # Binding drops attributes. The retry asked every failed value, so its list is the final one.
+      if (!is.null(named)) attr(raw, "failed") <- if (is.null(again)) named else attr(again, "failed")
       got <- answered(raw, v)
     }
     if (!is.null(failure)) {
       failure <<- first_failure
       # ponytail: counts misses from the surviving chunks too; bulk results carry no per-chunk failure list.
-      n_failed <- length(v) - length(got)
+      n_failed <- if (is.null(attr(raw, "failed"))) length(v) - length(got) else length(attr(raw, "failed"))
       message(sprintf(
         "[lookup] %s: lookup failed for %d of %d queries after one retry: %s",
         failure_label, n_failed, length(v), failure
@@ -400,7 +429,9 @@ cached_lookup <- function(lookup, values, fetch, failure_label = lookup) {
       raw$.query <- raw[[grep("^search.?value$", names(raw), ignore.case = TRUE, value = TRUE)[1]]]
       store$rows <- bind_lookup_rows(store$rows, raw)
     }
-    store$queried <- c(store$queried, if (is.null(failure)) todo else returned)
+    # Misses are stored unless a failure leaves them in doubt; a fetch that names its failed values removes the doubt.
+    known <- if (is.null(attr(raw, "failed"))) returned else setdiff(todo, attr(raw, "failed"))
+    store$queried <- c(store$queried, if (is.null(failure)) todo else known)
     .lookup_cache$lookups[[lookup]] <- store
   }
   message(sprintf("[lookup cache] %s: %d cached, %d searched", lookup, length(values) - length(todo), length(todo)))
