@@ -17,9 +17,9 @@ pak::pak("seanthimons/concert")
 
 GitHub-only dependencies (ComptoxR and a pinned reactable revision) are
 installed automatically from `Remotes` in `DESCRIPTION`. CONCERT requires
-ComptoxR 4.0.5 or newer. The ComptoxR remote is not pinned to a release, so a
+ComptoxR 4.0.7 or newer. The ComptoxR remote is not pinned to a release, so a
 fresh install takes the current ComptoxR default branch; pin a release in your
-own lockfile if you need one. This repo's lockfile uses `v4.0.5`.
+own lockfile if you need one. This repo's lockfile uses `v4.0.7`.
 
 ### CompTox API key
 
