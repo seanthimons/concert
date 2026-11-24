@@ -17,7 +17,7 @@ output alongside the XLSX."><meta property="og:image" content="https://seanthimo
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.20</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.21</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -356,7 +356,9 @@ changes review inputs (<code>review_picks</code>, <code>row_flags</code>, <code>
 <code>identity_decisions</code>) skips the search. File reading and cleaning always
 re-run, and the search is repeated whenever their output, the tag map, the
 search switches, the WQX dictionary, or the concert or ComptoxR version
-changes. A progress message says whether the search was reused. The cache
+changes. After a concert upgrade the repeated search still reuses the
+stored per-query lookups and enrichment, which are kept per ComptoxR
+version. A progress message says whether the search was reused. The cache
 is a snapshot of the external services: use <code>refresh_cache</code> to pick up
 upstream changes. Use one directory per dataset, not shared by concurrent
 runs. Default NULL: nothing is cached.</p></dd>

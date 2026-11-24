@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.20</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.21</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -87,9 +87,13 @@ curation. Default FALSE for backward compatibility.</p></dd>
 <dd><p>Optional directory. When set, the CompTox search result is
 cached by a hash of the cleaned data, the detected input data, and the
 search settings, and the candidate enrichment and structure-parent caches
-persist across runs, so a re-run after review edits skips the API. Files
-live in a per-concert-version subdirectory. Use one directory per dataset
-and do not share it between concurrent runs.</p></dd>
+persist across runs, so a re-run after review edits skips the API. The
+search result and structure parents live in a per-concert-version
+subdirectory (<code>concert-&lt;version&gt;/</code>). The raw per-query lookups and the
+candidate enrichment live in a subdirectory keyed on the ComptoxR version
+(<code>comptoxr-&lt;version&gt;-v1/</code>), so a concert upgrade repeats the search logic
+without repeating the API calls. Use one directory per dataset and do not
+share it between concurrent runs.</p></dd>
 
 
 <dt id="arg-pubchem">pubchem<a class="anchor" aria-label="anchor" href="#arg-pubchem"></a></dt>
@@ -111,8 +115,9 @@ rows via the chemi standardizer. Independent of <code>pubchem</code>.</p></dd>
 
 <dt id="arg-refresh-cache">refresh_cache<a class="anchor" aria-label="anchor" href="#arg-refresh-cache"></a></dt>
 <dd><p>Logical. If TRUE, deletes this concert version's cache
-under <code>cache_dir</code> first, forcing a fresh search. Caches written by other
-concert versions are left in place.</p></dd>
+and the lookups and enrichment for the installed ComptoxR version under
+<code>cache_dir</code> first, forcing a fresh search. Caches written by other concert
+or ComptoxR versions are left in place.</p></dd>
 
 </dl></div>
     <div class="section level2">

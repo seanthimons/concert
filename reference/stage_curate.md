@@ -46,9 +46,13 @@ stage_curate(
   Optional directory. When set, the CompTox search result is cached by a
   hash of the cleaned data, the detected input data, and the search
   settings, and the candidate enrichment and structure-parent caches
-  persist across runs, so a re-run after review edits skips the API.
-  Files live in a per-concert-version subdirectory. Use one directory
-  per dataset and do not share it between concurrent runs.
+  persist across runs, so a re-run after review edits skips the API. The
+  search result and structure parents live in a per-concert-version
+  subdirectory (`concert-<version>/`). The raw per-query lookups and the
+  candidate enrichment live in a subdirectory keyed on the ComptoxR
+  version (`comptoxr-<version>-v1/`), so a concert upgrade repeats the
+  search logic without repeating the API calls. Use one directory per
+  dataset and do not share it between concurrent runs.
 
 - pubchem:
 
@@ -70,9 +74,10 @@ stage_curate(
 
 - refresh_cache:
 
-  Logical. If TRUE, deletes this concert version's cache under
-  `cache_dir` first, forcing a fresh search. Caches written by other
-  concert versions are left in place.
+  Logical. If TRUE, deletes this concert version's cache and the lookups
+  and enrichment for the installed ComptoxR version under `cache_dir`
+  first, forcing a fresh search. Caches written by other concert or
+  ComptoxR versions are left in place.
 
 ## Value
 
