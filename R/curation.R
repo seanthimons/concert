@@ -246,11 +246,21 @@ find_name_ties <- function(names, get_fn = ComptoxR::ct_chemical_search_equal) {
   # The GET echoes the matched synonym as searchValue ("AMMONIA" comes back as
   # "Ammonia"), so each response is keyed back to the name that was asked.
   # The store name differs from the one older caches keyed by that echo.
+  # Only the columns read below are kept, in fixed types: the raw responses do not row-bind
+  # (an all-NA column such as smiles arrives logical in one response and character in the next).
   get_each <- function(queries) {
     dplyr::bind_rows(lapply(queries, function(query) {
       hit <- get_fn(query)
-      if (NROW(hit)) hit$searchValue <- query
-      hit
+      if (!NROW(hit)) {
+        return(NULL)
+      }
+      col <- function(name, as) if (name %in% names(hit)) as(hit[[name]]) else as(rep(NA, NROW(hit)))
+      tibble::tibble(
+        searchValue = query,
+        dtxsid = col("dtxsid", as.character),
+        rank = col("rank", as.integer),
+        preferredName = col("preferredName", as.character)
+      )
     }))
   }
   lookup <- function() cached_lookup("search_equal_by_query", names, get_each, "name_ties")
@@ -292,6 +302,21 @@ find_name_ties <- function(names, get_fn = ComptoxR::ct_chemical_search_equal) {
 # ComptoxR drops a failed chunk of a batched request with only a warning:
 # "API request to ... failed" (bulk POST) or "Request for ... failed" (single GET).
 is_dropped_chunk_warning <- function(w) grepl("^(API request to|Request for) .* failed", conditionMessage(w))
+
+# bind_rows() for lookup responses. A column that is all NA in one response arrives logical and
+# will not combine with the typed column of another response or of the stored rows, so such
+# columns are left untyped until bound.
+bind_lookup_rows <- function(...) {
+  untyped <- function(df) {
+    if (is.data.frame(df)) {
+      for (col in names(df)) {
+        if (is.logical(df[[col]]) && all(is.na(df[[col]]))) df[[col]] <- vctrs::unspecified(nrow(df))
+      }
+    }
+    df
+  }
+  dplyr::bind_rows(lapply(list(...), untyped))
+}
 
 #' Search values through the per-query cache
 #'
@@ -341,7 +366,7 @@ cached_lookup <- function(lookup, values, fetch, failure_label = lookup) {
       }
       if (NROW(again)) {
         # A retry that cannot be merged (column types differ) leaves the first response standing.
-        raw <- tryCatch(dplyr::bind_rows(raw, again), error = function(e) {
+        raw <- tryCatch(bind_lookup_rows(raw, again), error = function(e) {
           failure <<- conditionMessage(e)
           raw
         })
@@ -373,7 +398,7 @@ cached_lookup <- function(lookup, values, fetch, failure_label = lookup) {
     }
     if (NROW(raw)) {
       raw$.query <- raw[[grep("^search.?value$", names(raw), ignore.case = TRUE, value = TRUE)[1]]]
-      store$rows <- dplyr::bind_rows(store$rows, raw)
+      store$rows <- bind_lookup_rows(store$rows, raw)
     }
     store$queried <- c(store$queried, if (is.null(failure)) todo else returned)
     .lookup_cache$lookups[[lookup]] <- store
