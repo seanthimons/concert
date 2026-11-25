@@ -1771,7 +1771,7 @@ test_that("find_name_ties keeps only names with several top-rank DTXSIDs", {
 test_that("find_name_ties binds responses whose other columns differ in type or are missing", {
   .search_failures$rows <- list()
   # An all-NA column arrives logical; the next response has it as character.
-  stub <- function(name) {
+  stub <- fanout_stub(function(name) {
     switch(name,
       PFOA = tibble::tibble(searchValue = "Pfoa", dtxsid = c("DTXSID8031865", "DTXSID40892486"),
         preferredName = c("Perfluorooctanoic acid", "Perfluorooctanoate"), rank = c(15, 15), smiles = c("C", "CC")),
@@ -1780,7 +1780,7 @@ test_that("find_name_ties binds responses whose other columns differ in type or 
       Lead = tibble::tibble(searchValue = "lead", dtxsid = c("DTXSID2024161", "DTXSID0000002"), rank = c(10L, 10L)),
       Nothing = tibble::tibble()
     )
-  }
+  })
   ties <- suppressMessages(find_name_ties(c("PFOA", "Atrazine", "Lead", "Nothing"), get_fn = stub))
   expect_equal(nrow(collected_search_failures()), 0L)
   expect_equal(ties$searchValue, c("Lead", "PFOA"))

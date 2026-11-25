@@ -243,11 +243,12 @@ test_that("name-only search caches are bypassed and refreshed results are reused
 # local DSSTox copy.
 no_local <- function(...) stop("no local copy")
 ctx_stub <- function(asked) {
-  function(query) {
+  fanout_stub(function(query) {
     asked$queries <- c(asked$queries, query)
     switch(
       query,
       GenX = tibble::tibble(
+        searchValue = "genx",
         dtxsid = c("DTXSID70880215", "DTXSID40108559", "DTXSID70880215", "DTXSID9"),
         rank = c(15L, 15L, 15L, 20L),
         preferredName = c("Acid", "Ammonium salt", "Acid", "Lower rank"),
@@ -263,7 +264,7 @@ ctx_stub <- function(asked) {
         data.frame()
       }
     )
-  }
+  })
 }
 
 test_that("a failed resolver batch is answered per query by the CTX exact search", {
@@ -367,6 +368,64 @@ test_that("resolver and CTX candidates on one row keep separate statuses", {
   expect_identical(out$resolver_dtxsid_candidate[1], "DTXSID70880215; DTXSID40108559; DTXSID1")
   expect_identical(out$resolver_lookup_status[1], "not_public; ctx_public")
   expect_identical(out$resolver_lookup_status[c(2, 1001)], c("ctx_no_hit", "not_public"))
+})
+
+test_that("the vector search keys rows, misses and failures to the asked names as one GET per name did", {
+  single <- function(query) {
+    switch(
+      query,
+      AMMONIA = ,
+      Ammonia = tibble::tibble(searchValue = "Ammonia", dtxsid = "DTXSID0023872", rank = 15L, preferredName = "Ammonia"),
+      FLAKY = ,
+      Flaky = {
+        warning(sprintf("Request for %s failed: HTTP 502 text/html response", query), call. = FALSE)
+        data.frame()
+      },
+      Broken = stop("timeout"),
+      # An echo that differs from the asked name by more than case.
+      Odd = tibble::tibble(searchValue = "Odd ", dtxsid = "DTXSID1", rank = 15L),
+      # The API matches a space to a hyphen, so this answer echoes another asked name.
+      `M-6` = tibble::tibble(searchValue = "M-6", dtxsid = "DTXSID2", rank = 15L),
+      `M 6` = tibble::tibble(searchValue = "M-6", dtxsid = c("DTXSID2", "DTXSID3"), rank = c(15L, 16L)),
+      Empty = tibble::tibble(),
+      {
+        warning(sprintf("Request for %s failed: HTTP 400 application/problem+json response", query), call. = FALSE)
+        data.frame()
+      }
+    )
+  }
+  queries <- c("AMMONIA", "Ammonia", "Tantalum", "Flaky", "FLAKY", "Broken", "Odd", "M-6", "M 6", "Empty")
+  sent <- list()
+  vector_fn <- function(words) {
+    sent[[length(sent) + 1]] <<- words
+    fanout_stub(single)(words)
+  }
+  old <- suppressWarnings(search_equal_singly(queries, single))
+  new <- suppressWarnings(search_equal_each(queries, vector_fn))
+  expect_identical(new, old)
+  expect_identical(new$searchValue, c("AMMONIA", "Ammonia", "Odd", "M-6", "M 6", "M 6"))
+  # A failure marks every case variant of the name, as one GET each did.
+  expect_identical(attr(new, "failed"), c("Flaky", "FLAKY", "Broken"))
+  # One vector call, Ammonia asked once; then the colliding names and those the call left
+  # unexplained, one by one.
+  expect_identical(sent, list(c("AMMONIA", "Tantalum", "Flaky", "Broken", "Odd", "Empty"), "M-6", "M 6", "Odd", "Empty"))
+  # A miss raises no warning; a failure does.
+  expect_warning(search_equal_each("Tantalum", vector_fn), NA)
+  expect_warning(search_equal_each("Flaky", vector_fn), "Flaky failed")
+})
+
+test_that("a call-level error in the vector search falls back to one GET per name", {
+  fn <- function(words) {
+    if (length(words) > 1) stop(errorCondition("unreadable response", class = "specmill_call_error"))
+    if (words == "Bad") stop("HTTP 401")
+    tibble::tibble(searchValue = words, dtxsid = "DTXSID1", rank = 15L)
+  }
+  out <- expect_message(
+    expect_warning(search_equal_each(c("Good", "Bad"), fn), "Bad failed: HTTP 401"),
+    "one name at a time"
+  )
+  expect_identical(out$searchValue, "Good")
+  expect_identical(attr(out, "failed"), "Bad")
 })
 
 test_that("a name without an exact match is a miss for the tie check, not a failed lookup", {

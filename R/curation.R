@@ -227,16 +227,80 @@ search_exact <- function(unique_names) {
   result
 }
 
-# One single-name GET per query, for cached_lookup(). The GET echoes the matched synonym as
-# searchValue ("AMMONIA" comes back as "Ammonia"), so each response is keyed back to the name
-# that was asked. Only the columns read by the callers are kept, in fixed types: the raw responses
-# do not row-bind (an all-NA column such as smiles arrives logical in one response and character
-# in the next).
-# The endpoint answers HTTP 400 ("Found 0 results") for a name with no exact match, which ComptoxR
-# reports like a dropped request; that is a miss, not a failure. Queries whose request really
-# failed are returned in the "failed" attribute, so one bad name costs only itself.
+# The single-name GET, for cached_lookup(). The whole query vector goes to ComptoxR in one call,
+# which sends the requests in parallel (up to 16 at a time from ComptoxR 4.0.8) and drops the ones
+# that fail, naming them in its "failed" attribute. The endpoint answers HTTP 400 ("Found 0
+# results") for a name with no exact match; that is a miss, not a failure. Queries whose request
+# really failed are returned in the "failed" attribute, so one bad name costs only itself.
+# Rows carry the API's echo of the matched synonym as searchValue ("AMMONIA" comes back as
+# "Ammonia"), so each row is keyed back to the asked name, ignoring case. Only the columns read by
+# the callers are kept, in fixed types.
 # ponytail: any HTTP 400 counts as a miss; ComptoxR does not pass the response body on.
+# ponytail: the echo can also differ by a space for a hyphen ("Morphine 6-glucuronide" comes back as
+# "Morphine-6-glucuronide"). Names that collide that way are asked one at a time; a name whose rows
+# all echo differently is asked again on its own. Rows lost or misfiled through any other rewrite are
+# the ceiling: key on the asked name once ComptoxR returns it on array responses (ComptoxR#401).
 search_equal_each <- function(queries, get_fn = ComptoxR::ct_chemical_search_equal) {
+  # Names differing only in case get the same answer, so each is asked once.
+  asked <- queries[!duplicated(tolower(queries))]
+  loose <- gsub("[-[:space:]]", "", tolower(asked))
+  alone <- asked[loose %in% loose[duplicated(loose)]]
+  together <- queries[!tolower(queries) %in% tolower(alone)]
+  asked <- setdiff(asked, alone)
+  hit <- if (length(asked)) {
+    tryCatch(
+      withCallingHandlers(get_fn(asked), warning = muffle_equal_miss),
+      error = function(e) {
+        message("Exact search: asking one name at a time after: ", conditionMessage(e))
+        NULL
+      }
+    )
+  }
+  # A call-level error (credentials, an unreadable response) stops the whole call: ask one by one.
+  if (is.null(hit)) {
+    return(search_equal_singly(queries, get_fn))
+  }
+  dropped <- attr(hit, "failed") %||% character()
+  rows <- equal_rows(hit, if ("searchValue" %in% names(hit)) as.character(hit$searchValue) else NA_character_)
+  keys <- tibble::tibble(.key = tolower(together), .asked = together)
+  rows <- dplyr::inner_join(dplyr::mutate(rows, .key = tolower(searchValue)), keys, by = ".key",
+    relationship = "many-to-many")
+  rows$searchValue <- rows$.asked
+  rows <- rows[c("searchValue", "dtxsid", "rank", "preferredName")]
+  # Neither answered nor dropped: an empty answer, or rows whose echo matched no asked name.
+  unmatched <- together[!tolower(together) %in% tolower(c(names(dropped), rows$searchValue))]
+  again <- search_equal_singly(c(queries[tolower(queries) %in% tolower(alone)], unmatched), get_fn)
+  out <- dplyr::bind_rows(rows, again)
+  out <- out[order(match(out$searchValue, queries)), , drop = FALSE]
+  failed <- names(dropped)[!startsWith(unname(dropped), "HTTP 400 ")]
+  attr(out, "failed") <- unique(c(together[tolower(together) %in% tolower(failed)], attr(again, "failed")))
+  out
+}
+
+# A dropped request answered HTTP 400 is a miss, not a failure: silence its warning.
+muffle_equal_miss <- function(w) {
+  if (is_dropped_chunk_warning(w) && grepl("failed: HTTP 400 ", conditionMessage(w), fixed = TRUE)) {
+    invokeRestart("muffleWarning")
+  }
+}
+
+# Callers' columns of a search-equal response, in fixed types: an all-NA column such as smiles
+# arrives logical in one response and character in the next.
+equal_rows <- function(hit, search_value) {
+  if (!NROW(hit)) {
+    return(tibble::tibble(searchValue = character(), dtxsid = character(), rank = integer(), preferredName = character()))
+  }
+  col <- function(name, as) if (name %in% names(hit)) as(hit[[name]]) else as(rep(NA, NROW(hit)))
+  tibble::tibble(
+    searchValue = search_value,
+    dtxsid = col("dtxsid", as.character),
+    rank = col("rank", as.integer),
+    preferredName = col("preferredName", as.character)
+  )
+}
+
+# One GET per query, each keyed to the asked name; every error costs only its own name.
+search_equal_singly <- function(queries, get_fn) {
   failed <- character()
   rows <- lapply(queries, function(query) {
     hit <- withCallingHandlers(
@@ -248,22 +312,11 @@ search_equal_each <- function(queries, get_fn = ComptoxR::ct_chemical_search_equ
         if (!is_dropped_chunk_warning(w)) {
           return()
         }
-        if (grepl("failed: HTTP 400 ", conditionMessage(w), fixed = TRUE)) {
-          invokeRestart("muffleWarning")
-        }
+        muffle_equal_miss(w)
         failed <<- c(failed, query)
       }
     )
-    if (!NROW(hit)) {
-      return(NULL)
-    }
-    col <- function(name, as) if (name %in% names(hit)) as(hit[[name]]) else as(rep(NA, NROW(hit)))
-    tibble::tibble(
-      searchValue = query,
-      dtxsid = col("dtxsid", as.character),
-      rank = col("rank", as.integer),
-      preferredName = col("preferredName", as.character)
-    )
+    if (NROW(hit)) equal_rows(hit, query)
   })
   out <- dplyr::bind_rows(rows)
   attr(out, "failed") <- unique(failed)
@@ -272,7 +325,6 @@ search_equal_each <- function(queries, get_fn = ComptoxR::ct_chemical_search_equ
 
 # Names whose top rank holds more than one DTXSID, via the single-name GET,
 # which (unlike the bulk POST) returns every tied hit.
-# ponytail: one GET per name (840 names took ~50 s in UAT); batch in parallel if that hurts.
 find_name_ties <- function(names, get_fn = ComptoxR::ct_chemical_search_equal) {
   empty <- tibble::tibble(searchValue = character(), tied_dtxsids = character(), tied_names = character())
   names <- unique(names[!is.na(names)])
