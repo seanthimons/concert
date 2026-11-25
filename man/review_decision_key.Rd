@@ -10,6 +10,9 @@ review_decision_key(name, casrn = NA_character_, scope = NULL)
 \item{name}{Reviewed source name.}
 
 \item{casrn}{Optional reviewed CAS selector.}
+
+\item{scope}{Optional named list of input-column values the decision is
+narrowed to; \code{NULL} keeps the unscoped key.}
 }
 \value{
 Stable decision identifier for capture_review_decision().
