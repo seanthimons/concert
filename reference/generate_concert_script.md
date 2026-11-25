@@ -147,7 +147,7 @@ generate_concert_script(
 
 - review_picks:
 
-  Optional content-keyed DTXSID picks table to embed.
+  Optional content-keyed DTXSID or WQX-name picks table to embed.
 
 - row_flags:
 

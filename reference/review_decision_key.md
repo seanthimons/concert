@@ -5,7 +5,7 @@ Construct a stable content-selector decision ID
 ## Usage
 
 ``` r
-review_decision_key(name, casrn = NA_character_)
+review_decision_key(name, casrn = NA_character_, scope = NULL)
 ```
 
 ## Arguments

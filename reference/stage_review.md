@@ -41,16 +41,20 @@ stage_review(
 
 - review_picks:
 
-  Optional data frame with `name`, `dtxsid`, and optional `casrn` and
-  `note` columns. Rows whose cleaned Name (and CAS, when given) match
-  are resolved to that DTXSID after validation against CompTox. A `note`
-  is written to the workbook's `review_note` column.
+  Optional data frame with `name`, one of `dtxsid` or `wqx_name` per
+  row, and optional `casrn` and `note` columns. Rows whose cleaned Name
+  (and CAS, when given) match are resolved to that DTXSID after
+  validation against CompTox, or to that WQX characteristic after a
+  check against the WQX dictionary. A `note` is written to the
+  workbook's `review_note` column. Any other column named after an input
+  column narrows the pick to rows holding that value.
 
 - row_flags:
 
   Optional data frame with `name`, `flag`, and optional `casrn` and
   `reason` columns. Matching rows get the row flag (one of
   [`valid_row_flags()`](https://seanthimons.github.io/concert/reference/valid_row_flags.md)).
+  Input columns narrow it as for `review_picks`.
 
 - review_decision_evidence:
 

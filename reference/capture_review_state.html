@@ -63,8 +63,9 @@ share a flag decision; this does not grant scope-sensitive ID acceptance.</p>
 <span>  <span class="va">disposition</span>,</span>
 <span>  flag <span class="op">=</span> <span class="cn">NA_character_</span>,</span>
 <span>  reason <span class="op">=</span> <span class="cn">NA_character_</span>,</span>
-<span>  decision_id <span class="op">=</span> <span class="fu"><a href="review_decision_key.html">review_decision_key</a></span><span class="op">(</span><span class="va">name</span>, <span class="va">casrn</span><span class="op">)</span>,</span>
-<span>  evidence <span class="op">=</span> <span class="va">state</span><span class="op">$</span><span class="va">review_decision_evidence</span></span>
+<span>  decision_id <span class="op">=</span> <span class="fu"><a href="review_decision_key.html">review_decision_key</a></span><span class="op">(</span><span class="va">name</span>, <span class="va">casrn</span>, <span class="va">scope</span><span class="op">)</span>,</span>
+<span>  evidence <span class="op">=</span> <span class="va">state</span><span class="op">$</span><span class="va">review_decision_evidence</span>,</span>
+<span>  scope <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -90,6 +91,11 @@ share a flag decision; this does not grant scope-sensitive ID acceptance.</p>
 
 <dt id="arg-evidence">evidence<a class="anchor" aria-label="anchor" href="#arg-evidence"></a></dt>
 <dd><p>Existing immutable records; defaults to the state's records.</p></dd>
+
+
+<dt id="arg-scope">scope<a class="anchor" aria-label="anchor" href="#arg-scope"></a></dt>
+<dd><p>Named list of input-column values when the flag was narrowed to
+them (for example <code>list(source_label = "Ammonia, total")</code>).</p></dd>
 
 </dl></div>
     <div class="section level2">

@@ -235,16 +235,19 @@ bulk accept).</p></dd>
 
 
 <dt id="arg-review-picks">review_picks<a class="anchor" aria-label="anchor" href="#arg-review-picks"></a></dt>
-<dd><p>Optional data frame with <code>name</code>, <code>dtxsid</code>, and optional
-<code>casrn</code> and <code>note</code> columns. Rows whose cleaned Name (and CAS, when given)
-match are resolved to that DTXSID after validation against CompTox. A
-<code>note</code> is written to the workbook's <code>review_note</code> column.</p></dd>
+<dd><p>Optional data frame with <code>name</code>, one of <code>dtxsid</code> or
+<code>wqx_name</code> per row, and optional <code>casrn</code> and <code>note</code> columns. Rows whose
+cleaned Name (and CAS, when given) match are resolved to that DTXSID after
+validation against CompTox, or to that WQX characteristic after a check
+against the WQX dictionary. A <code>note</code> is written to the workbook's
+<code>review_note</code> column. Any other column named after an input column
+narrows the pick to rows holding that value.</p></dd>
 
 
 <dt id="arg-row-flags">row_flags<a class="anchor" aria-label="anchor" href="#arg-row-flags"></a></dt>
 <dd><p>Optional data frame with <code>name</code>, <code>flag</code>, and optional
 <code>casrn</code> and <code>reason</code> columns. Matching rows get the row flag (one of
-<code><a href="valid_row_flags.html">valid_row_flags()</a></code>).</p></dd>
+<code><a href="valid_row_flags.html">valid_row_flags()</a></code>). Input columns narrow it as for <code>review_picks</code>.</p></dd>
 
 
 <dt id="arg-review-decision-evidence">review_decision_evidence<a class="anchor" aria-label="anchor" href="#arg-review-decision-evidence"></a></dt>
