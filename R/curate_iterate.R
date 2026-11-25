@@ -66,6 +66,12 @@ read_decisions <- function(decisions_path) {
   d$harmonize <- isTRUE(d$harmonize)
   d$toxval_identity_mode <- match.arg(d$toxval_identity_mode %||% "lookup", c("lookup", "accepted"))
   d$format <- d$format %||% "parquet"
+  # A file name here is the JSON Lines ledger; everything downstream gets the resolved list.
+  if (is.character(d$identity_decisions) && length(d$identity_decisions) == 1L) {
+    d$identity_ledger_path <- as.character(fs::path_abs(d$identity_decisions, start = dirname(decisions_path)))
+    ledger <- read_identity_ledger(d$identity_ledger_path)
+    d["identity_decisions"] <- list(if (length(ledger)) ledger)
+  }
   d
 }
 
@@ -168,7 +174,7 @@ curate_decisions_template <- function(input_path, out_dir, harmonize = FALSE) {
     "# ignored_identifier_cols <- c(\"source_dtxsid\") # deliberate metadata-only use",
     "# review_decision_evidence <- NULL # explicit capture_review_decision() snapshots/acknowledgments",
     "# candidate_validation <- NULL # saved validate_review_candidates()$validation",
-    "# identity_decisions <- NULL # explicit scoped apply_identity_decisions() records",
+    "# identity_decisions <- \"identity_decisions.jsonl\" # ledger; change it only with record_identity_decision()",
     "# --- Review ---------------------------------------------------------------",
     "# Accept every row CONCERT scored as \"suggested\".",
     "accept_suggestions <- TRUE",
@@ -347,6 +353,7 @@ pending_rows <- function(state) {
     cleaning_flag = if ("cleaning_flag" %in% names(rs)) as.character(rs$cleaning_flag[idx]) else NA_character_,
     drift_recorded_fingerprint = drift_field("recorded_fingerprint"),
     drift_current_fingerprint = drift_field("current_fingerprint"),
+    drift_changed_columns = drift_field("changed_columns"),
     drift_decision = ifelse(drifted[idx], paste(drift_field("action"), dplyr::coalesce(drift_field("selected_dtxsid"), ""),
       drift_field("reason"), sep = " | "), NA_character_)
   )
@@ -390,6 +397,7 @@ empty_pending <- function() {
     cleaning_flag = character(),
     drift_recorded_fingerprint = character(),
     drift_current_fingerprint = character(),
+    drift_changed_columns = character(),
     drift_decision = character()
   )
 }
@@ -528,8 +536,10 @@ write_status_md <- function(path, state, pending, done, decisions, error = NULL)
         "",
         paste0("Identity decisions whose recorded evidence no longer matches the row: ",
           nrow(state$identity_drift), ". None of them was applied."),
-        "Each is an `identity_drift` row in pending.csv. Review the row as it is now. To keep the decision,",
-        "set its `evidence_fingerprint` to the row's `drift_current_fingerprint`; otherwise change or remove it.",
+        "Each is an `identity_drift` row in pending.csv; `drift_changed_columns` names what changed when known.",
+        "Review each row as it is now. Keep the decisions that still hold with reconfirm_identity_decisions()",
+        "(runner: `reconfirm`); change or withdraw the others with record_identity_decision() (runner: `record`).",
+        "With list-form decisions and no ledger, set `evidence_fingerprint` to `drift_current_fingerprint` instead.",
         "replay.R stops on these decisions until they are resolved.",
         ""
       )
@@ -661,6 +671,8 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
   readr::write_csv(empty_review_reconciliation(), file.path(out_dir, "review_reconciliation.csv"))
   readr::write_csv(candidate_review_table(), file.path(out_dir, "candidate_review.csv"))
   readr::write_csv(empty_pending(), file.path(out_dir, "pending.csv"))
+  identity_state_path <- file.path(cache_dir, "identity_state.rds")
+  unlink(identity_state_path)
 
   run <- function() {
     state <- stage_ingest(
@@ -731,6 +743,10 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
   identity_report[names(state$accepted_identity_state)] <- state$accepted_identity_state
   readr::write_csv(identity_report, file.path(out_dir, "identity_review.csv"), na = "")
   readr::write_csv(pending, file.path(out_dir, "pending.csv"), na = "")
+  # What the ledger recorder fingerprints against, valid only for these exact inputs.
+  fs::dir_create(cache_dir)
+  saveRDS(list(resolution_state = state$identity_decision_input, tags = state$merged_chemical_tags,
+    drift = state$identity_drift, stamp = ledger_run_stamp(decisions_path, d$input_path)), identity_state_path)
 
   replay <- generate_concert_script(
     input_path = d$input_path,
@@ -762,7 +778,7 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
     row_flags = d$row_flags,
     review_decision_evidence = d$review_decision_evidence,
     candidate_validation = d$candidate_validation,
-    identity_decisions = d$identity_decisions,
+    identity_decisions = strip_ledger_fields(d$identity_decisions),
     ignored_identifier_cols = d$ignored_identifier_cols %||% character()
   )
   writeLines(replay, file.path(out_dir, "replay.R"))

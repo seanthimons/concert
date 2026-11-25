@@ -147,3 +147,38 @@ test_that("scoped acceptance survives full export hydration without trusting der
   restored$consensus_dtxsid <- "DTXSID999"
   expect_false(identity_review_state(restored)$identity_eligible)
 })
+
+test_that("a decision survives the JSON Lines ledger with its selector, projection and fingerprint intact (#180)", {
+  local_mocked_bindings(validate_manual_dtxsids = function(dtxsids, ...) {
+    tibble::tibble(dtxsid = dtxsids, is_valid = TRUE)
+  })
+  df <- scope_fixture()
+  df$synonym <- NA_character_
+  df$name <- "Registered \"combination\", 1,2-diéthyl"
+  decision <- scope_decision(df)
+  decision$selector <- list(original_row_id = 27L, name = df$name, cas = "1-23-4", synonym = NA_character_)
+  decision$gui_review_input <- list(consensus_status = "single", consensus_source = NA_character_, .pinned = FALSE)
+  projected <- df
+  projected$consensus_source <- NA_character_
+  projected$.pinned <- FALSE
+  decision$evidence_fingerprint <- identity_evidence_fingerprint(projected, 1)
+  direct <- apply_identity_decisions(list(resolution_state = df), list(decision))
+
+  path <- withr::local_tempfile(fileext = ".jsonl")
+  append_identity_ledger(path, list(c(decision, list(evidence = list(cas = "1-23-4"), recorded_by = "owner"))))
+  ledger <- read_identity_ledger(path)
+  expect_length(ledger, 1L)
+  expect_equal(ledger[[1]]$selector$name, df$name)
+  replayed <- apply_identity_decisions(list(resolution_state = df), ledger)
+  expect_equal(replayed$resolution_state$identity_decision_fingerprint,
+    direct$resolution_state$identity_decision_fingerprint)
+  # Ledger-only fields stay out of the row record and the replayable decisions.
+  expect_false(grepl("recorded_by|evidence\"", replayed$resolution_state$identity_decision_record))
+  expect_null(replayed$identity_decisions[[1]]$evidence)
+
+  # Latest line per selector wins; a withdrawal removes the decision.
+  append_identity_ledger(path, list(utils::modifyList(decision, list(reason = "Second look"))))
+  expect_equal(read_identity_ledger(path)[[1]]$reason, "Second look")
+  append_identity_ledger(path, list(list(selector = decision$selector, action = "withdraw", reason = "Wrong row")))
+  expect_length(read_identity_ledger(path), 0L)
+})

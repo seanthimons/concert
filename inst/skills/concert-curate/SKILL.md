@@ -43,9 +43,20 @@ Stop after 10 iterations if `pending.csv` is not shrinking. Report what is left 
 | `disagree` | Name and CAS resolved to different DTXSIDs. `candidates` lists `dtxsid | preferredName | tier`. | `review_picks` with the correct `dtxsid`, or `row_flags` if neither candidate is right |
 | `suggested` | Scored candidate below the auto-accept bar. `suggested_dtxsid` is CONCERT's pick. | Leave `accept_suggestions <- TRUE` to accept all, or override individual rows with `review_picks` |
 | `no_match` | Nothing in CompTox matched. | Fix the name with `value_corrections` or a reference-list override, supply a `review_picks` DTXSID you know, or `row_flags` with `FOLLOW-UP` |
-| `identity_drift` | An `identity_decisions` entry was recorded against evidence that has since changed (new input, new concert or DSSTox version). The decision was not applied. `drift_decision` shows what it was; the rest of the row shows the evidence now. | Review the row again. To keep the decision, set its `evidence_fingerprint` to `drift_current_fingerprint`. Otherwise change or remove the entry. Never copy the fingerprint without re-checking the row. |
+| `identity_drift` | An identity decision in the ledger was recorded against evidence that has since changed (new input, new concert or DSSTox version). The decision was not applied. `drift_decision` shows what it was, `drift_changed_columns` what changed (when the decision carries a snapshot); the rest of the row shows the evidence now. | Review the row again, then use the ledger commands below: `reconfirm` if the decision still holds, `record` to change or withdraw it. |
 
 Row keys are content-based: `name` is the cleaned name, `casrn` the cleaned CAS. Unmatched keys are listed under `## Unmatched decisions` in `status.md`; fix the key rather than adding duplicates.
+
+## Identity decision ledger
+
+Row-scoped identity decisions (accept a DTXSID for one source row, or keep it unresolved with a scope) live in a JSON Lines file that `decisions.R` names: `identity_decisions <- "identity_decisions.jsonl"`. Never edit that file and never write a script to change it. Use the runner, after a complete run with the current `decisions.R`:
+
+```bash
+Rscript <runner> record <out_dir>/decisions.R batch.csv --by owner
+Rscript <runner> reconfirm <out_dir>/decisions.R --expect 3 --note "CAS unchanged; only the preferred name moved" --by owner
+```
+
+`batch.csv` has one decision per line: `row_index` (from `pending.csv`), `action` (`accept`, `retain_unresolved`, `withdraw`), `scope`, `conflict`, `selected_dtxsid`, `correspondence` (`TRUE` for `accept`), `reason`, `evidence_reference`; add `name` to pick one part of a split row. The latest line per source row wins, so recording a row again replaces its decision. `--by` names who decided, not who typed. `reconfirm` covers every drifted decision unless `--rows 3,7` narrows it, and refuses when the count is not `--expect`. Both commands write nothing if any decision fails, and both need a re-run to take effect. If the run itself stops on a ledger line (its row no longer exists, or its DTXSID is no longer valid), record a `withdraw` for that `row_index`: a batch of only withdrawals needs no completed run. A `decisions.R` that still holds an R list of decisions is converted once with `Rscript <runner> migrate <out_dir>/decisions.R`.
 
 ## PubChem and salt-parent candidates
 

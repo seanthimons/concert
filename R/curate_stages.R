@@ -489,6 +489,8 @@ stage_review <- function(
   }
 
   state$resolution_state <- rs
+  # The frame decisions are fingerprinted against; the ledger recorder reads it back.
+  state$identity_decision_input <- rs
   state <- apply_identity_decisions(state, identity_decisions, on_drift = on_identity_drift)
   rs <- state$resolution_state
   changed <- changed || length(identity_decisions) > 0L
@@ -528,7 +530,7 @@ stage_review <- function(
   state$unmatched_decisions <- unmatched
   state$review_decision_evidence <- validate_review_evidence(review_decision_evidence)
   state$candidate_validation <- normalize_review_validation(candidate_validation)
-  state$identity_decisions <- identity_decisions
+  state$identity_decisions <- strip_ledger_fields(identity_decisions)
   if (!is.na(name_col)) row_flags <- effective_review_flags(rs, name_col, cas_col, row_flags)
   state$review_row_flags <- row_flags
   state$review_automated_state <- automated

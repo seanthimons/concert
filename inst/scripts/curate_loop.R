@@ -5,6 +5,12 @@
 #       writes <out_dir>/decisions.R and exits.
 #   Rscript curate_loop.R <out_dir>/decisions.R
 #       runs one iteration; exit 0 when done, 2 when rows are still pending.
+#   Rscript curate_loop.R record <decisions.R> <batch.csv> --by <who>
+#       appends the identity decisions in <batch.csv> to the ledger.
+#   Rscript curate_loop.R reconfirm <decisions.R> --expect <n> --note <why> --by <who> [--rows 3,7]
+#       keeps drifted identity decisions on their current evidence.
+#   Rscript curate_loop.R migrate <decisions.R>
+#       moves list-form identity decisions into a ledger file, once.
 #
 # Between runs, edit decisions.R using status.md and pending.csv in <out_dir>.
 
@@ -37,6 +43,26 @@ if (args[1] == "--template") {
   }
   path <- curate_decisions_template(args[2], args[3], harmonize = "--harmonize" %in% args)
   cat("decisions written:", path, "\n")
+  quit(status = 0)
+}
+
+flag <- function(name) {
+  i <- match(name, args)
+  if (is.na(i) || i == length(args)) stop("missing ", name, call. = FALSE)
+  args[i + 1]
+}
+if (args[1] == "record") {
+  record_identity_decision(args[2], read_decision_table(args[3]), recorded_by = flag("--by"))
+  quit(status = 0)
+}
+if (args[1] == "reconfirm") {
+  reconfirm_identity_decisions(args[2], note = flag("--note"), expected = as.integer(flag("--expect")),
+    recorded_by = flag("--by"),
+    rows = if ("--rows" %in% args) as.integer(strsplit(flag("--rows"), ",")[[1]]))
+  quit(status = 0)
+}
+if (args[1] == "migrate") {
+  migrate_identity_ledger(args[2])
   quit(status = 0)
 }
 
