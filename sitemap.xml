@@ -141,6 +141,7 @@
 <url><loc>https://seanthimons.github.io/concert/reference/match_wqx.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/merge_reference_lists.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/merge_retry_results.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/migrate_identity_ledger.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/mod_clean_data_server.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/mod_clean_data_ui.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/mod_data_preview_server.html</loc></url>
@@ -191,6 +192,8 @@
 <url><loc>https://seanthimons.github.io/concert/reference/read_csv_robust.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/read_decision_table.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/read_excel_robust.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/reconfirm_identity_decisions.html</loc></url>
+<url><loc>https://seanthimons.github.io/concert/reference/record_identity_decision.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/reference_list_help_text.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/refresh_isotope_cache.html</loc></url>
 <url><loc>https://seanthimons.github.io/concert/reference/refresh_toxval_identity.html</loc></url>

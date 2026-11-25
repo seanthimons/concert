@@ -34,8 +34,9 @@ apply_identity_decisions(
   What to do when a decision's `evidence_fingerprint` no longer matches
   the row. `"stop"` (default) fails. `"report"` skips that decision,
   applies the rest, and lists the skipped ones in `state$identity_drift`
-  with the recorded and current fingerprints. Malformed decisions and
-  ambiguous selectors fail in both modes.
+  with the recorded and current fingerprints, and the evidence columns
+  that changed when the decision carries a snapshot. Malformed decisions
+  and ambiguous selectors fail in both modes.
 
 ## Value
 

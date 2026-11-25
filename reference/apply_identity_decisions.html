@@ -88,7 +88,8 @@ evidence, unless <code>on_drift = "report"</code>.</p>
 <dd><p>What to do when a decision's <code>evidence_fingerprint</code> no
 longer matches the row. <code>"stop"</code> (default) fails. <code>"report"</code> skips that
 decision, applies the rest, and lists the skipped ones in
-<code>state$identity_drift</code> with the recorded and current fingerprints.
+<code>state$identity_drift</code> with the recorded and current fingerprints, and
+the evidence columns that changed when the decision carries a snapshot.
 Malformed decisions and ambiguous selectors fail in both modes.</p></dd>
 
 </dl></div>

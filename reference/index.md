@@ -279,6 +279,12 @@ source identity.
   : Derive accepted identity eligibility from current evidence
 - [`apply_identity_decisions()`](https://seanthimons.github.io/concert/reference/apply_identity_decisions.md)
   : Apply explicit row-scoped identity decisions
+- [`record_identity_decision()`](https://seanthimons.github.io/concert/reference/record_identity_decision.md)
+  : Record identity decisions in the ledger
+- [`reconfirm_identity_decisions()`](https://seanthimons.github.io/concert/reference/reconfirm_identity_decisions.md)
+  : Re-confirm identity decisions whose evidence changed
+- [`migrate_identity_ledger()`](https://seanthimons.github.io/concert/reference/migrate_identity_ledger.md)
+  : Move list-form identity decisions into a ledger file
 - [`accepted_identity_view()`](https://seanthimons.github.io/concert/reference/accepted_identity_view.md)
   : Return accepted identities with source lineage
 - [`source_identifier_evidence()`](https://seanthimons.github.io/concert/reference/source_identifier_evidence.md)
