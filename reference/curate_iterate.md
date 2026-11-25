@@ -35,4 +35,8 @@ curate_iterate(
 
 ## Value
 
-Invisibly, a list with `done`, `pending`, and `state`.
+Invisibly, a list with `done`, `pending`, `identity_drift` and `state`.
+`identity_drift` lists identity decisions that were skipped because
+their recorded evidence fingerprint no longer matches the row; each is
+also an `identity_drift` row in `pending.csv`. It is `NULL` when there
+are no identity decisions.

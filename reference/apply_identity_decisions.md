@@ -5,13 +5,18 @@ content column values, action (accept or retain_unresolved), scope,
 conflict, reason, evidence_reference and evidence_fingerprint.
 Acceptance also needs selected_dtxsid and correspondence=TRUE.
 Authoritative registry membership is validated separately; unavailable
-validation cannot grant acceptance. Ambiguous selectors and changed
-evidence fail without applying decisions.
+validation cannot grant acceptance. Ambiguous selectors fail without
+applying decisions. So does changed evidence, unless
+`on_drift = "report"`.
 
 ## Usage
 
 ``` r
-apply_identity_decisions(state, identity_decisions)
+apply_identity_decisions(
+  state,
+  identity_decisions,
+  on_drift = c("stop", "report")
+)
 ```
 
 ## Arguments
@@ -23,6 +28,14 @@ apply_identity_decisions(state, identity_decisions)
 - identity_decisions:
 
   List of explicit decision records.
+
+- on_drift:
+
+  What to do when a decision's `evidence_fingerprint` no longer matches
+  the row. `"stop"` (default) fails. `"report"` skips that decision,
+  applies the rest, and lists the skipped ones in `state$identity_drift`
+  with the recorded and current fingerprints. Malformed decisions and
+  ambiguous selectors fail in both modes.
 
 ## Value
 

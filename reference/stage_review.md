@@ -13,7 +13,8 @@ stage_review(
   row_flags = NULL,
   review_decision_evidence = NULL,
   candidate_validation = NULL,
-  identity_decisions = NULL
+  identity_decisions = NULL,
+  on_identity_drift = "stop"
 )
 ```
 
@@ -68,6 +69,12 @@ stage_review(
   Explicit source-scoped decisions passed to
   [`apply_identity_decisions()`](https://seanthimons.github.io/concert/reference/apply_identity_decisions.md).
   Name-wide selectors cannot grant scope acceptance.
+
+- on_identity_drift:
+
+  Passed to
+  [`apply_identity_decisions()`](https://seanthimons.github.io/concert/reference/apply_identity_decisions.md)
+  as `on_drift`: `"stop"` (default) or `"report"`.
 
 ## Value
 

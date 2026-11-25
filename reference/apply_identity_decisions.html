@@ -4,12 +4,14 @@ content column values, action (accept or retain_unresolved), scope, conflict,
 reason, evidence_reference and evidence_fingerprint. Acceptance also needs
 selected_dtxsid and correspondence=TRUE. Authoritative registry membership
 is validated separately; unavailable validation cannot grant acceptance.
-Ambiguous selectors and changed evidence fail without applying decisions."><meta property="og:description" content="Each list record needs a selector containing original_row_id and source
+Ambiguous selectors fail without applying decisions. So does changed
+evidence, unless on_drift = &quot;report&quot;."><meta property="og:description" content="Each list record needs a selector containing original_row_id and source
 content column values, action (accept or retain_unresolved), scope, conflict,
 reason, evidence_reference and evidence_fingerprint. Acceptance also needs
 selected_dtxsid and correspondence=TRUE. Authoritative registry membership
 is validated separately; unavailable validation cannot grant acceptance.
-Ambiguous selectors and changed evidence fail without applying decisions."><meta property="og:image" content="https://seanthimons.github.io/concert/logo.png"></head><body>
+Ambiguous selectors fail without applying decisions. So does changed
+evidence, unless on_drift = &quot;report&quot;."><meta property="og:image" content="https://seanthimons.github.io/concert/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -57,12 +59,17 @@ content column values, action (accept or retain_unresolved), scope, conflict,
 reason, evidence_reference and evidence_fingerprint. Acceptance also needs
 selected_dtxsid and correspondence=TRUE. Authoritative registry membership
 is validated separately; unavailable validation cannot grant acceptance.
-Ambiguous selectors and changed evidence fail without applying decisions.</p>
+Ambiguous selectors fail without applying decisions. So does changed
+evidence, unless <code>on_drift = "report"</code>.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">apply_identity_decisions</span><span class="op">(</span><span class="va">state</span>, <span class="va">identity_decisions</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">apply_identity_decisions</span><span class="op">(</span></span>
+<span>  <span class="va">state</span>,</span>
+<span>  <span class="va">identity_decisions</span>,</span>
+<span>  on_drift <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"stop"</span>, <span class="st">"report"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -75,6 +82,14 @@ Ambiguous selectors and changed evidence fail without applying decisions.</p>
 
 <dt id="arg-identity-decisions">identity_decisions<a class="anchor" aria-label="anchor" href="#arg-identity-decisions"></a></dt>
 <dd><p>List of explicit decision records.</p></dd>
+
+
+<dt id="arg-on-drift">on_drift<a class="anchor" aria-label="anchor" href="#arg-on-drift"></a></dt>
+<dd><p>What to do when a decision's <code>evidence_fingerprint</code> no
+longer matches the row. <code>"stop"</code> (default) fails. <code>"report"</code> skips that
+decision, applies the rest, and lists the skipped ones in
+<code>state$identity_drift</code> with the recorded and current fingerprints.
+Malformed decisions and ambiguous selectors fail in both modes.</p></dd>
 
 </dl></div>
     <div class="section level2">

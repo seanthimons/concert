@@ -55,7 +55,8 @@
 <span>  row_flags <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  review_decision_evidence <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  candidate_validation <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  identity_decisions <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  identity_decisions <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  on_identity_drift <span class="op">=</span> <span class="st">"stop"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -107,6 +108,11 @@ acquire a historical baseline implicitly.</p></dd>
 <dt id="arg-identity-decisions">identity_decisions<a class="anchor" aria-label="anchor" href="#arg-identity-decisions"></a></dt>
 <dd><p>Explicit source-scoped decisions passed to
 <code><a href="apply_identity_decisions.html">apply_identity_decisions()</a></code>. Name-wide selectors cannot grant scope acceptance.</p></dd>
+
+
+<dt id="arg-on-identity-drift">on_identity_drift<a class="anchor" aria-label="anchor" href="#arg-on-identity-drift"></a></dt>
+<dd><p>Passed to <code><a href="apply_identity_decisions.html">apply_identity_decisions()</a></code> as
+<code>on_drift</code>: <code>"stop"</code> (default) or <code>"report"</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

@@ -94,7 +94,11 @@ files when <code>harmonize</code> is set). Re-run after editing <code>decisions.
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>Invisibly, a list with <code>done</code>, <code>pending</code>, and <code>state</code>.</p>
+    <p>Invisibly, a list with <code>done</code>, <code>pending</code>, <code>identity_drift</code> and
+<code>state</code>. <code>identity_drift</code> lists identity decisions that were skipped
+because their recorded evidence fingerprint no longer matches the row;
+each is also an <code>identity_drift</code> row in <code>pending.csv</code>. It is <code>NULL</code> when
+there are no identity decisions.</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
