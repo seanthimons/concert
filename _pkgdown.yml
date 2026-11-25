@@ -147,6 +147,9 @@ reference:
     contents:
       - identity_review_state
       - apply_identity_decisions
+      - record_identity_decision
+      - reconfirm_identity_decisions
+      - migrate_identity_ledger
       - accepted_identity_view
       - source_identifier_evidence
       - unused_source_identifier_diagnostics

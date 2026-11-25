@@ -544,3 +544,83 @@ test_that("curate_iterate reports drifted identity decisions as pending rows ins
   write_ledger(stale)
   expect_error(curate_iterate(decisions, verbose = FALSE), "Acceptance requires")
 })
+
+test_that("the identity ledger is recorded, drifts, is re-confirmed and withdrawn without project code (#180)", {
+  fx <- iterate_fixture()
+  local_mocked_bindings(
+    run_curation_pipeline = function(cleaned_data, ...) mock_pipeline_result(cleaned_data),
+    postprocess_curation_candidates = mock_postprocess,
+    enrich_candidates = mock_enrich,
+    validate_manual_dtxsids = mock_validate
+  )
+  decisions <- file.path(fx$dir, "decisions.R")
+  ledger <- file.path(fx$dir, "identity_decisions.jsonl")
+  writeLines(c(
+    sprintf("input_path <- %s", deparse(fx$input_path)),
+    "tag_map <- list(chemical_name = \"Name\", cas_number = \"CASRN\", result = \"Result\", unit = \"Unit\")",
+    "header_row <- 1L",
+    "review_picks <- tibble::tibble(name = \"Chromium\", casrn = NA_character_, dtxsid = \"DTXSID1020322\")",
+    "identity_decisions <- \"identity_decisions.jsonl\""
+  ), decisions)
+  batch <- tibble::tibble(row_index = 3L, action = "retain_unresolved", scope = "aggregate", conflict = "scope",
+    reason = "Total lead, not the element", evidence_reference = "owner review")
+
+  expect_error(record_identity_decision(decisions, batch, "owner"), "Run curate_iterate")
+  curate_iterate(decisions, verbose = FALSE)
+  expect_error(record_identity_decision(decisions, batch, ""), "recorded_by")
+  expect_error(record_identity_decision(decisions, transform(batch, row_index = 99L), "owner"), "matches 0 rows")
+  expect_error(record_identity_decision(decisions, transform(batch, scope = "nonsense"), "owner"), "Invalid identity")
+  expect_false(file.exists(ledger))
+  record_identity_decision(decisions, batch, "owner")
+  line <- jsonlite::fromJSON(readLines(ledger))
+  expect_equal(line$recorded_by, "owner")
+  expect_equal(line$evidence$chemical_name, "Lead")
+
+  applied <- curate_iterate(decisions, verbose = FALSE)
+  expect_equal(nrow(applied$identity_drift), 0L)
+  expect_equal(applied$state$resolution_state$identity_scope[3], "aggregate")
+  expect_false(any(grepl("recorded_by|owner review\", evidence = ", readLines(file.path(fx$dir, "replay.R")))))
+
+  # The source row changes under the decision.
+  input <- readr::read_csv(fx$input_path, col_types = "cccc")
+  input$unit[3] <- "ug/L"
+  readr::write_csv(input, fx$input_path)
+  drifted <- curate_iterate(decisions, verbose = FALSE)
+  drift_row <- drifted$pending[drifted$pending$pending_type == "identity_drift", ]
+  expect_equal(drift_row$row_index, 3L)
+  expect_equal(drift_row$drift_changed_columns, "unit")
+
+  expect_error(reconfirm_identity_decisions(decisions, "Unit only", expected = 2L, recorded_by = "owner"), "expected 2")
+  expect_error(reconfirm_identity_decisions(decisions, "Unit only", 1L, "owner", rows = 1L), "Not drifted")
+  expect_length(readLines(ledger), 1L)
+  reconfirm_identity_decisions(decisions, "Unit only", expected = 1L, recorded_by = "owner")
+  expect_equal(jsonlite::fromJSON(readLines(ledger)[2])$replaces, drift_row$drift_recorded_fingerprint)
+  expect_error(reconfirm_identity_decisions(decisions, "Unit only", expected = 1L, recorded_by = "owner"), "0 drifted")
+
+  cleared <- curate_iterate(decisions, verbose = FALSE)
+  expect_equal(nrow(cleared$identity_drift), 0L)
+  expect_equal(cleared$state$resolution_state$identity_scope[3], "aggregate")
+
+  # A withdrawal needs no current run, so it can remove a line that stops the run.
+  unlink(file.path(fx$dir, "cache", "identity_state.rds"))
+  record_identity_decision(decisions, tibble::tibble(row_index = 3L, action = "withdraw", reason = "Recorded in error"),
+    "owner")
+  expect_error(record_identity_decision(decisions, tibble::tibble(row_index = 3L, action = "withdraw", reason = "Again"),
+    "owner"), "Nothing to withdraw")
+  withdrawn <- curate_iterate(decisions, verbose = FALSE)
+  expect_false("identity_decision_record" %in% names(withdrawn$state$resolution_state))
+  expect_length(readLines(ledger), 3L)
+})
+
+test_that("migrate_identity_ledger moves list-form decisions into a ledger once (#180)", {
+  dir <- withr::local_tempdir()
+  input <- file.path(dir, "in.csv")
+  writeLines("a", input)
+  decisions <- file.path(dir, "decisions.R")
+  writeLines(c(sprintf("input_path <- %s", deparse(input)), "tag_map <- list(a = \"Name\")",
+    "identity_decisions <- list(list(selector = list(original_row_id = 1L, a = \"x\"), action = \"retain_unresolved\"))"),
+    decisions)
+  path <- suppressMessages(migrate_identity_ledger(decisions))
+  expect_equal(read_identity_ledger(path)[[1]]$selector, list(original_row_id = 1L, a = "x"))
+  expect_error(migrate_identity_ledger(decisions), "already exists")
+})

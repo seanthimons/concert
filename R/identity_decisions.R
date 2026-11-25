@@ -42,6 +42,11 @@ identity_new_chemical_columns <- function(df) {
 }
 
 identity_fingerprint_values <- function(df, row, cols, version) {
+  paste0("identity-v", version, ":", digest::digest(identity_evidence_values(df, row, cols), algo = "sha256"))
+}
+
+# The evidence a fingerprint hashes: trimmed text per column, blanks dropped.
+identity_evidence_values <- function(df, row, cols) {
   cols <- sort(intersect(cols, names(df)))
   values <- lapply(as.list(df[row, cols, drop = FALSE]), function(x) {
     x <- trimws(as.character(x)); x[is.na(x) | !nzchar(x)] <- NA_character_; x
@@ -53,18 +58,23 @@ identity_fingerprint_values <- function(df, row, cols, version) {
     flag <- sub("^;\\s*", "", flag)
     values$cleaning_flag <- ifelse(is.na(flag) | !nzchar(flag), NA_character_, flag)
   }
-  values <- values[!vapply(values, function(x) all(is.na(x)), logical(1))]
-  paste0("identity-v", version, ":", digest::digest(values, algo = "sha256"))
+  values[!vapply(values, function(x) all(is.na(x)), logical(1))]
 }
 
-identity_fingerprint_v2 <- function(df, row, columns = NULL) {
+identity_v2_columns <- function(df, columns = NULL) {
   eligible <- identity_evidence_columns(df)
   if (is.null(columns)) columns <- eligible
   # Keep the source columns actually reviewed, and detect new semantic chemical
   # evidence. New arbitrary nonchemical output columns cannot stale a decision.
-  columns <- intersect(unique(c(columns, identity_new_chemical_columns(df))), eligible)
-  identity_fingerprint_values(df, row, columns, "2")
+  intersect(unique(c(columns, identity_new_chemical_columns(df))), eligible)
 }
+
+identity_fingerprint_v2 <- function(df, row, columns = NULL) {
+  identity_fingerprint_values(df, row, identity_v2_columns(df, columns), "2")
+}
+
+# Readable form of what identity_evidence_fingerprint() hashes for a row with no applied decision.
+identity_evidence_snapshot <- function(df, row) identity_evidence_values(df, row, identity_v2_columns(df))
 
 identity_fingerprint_v1 <- function(df, row) {
   excluded <- c("row_flag", "row_flag_reason", "review_note", "needs_review", "identity_scope", "identity_conflict",
@@ -138,7 +148,8 @@ identity_decision_current_rows <- function(df) {
 #' @param on_drift What to do when a decision's `evidence_fingerprint` no
 #'   longer matches the row. `"stop"` (default) fails. `"report"` skips that
 #'   decision, applies the rest, and lists the skipped ones in
-#'   `state$identity_drift` with the recorded and current fingerprints.
+#'   `state$identity_drift` with the recorded and current fingerprints, and
+#'   the evidence columns that changed when the decision carries a snapshot.
 #'   Malformed decisions and ambiguous selectors fail in both modes.
 #' @export
 apply_identity_decisions <- function(state, identity_decisions, on_drift = c("stop", "report")) {
@@ -202,13 +213,21 @@ apply_identity_decisions <- function(state, identity_decisions, on_drift = c("st
       identical(identity_fingerprint_v1(df, i), decision$evidence_fingerprint)
     if (!identical(before, decision$evidence_fingerprint) && !legacy_match) {
       if (on_drift == "stop") stop("Identity decision evidence changed.", call. = FALSE)
+      current <- identity_evidence_snapshot(df, i)
+      changed <- if (is.list(decision$evidence)) {
+        keys <- union(names(decision$evidence), names(current))
+        keys[!vapply(keys, function(k) identical(as.character(decision$evidence[[k]]), as.character(current[[k]])),
+          logical(1))]
+      }
       drift[[length(drift) + 1L]] <- tibble::tibble(
         original_row_id = as.integer(df$original_row_id[i]),
         multi_analyte_part_index = as.integer(identity_col(df, "multi_analyte_part_index")[i]),
         action = decision$action, scope = decision$scope,
         selected_dtxsid = as.character(decision$selected_dtxsid %||% NA_character_),
         reason = decision$reason, evidence_reference = decision$evidence_reference,
-        recorded_fingerprint = decision$evidence_fingerprint, current_fingerprint = before
+        recorded_fingerprint = decision$evidence_fingerprint, current_fingerprint = before,
+        changed_columns = if (!length(changed)) NA_character_ else paste(changed, collapse = "; "),
+        decision = list(decision), current_evidence = list(current)
       )
       df <- prev
       next
@@ -247,14 +266,14 @@ apply_identity_decisions <- function(state, identity_decisions, on_drift = c("st
     df$identity_scope_reviewed[i] <- TRUE
     evidence_columns <- identity_evidence_columns(df)
     applied <- identity_fingerprint_v2(df, i, evidence_columns)
-    record <- c(decision, list(version = "2", evidence_columns = evidence_columns,
+    record <- c(strip_ledger_fields(list(decision))[[1]], list(version = "2", evidence_columns = evidence_columns,
                               membership = membership, applied_fingerprint = applied))
     df$identity_decision_fingerprint[i] <- applied
     df$identity_decision_record[i] <- as.character(jsonlite::toJSON(record, auto_unbox = TRUE, null = "null"))
   }
   df$identity_decision_current <- identity_decision_current_rows(df)
   state$resolution_state <- df
-  state$identity_decisions <- identity_decisions
+  state$identity_decisions <- strip_ledger_fields(identity_decisions)
   if (on_drift == "report") state$identity_drift <- dplyr::bind_rows(drift)
   state
 }

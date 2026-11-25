@@ -18,7 +18,8 @@ apply_identity_decisions(
 \item{on_drift}{What to do when a decision's \code{evidence_fingerprint} no
 longer matches the row. \code{"stop"} (default) fails. \code{"report"} skips that
 decision, applies the rest, and lists the skipped ones in
-\code{state$identity_drift} with the recorded and current fingerprints.
+\code{state$identity_drift} with the recorded and current fingerprints, and
+the evidence columns that changed when the decision carries a snapshot.
 Malformed decisions and ambiguous selectors fail in both modes.}
 }
 \value{
