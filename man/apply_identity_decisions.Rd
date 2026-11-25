@@ -4,12 +4,22 @@
 \alias{apply_identity_decisions}
 \title{Apply explicit row-scoped identity decisions}
 \usage{
-apply_identity_decisions(state, identity_decisions)
+apply_identity_decisions(
+  state,
+  identity_decisions,
+  on_drift = c("stop", "report")
+)
 }
 \arguments{
 \item{state}{Curation state containing resolution_state.}
 
 \item{identity_decisions}{List of explicit decision records.}
+
+\item{on_drift}{What to do when a decision's \code{evidence_fingerprint} no
+longer matches the row. \code{"stop"} (default) fails. \code{"report"} skips that
+decision, applies the rest, and lists the skipped ones in
+\code{state$identity_drift} with the recorded and current fingerprints.
+Malformed decisions and ambiguous selectors fail in both modes.}
 }
 \value{
 State with preserved source evidence and recorded decisions.
@@ -20,7 +30,8 @@ content column values, action (accept or retain_unresolved), scope, conflict,
 reason, evidence_reference and evidence_fingerprint. Acceptance also needs
 selected_dtxsid and correspondence=TRUE. Authoritative registry membership
 is validated separately; unavailable validation cannot grant acceptance.
-Ambiguous selectors and changed evidence fail without applying decisions.
+Ambiguous selectors fail without applying decisions. So does changed
+evidence, unless \code{on_drift = "report"}.
 }
 \details{
 A combined source may be accepted as a registered mixture without splitting.

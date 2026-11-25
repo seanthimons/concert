@@ -384,6 +384,8 @@ stage_curate <- function(
 #' Stage 4: apply Review Results edits
 #'
 #' @param state State list from [stage_curate()].
+#' @param on_identity_drift Passed to [apply_identity_decisions()] as
+#'   `on_drift`: `"stop"` (default) or `"report"`.
 #' @inheritParams curate_headless
 #' @return The state with `resolution_state` and `consensus_summary` updated,
 #'   plus `unmatched_decisions`: a character vector naming any `review_picks`
@@ -397,7 +399,8 @@ stage_review <- function(
   row_flags = NULL,
   review_decision_evidence = NULL,
   candidate_validation = NULL,
-  identity_decisions = NULL
+  identity_decisions = NULL,
+  on_identity_drift = "stop"
 ) {
   rs <- state$resolution_state
   automated <- rs
@@ -486,7 +489,7 @@ stage_review <- function(
   }
 
   state$resolution_state <- rs
-  state <- apply_identity_decisions(state, identity_decisions)
+  state <- apply_identity_decisions(state, identity_decisions, on_drift = on_identity_drift)
   rs <- state$resolution_state
   changed <- changed || length(identity_decisions) > 0L
   # A verification outlives the pick it confirmed (a name that now ties); the workbook marks these needs_review.

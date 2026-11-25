@@ -12,7 +12,8 @@ stage_review(
   row_flags = NULL,
   review_decision_evidence = NULL,
   candidate_validation = NULL,
-  identity_decisions = NULL
+  identity_decisions = NULL,
+  on_identity_drift = "stop"
 )
 }
 \arguments{
@@ -45,6 +46,9 @@ acquire a historical baseline implicitly.}
 
 \item{identity_decisions}{Explicit source-scoped decisions passed to
 \code{\link[=apply_identity_decisions]{apply_identity_decisions()}}. Name-wide selectors cannot grant scope acceptance.}
+
+\item{on_identity_drift}{Passed to \code{\link[=apply_identity_decisions]{apply_identity_decisions()}} as
+\code{on_drift}: \code{"stop"} (default) or \code{"report"}.}
 }
 \value{
 The state with \code{resolution_state} and \code{consensus_summary} updated,
