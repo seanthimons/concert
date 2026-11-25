@@ -174,6 +174,57 @@ test_that("stage_review rejects unknown DTXSIDs", {
   )
 })
 
+test_that("review_picks takes a WQX name and narrows by an input column", {
+  dir <- withr::local_tempdir()
+  input <- file.path(dir, "in.csv")
+  readr::write_csv(tibble::tibble(chemical_name = c("Chromium", "Chromium", "Lead"),
+    site = c("a", "b", "a")), input)
+  local_mocked_bindings(run_curation_pipeline = mock_pipeline_result, validate_manual_dtxsids = mock_validate)
+  state <- stage_ingest(input, tag_map = list(chemical_name = "Name"))
+  state <- suppressMessages(stage_curate(suppressMessages(stage_clean(state))))
+  review <- function(...) suppressMessages(stage_review(state, ...))
+  dictionary <- load_wqx_dictionary(resolve_curation_reference_cache_dir())
+  alias <- dictionary[dictionary$type != "canonical" & dictionary$name != dictionary$canonical_name, ][1, ]
+
+  # Unscoped: every row with the name. An alias becomes its canonical name.
+  rs <- review(review_picks = tibble::tibble(name = "Chromium", wqx_name = alias$name))$resolution_state
+  expect_equal(rs$consensus_name[1:2], rep(alias$canonical_name, 2))
+  expect_equal(rs$consensus_status, c("wqx", "wqx", "single"))
+  expect_equal(rs$.resolution_method[1:2], rep("manual_wqx", 2))
+  expect_true(all(is.na(rs$consensus_dtxsid[1:2])))
+  expect_true(all(reviewed_wqx_rows(rs)[1:2]))
+
+  # Scoped: only the row from site b; the flag only the row from site a.
+  out <- review(
+    review_picks = tibble::tibble(name = "Chromium", site = "b", wqx_name = "pH"),
+    row_flags = tibble::tibble(name = "Chromium", site = "a", flag = "FOLLOW-UP")
+  )
+  rs <- out$resolution_state
+  expect_equal(rs$consensus_status, c("agree", "wqx", "single"))
+  expect_equal(rs$consensus_name[2], "pH")
+  expect_equal(rs$row_flag, c("FOLLOW-UP", NA, NA))
+  expect_length(out$unmatched_decisions, 0)
+  expect_equal(
+    review(review_picks = tibble::tibble(name = "Chromium", site = "z", wqx_name = "pH"))$unmatched_decisions,
+    "review_picks: name=Chromium casrn=NA site=z"
+  )
+
+  # A narrowed flag is captured under its own id and then settles.
+  expect_true(out$review_reconciliation$actionable)
+  evidence <- capture_review_state(out, "Chromium", disposition = "no_hit", flag = "FOLLOW-UP", scope = list(site = "a"))
+  settled <- review(row_flags = tibble::tibble(name = "Chromium", site = "a", flag = "FOLLOW-UP"),
+    review_decision_evidence = evidence)$review_reconciliation
+  expect_equal(settled$decision_id, review_decision_key("Chromium", scope = list(site = "a")))
+  expect_false(settled$actionable)
+
+  expect_error(review(review_picks = tibble::tibble(name = "Chromium", wqx_name = "Not a characteristic")),
+    "not a WQX characteristic: Not a characteristic")
+  expect_error(review(review_picks = tibble::tibble(name = "Chromium", dtxsid = "DTXSID1020322", wqx_name = "pH")),
+    "exactly one of dtxsid or wqx_name")
+  expect_error(review(review_picks = tibble::tibble(name = "Chromium", dtxsid = NA, wqx_name = NA)),
+    "exactly one of dtxsid or wqx_name")
+})
+
 test_that("curate_iterate writes an error status when a stage fails", {
   fx <- iterate_fixture()
   decisions <- file.path(fx$dir, "decisions.R")

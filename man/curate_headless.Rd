@@ -133,14 +133,17 @@ replay Review Results edits.}
 \code{"suggested"} after candidate postprocessing (same as the Review Results
 bulk accept).}
 
-\item{review_picks}{Optional data frame with \code{name}, \code{dtxsid}, and optional
-\code{casrn} and \code{note} columns. Rows whose cleaned Name (and CAS, when given)
-match are resolved to that DTXSID after validation against CompTox. A
-\code{note} is written to the workbook's \code{review_note} column.}
+\item{review_picks}{Optional data frame with \code{name}, one of \code{dtxsid} or
+\code{wqx_name} per row, and optional \code{casrn} and \code{note} columns. Rows whose
+cleaned Name (and CAS, when given) match are resolved to that DTXSID after
+validation against CompTox, or to that WQX characteristic after a check
+against the WQX dictionary. A \code{note} is written to the workbook's
+\code{review_note} column. Any other column named after an input column
+narrows the pick to rows holding that value.}
 
 \item{row_flags}{Optional data frame with \code{name}, \code{flag}, and optional
 \code{casrn} and \code{reason} columns. Matching rows get the row flag (one of
-\code{valid_row_flags()}).}
+\code{valid_row_flags()}). Input columns narrow it as for \code{review_picks}.}
 
 \item{review_decision_evidence}{Immutable portable decision snapshots and
 scoped acknowledgments from \code{\link[=capture_review_decision]{capture_review_decision()}}. Legacy flags never

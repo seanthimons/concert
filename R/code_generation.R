@@ -1434,7 +1434,7 @@ append_decision_table <- function(lines, name, value) {
 #' @param multi_analyte_resolutions Optional multi-analyte resolution table to
 #'   embed.
 #' @param accept_suggestions Logical. Embed the bulk-accept switch.
-#' @param review_picks Optional content-keyed DTXSID picks table to embed.
+#' @param review_picks Optional content-keyed DTXSID or WQX-name picks table to embed.
 #' @param row_flags Optional content-keyed row flag table to embed.
 #' @param review_decision_evidence Portable immutable review evidence contract.
 #' @param identity_decisions Explicit structured source-identity decisions.

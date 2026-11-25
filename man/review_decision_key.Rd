@@ -4,7 +4,7 @@
 \alias{review_decision_key}
 \title{Construct a stable content-selector decision ID}
 \usage{
-review_decision_key(name, casrn = NA_character_)
+review_decision_key(name, casrn = NA_character_, scope = NULL)
 }
 \arguments{
 \item{name}{Reviewed source name.}

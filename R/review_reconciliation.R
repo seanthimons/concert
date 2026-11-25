@@ -4,9 +4,10 @@
 #' @param casrn Optional reviewed CAS selector.
 #' @return Stable decision identifier for capture_review_decision().
 #' @export
-review_decision_key <- function(name, casrn = NA_character_) {
-  paste0("selector:", review_evidence_fingerprint(list(name = review_evidence_text(name),
-    casrn = review_evidence_text(casrn))))
+review_decision_key <- function(name, casrn = NA_character_, scope = NULL) {
+  # An unscoped decision keeps the key it had before scopes existed.
+  paste0("selector:", review_evidence_fingerprint(c(list(name = review_evidence_text(name),
+    casrn = review_evidence_text(casrn)), if (length(scope)) list(scope = scope[order(names(scope))]))))
 }
 
 empty_review_reconciliation <- function() {
@@ -47,8 +48,10 @@ build_review_reconciliation <- function(automated, final = automated, row_flags 
   scalar <- function(x) if (length(x)) paste(x, collapse = "; ") else NA_character_
   for (i in seq_len(nrow(flags))) {
     id <- review_evidence_text(flags$decision_id[i])
-    if (is.na(id)) id <- review_decision_key(flags$name[i], flags$casrn[i])
+    narrow <- decision_scope(flags, i, scope_cols)
+    if (is.na(id)) id <- review_decision_key(flags$name[i], flags$casrn[i], narrow)
     mask <- !is.na(automated[[name_col]]) & automated[[name_col]] == flags$name[i]
+    for (col in names(narrow)) mask <- mask & as.character(automated[[col]]) %in% narrow[[col]]
     cas <- review_evidence_text(flags$casrn[i])
     missing_cas_scope <- !is.na(cas) && (is.na(cas_col) || !cas_col %in% names(automated))
     if (!is.na(cas) && !missing_cas_scope) {
@@ -116,13 +119,15 @@ build_review_reconciliation <- function(automated, final = automated, row_flags 
 #' @param name,casrn Content selector matching the reviewed flag decision.
 #' @param disposition,flag,reason Structured disposition and human decision.
 #' @param decision_id Optional stable ID; defaults to [review_decision_key()].
+#' @param scope Named list of input-column values when the flag was narrowed to
+#'   them (for example `list(source_label = "Ammonia, total")`).
 #' @param evidence Existing immutable records; defaults to the state's records.
 #' @return Updated portable review_decision_evidence object.
 #' @export
 capture_review_state <- function(state, name, casrn = NA_character_, disposition,
                                  flag = NA_character_, reason = NA_character_,
-                                 decision_id = review_decision_key(name, casrn),
-                                 evidence = state$review_decision_evidence) {
+                                 decision_id = review_decision_key(name, casrn, scope),
+                                 evidence = state$review_decision_evidence, scope = NULL) {
   automated <- state$review_automated_state %||% state$script_baseline_state
   if (is.null(automated)) stop("Capture requires actual pre-review evidence.", call. = FALSE)
   final <- state$resolution_state
@@ -131,11 +136,11 @@ capture_review_state <- function(state, name, casrn = NA_character_, disposition
   if (!is.na(casrn) && nzchar(casrn) && is.na(cas_col)) {
     stop("Capture CAS selector requires a CAS-tagged column.", call. = FALSE)
   }
-  rows <- which(content_row_mask(final, name_col, cas_col, name, casrn))
+  rows <- which(content_row_mask(final, name_col, cas_col, name, casrn, scope))
   cols <- review_scope_columns(state, automated)
   source_cols <- names(state$merged_chemical_tags)[unlist(state$merged_chemical_tags) %in% "DTXSID"]
-  scope <- review_evidence_scope(automated, rows, cols)
+  evidence_scope <- review_evidence_scope(automated, rows, cols)
   current <- review_evidence_snapshot(automated, final, rows, state$candidate_validation,
     unique(c("source_dtxsid", source_cols)), cols)
-  capture_review_decision(evidence, decision_id, scope, current, disposition, flag, reason)
+  capture_review_decision(evidence, decision_id, evidence_scope, current, disposition, flag, reason)
 }

@@ -180,6 +180,8 @@ curate_decisions_template <- function(input_path, out_dir, harmonize = FALSE) {
     "accept_suggestions <- TRUE",
     "",
     "# Pick a DTXSID for a row by its cleaned name (+ CAS when present). DTXSIDs are validated against CompTox.",
+    "# For a measurement that is not one chemical, give wqx_name (a WQX characteristic) in place of dtxsid.",
+    "# A pick or flag covers every row with that name; add an input column (say source = \"lab A\") to cover fewer.",
     "# review_picks <- tibble::tibble(",
     "#   name = c(\"Chromium\"),",
     "#   casrn = c(NA),",
@@ -620,7 +622,7 @@ write_status_md <- function(path, state, pending, done, decisions, error = NULL)
       )
     } else {
       c(
-        "Open pending.csv. For each row: add a review_picks entry (dtxsid), a row_flags entry, or a",
+        "Open pending.csv. For each row: add a review_picks entry (dtxsid or wqx_name), a row_flags entry, or a",
         "multi_analyte_resolutions entry, or fix the root cause with value_corrections / reference_list_snapshot.",
         "Then run curate_iterate() again."
       )

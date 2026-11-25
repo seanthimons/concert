@@ -88,12 +88,15 @@ build_candidate_review <- function(automated, final = automated, row_flags = NUL
         for (k in rev(candidates)) {
           target_cas <- get(flags, "casrn", k)
           if (!is.na(target_cas) && !is.na(cas) && target_cas != cas) next
+          narrow <- decision_scope(flags, k, scope_cols)
+          if (!all(vapply(names(narrow), function(col) as.character(automated[[col]][i]) %in% narrow[[col]],
+            logical(1)))) next
           flag <- get(flags, "flag", k)
           reason <- get(flags, "reason", k)
           explicit_key <- get(flags, "decision_id", k)
-          key <- if (is.na(explicit_key)) review_decision_key(name, target_cas) else explicit_key
+          key <- if (is.na(explicit_key)) review_decision_key(name, target_cas, narrow) else explicit_key
           missing_cas_scope <- !is.na(target_cas) && (is.na(cas_col) || !cas_col %in% names(automated))
-          matched_rows <- which(content_row_mask(automated, name_col, cas_col, name, target_cas))
+          matched_rows <- which(content_row_mask(automated, name_col, cas_col, name, target_cas, narrow))
           break
         }
       }

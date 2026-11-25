@@ -420,45 +420,85 @@ stage_review <- function(
 
   name_col <- first_tag_col(state$merged_chemical_tags, "Name")
   cas_col <- first_tag_col(state$merged_chemical_tags, "CASRN")
+  scope_cols <- review_scope_columns(state, rs)
 
   if (!is.null(review_picks) && NROW(review_picks) > 0) {
     picks <- tibble::as_tibble(review_picks)
-    if (!all(c("name", "dtxsid") %in% names(picks))) {
-      stop("review_picks must have name and dtxsid columns (casrn optional).", call. = FALSE)
+    if (!"name" %in% names(picks) || !any(c("dtxsid", "wqx_name") %in% names(picks))) {
+      stop("review_picks must have a name column and a dtxsid or wqx_name column (casrn optional).", call. = FALSE)
     }
-    for (col in setdiff(c("casrn", "note"), names(picks))) {
+    for (col in setdiff(c("casrn", "note", "dtxsid", "wqx_name"), names(picks))) {
       picks[[col]] <- NA_character_
     }
     if (!all(is_blank_text(picks$note)) && !"review_note" %in% names(rs)) {
       rs$review_note <- NA_character_
     }
+    # A pick names a chemical or a WQX characteristic, never both.
+    is_wqx <- !is_blank_text(picks$wqx_name)
+    unclear <- which(is_wqx == !is_blank_text(picks$dtxsid))
+    if (length(unclear)) {
+      stop(
+        sprintf("review_picks needs exactly one of dtxsid or wqx_name per row: %s",
+          paste(picks$name[unclear], collapse = ", ")),
+        call. = FALSE
+      )
+    }
     message(sprintf("[headless] Applying %d review picks...", nrow(picks)))
-    validation <- validate_manual_dtxsids(unique(picks$dtxsid))
-    invalid <- setdiff(unique(picks$dtxsid), validation$searchValue[validation$is_valid])
+    wanted <- unique(picks$dtxsid[!is_wqx])
+    validation <- validate_manual_dtxsids(wanted)
+    invalid <- setdiff(wanted, validation$searchValue[validation$is_valid])
     if (length(invalid) > 0) {
       stop(
         sprintf("review_picks membership invalid, ambiguous or unavailable: %s", paste(invalid, collapse = ", ")),
         call. = FALSE
       )
     }
+    wqx_canonical <- rep(NA_character_, nrow(picks))
+    if (any(is_wqx)) {
+      dictionary <- load_wqx_dictionary(resolve_curation_reference_cache_dir())
+      wqx_canonical[is_wqx] <- vapply(picks$wqx_name[is_wqx], validate_wqx_override_name, character(1),
+        wqx_dictionary = dictionary)
+      if (anyNA(wqx_canonical[is_wqx])) {
+        stop(
+          sprintf("review_picks wqx_name is not a WQX characteristic: %s",
+            paste(picks$wqx_name[is_wqx & is.na(wqx_canonical)], collapse = ", ")),
+          call. = FALSE
+        )
+      }
+    }
     rs <- init_resolution_state(rs)
-    for (col in c("consensus_dtxsid", "consensus_source", "consensus_status", "manual_preferredName")) {
+    for (col in c("consensus_dtxsid", "consensus_source", "consensus_status", "consensus_name",
+      "manual_preferredName", "wqx_override_name")) {
       if (!col %in% names(rs)) rs[[col]] <- NA_character_
     }
     for (i in seq_len(nrow(picks))) {
-      mask <- content_row_mask(rs, name_col, cas_col, picks$name[i], picks$casrn[i])
+      narrow <- decision_scope(picks, i, scope_cols)
+      mask <- content_row_mask(rs, name_col, cas_col, picks$name[i], picks$casrn[i], narrow)
       if (!any(mask)) {
-        unmatched <- c(unmatched, sprintf("review_picks: name=%s casrn=%s", picks$name[i], picks$casrn[i]))
+        unmatched <- c(unmatched, sprintf("review_picks: name=%s casrn=%s%s", picks$name[i], picks$casrn[i],
+          scope_label(narrow)))
         next
       }
-      pref <- validation$preferredName[match(picks$dtxsid[i], validation$searchValue)]
-      rs$consensus_status[mask] <- "manual"
-      rs$consensus_dtxsid[mask] <- picks$dtxsid[i]
-      rs$consensus_source[mask] <- "manual_entry"
-      rs$manual_preferredName[mask] <- pref
-      rs$.manual_entry[mask] <- TRUE
+      if (is_wqx[i]) {
+        # The same fields the app's WQX override sets, plus the name the export and mapping read.
+        rs$consensus_status[mask] <- "wqx"
+        rs$consensus_dtxsid[mask] <- NA_character_
+        rs$consensus_name[mask] <- wqx_canonical[i]
+        rs$consensus_source[mask] <- "manual_wqx"
+        rs$wqx_override_name[mask] <- wqx_canonical[i]
+        rs$manual_preferredName[mask] <- NA_character_
+        rs$.manual_entry[mask] <- FALSE
+        rs$.resolution_method[mask] <- "manual_wqx"
+      } else {
+        rs$consensus_status[mask] <- "manual"
+        rs$consensus_dtxsid[mask] <- picks$dtxsid[i]
+        rs$consensus_source[mask] <- "manual_entry"
+        rs$manual_preferredName[mask] <- validation$preferredName[match(picks$dtxsid[i], validation$searchValue)]
+        rs$wqx_override_name[mask] <- NA_character_
+        rs$.manual_entry[mask] <- TRUE
+        rs$.resolution_method[mask] <- "manual"
+      }
       rs$.pinned[mask] <- TRUE
-      rs$.resolution_method[mask] <- "manual"
       if (!is_blank_text(picks$note[i])) rs$review_note[mask] <- picks$note[i]
     }
     changed <- TRUE
@@ -478,9 +518,11 @@ stage_review <- function(
     message(sprintf("[headless] Applying %d row flags...", nrow(flags)))
     rs <- init_resolution_state(rs)
     for (i in seq_len(nrow(flags))) {
-      mask <- content_row_mask(rs, name_col, cas_col, flags$name[i], flags$casrn[i])
+      narrow <- decision_scope(flags, i, scope_cols)
+      mask <- content_row_mask(rs, name_col, cas_col, flags$name[i], flags$casrn[i], narrow)
       if (!any(mask)) {
-        unmatched <- c(unmatched, sprintf("row_flags: name=%s casrn=%s", flags$name[i], flags$casrn[i]))
+        unmatched <- c(unmatched, sprintf("row_flags: name=%s casrn=%s%s", flags$name[i], flags$casrn[i],
+          scope_label(narrow)))
         next
       }
       rs <- set_row_flags(rs, which(mask), flags$flag[i], flags$reason[i])
@@ -531,7 +573,7 @@ stage_review <- function(
   state$review_decision_evidence <- validate_review_evidence(review_decision_evidence)
   state$candidate_validation <- normalize_review_validation(candidate_validation)
   state$identity_decisions <- strip_ledger_fields(identity_decisions)
-  if (!is.na(name_col)) row_flags <- effective_review_flags(rs, name_col, cas_col, row_flags)
+  if (!is.na(name_col)) row_flags <- effective_review_flags(rs, name_col, cas_col, row_flags, scope_cols)
   state$review_row_flags <- row_flags
   state$review_automated_state <- automated
   cols <- review_scope_columns(state, automated)
@@ -562,14 +604,28 @@ review_scope_columns <- function(state, df = state$resolution_state) {
   cols
 }
 
-# Rows whose cleaned Name (and CAS, when given) equal the decision key.
-content_row_mask <- function(rs, name_col, cas_col, name, casrn) {
+# A pick or flag may carry input columns (a source, a source label) that narrow
+# it to some of the rows sharing its name. Blank values narrow nothing.
+decision_scope <- function(decisions, i, scope_cols) {
+  cols <- setdiff(intersect(names(decisions), scope_cols),
+    c("name", "casrn", "dtxsid", "wqx_name", "note", "flag", "reason", "decision_id"))
+  scope <- lapply(decisions[i, cols, drop = FALSE], as.character)
+  scope[!vapply(scope, is_blank_text, logical(1))]
+}
+
+# Rows whose cleaned Name (and CAS and scope columns, when given) equal the decision key.
+scope_label <- function(scope) paste0(sprintf(" %s=%s", names(scope), unlist(scope)), collapse = "")
+
+content_row_mask <- function(rs, name_col, cas_col, name, casrn, scope = NULL) {
   if (is.na(name_col)) {
     stop("review_picks and row_flags need a Name-tagged column.", call. = FALSE)
   }
   mask <- !is.na(rs[[name_col]]) & as.character(rs[[name_col]]) == as.character(name)
   if (!is.na(casrn) && nzchar(casrn) && !is.na(cas_col)) {
     mask <- mask & !is.na(rs[[cas_col]]) & as.character(rs[[cas_col]]) == as.character(casrn)
+  }
+  for (col in names(scope)) {
+    mask <- mask & !is.na(rs[[col]]) & as.character(rs[[col]]) == scope[[col]]
   }
   mask
 }
@@ -753,7 +809,7 @@ stage_export <- function(state, output_path = NULL, format = "parquet", write_fi
 
 
 # Existing imported/replayed flags still receive honest missing-baseline reports.
-effective_review_flags <- function(df, name_col, cas_col, explicit = NULL) {
+effective_review_flags <- function(df, name_col, cas_col, explicit = NULL, scope_cols = character()) {
   flags <- init_resolution_state(df)
   idx <- which(!is.na(flags$row_flag))
   if (!length(idx)) return(explicit)
@@ -764,7 +820,10 @@ effective_review_flags <- function(df, name_col, cas_col, explicit = NULL) {
     covered <- rep(FALSE, nrow(inferred))
     for (i in seq_len(NROW(explicit))) {
       cas <- if ("casrn" %in% names(explicit)) explicit$casrn[i] else NA_character_
-      covered <- covered | (!is.na(inferred$name) & inferred$name == explicit$name[i] &
+      narrow <- decision_scope(explicit, i, scope_cols)
+      in_scope <- rep(TRUE, length(idx))
+      for (col in names(narrow)) in_scope <- in_scope & as.character(df[[col]][idx]) %in% narrow[[col]]
+      covered <- covered | (in_scope & !is.na(inferred$name) & inferred$name == explicit$name[i] &
         (is.na(cas) | !nzchar(cas) | (!is.na(inferred$casrn) & inferred$casrn == cas)))
     }
     inferred <- inferred[!covered, , drop = FALSE]

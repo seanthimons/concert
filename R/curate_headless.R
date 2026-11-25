@@ -83,13 +83,16 @@
 #' @param accept_suggestions Logical. If TRUE, accepts every row scored as
 #'   `"suggested"` after candidate postprocessing (same as the Review Results
 #'   bulk accept).
-#' @param review_picks Optional data frame with `name`, `dtxsid`, and optional
-#'   `casrn` and `note` columns. Rows whose cleaned Name (and CAS, when given)
-#'   match are resolved to that DTXSID after validation against CompTox. A
-#'   `note` is written to the workbook's `review_note` column.
+#' @param review_picks Optional data frame with `name`, one of `dtxsid` or
+#'   `wqx_name` per row, and optional `casrn` and `note` columns. Rows whose
+#'   cleaned Name (and CAS, when given) match are resolved to that DTXSID after
+#'   validation against CompTox, or to that WQX characteristic after a check
+#'   against the WQX dictionary. A `note` is written to the workbook's
+#'   `review_note` column. Any other column named after an input column
+#'   narrows the pick to rows holding that value.
 #' @param row_flags Optional data frame with `name`, `flag`, and optional
 #'   `casrn` and `reason` columns. Matching rows get the row flag (one of
-#'   `valid_row_flags()`).
+#'   `valid_row_flags()`). Input columns narrow it as for `review_picks`.
 #' @param review_decision_evidence Immutable portable decision snapshots and
 #'   scoped acknowledgments from [capture_review_decision()]. Legacy flags never
 #'   acquire a historical baseline implicitly.

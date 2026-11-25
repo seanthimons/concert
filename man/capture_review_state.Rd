@@ -11,8 +11,9 @@ capture_review_state(
   disposition,
   flag = NA_character_,
   reason = NA_character_,
-  decision_id = review_decision_key(name, casrn),
-  evidence = state$review_decision_evidence
+  decision_id = review_decision_key(name, casrn, scope),
+  evidence = state$review_decision_evidence,
+  scope = NULL
 )
 }
 \arguments{
@@ -25,6 +26,9 @@ capture_review_state(
 \item{decision_id}{Optional stable ID; defaults to \code{\link[=review_decision_key]{review_decision_key()}}.}
 
 \item{evidence}{Existing immutable records; defaults to the state's records.}
+
+\item{scope}{Named list of input-column values when the flag was narrowed to
+them (for example \code{list(source_label = "Ammonia, total")}).}
 }
 \value{
 Updated portable review_decision_evidence object.
