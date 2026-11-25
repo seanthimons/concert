@@ -407,18 +407,8 @@ first_tag_col <- function(tags, tag) {
   if (length(cols) == 0) NA_character_ else cols[1]
 }
 
-# Accepted matches whose preferred name looks nothing like the input name.
-# Catches wrong automatic hits ("Total PFAS" -> "Total Furans") that never
-# reach pending.csv. Token Jaccard on lowercase words: shared prefixes such as
-# "Total" do not rescue a match whose distinguishing token differs.
-low_similarity_rows <- function(state, threshold = 0.5) {
-  rs <- state$resolution_state
-  name_col <- first_tag_col(state$merged_chemical_tags, "Name")
-  empty <- tibble::tibble(row_index = integer(), name = character(), dtxsid = character(), preferred_name = character())
-  if (NROW(rs) == 0 || is.na(name_col) || !"consensus_dtxsid" %in% names(rs)) {
-    return(empty)
-  }
-  rs <- init_resolution_state(rs)
+# Preferred name of each row's current identity: the consensus source's name, or the picked one.
+preferred_names <- function(rs) {
   n <- nrow(rs)
   pref <- rep(NA_character_, n)
   src <- rs$consensus_source %||% rep(NA_character_, n)
@@ -433,12 +423,88 @@ low_similarity_rows <- function(state, threshold = 0.5) {
     m <- !is.na(rs$manual_preferredName)
     pref[m] <- as.character(rs$manual_preferredName[m])
   }
+  pref
+}
+
+# The flat result a pipeline reads: fixed column names after the source columns.
+mapping_table <- function(state) {
+  rs <- init_resolution_state(state$resolution_state)
+  review <- identity_review_state(rs)
+  name <- as.character(identity_col(rs, "consensus_name"))
+  flag <- identity_col(rs, "row_flag")
+  method <- identity_col(rs, ".resolution_method")
+  fixed <- tibble::tibble(
+    dtxsid = review$accepted_dtxsid,
+    wqx_name = ifelse(reviewed_wqx_rows(rs), name, NA_character_),
+    preferred_name = dplyr::coalesce(preferred_names(rs), name),
+    identity_status = review$identity_status,
+    decided_by = dplyr::case_when(
+      !is.na(identity_col(rs, "identity_decision_record")) ~ "identity_decision",
+      flag %in% c("BAD", "FOLLOW-UP") ~ "flag",
+      method %in% c("manual", "manual_wqx", "user-pick") ~ "pick",
+      method %in% c("bulk-accept", "suggested-accept") ~ "accepted_suggestion",
+      TRUE ~ "automatic"
+    ),
+    row_flag = flag,
+    identity_blockers = review$identity_blockers
+  )
+  source <- tibble::as_tibble(rs[identity_selector_columns(rs, state$merged_chemical_tags)])
+  # The fixed names are the contract; a source column that shares one is renamed.
+  clash <- names(source) %in% names(fixed)
+  names(source)[clash] <- paste0("source_", names(source)[clash])
+  dplyr::bind_cols(source, fixed)
+}
+
+# What a run's result depends on: versions, and a hash of each file the run reads.
+run_lock <- function(decisions_path, d) {
+  base <- dirname(decisions_path)
+  tokens <- utils::getParseData(parse(decisions_path, keep.source = TRUE))
+  named <- vapply(tokens$text[tokens$token == "STR_CONST"], function(s) {
+    tryCatch(as.character(eval(parse(text = s)))[1], error = function(e) NA_character_)
+  }, character(1))
+  named <- named[!is.na(named) & nzchar(named)]
+  # ponytail: only files decisions.R names as a string are seen. Paths built at run time
+  # (file.path(), here::here()) and files read by a sourced file are not; hash those by
+  # naming them in decisions.R, or walk source() calls here if that proves too easy to miss.
+  # A relative name is tried against the working directory, as sys.source() reads it, then next to
+  # decisions.R, so check the lock from the directory the run used.
+  paths <- c(decisions_path, d$input_path, d$identity_ledger_path, named, file.path(base, named))
+  paths <- paths[file.exists(paths) & !dir.exists(paths)]
+  # The workbook is an output: hashing it would make every finished run look changed.
+  paths <- setdiff(unique(as.character(fs::path_real(paths))),
+    if (!is.null(d$output_path) && file.exists(d$output_path)) as.character(fs::path_real(d$output_path)))
+  files <- vapply(paths, function(p) digest::digest(file = p, algo = "sha256"), character(1))
+  names(files) <- as.character(fs::path_rel(paths, start = fs::path_real(base)))
+  dsstox <- tryCatch(suppressMessages(ComptoxR::db_installed_version("dsstox")), error = function(e) NA_character_)
+  list(
+    versions = list(
+      concert = as.character(utils::packageVersion("concert")),
+      ComptoxR = as.character(utils::packageVersion("ComptoxR")),
+      dsstox = if (length(dsstox) == 1L && !is.na(dsstox)) as.character(dsstox) else "not installed"
+    ),
+    files = as.list(files[order(names(files))])
+  )
+}
+
+# Accepted matches whose preferred name looks nothing like the input name.
+# Catches wrong automatic hits ("Total PFAS" -> "Total Furans") that never
+# reach pending.csv. Token Jaccard on lowercase words: shared prefixes such as
+# "Total" do not rescue a match whose distinguishing token differs.
+low_similarity_rows <- function(state, threshold = 0.5) {
+  rs <- state$resolution_state
+  name_col <- first_tag_col(state$merged_chemical_tags, "Name")
+  empty <- tibble::tibble(row_index = integer(), name = character(), dtxsid = character(), preferred_name = character())
+  if (NROW(rs) == 0 || is.na(name_col) || !"consensus_dtxsid" %in% names(rs)) {
+    return(empty)
+  }
+  rs <- init_resolution_state(rs)
+  pref <- preferred_names(rs)
   name <- as.character(rs[[name_col]])
   ok <- !is.na(rs$consensus_dtxsid) & !is.na(pref) & !is.na(name) & is.na(rs$row_flag) & !(rs$.pinned %in% TRUE)
   if (!any(ok)) {
     return(empty)
   }
-  sim <- rep(NA_real_, n)
+  sim <- rep(NA_real_, nrow(rs))
   sim[ok] <- name_token_similarity(name[ok], pref[ok])
   idx <- which(ok & sim < threshold)
   tibble::tibble(
@@ -653,20 +719,57 @@ decision_table_is_csv <- function(x) {
 #'   [curate_decisions_template()].
 #' @param out_dir Output directory. Defaults to the decisions file directory.
 #' @param verbose Logical. Print pipeline messages.
+#' @param output_path Workbook path for this run. Overrides `output_path` in
+#'   `decisions.R`, so a trial run in another `out_dir` needs no edited copy
+#'   of the decisions file.
+#' @param check_lock Logical. When `TRUE`, run nothing: compare the files and
+#'   versions the last run in `out_dir` recorded in `run_lock.json` with the
+#'   current ones and return what changed.
+#' @section Run lock:
+#' A run that finishes writes `run_lock.json` in `out_dir`: the concert,
+#' ComptoxR and local DSSTox versions, and a SHA-256 of `decisions.R`, the
+#' input file, the identity ledger and every existing file `decisions.R`
+#' names as a string. A failed run leaves no lock. The lock does not cover
+#' files whose paths `decisions.R` builds at run time, files read by a file
+#' it sources, or web lookups cached in `out_dir/cache`.
+#' @section Mapping:
+#' When the run is done it writes `mapping.csv`: one line per curated row
+#' with the source columns, then `dtxsid`, `wqx_name`, `preferred_name`,
+#' `identity_status`, `decided_by` (`automatic`, `pick`,
+#' `accepted_suggestion`, `identity_decision` or `flag`), `row_flag` and
+#' `identity_blockers`.
 #' @return Invisibly, a list with `done`, `pending`, `identity_drift` and
 #'   `state`. `identity_drift` lists identity decisions that were skipped
 #'   because their recorded evidence fingerprint no longer matches the row;
 #'   each is also an `identity_drift` row in `pending.csv`. It is `NULL` when
-#'   there are no identity decisions.
+#'   there are no identity decisions. With `check_lock = TRUE`, a list with
+#'   `current` (nothing changed since the lock), `done` (that run was done)
+#'   and `changed` (what differs).
 #' @export
-curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), verbose = TRUE) {
+curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), verbose = TRUE,
+                           output_path = NULL, check_lock = FALSE) {
   if (!file.exists(decisions_path)) {
     stop(sprintf("decisions file not found: %s. Run curate_decisions_template() first.", decisions_path), call. = FALSE)
   }
-  fs::dir_create(out_dir, recurse = TRUE)
   d <- read_decisions(decisions_path)
+  lock_path <- file.path(out_dir, "run_lock.json")
+  # Hashed before the run, so a file that changes while it runs makes the lock stale, not wrong.
+  lock <- run_lock(decisions_path, d)
+  if (check_lock) {
+    old <- if (file.exists(lock_path)) jsonlite::fromJSON(lock_path) else list()
+    flat <- function(x) unlist(x[c("versions", "files")])
+    keys <- union(names(flat(old)), names(flat(lock)))
+    changed <- keys[!vapply(keys, function(k) identical(unname(flat(old)[k]), unname(flat(lock)[k])), logical(1))]
+    if (!length(old)) changed <- "run_lock.json"
+    message(if (length(changed)) paste0("[lock] changed since the last run: ", paste(changed, collapse = ", ")) else
+      "[lock] nothing changed since the last run.")
+    return(invisible(list(current = !length(changed), done = isTRUE(old$done), changed = changed)))
+  }
+  fs::dir_create(out_dir, recurse = TRUE)
+  if (!is.null(output_path)) d$output_path <- output_path
   cache_dir <- file.path(out_dir, "cache")
   status_path <- file.path(out_dir, "status.md")
+  unlink(c(lock_path, file.path(out_dir, "mapping.csv")))
   # Clear prior reports before running: a failure must not present old work as current.
   readr::write_csv(empty_review_reconciliation(), file.path(out_dir, "review_reconciliation.csv"))
   readr::write_csv(candidate_review_table(), file.path(out_dir, "candidate_review.csv"))
@@ -792,7 +895,10 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
     } else {
       suppressMessages(stage_export(state, output_path = output_path, format = d$format, write_files = TRUE))
     }
+    readr::write_csv(mapping_table(state), file.path(out_dir, "mapping.csv"), na = "")
   }
+  # Last, so a lock exists only for a run whose outputs were all written.
+  jsonlite::write_json(c(lock, list(done = done)), lock_path, auto_unbox = TRUE, pretty = TRUE)
 
   message(sprintf(
     "[iterate] %s: %d pending (%s)",

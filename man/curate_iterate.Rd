@@ -7,7 +7,9 @@
 curate_iterate(
   decisions_path,
   out_dir = dirname(decisions_path),
-  verbose = TRUE
+  verbose = TRUE,
+  output_path = NULL,
+  check_lock = FALSE
 )
 }
 \arguments{
@@ -17,13 +19,23 @@ curate_iterate(
 \item{out_dir}{Output directory. Defaults to the decisions file directory.}
 
 \item{verbose}{Logical. Print pipeline messages.}
+
+\item{output_path}{Workbook path for this run. Overrides \code{output_path} in
+\code{decisions.R}, so a trial run in another \code{out_dir} needs no edited copy
+of the decisions file.}
+
+\item{check_lock}{Logical. When \code{TRUE}, run nothing: compare the files and
+versions the last run in \code{out_dir} recorded in \code{run_lock.json} with the
+current ones and return what changed.}
 }
 \value{
 Invisibly, a list with \code{done}, \code{pending}, \code{identity_drift} and
 \code{state}. \code{identity_drift} lists identity decisions that were skipped
 because their recorded evidence fingerprint no longer matches the row;
 each is also an \code{identity_drift} row in \code{pending.csv}. It is \code{NULL} when
-there are no identity decisions.
+there are no identity decisions. With \code{check_lock = TRUE}, a list with
+\code{current} (nothing changed since the lock), \code{done} (that run was done)
+and \code{changed} (what differs).
 }
 \description{
 Sources \code{decisions.R}, runs the staged headless pipeline with a curation
@@ -35,3 +47,22 @@ When no rows are pending it also writes the curated workbook (and ToxVal
 files when \code{harmonize} is set). Re-run after editing \code{decisions.R} until
 \code{status.md} reports \code{done: TRUE}.
 }
+\section{Run lock}{
+
+A run that finishes writes \code{run_lock.json} in \code{out_dir}: the concert,
+ComptoxR and local DSSTox versions, and a SHA-256 of \code{decisions.R}, the
+input file, the identity ledger and every existing file \code{decisions.R}
+names as a string. A failed run leaves no lock. The lock does not cover
+files whose paths \code{decisions.R} builds at run time, files read by a file
+it sources, or web lookups cached in \code{out_dir/cache}.
+}
+
+\section{Mapping}{
+
+When the run is done it writes \code{mapping.csv}: one line per curated row
+with the source columns, then \code{dtxsid}, \code{wqx_name}, \code{preferred_name},
+\code{identity_status}, \code{decided_by} (\code{automatic}, \code{pick},
+\code{accepted_suggestion}, \code{identity_decision} or \code{flag}), \code{row_flag} and
+\code{identity_blockers}.
+}
+
