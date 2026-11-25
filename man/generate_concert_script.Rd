@@ -97,7 +97,7 @@ embed.}
 
 \item{accept_suggestions}{Logical. Embed the bulk-accept switch.}
 
-\item{review_picks}{Optional content-keyed DTXSID picks table to embed.}
+\item{review_picks}{Optional content-keyed DTXSID or WQX-name picks table to embed.}
 
 \item{row_flags}{Optional content-keyed row flag table to embed.}
 

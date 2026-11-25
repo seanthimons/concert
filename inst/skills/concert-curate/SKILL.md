@@ -47,6 +47,10 @@ Stop after 10 iterations if `pending.csv` is not shrinking. Report what is left 
 
 Row keys are content-based: `name` is the cleaned name, `casrn` the cleaned CAS. Unmatched keys are listed under `## Unmatched decisions` in `status.md`; fix the key rather than adding duplicates.
 
+A measurement that is not one chemical ("Hardness", "Total suspended solids") resolves to a WQX characteristic, not a DTXSID. When concert's `wqx_name` in `pending.csv` is right, confirm it with `row_flags` `VERIFIED`. When another characteristic is right, add a `review_picks` row with `wqx_name` in place of `dtxsid`; the name is checked against the WQX dictionary and an alias becomes its canonical name. Each `review_picks` row carries exactly one of `dtxsid` or `wqx_name`.
+
+A pick or flag covers every row with its `name` (and `casrn`). Rows that clean to the same name sometimes need different answers ("Ammonia, total" and "Ammonia, total (as N)", or one name reported by two sources). Add a column named after an input column, such as `source_label`, to the `review_picks` or `row_flags` table: the row then covers only input rows holding that value. A blank value narrows nothing. Later rows override earlier ones, so a broad row followed by a narrow one works. Do not write a script to apply per-source decisions.
+
 ## Identity decision ledger
 
 Row-scoped identity decisions (accept a DTXSID for one source row, or keep it unresolved with a scope) live in a JSON Lines file that `decisions.R` names: `identity_decisions <- "identity_decisions.jsonl"`. Never edit that file and never write a script to change it. Use the runner, after a complete run with the current `decisions.R`:
