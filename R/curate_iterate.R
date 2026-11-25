@@ -233,7 +233,13 @@ pending_rows <- function(state) {
   dispositioned <- rs$row_flag %in% c("FOLLOW-UP", "BAD")
   scope_review <- !dispositioned & (scope$scope | scope$conflict | scope$stale | source_review |
     wqx_correspondence_blockers(rs))
-  idx <- which(is_multi | needs_pick | no_match | wqx_unresolved | verified_unresolved | candidate_validation | scope_review)
+  # Split children share original_row_id, so drift matches on the part index too.
+  row_key <- function(x) paste(as.integer(identity_col(x, "original_row_id")),
+    as.integer(identity_col(x, "multi_analyte_part_index")))
+  drift_at <- match(row_key(rs), if (NROW(state$identity_drift)) row_key(state$identity_drift) else character())
+  drifted <- !is.na(drift_at)
+  idx <- which(drifted | is_multi | needs_pick | no_match | wqx_unresolved | verified_unresolved |
+    candidate_validation | scope_review)
   if (length(idx) == 0) {
     return(empty_pending())
   }
@@ -245,6 +251,10 @@ pending_rows <- function(state) {
       ifelse(candidate_validation[idx], "candidate_validation",
         ifelse(scope_review[idx], "identity_scope", ifelse(no_match[idx], "no_match", status[idx]))))
   )
+  pending_type[drifted[idx]] <- "identity_drift"
+  drift_field <- function(col) {
+    if (NROW(state$identity_drift)) as.character(state$identity_drift[[col]][drift_at[idx]]) else NA_character_
+  }
   name_vals <- if (!is.na(name_col)) as.character(rs[[name_col]][idx]) else NA_character_
   cas_vals <- if (!is.na(cas_col)) as.character(rs[[cas_col]][idx]) else NA_character_
   suggested_col <- if (".suggested_column" %in% names(rs)) {
@@ -334,7 +344,11 @@ pending_rows <- function(state) {
     resolver_name = candidate_field("resolver_name"),
     resolver_lookup_status = candidate_field("resolver_lookup_status"),
     tied_dtxsids = candidate_field(if ("tied_dtxsids" %in% names(rs)) "tied_dtxsids" else paste0("tied_dtxsids_", name_col)),
-    cleaning_flag = if ("cleaning_flag" %in% names(rs)) as.character(rs$cleaning_flag[idx]) else NA_character_
+    cleaning_flag = if ("cleaning_flag" %in% names(rs)) as.character(rs$cleaning_flag[idx]) else NA_character_,
+    drift_recorded_fingerprint = drift_field("recorded_fingerprint"),
+    drift_current_fingerprint = drift_field("current_fingerprint"),
+    drift_decision = ifelse(drifted[idx], paste(drift_field("action"), dplyr::coalesce(drift_field("selected_dtxsid"), ""),
+      drift_field("reason"), sep = " | "), NA_character_)
   )
 }
 
@@ -373,7 +387,10 @@ empty_pending <- function() {
     resolver_name = character(),
     resolver_lookup_status = character(),
     tied_dtxsids = character(),
-    cleaning_flag = character()
+    cleaning_flag = character(),
+    drift_recorded_fingerprint = character(),
+    drift_current_fingerprint = character(),
+    drift_decision = character()
   )
 }
 
@@ -505,6 +522,18 @@ write_status_md <- function(path, state, pending, done, decisions, error = NULL)
       )
     } else character(0),
     low_sim_lines,
+    if (NROW(state$identity_drift)) {
+      c(
+        "## Drifted decisions",
+        "",
+        paste0("Identity decisions whose recorded evidence no longer matches the row: ",
+          nrow(state$identity_drift), ". None of them was applied."),
+        "Each is an `identity_drift` row in pending.csv. Review the row as it is now. To keep the decision,",
+        "set its `evidence_fingerprint` to the row's `drift_current_fingerprint`; otherwise change or remove it.",
+        "replay.R stops on these decisions until they are resolved.",
+        ""
+      )
+    } else character(0),
     "## Next",
     "",
     if (done) {
@@ -614,7 +643,11 @@ decision_table_is_csv <- function(x) {
 #'   [curate_decisions_template()].
 #' @param out_dir Output directory. Defaults to the decisions file directory.
 #' @param verbose Logical. Print pipeline messages.
-#' @return Invisibly, a list with `done`, `pending`, and `state`.
+#' @return Invisibly, a list with `done`, `pending`, `identity_drift` and
+#'   `state`. `identity_drift` lists identity decisions that were skipped
+#'   because their recorded evidence fingerprint no longer matches the row;
+#'   each is also an `identity_drift` row in `pending.csv`. It is `NULL` when
+#'   there are no identity decisions.
 #' @export
 curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), verbose = TRUE) {
   if (!file.exists(decisions_path)) {
@@ -663,7 +696,8 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
       row_flags = d$row_flags,
       review_decision_evidence = d$review_decision_evidence,
       candidate_validation = d$candidate_validation,
-      identity_decisions = d$identity_decisions
+      identity_decisions = d$identity_decisions,
+      on_identity_drift = "report"
     )
     stage_harmonize(
       state,
@@ -686,7 +720,8 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
   )
 
   pending <- pending_rows(state)
-  done <- nrow(pending) == 0
+  # A drifted decision blocks completion even if its row is somehow not in pending.
+  done <- nrow(pending) == 0 && !NROW(state$identity_drift)
   state$completion <- review_completion(state, pending)
   readr::write_csv(state$review_reconciliation, file.path(out_dir, "review_reconciliation.csv"), na = "")
   readr::write_csv(state$candidate_review, file.path(out_dir, "candidate_review.csv"), na = "")
@@ -753,7 +788,8 @@ curate_iterate <- function(decisions_path, out_dir = dirname(decisions_path), ve
       "none"
     }
   ))
-  invisible(c(list(done = done, pending = pending, state = state), state$completion))
+  invisible(c(list(done = done, pending = pending, identity_drift = state$identity_drift, state = state),
+    state$completion))
 }
 
 

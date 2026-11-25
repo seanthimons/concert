@@ -43,6 +43,7 @@ Stop after 10 iterations if `pending.csv` is not shrinking. Report what is left 
 | `disagree` | Name and CAS resolved to different DTXSIDs. `candidates` lists `dtxsid | preferredName | tier`. | `review_picks` with the correct `dtxsid`, or `row_flags` if neither candidate is right |
 | `suggested` | Scored candidate below the auto-accept bar. `suggested_dtxsid` is CONCERT's pick. | Leave `accept_suggestions <- TRUE` to accept all, or override individual rows with `review_picks` |
 | `no_match` | Nothing in CompTox matched. | Fix the name with `value_corrections` or a reference-list override, supply a `review_picks` DTXSID you know, or `row_flags` with `FOLLOW-UP` |
+| `identity_drift` | An `identity_decisions` entry was recorded against evidence that has since changed (new input, new concert or DSSTox version). The decision was not applied. `drift_decision` shows what it was; the rest of the row shows the evidence now. | Review the row again. To keep the decision, set its `evidence_fingerprint` to `drift_current_fingerprint`. Otherwise change or remove the entry. Never copy the fingerprint without re-checking the row. |
 
 Row keys are content-based: `name` is the cleaned name, `casrn` the cleaned CAS. Unmatched keys are listed under `## Unmatched decisions` in `status.md`; fix the key rather than adding duplicates.
 

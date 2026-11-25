@@ -103,7 +103,8 @@ identity_decision_current_rows <- function(df) {
 #' reason, evidence_reference and evidence_fingerprint. Acceptance also needs
 #' selected_dtxsid and correspondence=TRUE. Authoritative registry membership
 #' is validated separately; unavailable validation cannot grant acceptance.
-#' Ambiguous selectors and changed evidence fail without applying decisions.
+#' Ambiguous selectors fail without applying decisions. So does changed
+#' evidence, unless `on_drift = "report"`.
 #' @param state Curation state containing resolution_state.
 #' @param identity_decisions List of explicit decision records.
 #' @return State with preserved source evidence and recorded decisions.
@@ -134,11 +135,19 @@ identity_decision_current_rows <- function(df) {
 #' Existing flags and reasons are preserved by this function.
 #' The fingerprint row argument is the current row position, while the selector
 #' uses source lineage and content; these may differ after reordering.
+#' @param on_drift What to do when a decision's `evidence_fingerprint` no
+#'   longer matches the row. `"stop"` (default) fails. `"report"` skips that
+#'   decision, applies the rest, and lists the skipped ones in
+#'   `state$identity_drift` with the recorded and current fingerprints.
+#'   Malformed decisions and ambiguous selectors fail in both modes.
 #' @export
-apply_identity_decisions <- function(state, identity_decisions) {
+apply_identity_decisions <- function(state, identity_decisions, on_drift = c("stop", "report")) {
+  on_drift <- match.arg(on_drift)
   if (!length(identity_decisions)) return(state)
   df <- init_resolution_state(state$resolution_state)
+  drift <- list()
   for (decision in identity_decisions) {
+    prev <- df
     selector <- decision$selector
     if (!is.list(selector) || is.null(names(selector)) || !"original_row_id" %in% names(selector) ||
         length(selector) < 2L || any(!names(selector) %in% names(df)) ||
@@ -164,6 +173,14 @@ apply_identity_decisions <- function(state, identity_decisions) {
         !decision$conflict %in% c("none", "scope", "source_name_cas", "source_identifier")) {
       stop("Invalid identity decision action, scope or conflict.", call. = FALSE)
     }
+    # Shape errors fail before the drift check: a malformed decision is never reported as drift.
+    if (decision$action == "accept") {
+      id <- decision$selected_dtxsid
+      if (!decision$scope %in% c("substance", "registered_mixture") || decision$conflict != "none" ||
+          !isTRUE(decision$correspondence) || length(id) != 1L || is.na(id) || !grepl("^DTXSID[0-9]+$", id)) {
+        stop("Acceptance requires resolved scope/conflict, an ID and explicit source correspondence.", call. = FALSE)
+      }
+    }
     # GUI replay reconstructs only the inspected lookup projection for this
     # exact source row. Source content, candidates and validation cannot change.
     if (!is.null(decision$gui_review_input)) {
@@ -184,15 +201,21 @@ apply_identity_decisions <- function(state, identity_decisions) {
     legacy_match <- startsWith(decision$evidence_fingerprint, "identity-v1:") &&
       identical(identity_fingerprint_v1(df, i), decision$evidence_fingerprint)
     if (!identical(before, decision$evidence_fingerprint) && !legacy_match) {
-      stop("Identity decision evidence changed.", call. = FALSE)
+      if (on_drift == "stop") stop("Identity decision evidence changed.", call. = FALSE)
+      drift[[length(drift) + 1L]] <- tibble::tibble(
+        original_row_id = as.integer(df$original_row_id[i]),
+        multi_analyte_part_index = as.integer(identity_col(df, "multi_analyte_part_index")[i]),
+        action = decision$action, scope = decision$scope,
+        selected_dtxsid = as.character(decision$selected_dtxsid %||% NA_character_),
+        reason = decision$reason, evidence_reference = decision$evidence_reference,
+        recorded_fingerprint = decision$evidence_fingerprint, current_fingerprint = before
+      )
+      df <- prev
+      next
     }
     membership <- "not_requested"
     if (decision$action == "accept") {
       id <- decision$selected_dtxsid
-      if (!decision$scope %in% c("substance", "registered_mixture") || decision$conflict != "none" ||
-          !isTRUE(decision$correspondence) || length(id) != 1L || is.na(id) || !grepl("^DTXSID[0-9]+$", id)) {
-        stop("Acceptance requires resolved scope/conflict, an ID and explicit source correspondence.", call. = FALSE)
-      }
       source_candidates <- grep("^source_id_.*_source_candidate_id$", names(df), value = TRUE)
       for (col in source_candidates) {
         candidate <- normalize_source_dtxsid(df[[col]][i])
@@ -232,5 +255,6 @@ apply_identity_decisions <- function(state, identity_decisions) {
   df$identity_decision_current <- identity_decision_current_rows(df)
   state$resolution_state <- df
   state$identity_decisions <- identity_decisions
+  if (on_drift == "report") state$identity_drift <- dplyr::bind_rows(drift)
   state
 }

@@ -19,7 +19,11 @@ curate_iterate(
 \item{verbose}{Logical. Print pipeline messages.}
 }
 \value{
-Invisibly, a list with \code{done}, \code{pending}, and \code{state}.
+Invisibly, a list with \code{done}, \code{pending}, \code{identity_drift} and
+\code{state}. \code{identity_drift} lists identity decisions that were skipped
+because their recorded evidence fingerprint no longer matches the row;
+each is also an \code{identity_drift} row in \code{pending.csv}. It is \code{NULL} when
+there are no identity decisions.
 }
 \description{
 Sources \code{decisions.R}, runs the staged headless pipeline with a curation

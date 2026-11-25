@@ -494,3 +494,53 @@ test_that("read_decision_table stops on a casrn a spreadsheet rewrote as a date"
   expect_true(is_blank_text(eval(parse(text = block))$note[2]))
   expect_equal(eval(parse(text = block))[c("name", "casrn")], awkward[c("name", "casrn")])
 })
+
+test_that("curate_iterate reports drifted identity decisions as pending rows instead of stopping (#182)", {
+  fx <- iterate_fixture()
+  local_mocked_bindings(
+    run_curation_pipeline = function(cleaned_data, ...) mock_pipeline_result(cleaned_data),
+    postprocess_curation_candidates = mock_postprocess,
+    enrich_candidates = mock_enrich,
+    validate_manual_dtxsids = mock_validate
+  )
+  decisions <- file.path(fx$dir, "decisions.R")
+  ledger <- function(row, name) {
+    list(selector = list(original_row_id = row, chemical_name = name), action = "retain_unresolved",
+      scope = "substance", conflict = "none", reason = "Reviewed against an older build",
+      evidence_reference = "fixture", evidence_fingerprint = "identity-v2:stale")
+  }
+  base <- c(
+    sprintf("input_path <- %s", deparse(fx$input_path)),
+    "tag_map <- list(chemical_name = \"Name\", cas_number = \"CASRN\", result = \"Result\", unit = \"Unit\")",
+    "header_row <- 1L",
+    "review_picks <- tibble::tibble(name = \"Chromium\", casrn = NA_character_, dtxsid = \"DTXSID1020322\")"
+  )
+  write_ledger <- function(l) {
+    writeLines(c(base, paste("identity_decisions <-", paste(deparse(l), collapse = "\n"))), decisions)
+  }
+  stale <- list(ledger(1L, "Acetone"), ledger(3L, "Lead"))
+  write_ledger(stale)
+
+  out <- curate_iterate(decisions, verbose = FALSE)
+  expect_false(out$done)
+  expect_equal(out$pending$pending_type, rep("identity_drift", 2))
+  expect_equal(out$pending$row_index, c(1L, 3L))
+  expect_equal(out$pending$drift_recorded_fingerprint, rep("identity-v2:stale", 2))
+  expect_equal(out$identity_drift$current_fingerprint, out$pending$drift_current_fingerprint)
+  expect_false("identity_decision_record" %in% names(out$state$resolution_state))
+  expect_match(paste(readLines(file.path(fx$dir, "status.md")), collapse = "\n"), "## Drifted decisions")
+  expect_equal(readr::read_csv(file.path(fx$dir, "pending.csv"), show_col_types = FALSE)$pending_type,
+    rep("identity_drift", 2))
+
+  # Re-confirming with the reported fingerprint clears the row; a malformed decision still stops.
+  stale[[1]]$evidence_fingerprint <- out$pending$drift_current_fingerprint[1]
+  write_ledger(stale)
+  again <- curate_iterate(decisions, verbose = FALSE)
+  expect_equal(again$identity_drift$original_row_id, 3L)
+  # A retained-unresolved scope stays in the queue as identity_scope; that is not drift.
+  expect_equal(again$pending$pending_type, c("identity_scope", "identity_drift"))
+  expect_true(again$state$resolution_state$identity_scope_reviewed[1])
+  stale[[2]]$action <- "accept"
+  write_ledger(stale)
+  expect_error(curate_iterate(decisions, verbose = FALSE), "Acceptance requires")
+})
