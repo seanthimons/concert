@@ -1122,6 +1122,22 @@ apply_review_override_function <- function(resolution_state, review_overrides) {
 #' @return Updated resolution state.
 #' @export
 apply_review_overrides <- function(resolution_state, review_overrides = NULL) {
+  sync_wqx_consensus_name(replay_review_overrides(resolution_state, review_overrides))
+}
+
+# Replay scripts carry wqx_override_name but not consensus_name, which
+# reviewed_wqx_rows() and the ToxVal mapper read (#195).
+sync_wqx_consensus_name <- function(df) {
+  if (!all(c("consensus_status", "wqx_override_name") %in% names(df))) return(df)
+  rows <- which(df$consensus_status %in% "wqx" & !is.na(df$wqx_override_name) & nzchar(df$wqx_override_name))
+  if (length(rows)) {
+    if (!"consensus_name" %in% names(df)) df$consensus_name <- NA_character_
+    df$consensus_name[rows] <- df$wqx_override_name[rows]
+  }
+  df
+}
+
+replay_review_overrides <- function(resolution_state, review_overrides = NULL) {
   if (!review_overrides_present(review_overrides)) {
     return(resolution_state)
   }

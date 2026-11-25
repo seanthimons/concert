@@ -1244,3 +1244,10 @@ test_that("generate_concert_script embeds non-default desalt workflows", {
   expect_match(gen(desalt_workflows = "ms-ready"), 'desalt_workflows = "ms-ready"', fixed = TRUE)
   expect_no_match(gen(), "desalt_workflows", fixed = TRUE)
 })
+
+test_that("replayed manual WQX override carries the name into consensus_name", {
+  df <- tibble::tibble(consensus_status = c("wqx", "agree"), consensus_name = c("Old", "Lead"),
+    wqx_override_name = c(NA_character_, NA_character_))
+  replayed <- apply_review_overrides(df, data.frame(row = 1L, column = "wqx_override_name", value = "pH"))
+  expect_equal(replayed$consensus_name, c("pH", "Lead"))
+})
