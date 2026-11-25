@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">concert</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.24</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.7.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -37,9 +37,36 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/seanthimons/concert/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/seanthimons/concert/blob/v0.7.0/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.7.0" id="concert-070-2026-11-25">concert 0.7.0 (2026-11-25)<a class="anchor" aria-label="anchor" href="#concert-070-2026-11-25"></a></h2>
+<div class="section level4">
+<h4 id="new-features-0-7-0">New features<a class="anchor" aria-label="anchor" href="#new-features-0-7-0"></a></h4>
+<ul><li>let review_picks name a WQX characteristic, and let a pick or flag carry an input column so it covers only some of the rows sharing its name (<a href="https://github.com/seanthimons/concert/tree/c0da93f84ba90d5e82e3bdc4706f44191f05edda" class="external-link">c0da93f</a>)</li>
+<li>write a run lock and a mapping table from curate_iterate() and take the workbook path as an argument, so a project needs no wrapper to trial-run, detect a stale result or read the mapping (<a href="https://github.com/seanthimons/concert/tree/5a93f6694e2806aa0d486769cf9cecb31fddb014" class="external-link">5a93f66</a>)</li>
+<li>keep identity decisions in a ledger file that concert records, re-confirms and withdraws, so a project needs no recorder script (<a href="https://github.com/seanthimons/concert/tree/a12cbc3231fc7b53505a64122b23e373a9780988" class="external-link">a12cbc3</a>)</li>
+<li>report identity decisions whose evidence changed as pending rows, so curate_iterate() finishes the run instead of stopping at the first one (<a href="https://github.com/seanthimons/concert/tree/32a8d235e948df868a9788712aae51ae3a7a420b" class="external-link">32a8d23</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="performance-0-7-0">Performance<a class="anchor" aria-label="anchor" href="#performance-0-7-0"></a></h4>
+<ul><li>pass the whole name vector to ct_chemical_search_equal in the tie check, so ComptoxR 4.0.8 sends the requests in parallel (<a href="https://github.com/seanthimons/concert/tree/72d6802c8ca406871bde4b6a504d351919c0dcb4" class="external-link">72d6802</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="ci-0-7-0">CI<a class="anchor" aria-label="anchor" href="#ci-0-7-0"></a></h4>
+<ul><li>add new issues to the Tooling project (<a href="https://github.com/seanthimons/concert/issues/189" class="external-link">#189</a>) (<a href="https://github.com/seanthimons/concert/tree/97608a9e3f3b21285c168a68ae8820932b6bf8a6" class="external-link">97608a9</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="docs-0-7-0">Docs<a class="anchor" aria-label="anchor" href="#docs-0-7-0"></a></h4>
+<ul><li>document the scope argument of review_decision_key(), so R CMD check stops warning and the release can cut (<a href="https://github.com/seanthimons/concert/tree/5cef4a4e1f660cafa2b314500d69dca408806ae6" class="external-link">5cef4a4</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="other-changes-0-7-0">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-7-0"></a></h4>
+<ul><li>bump version to 0.7.0 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/f9f94c8c8b46aa171a7da8cd36a49d99256895d1" class="external-link">f9f94c8</a>)</li>
+</ul><p>Full set of changes: <a href="https://github.com/seanthimons/concert/compare/v0.6.24...v0.7.0" class="external-link"><code>v0.6.24...v0.7.0</code></a></p>
+</div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.6.24" id="concert-0624-2026-11-24">concert 0.6.24 (2026-11-24)<a class="anchor" aria-label="anchor" href="#concert-0624-2026-11-24"></a></h2>
 <div class="section level4">
@@ -49,6 +76,10 @@
 <div class="section level4">
 <h4 id="build-0-6-24">Build<a class="anchor" aria-label="anchor" href="#build-0-6-24"></a></h4>
 <ul><li>require ComptoxR 4.0.7 and lock it at v4.0.7 (<a href="https://github.com/seanthimons/concert/tree/9f4771c5bb0339cbd0feaaab43ab47ebee8db48b" class="external-link">9f4771c</a>)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="docs-0-6-24">Docs<a class="anchor" aria-label="anchor" href="#docs-0-6-24"></a></h4>
+<ul><li>update NEWS.md for v0.6.24 [skip ci] (<a href="https://github.com/seanthimons/concert/tree/2106c4013cb506aa27537477fb5a54475c1835f2" class="external-link">2106c40</a>)</li>
 </ul></div>
 <div class="section level4">
 <h4 id="other-changes-0-6-24">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-6-24"></a></h4>
