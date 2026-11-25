@@ -5,6 +5,11 @@
 #       writes <out_dir>/decisions.R and exits.
 #   Rscript curate_loop.R <out_dir>/decisions.R
 #       runs one iteration; exit 0 when done, 2 when rows are still pending.
+#       Add --out-dir <dir> and --output <workbook.xlsx> for a trial run that
+#       leaves the outputs beside decisions.R alone.
+#   Rscript curate_loop.R check <decisions.R> [--out-dir <dir>]
+#       runs nothing; exit 0 when the last run is done and nothing it read has
+#       changed since, 3 when a re-run is needed.
 #   Rscript curate_loop.R record <decisions.R> <batch.csv> --by <who>
 #       appends the identity decisions in <batch.csv> to the ledger.
 #   Rscript curate_loop.R reconfirm <decisions.R> --expect <n> --note <why> --by <who> [--rows 3,7]
@@ -66,6 +71,13 @@ if (args[1] == "migrate") {
   quit(status = 0)
 }
 
-result <- curate_iterate(args[1], verbose = TRUE)
-cat(readLines(file.path(dirname(args[1]), "status.md")), sep = "\n")
+opt <- function(name, default = NULL) if (name %in% args) flag(name) else default
+if (args[1] == "check") {
+  lock <- curate_iterate(args[2], out_dir = opt("--out-dir", dirname(args[2])), check_lock = TRUE)
+  quit(status = if (lock$current && lock$done) 0 else 3)
+}
+
+out_dir <- opt("--out-dir", dirname(args[1]))
+result <- curate_iterate(args[1], out_dir = out_dir, verbose = TRUE, output_path = opt("--output"))
+cat(readLines(file.path(out_dir, "status.md")), sep = "\n")
 quit(status = if (result$done) 0 else 2)

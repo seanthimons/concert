@@ -1,9 +1,13 @@
 # Scoped GUI decisions use the existing backend and portable evidence contract.
-gui_identity_selector <- function(df, row, column_tags) {
+identity_selector_columns <- function(df, column_tags) {
   chemical <- names(column_tags)[unlist(column_tags) %in% c("Name", "CASRN", "DTXSID")]
   cols <- unique(c("original_row_id", chemical, "multi_analyte_part_index", "multi_analyte_source_name", "multi_analyte_source_cas"))
   cols <- intersect(cols, names(df))
-  cols <- cols[!grepl("^(identity_|consensus_|dtxsid|row_flag|\\.)", cols)]
+  cols[!grepl("^(identity_|consensus_|dtxsid|row_flag|\\.)", cols)]
+}
+
+gui_identity_selector <- function(df, row, column_tags) {
+  cols <- identity_selector_columns(df, column_tags)
   if (!"original_row_id" %in% cols || length(cols) < 2L || is.na(df$original_row_id[row])) {
     stop("Source lineage and content are required. Re-curate this source before recording correspondence.", call. = FALSE)
   }

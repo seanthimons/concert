@@ -92,6 +92,9 @@ Set `harmonize <- TRUE` when measurements should be parsed and unit-converted in
 Then:
 
 - `<out_dir>/<input>_curated.xlsx` holds the workbook (plus `_toxval.parquet` when harmonized).
+- `<out_dir>/mapping.csv` (written when done) is the flat result for a pipeline: one line per row with the source columns, `dtxsid`, `wqx_name`, `preferred_name`, `identity_status`, `decided_by` (`automatic`, `pick`, `accepted_suggestion`, `identity_decision`, `flag`), `row_flag` and `identity_blockers`. Read this; do not write a script to build one.
+- `<out_dir>/run_lock.json` records what the run read: a hash of the input file, `decisions.R`, the ledger and every file `decisions.R` names, plus the concert, ComptoxR and DSSTox versions. `Rscript <runner> check <out_dir>/decisions.R` exits 0 when the last run is done and none of that changed, 3 when a re-run is needed. Do not hash inputs yourself.
+- For a trial run that leaves the committed outputs alone, add `--out-dir <scratch_dir> --output <scratch_dir>/curated.xlsx`. Do not copy or rewrite `decisions.R` for this.
 - `<out_dir>/replay.R` reproduces the run with one `curate_headless()` call. Hand this to the user; it is the deliverable that makes the curation reproducible.
 
 Report: rows resolved by CONCERT, rows you picked, rows you flagged and why, and any reference-list or value corrections you introduced.

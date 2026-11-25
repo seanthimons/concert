@@ -624,3 +624,63 @@ test_that("migrate_identity_ledger moves list-form decisions into a ledger once 
   expect_equal(read_identity_ledger(path)[[1]]$selector, list(original_row_id = 1L, a = "x"))
   expect_error(migrate_identity_ledger(decisions), "already exists")
 })
+
+test_that("curate_iterate writes a run lock and mapping, checks the lock and takes an output path (#183)", {
+  fx <- iterate_fixture()
+  local_mocked_bindings(
+    run_curation_pipeline = function(cleaned_data, ...) mock_pipeline_result(cleaned_data),
+    postprocess_curation_candidates = mock_postprocess,
+    enrich_candidates = mock_enrich,
+    validate_manual_dtxsids = mock_validate
+  )
+  decisions <- file.path(fx$dir, "decisions.R")
+  side <- file.path(fx$dir, "picks.csv")
+  writeLines(c("name,casrn,dtxsid", "Chromium,,DTXSID1020322"), side)
+  committed <- file.path(fx$dir, "curated.xlsx")
+  writeLines(c(
+    sprintf("input_path <- %s", deparse(fx$input_path)),
+    sprintf("output_path <- %s", deparse(committed)),
+    "tag_map <- list(chemical_name = \"Name\", cas_number = \"CASRN\", result = \"Result\", unit = \"Unit\")",
+    "header_row <- 1L",
+    sprintf("review_picks <- readr::read_csv(%s, col_types = \"ccc\")", deparse(side))
+  ), decisions)
+
+  expect_equal(curate_iterate(decisions, check_lock = TRUE)$changed, "run_lock.json")
+  result <- curate_iterate(decisions, verbose = FALSE)
+  expect_true(result$done)
+  lock <- jsonlite::fromJSON(file.path(fx$dir, "run_lock.json"))
+  expect_true(lock$done)
+  expect_setequal(names(lock$files), c("decisions.R", "inventory.csv", "picks.csv"))
+  expect_named(lock$versions, c("concert", "ComptoxR", "dsstox"))
+  # The workbook named in decisions.R now exists and must not make the lock stale.
+  expect_true(file.exists(committed))
+  check <- suppressMessages(curate_iterate(decisions, check_lock = TRUE))
+  expect_true(check$current && check$done)
+
+  mapping <- readr::read_csv(file.path(fx$dir, "mapping.csv"), show_col_types = FALSE)
+  expect_equal(mapping$original_row_id, 1:3)
+  expect_equal(mapping$dtxsid, c("DTXSID8021482", "DTXSID1020322", "DTXSID6024161"))
+  expect_equal(mapping$decided_by, c("automatic", "pick", "automatic"))
+  expect_equal(mapping$preferred_name[1], "Acetone")
+  expect_false(anyNA(mapping$preferred_name))
+
+  # A trial run elsewhere leaves the committed outputs alone.
+  trial <- withr::local_tempdir()
+  before <- file.mtime(c(committed, file.path(fx$dir, "run_lock.json")))
+  curate_iterate(decisions, out_dir = trial, verbose = FALSE, output_path = file.path(trial, "trial.xlsx"))
+  expect_true(all(file.exists(file.path(trial, c("trial.xlsx", "mapping.csv", "run_lock.json")))))
+  expect_equal(file.mtime(c(committed, file.path(fx$dir, "run_lock.json"))), before)
+
+  writeLines(c("name,casrn,dtxsid", "Chromium,,DTXSID1020322", "Other,,DTXSID8021482"), side)
+  expect_equal(suppressMessages(curate_iterate(decisions, check_lock = TRUE))$changed, "files.picks.csv")
+
+  # A failed run leaves no lock and no mapping to mistake for current.
+  writeLines("stop('broken')", side)
+  writeLines(sub("readr::read_csv\\(", "source(", readLines(decisions)), decisions)
+  expect_error(curate_iterate(decisions, verbose = FALSE))
+  expect_true(file.exists(file.path(fx$dir, "run_lock.json")))
+  writeLines(sub("source\\(.*", "NULL", readLines(decisions)), decisions)
+  writeLines("x", fx$input_path)
+  expect_error(curate_iterate(decisions, verbose = FALSE))
+  expect_false(any(file.exists(file.path(fx$dir, c("run_lock.json", "mapping.csv")))))
+})
