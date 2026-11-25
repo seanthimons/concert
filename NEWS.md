@@ -1,6 +1,50 @@
 
 
 
+## concert 0.7.0 (2026-11-25)
+
+#### New features
+
+- let review_picks name a WQX characteristic, and let a pick or flag
+  carry an input column so it covers only some of the rows sharing its
+  name
+  ([c0da93f](https://github.com/seanthimons/concert/tree/c0da93f84ba90d5e82e3bdc4706f44191f05edda))
+- write a run lock and a mapping table from curate_iterate() and take
+  the workbook path as an argument, so a project needs no wrapper to
+  trial-run, detect a stale result or read the mapping
+  ([5a93f66](https://github.com/seanthimons/concert/tree/5a93f6694e2806aa0d486769cf9cecb31fddb014))
+- keep identity decisions in a ledger file that concert records,
+  re-confirms and withdraws, so a project needs no recorder script
+  ([a12cbc3](https://github.com/seanthimons/concert/tree/a12cbc3231fc7b53505a64122b23e373a9780988))
+- report identity decisions whose evidence changed as pending rows, so
+  curate_iterate() finishes the run instead of stopping at the first one
+  ([32a8d23](https://github.com/seanthimons/concert/tree/32a8d235e948df868a9788712aae51ae3a7a420b))
+
+#### Performance
+
+- pass the whole name vector to ct_chemical_search_equal in the tie
+  check, so ComptoxR 4.0.8 sends the requests in parallel
+  ([72d6802](https://github.com/seanthimons/concert/tree/72d6802c8ca406871bde4b6a504d351919c0dcb4))
+
+#### CI
+
+- add new issues to the Tooling project (#189)
+  ([97608a9](https://github.com/seanthimons/concert/tree/97608a9e3f3b21285c168a68ae8820932b6bf8a6))
+
+#### Docs
+
+- document the scope argument of review_decision_key(), so R CMD check
+  stops warning and the release can cut
+  ([5cef4a4](https://github.com/seanthimons/concert/tree/5cef4a4e1f660cafa2b314500d69dca408806ae6))
+
+#### Other changes
+
+- bump version to 0.7.0 \[skip ci\]
+  ([f9f94c8](https://github.com/seanthimons/concert/tree/f9f94c8c8b46aa171a7da8cd36a49d99256895d1))
+
+Full set of changes:
+[`v0.6.24...v0.7.0`](https://github.com/seanthimons/concert/compare/v0.6.24...v0.7.0)
+
 ## concert 0.6.24 (2026-11-24)
 
 #### Bug fixes
@@ -13,6 +57,11 @@
 
 - require ComptoxR 4.0.7 and lock it at v4.0.7
   ([9f4771c](https://github.com/seanthimons/concert/tree/9f4771c5bb0339cbd0feaaab43ab47ebee8db48b))
+
+#### Docs
+
+- update NEWS.md for v0.6.24 \[skip ci\]
+  ([2106c40](https://github.com/seanthimons/concert/tree/2106c4013cb506aa27537477fb5a54475c1835f2))
 
 #### Other changes
 
