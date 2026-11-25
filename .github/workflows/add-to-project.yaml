@@ -1,22 +1,21 @@
-# Adds every new issue in this repository to the cross-repo Tooling project.
-# Secret ADD_TO_PROJECT_PAT: classic personal access token with the project scope
-# (plus repo, because one token also serves a private repository). The default
-# GITHUB_TOKEN cannot write to a user-level project.
+# Caller: add each new issue in this repo to the cross-repo Tooling project.
+# Permissions: contents: read.
+# Secret ADD_TO_PROJECT_PAT: classic PAT with the project scope, plus repo when this
+# repository is private.
 name: Add to project
 
 on:
   issues:
     types: [opened]
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   add:
     name: Add to project
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/add-to-project@f2c1f1fa649a891be84948ea89b5dfba1526ef05 # v2.0.1
-        with:
-          project-url: https://github.com/users/seanthimons/projects/4
-          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
+    uses: seanthimons/baseline/.github/workflows/add-to-project.yaml@6390d0d0d52ab8eba81d81ce75215c6dd2ab377d # v2.3.0
+    with:
+      project-url: https://github.com/users/seanthimons/projects/4
+    secrets:
+      ADD_TO_PROJECT_PAT: ${{ secrets.ADD_TO_PROJECT_PAT }}
