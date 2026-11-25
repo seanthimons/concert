@@ -1088,6 +1088,9 @@ apply_queued_review_overrides <- function(resolution_state, queue, validation_re
       updated_df$consensus_dtxsid[target_rows] <- NA_character_
       updated_df$consensus_source[target_rows] <- "manual_wqx"
       updated_df$wqx_override_name[target_rows] <- canonical_name
+      # reviewed_wqx_rows() and mapping_table() read consensus_name.
+      if (!"consensus_name" %in% names(updated_df)) updated_df$consensus_name <- NA_character_
+      updated_df$consensus_name[target_rows] <- canonical_name
       updated_df$.pinned[target_rows] <- TRUE
       updated_df$.resolution_method[target_rows] <- "manual_wqx"
       updated_df$.manual_entry[target_rows] <- FALSE
