@@ -602,6 +602,7 @@ test_that("queued WQX overrides apply across review statuses", {
   expect_true(all(is.na(updated$consensus_dtxsid)))
   expect_equal(updated$consensus_source, rep("manual_wqx", length(statuses)))
   expect_equal(updated$wqx_override_name, rep("Canonical WQX", length(statuses)))
+  expect_equal(updated$consensus_name, rep("Canonical WQX", length(statuses)))
   expect_true(all(updated$.pinned))
   expect_equal(updated$.resolution_method, rep("manual_wqx", length(statuses)))
   expect_false(any(updated$.manual_entry))
