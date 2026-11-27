@@ -172,7 +172,7 @@ script_map <- c(
 misc_map <- c(
   "\u00b5" = "u", # Micro sign
   "\u03bc" = "u", # Small Greek Mu
-  "\u00b0" = "", # Degree sign (usually removed in chemical names)
+  "\u00b0" = "deg ", # Degree sign; trailing space gives "deg C"/"deg F", matching the unit map
   "\u2122" = "", # TM
   "\u00ae" = "", # Registered
   "\u00a9" = "", # Copyright
