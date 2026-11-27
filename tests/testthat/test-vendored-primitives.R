@@ -51,6 +51,26 @@ test_that("clean_unicode maps chemistry unicode and is NOT a silent no-op", {
   expect_equal(out$b, 1L)
 })
 
+test_that("unicode records from real uncurated data clean to single-spaced ASCII (#202)", {
+  names_in <- c(
+    "Palygorskite fibers (> 5\u00b5m in length)",
+    "TRIM\u00ae VX",
+    "Vertasil\u00ae  Trisiloxanyl-cannabidiol"
+  )
+  # clean_unicode maps the characters but leaves whitespace alone
+  expect_equal(
+    clean_unicode(names_in),
+    c("Palygorskite fibers (> 5um in length)", "TRIM VX", "Vertasil  Trisiloxanyl-cannabidiol")
+  )
+  # the pipeline's whitespace step, which runs after unicode_to_ascii, collapses the double space
+  cleaned <- suppressMessages(run_cleaning_pipeline(tibble::tibble(chemical_name = names_in)))
+  expect_equal(
+    cleaned$cleaned_data$chemical_name,
+    c("Palygorskite fibers (> 5um in length)", "TRIM VX", "Vertasil Trisiloxanyl-cannabidiol")
+  )
+  expect_setequal(cleaned$audit_trail$step, c("unicode_to_ascii", "trim_whitespace_punctuation"))
+})
+
 test_that("extract_mixture detects ratio patterns (the gap flag_multi_analyte does not cover)", {
   names_in <- c(
     "Ethanol, water (1:1)",
