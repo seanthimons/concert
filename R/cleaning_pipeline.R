@@ -2783,11 +2783,22 @@ run_cleaning_pipeline_masked <- function(
   new_tags <- list()
   df_work <- inject_row_lineage(df)
 
+  # Mappings such as the degree sign -> "deg " can leave stray spaces, and the
+  # whitespace step may be masked off, so collapse space runs (including spaces
+  # left at a line end) in the cells this step changed. Line breaks and tabs stay.
+  clean_unicode_cells <- function(x) {
+    out <- clean_unicode(x)
+    changed <- which(!is.na(x) & out != x)
+    spaced <- gsub(" {2,}", " ", out[changed])
+    out[changed] <- trimws(gsub(" +(?=\r?\n)", "", spaced, perl = TRUE), whitespace = "[ ]")
+    out
+  }
+
   unicode_step_fn <- function(df_in, ...) {
     df_out <- df_in %>%
-      dplyr::mutate(dplyr::across(tidyselect::where(is.character), clean_unicode))
+      dplyr::mutate(dplyr::across(tidyselect::where(is.character), clean_unicode_cells))
     audit <- build_audit_trail(df_in, df_out, "unicode_to_ascii", function(field) {
-      paste0("Convert unicode characters to ASCII equivalents in ", field)
+      paste0("Convert unicode characters to ASCII equivalents (and collapse resulting spaces) in ", field)
     })
     list(cleaned_data = df_out, audit_trail = audit)
   }

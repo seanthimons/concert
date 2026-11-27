@@ -51,6 +51,67 @@ test_that("clean_unicode maps chemistry unicode and is NOT a silent no-op", {
   expect_equal(out$b, 1L)
 })
 
+test_that("unicode records from real uncurated data clean to single-spaced ASCII (#202)", {
+  names_in <- c(
+    "Palygorskite fibers (> 5\u00b5m in length)",
+    "TRIM\u00ae VX",
+    "Vertasil\u00ae  Trisiloxanyl-cannabidiol"
+  )
+  # clean_unicode maps the characters but leaves whitespace alone
+  expect_equal(
+    clean_unicode(names_in),
+    c("Palygorskite fibers (> 5um in length)", "TRIM VX", "Vertasil  Trisiloxanyl-cannabidiol")
+  )
+  # the pipeline's unicode step collapses space runs in the cells it changes, fixing the double space
+  cleaned <- suppressMessages(run_cleaning_pipeline(tibble::tibble(chemical_name = names_in)))
+  expect_equal(
+    cleaned$cleaned_data$chemical_name,
+    c("Palygorskite fibers (> 5um in length)", "TRIM VX", "Vertasil Trisiloxanyl-cannabidiol")
+  )
+  expect_setequal(cleaned$audit_trail$step, "unicode_to_ascii")
+})
+
+test_that("degree sign maps to 'deg ' so names keep meaning and units still harmonize", {
+  expect_equal(clean_unicode("\u00b0C"), "deg C")
+  # temperature ranges inside petroleum UVCB descriptions keep their units
+  cleaned <- suppressMessages(run_cleaning_pipeline(tibble::tibble(
+    chemical_name = "naphtha [boiling range approximately -40 \u00b0c to 80 \u00b0c (-40 \u00b0f to 176 \u00b0f)]"
+  )))
+  expect_equal(
+    cleaned$cleaned_data$chemical_name,
+    "naphtha [boiling range approximately -40 deg c to 80 deg c (-40 deg f to 176 deg f)]"
+  )
+  # cleaned temperature units still resolve against the unit map
+  units <- clean_text_field(clean_unicode(c("\u00b0C", "\u00b0F", "\u00b0 C")))
+  expect_equal(units, c("deg C", "deg F", "deg C"))
+  result <- suppressWarnings(harmonize_units(c(20, 68, 20), units, load_unit_map(), use_dedup = FALSE))
+  expect_equal(result$harmonized_unit, rep("deg C", 3))
+  expect_equal(result$harmonized_value, c(20, 20, 20), tolerance = 1e-12)
+  expect_equal(result$unit_flag, rep("", 3))
+})
+
+test_that("unicode step leaves no stray spaces when the whitespace step is masked off", {
+  # The app can run the unicode step alone (whitespace box unchecked, prechecks off)
+  df <- tibble::tibble(chemical_name = c("heated to 30\u00b0", "TRIM\u00ae  VX"), unit = c("\u00b0 C", "\u00b0F"))
+  cleaned <- suppressMessages(run_cleaning_pipeline_masked(
+    df,
+    mask = list(unicode = TRUE, whitespace = FALSE),
+    respect_prechecks = FALSE
+  ))
+  expect_equal(cleaned$cleaned_data$chemical_name, c("heated to 30deg", "TRIM VX"))
+  expect_equal(cleaned$cleaned_data$unit, c("deg C", "deg F"))
+  expect_false("trim_whitespace_punctuation" %in% cleaned$audit_trail$step)
+})
+
+test_that("unicode step keeps line breaks in cells it changes", {
+  cleaned <- suppressMessages(run_cleaning_pipeline_masked(
+    tibble::tibble(note = c("25 \u00b0C\nsee ref 3", "30\u00b0\nnext", "30\u00b0\r\nnext")),
+    mask = list(unicode = TRUE, whitespace = FALSE),
+    respect_prechecks = FALSE
+  ))
+  expect_equal(cleaned$cleaned_data$note, c("25 deg C\nsee ref 3", "30deg\nnext", "30deg\r\nnext"))
+})
+
 test_that("extract_mixture detects ratio patterns (the gap flag_multi_analyte does not cover)", {
   names_in <- c(
     "Ethanol, water (1:1)",
